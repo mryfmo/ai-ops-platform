@@ -236,24 +236,20 @@ async function main(): Promise<void> {
         secDeps: { githubClient, auditLog },
         traceIdProvider: () => randomUUID(),
       }),
-      guardTask(
-        createSubscriptionRenewalTask({
-          graphSubscriptionsRepo,
-          graphClient,
-          auditLog,
-          traceIdProvider: () => randomUUID(),
-        }),
-      ),
-      guardTask(
-        createChannelPollingTask({
-          graphSubscriptionsRepo,
-          projectChannelsRepo,
-          channelMessagesRepo,
-          graphClient,
-          auditLog,
-          traceIdProvider: () => randomUUID(),
-        }),
-      ),
+      createSubscriptionRenewalTask({
+        graphSubscriptionsRepo,
+        graphClient,
+        auditLog,
+        traceIdProvider: () => randomUUID(),
+      }),
+      createChannelPollingTask({
+        graphSubscriptionsRepo,
+        projectChannelsRepo,
+        channelMessagesRepo,
+        graphClient,
+        auditLog,
+        traceIdProvider: () => randomUUID(),
+      }),
       guardTask(
         createEventsPollingTask({
           eventsRepo,

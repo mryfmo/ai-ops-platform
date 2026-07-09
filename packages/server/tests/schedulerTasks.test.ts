@@ -132,8 +132,7 @@ describe("jitRevocationTask (TH-007 / SPEC-INT-032)", () => {
     expect(logs.some((l) => l.action === "auto_revoke" && l.basis === "TH-007")).toBe(true);
   });
 
-  it("実際のフェイルセーフフラグが有効でもJIT失効revokeは許可される", async () => {
-    const failsafeActive = true;
+  it("JIT失効revokeはfailsafe guardの対象外として実行される", async () => {
     const removed: string[] = [];
     const marked: string[][] = [];
     const grantsRepo = {
@@ -169,7 +168,6 @@ describe("jitRevocationTask (TH-007 / SPEC-INT-032)", () => {
     });
 
     await task.run(new Date("2026-07-07T00:00:00Z"));
-    expect(failsafeActive).toBe(true);
     expect(removed).toEqual(["ext-user"]);
     expect(marked).toEqual([["g-expired"]]);
   });
