@@ -10,7 +10,9 @@ Before go-live:
 2. Enable branch protection for `main`.
 3. Enable "Require review from Code Owners".
 
-CI fails while `@OWNER` or common CODEOWNERS placeholder tokens remain. It does not prove branch protection is enabled; repository settings must still require CODEOWNERS review before go-live.
+CI fails while `@OWNER`, common CODEOWNERS placeholder tokens, unverified `@user/team` owners, or email-style owners such as `nobody@example.com` remain.
+The verified owner allowlist lives in `scripts/check-codeowners.mjs`; update it only after confirming the account/team with `gh`.
+This does not prove branch protection is enabled; repository settings must still require CODEOWNERS review before go-live.
 
 ## AI PR Token
 

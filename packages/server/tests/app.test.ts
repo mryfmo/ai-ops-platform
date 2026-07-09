@@ -94,13 +94,17 @@ describe("health endpoints (ADR-0005)", () => {
     expect(res.status).toBe(503);
   });
 
-  it("GET /readyz はフェイルセーフ中に503", async () => {
+  it("GET /readyz は実際のフェイルセーフフラグが有効なら503", async () => {
     const { deps } = makeDeps();
-    deps.readiness = { isReady: async () => false };
+    let failsafeActive = true;
+    deps.readiness = { isReady: async () => !failsafeActive };
     const app = buildApp(deps);
     const res = await app.request("/readyz");
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({ ready: false });
+    failsafeActive = false;
+    const recovered = await app.request("/readyz");
+    expect(recovered.status).toBe(200);
   });
 });
 

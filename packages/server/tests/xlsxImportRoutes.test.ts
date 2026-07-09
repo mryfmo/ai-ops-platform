@@ -26,7 +26,7 @@ function githubStub(): XlsxImportGithubClient {
 }
 
 function deps(
-  options: { importSecret?: string; allowedRepos?: string[] } = {
+  options: { importSecret?: string; allowedRepos?: string[]; failsafe?: boolean } = {
     importSecret: XLSX_IMPORT_SECRET,
     allowedRepos: ["acme/widget"],
   },
@@ -64,6 +64,7 @@ function deps(
       traceIdProvider: () => "00000000-0000-4000-8000-000000000008",
       importSecret: options.importSecret,
       allowedRepos: options.allowedRepos,
+      isFailsafeActive: () => options.failsafe ?? false,
     },
   };
 }
@@ -160,5 +161,21 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     expect(json.result.imported).toBe(3);
     expect(d.xlsxImport.githubClient.createIssue).toHaveBeenCalled();
     expect((await d.auditLog.readAll()).some((record) => record.action === "xlsx_import_executed")).toBe(true);
+  });
+
+  it("executeはフェイルセーフ中にGitHub書き込みを呼ばず503と監査ログを返す", async () => {
+    const d = deps({ importSecret: XLSX_IMPORT_SECRET, allowedRepos: ["acme/widget"], failsafe: true });
+    const app = buildApp(d);
+    const body = await buildXlsxImportTemplateBuffer();
+    const res = await app.request("/xlsx-import/execute?owner=acme&repo=widget", {
+      method: "POST",
+      headers: signedHeaders(body, { "x-confirm-import": "yes" }),
+      body,
+    });
+    expect(res.status).toBe(503);
+    expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
+    expect((await d.auditLog.readAll()).some((record) => record.action === "xlsx_import_blocked_by_failsafe")).toBe(
+      true,
+    );
   });
 });

@@ -380,6 +380,7 @@ async function main(): Promise<void> {
       traceIdProvider: () => randomUUID(),
       importSecret: config.XLSX_IMPORT_SECRET,
       allowedRepos: config.XLSX_IMPORT_ALLOWED_REPOS,
+      isFailsafeActive: () => failsafeActive,
     },
     reports: {
       ingestSecret: config.REPORT_INGEST_SECRET,

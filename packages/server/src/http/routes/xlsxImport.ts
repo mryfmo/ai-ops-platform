@@ -22,6 +22,7 @@ export interface XlsxImportRoutesDeps {
   traceIdProvider(): string;
   importSecret?: string;
   allowedRepos?: string[];
+  isFailsafeActive?: () => boolean;
 }
 
 function requiredQuery(c: { req: { query(name: string): string | undefined } }, name: string): string {
@@ -118,6 +119,18 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
         at: new Date().toISOString(),
       });
       return c.json({ error: "repository not allowed" }, 403);
+    }
+    if (deps.isFailsafeActive?.()) {
+      const traceId = deps.traceIdProvider();
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "xlsx_import_blocked_by_failsafe",
+        basis: "REQ-029",
+        detail: { owner, repo },
+        at: new Date().toISOString(),
+      });
+      return c.json({ error: "failsafe active" }, 503);
     }
 
     const parsed = await parseXlsxImport(body.buffer);
