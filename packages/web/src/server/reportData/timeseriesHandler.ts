@@ -126,6 +126,9 @@ export async function handleTimeseries(deps: TimeseriesHandlerDeps): Promise<Res
 
     return Response.json(aggregateTimeseries({ period: deps.period, baseDate: deps.baseDate, events, snapshots }));
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith("invalid date:")) {
+      return Response.json({ error: err.message }, { status: 400 });
+    }
     return toErrorResponse(err);
   }
 }

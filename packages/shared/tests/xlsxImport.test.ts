@@ -136,6 +136,31 @@ describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     const parsed = await parseXlsxImport(buffer);
     expect(parsed.rows[0]).toMatchObject({ kind: "milestone", dueOn: "2026-07-09" });
   });
+
+  it("AC-037-1: due_onの非ISO日付文字列はTZ依存で解釈せず行エラーにする", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title", "body", "labels", "milestone"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      const milestones = workbook.getWorksheet("milestones")!;
+      addHeaders(milestones, ["source_key", "title", "due_on", "description"]);
+      milestones.addRow(["MS-1", "v1", "07/09/2026", "desc"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.errors).toContainEqual({
+      sheet: "milestones",
+      row: 2,
+      column: "due_on",
+      message: "invalid date format",
+    });
+  });
 });
 
 describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {

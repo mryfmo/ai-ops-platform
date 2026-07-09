@@ -78,8 +78,7 @@ function normalizeDate(value: unknown): string {
   if (!text) return "";
   const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
   if (datePart) return datePart;
-  const date = new Date(text);
-  return Number.isNaN(date.getTime()) ? text : date.toISOString().slice(0, 10);
+  return text;
 }
 
 function rowValues(sheet: ExcelJS.Worksheet, rowNumber: number): Record<string, unknown> {
@@ -115,6 +114,18 @@ function validateRequired(
     if (column.required && asText(values[column.key]).length === 0) {
       errors.push({ sheet: sheetName, row: rowNumber, column: column.key, message: "required value missing" });
     }
+  }
+}
+
+function validateDateFormat(
+  sheetName: SheetName,
+  rowNumber: number,
+  values: Record<string, unknown>,
+  errors: ImportValidationError[],
+): void {
+  if (sheetName !== "milestones" || values.due_on instanceof Date || asText(values.due_on).length === 0) return;
+  if (!/^\d{4}-\d{2}-\d{2}/.test(asText(values.due_on))) {
+    errors.push({ sheet: sheetName, row: rowNumber, column: "due_on", message: "invalid date format" });
   }
 }
 
@@ -170,6 +181,7 @@ export async function parseXlsxImport(buffer: Buffer): Promise<ParsedXlsxImport>
       const values = rowValues(sheet, rowNumber);
       if (!hasAnyData(values)) continue;
       validateRequired(sheetName, rowNumber, values, errors);
+      validateDateFormat(sheetName, rowNumber, values, errors);
       const sourceKey = cleanText(values.source_key);
       if (sourceKey) {
         const previous = seenSourceKeys.get(sourceKey);

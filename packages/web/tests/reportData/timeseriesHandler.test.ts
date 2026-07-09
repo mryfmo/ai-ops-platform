@@ -87,6 +87,30 @@ describe("handleTimeseries (ADR-0007)", () => {
     expect(res.status).toBe(403);
   });
 
+  it("L1-7: 不正baseDateはクライアントエラーとして400を返す", async () => {
+    const personas: ResolvedPersona[] = [
+      {
+        domain: "prjops",
+        profile: "PRF-03",
+        visibility: {
+          recipientStakeholderId: "ST-001",
+          recipientManagedProjectIds: ["PJ-001"],
+          recipientAssignedProjectIds: [],
+          recipientParticipatingProjectIds: [],
+          investedProjectIds: [],
+        },
+      },
+    ];
+    const res = await handleTimeseries({
+      getSession: sessionWithEmail,
+      resolver: resolverWith(personas),
+      db: { query: vi.fn() },
+      period: "week",
+      baseDate: "2026-13-45",
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("L1b-2: pm_eventsのdeployment_statusをDeploy数として集計する", async () => {
     const personas: ResolvedPersona[] = [
       {
