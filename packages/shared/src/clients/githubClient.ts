@@ -56,6 +56,15 @@ export interface CreateIssueInput {
   title: string;
   body: string;
   labels: string[];
+  milestone?: string;
+}
+
+export interface CreateMilestoneInput {
+  owner: string;
+  repo: string;
+  title: string;
+  dueOn?: string;
+  description?: string;
 }
 
 export interface WorkflowDispatchInput {
@@ -99,11 +108,82 @@ export class GitHubClient {
     const res = await this.fetchImpl(`${this.baseUrl}/repos/${input.owner}/${input.repo}/issues`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels }),
+      body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels, milestone: input.milestone }),
     });
     if (!res.ok) throw new Error(`E-GEN03: createIssue failed with status ${res.status}`);
     const json = (await res.json()) as { number: number; html_url: string };
     return { number: json.number, htmlUrl: json.html_url };
+  }
+
+  /** REQ-037 / SPEC-INT-063: ExcelインポートからMilestoneを作成する。 */
+  async createMilestone(input: CreateMilestoneInput): Promise<{ number: number; htmlUrl: string; nodeId?: string }> {
+    const headers = await this.headers();
+    const res = await this.fetchImpl(`${this.baseUrl}/repos/${input.owner}/${input.repo}/milestones`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title: input.title, due_on: input.dueOn, description: input.description }),
+    });
+    if (!res.ok) throw new Error(`E-GEN04: createMilestone failed with status ${res.status}`);
+    const json = (await res.json()) as { number: number; html_url: string; node_id?: string };
+    return { number: json.number, htmlUrl: json.html_url, nodeId: json.node_id };
+  }
+
+  async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const headers = await this.headers();
+    const res = await this.fetchImpl(`${this.baseUrl}/graphql`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!res.ok) throw new Error(`E-GQL01: graphql failed with status ${res.status}`);
+    const json = (await res.json()) as { data?: T; errors?: unknown };
+    if (json.errors) throw new Error("E-GQL02: graphql returned errors");
+    return json.data as T;
+  }
+
+  /** rateLimitは実行時に読む。固定ポイント値をコードに置かない（ADR-0008 / deep research）。 */
+  async getGraphqlRateLimit(): Promise<{ remaining: number; resetAt: string }> {
+    const data = await this.graphql<{ rateLimit: { remaining: number; resetAt: string } }>(
+      "query RateLimit { rateLimit { remaining resetAt } }",
+      {},
+    );
+    return { remaining: data.rateLimit.remaining, resetAt: data.rateLimit.resetAt };
+  }
+
+  async addProjectV2ItemById(input: { projectNodeId: string; contentNodeId: string }): Promise<{ itemNodeId: string }> {
+    const data = await this.graphql<{ addProjectV2ItemById: { item: { id: string } } }>(
+      `mutation AddProjectItem($projectId: ID!, $contentId: ID!) {
+        addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) { item { id } }
+      }`,
+      { projectId: input.projectNodeId, contentId: input.contentNodeId },
+    );
+    return { itemNodeId: data.addProjectV2ItemById.item.id };
+  }
+
+  async updateProjectV2ItemFieldValue(input: {
+    projectNodeId: string;
+    itemNodeId: string;
+    fieldNodeId: string;
+    fieldType: string;
+    value: string;
+  }): Promise<void> {
+    await this.graphql(
+      `mutation UpdateProjectItem($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+        updateProjectV2ItemFieldValue(input: {
+          projectId: $projectId,
+          itemId: $itemId,
+          fieldId: $fieldId,
+          value: { text: $value }
+        }) { projectV2Item { id } }
+      }`,
+      {
+        projectId: input.projectNodeId,
+        itemId: input.itemNodeId,
+        fieldId: input.fieldNodeId,
+        value: input.value,
+        fieldType: input.fieldType,
+      },
+    );
   }
 
   /**

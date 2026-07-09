@@ -269,3 +269,16 @@ ALTER TABLE project_channels ADD COLUMN IF NOT EXISTS github_repo TEXT;
 ALTER TABLE coding_tasks ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
 ALTER TABLE coding_tasks ADD COLUMN IF NOT EXISTS confirm_token_hash TEXT;
 -- rollback: ALTER TABLE coding_tasks DROP COLUMN IF EXISTS confirmed_at; ALTER TABLE coding_tasks DROP COLUMN IF EXISTS confirm_token_hash;
+
+-- 2026-07-09 ADR-0008 / REQ-037 / SPEC-INT-063: Excelインポート台帳。
+-- source_keyはテンプレートの安定キー列。issue body末尾の <!-- import:source_key --> と二重防御にする。
+CREATE TABLE IF NOT EXISTS import_ledger (
+  source_key     TEXT PRIMARY KEY,
+  target_kind    TEXT NOT NULL CHECK (target_kind IN ('issue', 'project_item', 'milestone')),
+  github_id      TEXT NOT NULL,
+  import_run_id  UUID NOT NULL,
+  status         TEXT NOT NULL CHECK (status IN ('imported', 'skipped', 'failed')),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_import_ledger_run ON import_ledger (import_run_id);
+-- rollback: DROP TABLE import_ledger;

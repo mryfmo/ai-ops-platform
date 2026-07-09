@@ -14,3 +14,7 @@ export * from "./reporting/reportSchema.js";
 export * from "./reporting/reportValidation.js";
 export * from "./reporting/reportPrompt.js";
 export * from "./reporting/reportGenerator.js";
+export * from "./xlsxImport/template.js";
+export * from "./xlsxImport/generateTemplate.js";
+export * from "./xlsxImport/parser.js";
+export * from "./xlsxImport/engine.js";

@@ -19,6 +19,7 @@ import { registerGraphNotificationRoutes, type GraphNotificationDeps } from "./r
 import { registerGithubWebhookRoutes, type GithubWebhookDeps } from "./routes/githubWebhook.js";
 import { registerCodingTaskRoutes, type CodingTaskRoutesDeps } from "./routes/codingTasks.js";
 import { registerWebuiProxy, type WebuiProxyDeps } from "./routes/webuiProxy.js";
+import { registerXlsxImportRoutes, type XlsxImportRoutesDeps } from "./routes/xlsxImport.js";
 
 export interface AppDependencies {
   auditLog: AuditLogWriter;
@@ -26,6 +27,7 @@ export interface AppDependencies {
   graph: GraphNotificationDeps;
   github: GithubWebhookDeps;
   codingTasks: CodingTaskRoutesDeps;
+  xlsxImport: XlsxImportRoutesDeps;
   webui?: WebuiProxyDeps; // 未指定時は /app/* を503にする（WebUI未起動の縮退運転）
 }
 
@@ -35,6 +37,7 @@ export function buildApp(deps: AppDependencies): Hono {
   registerGraphNotificationRoutes(app, deps.graph);
   registerGithubWebhookRoutes(app, deps.github);
   registerCodingTaskRoutes(app, deps.codingTasks);
+  registerXlsxImportRoutes(app, deps.xlsxImport);
   registerWebuiProxy(app, deps.webui);
   return app;
 }

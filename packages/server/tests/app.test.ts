@@ -53,6 +53,21 @@ function makeDeps() {
       resolveRepoForProject: async () => ({ githubOwner: "acme", githubRepo: "widget" }),
       traceIdProvider: () => `trace-${++traceSeq}`,
     },
+    xlsxImport: {
+      ledger: {
+        findBySourceKey: async () => null,
+        insert: async () => {},
+      },
+      githubClient: {
+        createIssue: async () => ({ number: 1, htmlUrl: "https://example.invalid/issues/1" }),
+        createMilestone: async () => ({ number: 1, htmlUrl: "https://example.invalid/milestones/1" }),
+        addProjectV2ItemById: async () => ({ itemNodeId: "PVTI_1" }),
+        updateProjectV2ItemFieldValue: async () => {},
+        getGraphqlRateLimit: async () => ({ remaining: 100, resetAt: "2026-07-09T00:00:00Z" }),
+      },
+      auditLog,
+      traceIdProvider: () => `trace-${++traceSeq}`,
+    },
   };
   return { deps, auditLog, inboundEvents, githubEvents };
 }

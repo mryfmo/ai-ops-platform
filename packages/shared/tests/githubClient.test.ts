@@ -82,6 +82,43 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
     expect(result.number).toBe(7);
   });
 
+  it("createMilestone はMilestone APIをPOSTで呼ぶ（REQ-037/SPEC-INT-063）", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      { status: 201, body: { number: 3, html_url: "https://github.com/acme/x/milestone/3", node_id: "M_3" } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const result = await client.createMilestone({
+      owner: "acme",
+      repo: "prjops-system",
+      title: "v1",
+      dueOn: "2026-08-31",
+      description: "初回リリース",
+    });
+    expect(result.nodeId).toBe("M_3");
+    expect(calls[0]!.url).toContain("/repos/acme/prjops-system/milestones");
+    expect(calls[0]!.init?.body).toContain("due_on");
+  });
+
+  it("Project v2 itemはadd→updateをGraphQLで呼べる（REQ-037/SPEC-INT-063）", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      { status: 200, body: { data: { addProjectV2ItemById: { item: { id: "PVTI_1" } } } } },
+      { status: 200, body: { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: "PVTI_1" } } } } },
+      { status: 200, body: { data: { rateLimit: { remaining: 123, resetAt: "2026-07-09T00:00:00Z" } } } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const added = await client.addProjectV2ItemById({ projectNodeId: "P", contentNodeId: "I" });
+    await client.updateProjectV2ItemFieldValue({
+      projectNodeId: "P",
+      itemNodeId: added.itemNodeId,
+      fieldNodeId: "F",
+      fieldType: "text",
+      value: "Ready",
+    });
+    const limit = await client.getGraphqlRateLimit();
+    expect(limit.remaining).toBe(123);
+    expect(calls.every((call) => call.url.endsWith("/graphql"))).toBe(true);
+  });
+
   it("dispatchWorkflow は失敗時にE-DEP01を投げる", async () => {
     const { fetch: fetchImpl } = makeFakeFetch([{ status: 403 }]);
     const client = new GitHubClient(tokenProvider, fetchImpl);
