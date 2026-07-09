@@ -1,9 +1,14 @@
+"use client";
+
 /**
  * packages/web/src/components/views/InvestorReportView.tsx
  *
- * 根拠: REQ-039 / SPEC-INT-066 / AC-039-1 / ADR-0011。
+ * 根拠: REQ-039 / SPEC-INT-066 / AC-039-1 / ADR-0011 / AC-010-3。
  */
+import { toMetricBarData } from "../charts/chartData";
+import { MetricHorizontalBars } from "../charts/RechartsPanels";
 import { Card } from "../ui/Card";
+import { ChartContainer } from "../ui/ChartContainer";
 import { DataTable, type DataTableColumn } from "../ui/DataTable";
 
 export interface InvestorMetricValue {
@@ -41,23 +46,31 @@ export function InvestorReportView({ data }: { data: InvestorReportData }) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Investor Report</h1>
+      <div>
+        <p className="text-sm font-medium text-dashboard-muted">Investor</p>
+        <h1 className="text-2xl font-bold tracking-normal text-dashboard-ink">Investor Report</h1>
+      </div>
       <Card title="ハイライト">
-        <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
+        <ul className="list-disc space-y-1 pl-5 text-sm text-dashboard-ink">
           {data.highlights.map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ul>
       </Card>
-      <Card title="KPI">
-        <DataTable columns={kpiColumns} rows={data.kpis} rowKey={(row) => row.metricId} />
-      </Card>
-      <Card title="マイルストーン">
-        <DataTable columns={milestoneColumns} rows={data.milestones} rowKey={(row) => row.projectId} />
-      </Card>
-      <Card title="リスク">
-        <DataTable columns={riskColumns} rows={data.risks} rowKey={(row) => row.projectId} />
-      </Card>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <ChartContainer title="KPI 現在値" description="主要指標を横断比較">
+          <MetricHorizontalBars data={toMetricBarData(data.kpis)} />
+        </ChartContainer>
+        <Card title="KPI">
+          <DataTable columns={kpiColumns} rows={data.kpis} rowKey={(row) => row.metricId} />
+        </Card>
+        <Card title="マイルストーン">
+          <DataTable columns={milestoneColumns} rows={data.milestones} rowKey={(row) => row.projectId} />
+        </Card>
+        <Card title="リスク">
+          <DataTable columns={riskColumns} rows={data.risks} rowKey={(row) => row.projectId} />
+        </Card>
+      </div>
     </div>
   );
 }

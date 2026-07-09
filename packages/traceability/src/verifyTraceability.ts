@@ -136,9 +136,10 @@ async function main(): Promise<void> {
   const sharedDir = join(REPO_ROOT, "packages", "shared");
   const prjopsDir = join(REPO_ROOT, "packages", "prjops");
   const devopsDir = join(REPO_ROOT, "packages", "devops");
+  const webDir = join(REPO_ROOT, "packages", "web");
 
-  const prjopsCorpus = buildCorpus([sharedDir, prjopsDir]);
-  const devopsCorpus = buildCorpus([sharedDir, devopsDir]);
+  const prjopsCorpus = buildCorpus([sharedDir, prjopsDir, webDir]);
+  const devopsCorpus = buildCorpus([sharedDir, devopsDir, webDir]);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsCorpus),

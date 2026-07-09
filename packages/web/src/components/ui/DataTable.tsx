@@ -27,9 +27,12 @@ export function DataTable<T>({ columns, rows, rowKey, emptyMessage = "データ�
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-gray-300 text-left">
+          <tr className="border-b border-dashboard-border text-left">
             {columns.map((col) => (
-              <th key={col.key} className={`px-3 py-2 font-semibold text-gray-700 ${col.className ?? ""}`.trim()}>
+              <th
+                key={col.key}
+                className={`px-3 py-2 font-semibold text-dashboard-muted ${col.className ?? ""}`.trim()}
+              >
                 {col.header}
               </th>
             ))}
@@ -38,13 +41,13 @@ export function DataTable<T>({ columns, rows, rowKey, emptyMessage = "データ�
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-4 text-center text-gray-500">
+              <td colSpan={columns.length} className="px-3 py-4 text-center text-dashboard-muted">
                 {emptyMessage}
               </td>
             </tr>
           ) : (
             rows.map((row, index) => (
-              <tr key={rowKey(row, index)} className="border-b border-gray-200">
+              <tr key={rowKey(row, index)} className="border-b border-dashboard-border">
                 {columns.map((col) => (
                   <td key={col.key} className={`px-3 py-2 ${col.className ?? ""}`.trim()}>
                     {col.render(row)}

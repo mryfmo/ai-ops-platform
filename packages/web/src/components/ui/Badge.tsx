@@ -7,13 +7,14 @@
  */
 import type { ReactNode } from "react";
 
-export type BadgeVariant = "default" | "green" | "yellow" | "red";
+export type BadgeVariant = "default" | "green" | "yellow" | "red" | "grey";
 
 export const BADGE_VARIANT_CLASS: Record<BadgeVariant, string> = {
   default: "bg-gray-100 text-gray-700",
   green: "bg-status-green/10 text-status-green",
   yellow: "bg-status-yellow/15 text-yellow-800",
   red: "bg-status-red/10 text-status-red",
+  grey: "bg-status-grey/10 text-status-grey",
 };
 
 export interface BadgeProps {

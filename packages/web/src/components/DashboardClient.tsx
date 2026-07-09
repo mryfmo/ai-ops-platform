@@ -24,6 +24,8 @@ import { ChatPanel } from "./chat/ChatPanel";
 import { Card } from "./ui/Card";
 import { Skeleton } from "./ui/Skeleton";
 import { DataTable, type DataTableColumn } from "./ui/DataTable";
+import { toTimeseriesChartData } from "./charts/chartData";
+import { TimeseriesAreaChart } from "./charts/RechartsPanels";
 import { ExecutiveSevenKeysView, type ExecutiveSevenKeysData } from "./views/ExecutiveSevenKeysView";
 import { ManagerSummaryView, type ManagerSummaryData } from "./views/ManagerSummaryView";
 import { AgentActivityView, type AgentActivityData } from "./views/AgentActivityView";
@@ -192,21 +194,11 @@ function personaForView(view: DashboardData): "executive" | "manager" | "investo
 }
 
 function TimeseriesPanel({ data }: { data: TimeseriesAggregate }) {
-  const max = Math.max(1, ...data.buckets.map((b) => Math.max(b.opened, b.closed, b.burndownRemaining)));
-  const points = data.buckets
-    .map((b, i) => {
-      const x = data.buckets.length === 1 ? 0 : (i / (data.buckets.length - 1)) * 100;
-      const y = 36 - (b.burndownRemaining / max) * 32;
-      return `${x},${y}`;
-    })
-    .join(" ");
   return (
-    <Card title={`時系列スナップショット（${data.range.label}）`}>
+    <Card title={`時系列スナップショット（${data.range.label}）`} eyebrow="Change over time">
       <div className="space-y-3">
-        <svg viewBox="0 0 100 40" role="img" aria-label="バーンダウン推移" className="h-32 w-full">
-          <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" />
-        </svg>
-        <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+        <TimeseriesAreaChart data={toTimeseriesChartData(data)} />
+        <div className="tabular grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
           <span>Open {data.totals.opened}</span>
           <span>Close {data.totals.closed}</span>
           <span>遷移 {data.totals.statusTransitions}</span>
@@ -299,7 +291,7 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
-        <Card title="表示期間">
+        <Card title="表示期間" eyebrow="Period">
           <div className="flex flex-wrap items-center gap-2">
             <button
               className="rounded border px-3 py-1 text-sm"
@@ -311,7 +303,7 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
             {PERIODS.map((period) => (
               <button
                 key={period}
-                className={`rounded border px-3 py-1 text-sm ${periodSelection.period === period ? "bg-slate-900 text-white" : ""}`}
+                className={`rounded border px-3 py-1 text-sm ${periodSelection.period === period ? "bg-dashboard-ink text-dashboard-panel" : ""}`}
                 type="button"
                 onClick={() => updatePeriod({ ...periodSelection, period })}
               >
