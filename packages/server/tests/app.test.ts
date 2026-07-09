@@ -93,6 +93,15 @@ describe("health endpoints (ADR-0005)", () => {
     const res = await app.request("/readyz");
     expect(res.status).toBe(503);
   });
+
+  it("GET /readyz はフェイルセーフ中に503", async () => {
+    const { deps } = makeDeps();
+    deps.readiness = { isReady: async () => false };
+    const app = buildApp(deps);
+    const res = await app.request("/readyz");
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ready: false });
+  });
 });
 
 describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {

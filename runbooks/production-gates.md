@@ -2,15 +2,15 @@
 
 ## CODEOWNERS
 
-`.github/CODEOWNERS` intentionally keeps `@OWNER` as a visible placeholder until the repository operator supplies a real GitHub user or team.
+`.github/CODEOWNERS` must use real GitHub users or teams. For this repository, `@mryfmo` was verified with `gh repo view` and `gh api users/mryfmo`.
 
 Before go-live:
 
-1. Replace every `@OWNER` with the real user/team.
+1. Confirm each CODEOWNERS user/team is still the intended reviewer.
 2. Enable branch protection for `main`.
 3. Enable "Require review from Code Owners".
 
-CI emits a warning while `@OWNER` remains, but does not fail because this local task cannot know the real account.
+CI fails while `@OWNER` or common CODEOWNERS placeholder tokens remain. It does not prove branch protection is enabled; repository settings must still require CODEOWNERS review before go-live.
 
 ## AI PR Token
 

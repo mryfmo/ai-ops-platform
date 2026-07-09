@@ -12,7 +12,7 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "governance:check": "node -e \"const fs=require('fs');const f='.github/CODEOWNERS';const s=fs.existsSync(f)?fs.readFileSync(f,'utf8'):'';if(s.includes('@OWNER')) console.warn('::warning file=.github/CODEOWNERS::Unresolved @OWNER placeholder; replace with a real GitHub user/team before go-live.');\"",
+    "governance:check": "node scripts/check-codeowners.mjs",
     "traceability": "pnpm exec tsx packages/traceability/src/verifyTraceability.ts",
     "verify:all": "bash verification/run_verification.sh"
   },

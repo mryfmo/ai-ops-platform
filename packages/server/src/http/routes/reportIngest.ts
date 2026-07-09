@@ -15,6 +15,7 @@ export interface ReportIngestDeps {
   };
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
+  isFailsafeActive?: () => boolean;
   deliverReport?(
     report: { reportId: string; payload: StandardReportPayload; periodLabel: string },
     traceId: string,
@@ -86,7 +87,16 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
       at: new Date().toISOString(),
     });
 
-    if (inserted.created) {
+    if (inserted.created && deps.isFailsafeActive?.()) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "report_delivery_blocked_by_failsafe",
+        basis: "REQ-029",
+        detail: { reportId: inserted.reportId, reportType: reportPayload.reportType },
+        at: new Date().toISOString(),
+      });
+    } else if (inserted.created) {
       await deps.deliverReport?.(
         { reportId: inserted.reportId, payload: reportPayload, periodLabel: reportPayload.period.label },
         traceId,

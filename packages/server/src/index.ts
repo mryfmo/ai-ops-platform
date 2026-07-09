@@ -386,6 +386,7 @@ async function main(): Promise<void> {
       reportsRepo: standardReportsRepo,
       auditLog,
       traceIdProvider: () => randomUUID(),
+      isFailsafeActive: () => failsafeActive,
       deliverReport: async (report, traceId) => {
         if (!config.REPORT_DELIVERY_ENABLED || !config.FROM_MAILBOX) {
           await auditLog.append({

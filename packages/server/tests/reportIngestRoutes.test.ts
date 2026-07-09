@@ -19,7 +19,7 @@ function sign(raw: string): string {
   return "sha256=" + createHmac("sha256", secret).update(raw, "utf8").digest("hex");
 }
 
-function makeApp() {
+function makeApp(opts: { failsafe?: boolean } = {}) {
   const app = new Hono();
   const auditLog = new InMemoryAuditLog();
   const inserts: StandardReportPayload[] = [];
@@ -38,6 +38,7 @@ function makeApp() {
     },
     auditLog,
     traceIdProvider: () => "trace-1",
+    isFailsafeActive: () => opts.failsafe ?? false,
     deliverReport: async (report) => {
       delivered.push(report.reportId);
     },
@@ -79,6 +80,21 @@ describe("POST /reports/ingest [REQ-042 SPEC-INT-069 SPEC-INT-083 AC-042-1]", ()
     expect(res.status).toBe(201);
     expect(inserts).toHaveLength(1);
     expect(delivered).toEqual([standardReportId(payload)]);
+  });
+
+  it("フェイルセーフ中は新規作成しても配信パイプラインを呼ばない", async () => {
+    const { app, inserts, delivered, auditLog } = makeApp({ failsafe: true });
+    const raw = JSON.stringify(payload);
+    const res = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(raw) },
+      body: raw,
+    });
+    expect(res.status).toBe(201);
+    expect(inserts).toHaveLength(1);
+    expect(delivered).toEqual([]);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "report_delivery_blocked_by_failsafe" && l.basis === "REQ-029")).toBe(true);
   });
 
   it("generatedAtだけが違う再生成は冪等にduplicateとして受け、配信しない", async () => {
