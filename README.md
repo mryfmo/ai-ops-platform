@@ -10,6 +10,7 @@
 
 このドキュメントは、成果物の全体像・設計判断の根拠・セットアップ手順・検証状況を1か所にまとめたもの。
 **検証状況の詳細（何を実際にテストし、何が未検証か）は [`verification/VERIFICATION_REPORT.md`](./verification/VERIFICATION_REPORT.md) を必ず参照すること。**
+実装に即した仕様・参照・利用ガイドの入口は [`docs/README.md`](./docs/README.md) にまとめている。
 
 ---
 
@@ -88,7 +89,7 @@ mise run ci                  # 上記をCIと同順序で一括実行
 
 ## 4. 検証について（要点）
 
-- **359件のユニットテストを実際に実行し、全件合格を確認済み**（決定的ロジック・テンプレート・
+- **740件のユニットテストを実際に実行し、全件合格を確認済み**（決定的ロジック・テンプレート・
   クライアント層・一部エージェント層）。
 - Phase V では Web を `next build` + `next start` で実起動し、`/app/login` と `/app/api/health`
   の実HTTP 200、未認証時の `/app/dashboard` 307、`/app/api/data/*` と `/app/api/chat` の 401 を確認した。
