@@ -28,6 +28,7 @@ import { GraphSubscriptionsRepo } from "./db/graphSubscriptionsRepo.js";
 import { ProjectChannelsRepo } from "./db/projectChannelsRepo.js";
 import { ChannelMessagesRepo } from "./db/channelMessagesRepo.js";
 import { CodingTasksRepo } from "./db/codingTasksRepo.js";
+import { PmTimeseriesRepo } from "./db/pmTimeseriesRepo.js";
 import { buildApp } from "./http/app.js";
 import { startScheduler } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
@@ -35,6 +36,7 @@ import { createJitRevocationTask } from "./scheduler/tasks/jitRevocationTask.js"
 import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRenewalTask.js";
 import { createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
+import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createClientCredentialsTokenProvider } from "./auth/graphTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
 import {
@@ -57,6 +59,7 @@ export * from "./scheduler/tasks/jitRevocationTask.js";
 export * from "./scheduler/tasks/subscriptionRenewalTask.js";
 export * from "./scheduler/tasks/channelPollingTask.js";
 export * from "./scheduler/tasks/eventsPollingTask.js";
+export * from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 export * from "./lib/schedulerPolicy.js";
 export * from "./lib/graphNotificationValidator.js";
 export * from "./lib/channelAuthorization.js";
@@ -71,6 +74,7 @@ export * from "./db/graphSubscriptionsRepo.js";
 export * from "./db/projectChannelsRepo.js";
 export * from "./db/channelMessagesRepo.js";
 export * from "./db/codingTasksRepo.js";
+export * from "./db/pmTimeseriesRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
 
@@ -100,6 +104,7 @@ async function main(): Promise<void> {
   const projectChannelsRepo = new ProjectChannelsRepo(pool);
   const channelMessagesRepo = new ChannelMessagesRepo(pool);
   const codingTasksRepo = new CodingTasksRepo(pool);
+  const pmTimeseriesRepo = new PmTimeseriesRepo(pool);
 
   const graphTokenProvider = createClientCredentialsTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
@@ -213,7 +218,11 @@ async function main(): Promise<void> {
         auditLog,
         dispatchInboundNotification: (payload, traceId) => teamsConversationAgent.handleNotification(payload, traceId),
         dispatchGithubEvent: (payload, traceId) =>
-          dispatchGithubWebhookEvent(payload, traceId, { auditLog, handlers: devopsEventHandlers }),
+          dispatchGithubWebhookEvent(payload, traceId, {
+            auditLog,
+            handlers: devopsEventHandlers,
+            pmRepo: pmTimeseriesRepo,
+          }),
         dispatchMonitorEvent: async (payload, traceId) => {
           await auditLog.append({
             trace_id: traceId,
@@ -224,6 +233,15 @@ async function main(): Promise<void> {
             at: new Date().toISOString(),
           });
         },
+        traceIdProvider: () => randomUUID(),
+      }),
+      createPmSnapshotReconcileTask({
+        repo: pmTimeseriesRepo,
+        client: {
+          // ponytail: no configured Projects v2 target yet; replace with a GitHub GraphQL client when installation tokens land.
+          listCurrentSnapshots: async () => ({ rateLimit: { remaining: 999 }, snapshots: [] }),
+        },
+        auditLog,
         traceIdProvider: () => randomUUID(),
       }),
     ],

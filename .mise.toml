@@ -35,5 +35,5 @@ description = "仕様ID⇔実装⇔テストのトレーサビリティ検証"
 run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts"
 
 [tasks.ci]
-description = "CIと同一の一括検証（lint→format→typecheck→build→test:coverage→traceability）"
-depends = ["lint", "format", "typecheck", "build", "test:coverage", "traceability"]
+description = "CIと同一の一括検証（lint→traceability→format→build→typecheck→test:coverage）"
+run = "mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage"

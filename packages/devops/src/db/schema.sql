@@ -15,6 +15,46 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_trace_id ON events (trace_id);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events (status);
 
+-- ADR-0007 / PrjOps SPEC-INT-062 / DevOps SPEC-INT-081: GitHub PM時系列イベント。
+-- projects_v2_item / projects_v2_status_update / issues / pull_request / milestone webhookを正規化し、
+-- raw_payloadは保存前にsanitizeSecrets()を通すこと（REQ-036 / REQ-031）。
+CREATE TABLE IF NOT EXISTS pm_events (
+  event_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trace_id    UUID NOT NULL,
+  event_name  TEXT NOT NULL,
+  action      TEXT,
+  project_id  TEXT,
+  repository  TEXT,
+  subject_type TEXT NOT NULL CHECK (subject_type IN ('issue', 'pull_request', 'milestone', 'project_item', 'project_status')),
+  subject_id  TEXT,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  from_status TEXT,
+  to_status   TEXT,
+  normalized  JSONB NOT NULL,
+  raw_payload JSONB NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pm_events_time ON pm_events (occurred_at);
+CREATE INDEX IF NOT EXISTS idx_pm_events_project_time ON pm_events (project_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_pm_events_subject ON pm_events (subject_type, subject_id);
+
+-- ADR-0007 / DevOps AC-031a: 定期フルsnapshot。webhook取りこぼしreconcileの正本。
+CREATE TABLE IF NOT EXISTS pm_snapshots (
+  snapshot_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trace_id    UUID NOT NULL,
+  project_id  TEXT,
+  repository  TEXT,
+  source_type TEXT NOT NULL CHECK (source_type IN ('issue', 'pull_request', 'milestone', 'project_item', 'project_status', 'deployment')),
+  source_id   TEXT NOT NULL,
+  state       TEXT,
+  captured_at TIMESTAMPTZ NOT NULL,
+  payload     JSONB NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (source_type, source_id, captured_at)
+);
+CREATE INDEX IF NOT EXISTS idx_pm_snapshots_time ON pm_snapshots (captured_at);
+CREATE INDEX IF NOT EXISTS idx_pm_snapshots_project_time ON pm_snapshots (project_id, captured_at);
+
 -- SPEC-INT-020 デプロイ状態機械の値のみ許可（lib/deployStateMachine.tsのDeployState型と一致させること）
 CREATE TABLE IF NOT EXISTS deployments (
   deploy_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

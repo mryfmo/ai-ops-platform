@@ -196,3 +196,58 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
     act(() => root.unmount());
   });
 });
+
+describe("DashboardClient（ADR-0007: 動的期間ダッシュボード）", () => {
+  it("期間ボタンを押すと選択期間つきでsummaryとtimeseriesをfetchする", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          domain: "prjops",
+          totalProjectCount: 0,
+          projects: [],
+          totalTicketCount: 0,
+          remainingTicketCount: 0,
+          burndown: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          period: "week",
+          baseDate: "2026-07-09",
+          range: { start: "2026-07-06T00:00:00+09:00", end: "2026-07-13T00:00:00+09:00", label: "2026-W28" },
+          buckets: [],
+          totals: { opened: 1, closed: 0, statusTransitions: 0, milestoneCompleted: 0, deployments: 0 },
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container, root } = setupContainer();
+    act(() => {
+      root.render(
+        <DashboardClient
+          initialViewSpec={{ kind: "managerSummary" }}
+          initialData={{
+            kind: "managerSummary",
+            domain: "prjops",
+            data: { totalProjectCount: 0, projects: [], totalTicketCount: 0, remainingTicketCount: 0, burndown: [] },
+          }}
+        />,
+      );
+    });
+
+    await act(async () => {
+      container.querySelectorAll("button")[1]!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/app/api/data/manager-summary?"));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining("/app/api/data/timeseries?"));
+    expect(container.textContent).toContain("時系列スナップショット");
+    act(() => root.unmount());
+  });
+});

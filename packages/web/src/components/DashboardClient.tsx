@@ -19,6 +19,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import type { PeriodKind, TimeseriesAggregate } from "@aiops/shared";
 import { ChatPanel } from "./chat/ChatPanel";
 import { Card } from "./ui/Card";
 import { Skeleton } from "./ui/Skeleton";
@@ -30,6 +31,7 @@ import { InvestorReportView, type InvestorReportData } from "./views/InvestorRep
 import type { ViewSpec } from "../server/viewSpec";
 
 const API_BASE = "/app/api/data";
+const PERIODS: PeriodKind[] = ["week", "month", "quarter", "half", "year"];
 
 interface ProjectListData {
   domain: "prjops" | "devops" | "investor";
@@ -54,11 +56,60 @@ async function fetchExecutiveSummary(): Promise<ExecutiveSevenKeysData> {
   return (await res.json()) as ExecutiveSevenKeysData;
 }
 
+interface PeriodSelection {
+  period: PeriodKind;
+  baseDate: string;
+}
+
+function clientPeriodRange(selection: PeriodSelection): { start: string; end: string } {
+  const base = new Date(`${selection.baseDate}T00:00:00+09:00`);
+  const jst = new Date(base.getTime() + 9 * 60 * 60 * 1000);
+  const year = jst.getUTCFullYear();
+  const month = jst.getUTCMonth();
+  if (selection.period === "week") {
+    const dayNum = (jst.getUTCDay() + 6) % 7;
+    const start = new Date(base.getTime() - dayNum * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }
+  const startMonth =
+    selection.period === "month"
+      ? month
+      : selection.period === "quarter"
+        ? Math.floor(month / 3) * 3
+        : selection.period === "half"
+          ? Math.floor(month / 6) * 6
+          : 0;
+  const length =
+    selection.period === "month" ? 1 : selection.period === "quarter" ? 3 : selection.period === "half" ? 6 : 12;
+  return {
+    start: new Date(Date.UTC(year, startMonth, 1) - 9 * 60 * 60 * 1000).toISOString(),
+    end: new Date(Date.UTC(year, startMonth + length, 1) - 9 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+function periodParams(selection: PeriodSelection, persona?: "executive" | "manager" | "investor"): string {
+  const range = clientPeriodRange(selection);
+  const params = new URLSearchParams({
+    period: selection.period,
+    baseDate: selection.baseDate,
+    periodStart: range.start,
+    periodEnd: range.end,
+  });
+  if (persona) params.set("persona", persona);
+  return params.toString();
+}
+
 async function fetchManagerSummary(
   periodDays?: 7 | 14 | 28,
+  selection?: PeriodSelection,
 ): Promise<{ domain: "prjops" | "devops"; data: ManagerSummaryData }> {
   const params = new URLSearchParams();
-  if (periodDays) {
+  if (selection) {
+    const range = clientPeriodRange(selection);
+    params.set("periodStart", range.start);
+    params.set("periodEnd", range.end);
+  } else if (periodDays) {
     const periodEnd = new Date();
     const periodStart = new Date(periodEnd.getTime() - periodDays * 24 * 60 * 60 * 1000);
     params.set("periodStart", periodStart.toISOString());
@@ -88,6 +139,15 @@ async function fetchInvestorSummary(): Promise<InvestorReportData> {
   const res = await fetch(`${API_BASE}/investor-summary`);
   if (!res.ok) throw new Error(`E-FETCH01: investor-summary fetch failed (${res.status})`);
   return (await res.json()) as InvestorReportData;
+}
+
+async function fetchTimeseries(
+  selection: PeriodSelection,
+  persona: "executive" | "manager" | "investor",
+): Promise<TimeseriesAggregate> {
+  const res = await fetch(`${API_BASE}/timeseries?${periodParams(selection, persona)}`);
+  if (!res.ok) throw new Error(`E-FETCH01: timeseries fetch failed (${res.status})`);
+  return (await res.json()) as TimeseriesAggregate;
 }
 
 function ProjectListView({ data }: { data: ProjectListData }) {
@@ -125,6 +185,50 @@ function renderView(view: DashboardData) {
   return <ProjectListView data={view.data} />;
 }
 
+function personaForView(view: DashboardData): "executive" | "manager" | "investor" {
+  if (view.kind === "investorSummary") return "investor";
+  if (view.kind === "managerSummary") return "manager";
+  return "executive";
+}
+
+function TimeseriesPanel({ data }: { data: TimeseriesAggregate }) {
+  const max = Math.max(1, ...data.buckets.map((b) => Math.max(b.opened, b.closed, b.burndownRemaining)));
+  const points = data.buckets
+    .map((b, i) => {
+      const x = data.buckets.length === 1 ? 0 : (i / (data.buckets.length - 1)) * 100;
+      const y = 36 - (b.burndownRemaining / max) * 32;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  return (
+    <Card title={`時系列スナップショット（${data.range.label}）`}>
+      <div className="space-y-3">
+        <svg viewBox="0 0 100 40" role="img" aria-label="バーンダウン推移" className="h-32 w-full">
+          <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" />
+        </svg>
+        <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+          <span>Open {data.totals.opened}</span>
+          <span>Close {data.totals.closed}</span>
+          <span>遷移 {data.totals.statusTransitions}</span>
+          <span>Milestone {data.totals.milestoneCompleted}</span>
+          <span>Deploy {data.totals.deployments}</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function shiftBaseDate(selection: PeriodSelection, direction: -1 | 1): PeriodSelection {
+  const current = new Date(`${selection.baseDate}T00:00:00Z`);
+  const next = new Date(current);
+  if (selection.period === "week") next.setUTCDate(current.getUTCDate() + direction * 7);
+  else if (selection.period === "month") next.setUTCMonth(current.getUTCMonth() + direction);
+  else if (selection.period === "quarter") next.setUTCMonth(current.getUTCMonth() + direction * 3);
+  else if (selection.period === "half") next.setUTCMonth(current.getUTCMonth() + direction * 6);
+  else next.setUTCFullYear(current.getUTCFullYear() + direction);
+  return { ...selection, baseDate: next.toISOString().slice(0, 10) };
+}
+
 export function DashboardClient({ initialViewSpec, initialData }: DashboardClientProps) {
   // initialViewSpecは「サーバーコンポーネントが初期表示のために選択したViewSpec」を明示するための
   // propであり、initialDataの取得元根拠として保持する（初期表示のkindとinitialData.kindは常に一致する）。
@@ -135,29 +239,41 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
     }
     return initialData;
   });
+  const [currentSpec, setCurrentSpec] = useState<ViewSpec>(initialViewSpec);
+  const [periodSelection, setPeriodSelection] = useState<PeriodSelection>(() => ({
+    period: "month",
+    baseDate: new Date().toISOString().slice(0, 10),
+  }));
+  const [timeseries, setTimeseries] = useState<TimeseriesAggregate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleViewSpecReceived = useCallback((spec: ViewSpec) => {
+  const loadView = useCallback((spec: ViewSpec, selection: PeriodSelection, includeTimeseries: boolean) => {
     setIsLoading(true);
     setError(null);
     (async () => {
       try {
+        let nextView: DashboardData;
         if (spec.kind === "executiveSummary") {
           const data = await fetchExecutiveSummary();
-          setView({ kind: "executiveSummary", data });
+          nextView = { kind: "executiveSummary", data };
         } else if (spec.kind === "managerSummary") {
-          const { domain, data } = await fetchManagerSummary(spec.periodDays);
-          setView({ kind: "managerSummary", domain, data });
+          const { domain, data } = await fetchManagerSummary(spec.periodDays, selection);
+          nextView = { kind: "managerSummary", domain, data };
         } else if (spec.kind === "agentActivity") {
           const data = await fetchAgentActivity();
-          setView({ kind: "agentActivity", data });
+          nextView = { kind: "agentActivity", data };
         } else if (spec.kind === "investorSummary") {
           const data = await fetchInvestorSummary();
-          setView({ kind: "investorSummary", data });
+          nextView = { kind: "investorSummary", data };
         } else {
           const data = await fetchProjectList();
-          setView({ kind: "projectList", data });
+          nextView = { kind: "projectList", data };
+        }
+        setView(nextView);
+        setCurrentSpec(spec);
+        if (includeTimeseries) {
+          setTimeseries(await fetchTimeseries(selection, personaForView(nextView)));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "表示の切り替えに失敗しました");
@@ -167,9 +283,50 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
     })();
   }, []);
 
+  const handleViewSpecReceived = useCallback(
+    (spec: ViewSpec) => loadView(spec, periodSelection, false),
+    [loadView, periodSelection],
+  );
+
+  const updatePeriod = useCallback(
+    (next: PeriodSelection) => {
+      setPeriodSelection(next);
+      loadView(currentSpec, next, true);
+    },
+    [currentSpec, loadView],
+  );
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
+        <Card title="表示期間">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded border px-3 py-1 text-sm"
+              type="button"
+              onClick={() => updatePeriod(shiftBaseDate(periodSelection, -1))}
+            >
+              前へ
+            </button>
+            {PERIODS.map((period) => (
+              <button
+                key={period}
+                className={`rounded border px-3 py-1 text-sm ${periodSelection.period === period ? "bg-slate-900 text-white" : ""}`}
+                type="button"
+                onClick={() => updatePeriod({ ...periodSelection, period })}
+              >
+                {period}
+              </button>
+            ))}
+            <button
+              className="rounded border px-3 py-1 text-sm"
+              type="button"
+              onClick={() => updatePeriod(shiftBaseDate(periodSelection, 1))}
+            >
+              次へ
+            </button>
+          </div>
+        </Card>
         {error ? (
           <Card title="エラー" className="border-status-red">
             <p className="text-sm text-status-red">{error}</p>
@@ -184,6 +341,7 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
         ) : (
           renderView(view)
         )}
+        {timeseries ? <TimeseriesPanel data={timeseries} /> : null}
       </div>
       <div className="lg:col-span-1">
         <ChatPanel onViewSpecReceived={handleViewSpecReceived} />
