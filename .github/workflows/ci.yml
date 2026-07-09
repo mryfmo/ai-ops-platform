@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   build-test:
     runs-on: ubuntu-latest
@@ -15,8 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -r --if-present run typecheck
       - run: pnpm -r --if-present run build
+      - run: pnpm -r --if-present run typecheck
       - run: pnpm -r --if-present run test:coverage
       - name: トレーサビリティ検証（全SPEC-ID⇔実装⇔テストの対応チェック）
         run: pnpm exec tsx packages/traceability/src/verifyTraceability.ts
