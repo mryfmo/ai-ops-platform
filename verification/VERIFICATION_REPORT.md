@@ -1,6 +1,6 @@
 # 検証結果報告書（VERIFICATION REPORT）
 
-版: 1.0 / 作成日: 2026-07-06
+版: 1.1 / 作成日: 2026-07-06 / 更新日: 2026-07-09
 対象: `ai-ops-platform` モノレポ（PrjOps AI基盤 + AIエージェント主導DevOps運用基盤、統合14エージェント）
 
 本書は、依頼文書「仕様と実装コード、仕様と検証コード、仕様と検証項目、検証結果を相互に照らし合わせ」る
@@ -13,6 +13,44 @@
 4. **検証結果**: 本書 §2、および `verification/test-results/offline-run-results.json`
 
 ---
+
+## 0. Phase V 統合検証（T13, 2026-07-09）
+
+本節は T05〜T12 相当の stack 最上段で、テスト再実行だけではなく実起動・実駆動で観測した結果を追記する。用語は以下に限定する。
+
+- `verified-integration`: このローカル環境で実プロセス、実 HTTP、実 CLI、または実パッケージ結合として本質的に検証できたもの。
+- `requires-real-env`: PostgreSQL server、GitHub App / org webhook、Teams tenant、Entra ID 実セッション、`ANTHROPIC_API_KEY` など、この環境に存在しない実外部依存が必要なもの。
+
+モック、開発モード迂回、`app.request()` による確認は E2E とは呼ばず、統合テスト水準として扱う。
+
+### 0.1 環境事実
+
+| 項目              | 観測結果                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PostgreSQL server | `pg_isready` は `/tmp:5432 - no response`。`initdb` は存在するが `postgres` 実体が無く、`initdb: error: program "postgres" is needed` で起動不可。 |
+| Docker            | `docker --version` は `command not found`。                                                                                                        |
+| Anthropic API key | `ANTHROPIC_API_KEY` は未設定。実 LLM smoke は未実施。                                                                                              |
+| Web local bind    | サンドボックス内 bind は `listen EPERM`。承認付き実行で `next start -p 3100 -H 127.0.0.1` は Ready。                                               |
+| Auth.js localhost | `AUTH_TRUST_HOST` 未指定時は `UntrustedHost` ログ。`AUTH_TRUST_HOST=true` で解消。                                                                 |
+| Excel import      | 現 `agent/T12` ancestry に T08 の Excel import 実装が含まれていないため、検証対象コードが存在しない。                                              |
+
+### 0.2 検証結果サマリ
+
+| 領域                               | 区分                 | 実施内容                                                                                                             | 結果                                                                                                           |
+| ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Web build/start                    | verified-integration | `mise run build` 後、`AUTH_TRUST_HOST=true` 付きで `pnpm --filter @aiops/web exec next start -p 3100 -H 127.0.0.1`。 | build 成功、Next.js ready。`/app/login` 200、`/app/api/health` 200 `{"ok":true}`。                             |
+| Web unauthenticated guard          | verified-integration | 実 HTTP で `/app/dashboard`、`/app/api/data/*`、`/app/api/chat` を未認証で curl。                                    | `/app/dashboard` は 307 で login へ誘導。data API と chat は 401 `E-AUTH01`。                                  |
+| Web authenticated dashboard / JSON | requires-real-env    | `/app/dashboard` 200 と `/app/api/data/*` のサンプル JSON 構造確認。                                                 | Entra ID 実セッションと PostgreSQL `recipients` / PrjOps stakeholder data が必要。ローカルでは偽装せず未実施。 |
+| Page agent real LLM                | requires-real-env    | `/app/api/chat` の reasoning parts / tool call smoke。                                                               | `ANTHROPIC_API_KEY` 未設定のため未実施。                                                                       |
+| server health/readiness with DB    | requires-real-env    | `packages/server` 実起動、schema 適用、`/healthz` `/readyz`。                                                        | PostgreSQL server / Docker が無いため未実施。`app.request()` 統合テストでは health/readiness 経路を検証済み。  |
+| server route integration tests     | verified-integration | `pnpm --filter @aiops/server run test -- app.test.ts`。                                                              | server package tests 136 件成功。これは統合テスト水準であり、実DB E2Eではない。                                |
+| Standard report CLI                | verified-integration | `printReportSchema.ts`、valid JSON、invalid JSON を `tsx` で実行。                                                   | schema 出力成功、valid は `OK: standard report JSON is valid`、invalid は `E-RPT02` で失敗。                   |
+| Excel import                       | requires-real-env    | テンプレート生成、parse、dry-run、mock GitHub、ledger skip。                                                         | 現 stack に実装が存在しないため未実施。実装統合後、検証用 GitHub repository と DB ledger で実施する。          |
+| GitHub / Teams webhooks            | requires-real-env    | org webhook、Graph subscription、Teams manifest の実到達確認。                                                       | GitHub App / Microsoft 365 tenant / public endpoint が必要。未実施。                                           |
+
+### 0.3 実環境 E2E 手順
+
+実環境で完了すべき E2E 前提とチェックリストは [`runbooks/e2e-real-environment.md`](../runbooks/e2e-real-environment.md) に分離した。
 
 ## 1. 実行環境に関する重要な注記（誠実な開示）
 
