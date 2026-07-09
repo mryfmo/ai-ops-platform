@@ -1,98 +1,76 @@
-/**
- * packages/prjops/tests/executiveSevenKeys.test.ts
- *
- * 根拠: ADR-0005（WebUIダッシュボード）。経営層（PRF-04）セブンキーのうち
- *   決定的算出項目（1: ポートフォリオ健康度, 2: 進捗達成率, 3: 高リスク課題件数,
- *   5: スケジュール遵守率）の境界値と、指標4（予算消化率）のnullケースを検証する。
- */
 import { describe, it, expect } from "vitest";
 import {
-  computeExecutiveSevenKeysNumeric,
-  computeHighRiskIssueCount,
-  computeProgressAchievementPct,
-  computeScheduleAdherencePct,
+  assessProjectSevenKeys,
+  buildSevenKeysMonthlySnapshot,
+  computeExecutiveSevenKeys,
   type ExecutiveProjectInput,
 } from "../src/lib/executiveSevenKeys.js";
 
 function project(overrides: Partial<ExecutiveProjectInput> = {}): ExecutiveProjectInput {
   return {
     projectId: "PRJ-0001",
-    color: "green",
-    progressPct: 50,
+    name: "案件A",
+    progressPct: 90,
     highSeverityOpenIssueCount: 0,
     isOverdue: false,
+    scopeChangeCount: 0,
+    averageReviewWaitHours: 12,
+    activeContributorCount: 3,
     ...overrides,
   };
 }
 
-describe("computeProgressAchievementPct [ADR-0005 指標2: 進捗達成率]", () => {
-  it("0件のときは0", () => {
-    expect(computeProgressAchievementPct([])).toBe(0);
+function rag(result: ReturnType<typeof assessProjectSevenKeys>, keyId: string) {
+  return result.keys.find((key) => key.keyId === keyId)?.rag;
+}
+
+describe("assessProjectSevenKeys [REQ-038, SPEC-INT-065, AC-038-1]", () => {
+  it("正典7キーをプロジェクト毎に返し、予算指標を含めない", () => {
+    const result = assessProjectSevenKeys(project());
+    expect(result.keys.map((key) => key.keyId)).toEqual(["K1", "K2", "K3", "K4", "K5", "K6", "K7"]);
+    expect(JSON.stringify(result)).not.toContain("budget");
   });
 
-  it("単純平均を返す", () => {
-    const projects = [project({ progressPct: 40 }), project({ progressPct: 60 })];
-    expect(computeProgressAchievementPct(projects)).toBe(50);
-  });
-});
-
-describe("computeHighRiskIssueCount [ADR-0005 指標3: 高リスク課題件数]", () => {
-  it("0件のときは0", () => {
-    expect(computeHighRiskIssueCount([])).toBe(0);
+  it("定性質問票が欠落したキーは推測せずgreyにする", () => {
+    const result = assessProjectSevenKeys(project({ questionnaire: undefined }));
+    expect(rag(result, "K1")).toBe("grey");
+    expect(rag(result, "K2")).toBe("grey");
+    expect(rag(result, "K7")).toBe("grey");
   });
 
-  it("全プロジェクトのhighSeverityOpenIssueCountを合算する", () => {
-    const projects = [project({ highSeverityOpenIssueCount: 2 }), project({ highSeverityOpenIssueCount: 3 })];
-    expect(computeHighRiskIssueCount(projects)).toBe(5);
-  });
-});
-
-describe("computeScheduleAdherencePct [ADR-0005 指標5: スケジュール遵守率]", () => {
-  it("0件のときは100（該当なし=遵守とみなす）", () => {
-    expect(computeScheduleAdherencePct([])).toBe(100);
-  });
-
-  it("全件遵守なら100%", () => {
-    const projects = [project({ isOverdue: false }), project({ isOverdue: false })];
-    expect(computeScheduleAdherencePct(projects)).toBe(100);
-  });
-
-  it("全件超過なら0%", () => {
-    const projects = [project({ isOverdue: true }), project({ isOverdue: true })];
-    expect(computeScheduleAdherencePct(projects)).toBe(0);
-  });
-
-  it("2件中1件超過なら50%", () => {
-    const projects = [project({ isOverdue: true }), project({ isOverdue: false })];
-    expect(computeScheduleAdherencePct(projects)).toBe(50);
+  it("GitHub由来のスケジュール・スコープ・チーム・リスク信号をRAG化する", () => {
+    const result = assessProjectSevenKeys(
+      project({
+        isOverdue: true,
+        scopeChangeCount: 5,
+        averageReviewWaitHours: 80,
+        activeContributorCount: 1,
+        highSeverityOpenIssueCount: 2,
+      }),
+    );
+    expect(rag(result, "K3")).toBe("red");
+    expect(rag(result, "K4")).toBe("red");
+    expect(rag(result, "K5")).toBe("red");
+    expect(rag(result, "K6")).toBe("red");
   });
 });
 
-describe("computeExecutiveSevenKeysNumeric [ADR-0005: セブンキー数値4項目の集約]", () => {
-  it("色分布を正しく集計する", () => {
-    const projects = [
-      project({ color: "green" }),
-      project({ color: "green" }),
-      project({ color: "yellow" }),
-      project({ color: "red" }),
-    ];
-    const result = computeExecutiveSevenKeysNumeric(projects);
-    expect(result.colorDistribution).toEqual({ green: 2, yellow: 1, red: 1 });
+describe("computeExecutiveSevenKeys [REQ-038]", () => {
+  it("複数プロジェクトの7キーマトリクスを返す", () => {
+    const result = computeExecutiveSevenKeys([project({ projectId: "PRJ-0001" }), project({ projectId: "PRJ-0002" })]);
+    expect(result.projects).toHaveLength(2);
+    expect(result.projects[0]!.keys).toHaveLength(7);
   });
+});
 
-  it("指標4（予算消化率）は常にnull（データ未整備の暫定実装）", () => {
-    const result = computeExecutiveSevenKeysNumeric([project()]);
-    expect(result.budgetConsumptionPct).toBeNull();
-  });
-
-  it("0件（対象プロジェクトなし）でも例外を投げず既定値を返す", () => {
-    const result = computeExecutiveSevenKeysNumeric([]);
-    expect(result).toEqual({
-      colorDistribution: { green: 0, yellow: 0, red: 0 },
-      progressAchievementPct: 0,
-      highRiskIssueCount: 0,
-      budgetConsumptionPct: null,
-      scheduleAdherencePct: 100,
-    });
+describe("buildSevenKeysMonthlySnapshot [AC-038-1]", () => {
+  it("前月RAGとの差分から改善/悪化キーを返す", () => {
+    const previous = assessProjectSevenKeys(project({ progressPct: 90, highSeverityOpenIssueCount: 0 }));
+    const snapshot = buildSevenKeysMonthlySnapshot(
+      project({ progressPct: 50, highSeverityOpenIssueCount: 1 }),
+      "2026-07",
+      previous,
+    );
+    expect(snapshot.worsenedKeys).toEqual(expect.arrayContaining(["K3", "K6"]));
   });
 });

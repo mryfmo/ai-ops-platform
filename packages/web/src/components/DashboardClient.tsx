@@ -26,18 +26,20 @@ import { DataTable, type DataTableColumn } from "./ui/DataTable";
 import { ExecutiveSevenKeysView, type ExecutiveSevenKeysData } from "./views/ExecutiveSevenKeysView";
 import { ManagerSummaryView, type ManagerSummaryData } from "./views/ManagerSummaryView";
 import { AgentActivityView, type AgentActivityData } from "./views/AgentActivityView";
+import { InvestorReportView, type InvestorReportData } from "./views/InvestorReportView";
 import type { ViewSpec } from "../server/viewSpec";
 
 const API_BASE = "/app/api/data";
 
 interface ProjectListData {
-  domain: "prjops" | "devops";
+  domain: "prjops" | "devops" | "investor";
   projects: Array<{ id: string; name: string }>;
 }
 
 type DashboardData =
   | { kind: "executiveSummary"; data: ExecutiveSevenKeysData }
   | { kind: "managerSummary"; domain: "prjops" | "devops"; data: ManagerSummaryData }
+  | { kind: "investorSummary"; data: InvestorReportData }
   | { kind: "projectList"; data: ProjectListData }
   | { kind: "agentActivity"; data: AgentActivityData };
 
@@ -49,12 +51,7 @@ export interface DashboardClientProps {
 async function fetchExecutiveSummary(): Promise<ExecutiveSevenKeysData> {
   const res = await fetch(`${API_BASE}/executive-summary`);
   if (!res.ok) throw new Error(`E-FETCH01: executive-summary fetch failed (${res.status})`);
-  const numeric = (await res.json()) as Omit<ExecutiveSevenKeysData, "monthOverMonthDiffText" | "topTopics">;
-  return {
-    ...numeric,
-    monthOverMonthDiffText: "前月比データは準備中です（スタブ表示）。",
-    topTopics: [],
-  };
+  return (await res.json()) as ExecutiveSevenKeysData;
 }
 
 async function fetchManagerSummary(
@@ -87,6 +84,12 @@ async function fetchAgentActivity(): Promise<AgentActivityData> {
   return (await res.json()) as AgentActivityData;
 }
 
+async function fetchInvestorSummary(): Promise<InvestorReportData> {
+  const res = await fetch(`${API_BASE}/investor-summary`);
+  if (!res.ok) throw new Error(`E-FETCH01: investor-summary fetch failed (${res.status})`);
+  return (await res.json()) as InvestorReportData;
+}
+
 function ProjectListView({ data }: { data: ProjectListData }) {
   const columns: DataTableColumn<{ id: string; name: string }>[] = [
     { key: "id", header: "ID", render: (r) => r.id },
@@ -95,7 +98,11 @@ function ProjectListView({ data }: { data: ProjectListData }) {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">プロジェクト一覧</h1>
-      <Card title={`スコープ内プロジェクト（${data.domain === "prjops" ? "PrjOps" : "DevOps"}）`}>
+      <Card
+        title={`スコープ内プロジェクト（${
+          data.domain === "prjops" ? "PrjOps" : data.domain === "devops" ? "DevOps" : "Investor"
+        }）`}
+      >
         <DataTable columns={columns} rows={data.projects} rowKey={(r) => r.id} />
       </Card>
     </div>
@@ -111,6 +118,9 @@ function renderView(view: DashboardData) {
   }
   if (view.kind === "agentActivity") {
     return <AgentActivityView data={view.data} />;
+  }
+  if (view.kind === "investorSummary") {
+    return <InvestorReportView data={view.data} />;
   }
   return <ProjectListView data={view.data} />;
 }
@@ -142,6 +152,9 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
         } else if (spec.kind === "agentActivity") {
           const data = await fetchAgentActivity();
           setView({ kind: "agentActivity", data });
+        } else if (spec.kind === "investorSummary") {
+          const data = await fetchInvestorSummary();
+          setView({ kind: "investorSummary", data });
         } else {
           const data = await fetchProjectList();
           setView({ kind: "projectList", data });

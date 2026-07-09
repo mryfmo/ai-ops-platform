@@ -109,4 +109,43 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
     const body = await res.json();
     expect(body).toEqual({ domain: "devops", projects: [{ id: "PRJ-0002", name: "PRJ-0002" }] });
   });
+
+  it("investorペルソナが先頭なら出資対象プロジェクト一覧を返す [REQ-039]", async () => {
+    const personas: ResolvedPersona[] = [
+      {
+        domain: "investor",
+        profile: "investor",
+        visibility: {
+          recipientStakeholderId: "STK-INV",
+          recipientManagedProjectIds: [],
+          recipientAssignedProjectIds: [],
+          recipientParticipatingProjectIds: [],
+          investedProjectIds: ["PRJ-0003"],
+        },
+      },
+    ];
+    const res = await handleProjects({
+      getSession: sessionWithEmail,
+      resolver: resolverWith(personas),
+      prjopsProvider: new InMemoryPrjopsReportDataProvider(
+        [
+          {
+            projectId: "PRJ-0003",
+            name: "会社C",
+            color: "green",
+            startDate: "2026-01-01",
+            endDate: "2026-03-31",
+            progressPct: 50,
+            highSeverityOpenIssueCount: 0,
+            isOverdue: false,
+            periodLabel: "2026-Q1",
+            ownerName: "PM",
+          },
+        ],
+        [],
+      ),
+      devopsDb: emptyDb(),
+    });
+    expect(await res.json()).toEqual({ domain: "investor", projects: [{ id: "PRJ-0003", name: "会社C" }] });
+  });
 });

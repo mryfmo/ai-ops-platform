@@ -19,6 +19,7 @@
 
 import type { Profile } from "./reportJobStateMachine.js";
 export type { Profile };
+export type ReportAudience = Profile | "investor";
 
 export interface ProjectVisibilityContext {
   recipientStakeholderId: string;
@@ -29,7 +30,7 @@ export interface ProjectVisibilityContext {
 }
 
 /** プロジェクトが受信者のレポート対象範囲に含まれるかどうか（DOC-03 §4.5「対象範囲」列） */
-export function isProjectInScope(profile: Profile, projectId: string, ctx: ProjectVisibilityContext): boolean {
+export function isProjectInScope(profile: ReportAudience, projectId: string, ctx: ProjectVisibilityContext): boolean {
   switch (profile) {
     case "PRF-01":
       return ctx.recipientParticipatingProjectIds.includes(projectId);
@@ -40,18 +41,19 @@ export function isProjectInScope(profile: Profile, projectId: string, ctx: Proje
     case "PRF-04":
       return true; // 全プロジェクト
     case "PRF-05":
+    case "investor":
       return ctx.investedProjectIds.includes(projectId);
   }
 }
 
 /** 個人名を表示してよいプロファイルかどうか（PRF-04/05は個人名非表示） */
-export function canShowPersonalNames(profile: Profile): boolean {
+export function canShowPersonalNames(profile: ReportAudience): boolean {
   return profile === "PRF-01" || profile === "PRF-02" || profile === "PRF-03";
 }
 
 /** 課題の詳細記述(detail)を表示してよいかどうか（PRF-05は社内課題詳細を非表示） */
-export function canShowIssueDetail(profile: Profile): boolean {
-  return profile !== "PRF-05";
+export function canShowIssueDetail(profile: ReportAudience): boolean {
+  return profile !== "PRF-05" && profile !== "investor";
 }
 
 /** 課題・アクションが「自分に関わる情報」かどうか（PRF-01のみ適用される絞り込み） */
@@ -71,7 +73,7 @@ export interface IssueLike {
  * PRF-01は自分が関わる課題のみ。PRF-05は社内固有情報を含むためdetailを掲載しない（別途タイトルのみ許容）。
  */
 export function filterIssuesForProfile(
-  profile: Profile,
+  profile: ReportAudience,
   issues: IssueLike[],
   ctx: ProjectVisibilityContext,
 ): IssueLike[] {
@@ -92,11 +94,11 @@ export function filterIssuesForProfile(
 
 /** 社内固有語（部門名・社内システム名等）のリストに基づく除去対象語の判定（PRF-05向け, SPEC-INT-051(b)） */
 export function buildForbiddenTermsForProfile(
-  profile: Profile,
+  profile: ReportAudience,
   personalNames: string[],
   internalTermsList: string[],
 ): string[] {
   if (profile === "PRF-04") return [...personalNames];
-  if (profile === "PRF-05") return [...personalNames, ...internalTermsList];
+  if (profile === "PRF-05" || profile === "investor") return [...personalNames, ...internalTermsList];
   return [];
 }

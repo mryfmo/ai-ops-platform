@@ -33,6 +33,7 @@ const showManagerSummaryInputSchema = z.object({
 const listProjectsInputSchema = z.object({});
 
 const showAgentActivityInputSchema = z.object({});
+const showInvestorSummaryInputSchema = z.object({});
 
 /** PRF-04（PrjOps経営陣）専用: セブンキーの表示要求 */
 function buildShowExecutiveSummaryTool() {
@@ -71,6 +72,17 @@ function buildShowAgentActivityTool() {
   });
 }
 
+function buildShowInvestorSummaryTool() {
+  return tool({
+    description:
+      "投資家向けKPIパッケージ（ハイライト、KPI、マイルストーン、リスク）の表示に切り替える。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
+    inputSchema: showInvestorSummaryInputSchema,
+    execute: async (): Promise<ViewSpec> => {
+      return { kind: "investorSummary" };
+    },
+  });
+}
+
 /** 全ペルソナ共通: スコープ内プロジェクト一覧の表示要求 */
 function buildListProjectsTool() {
   return tool({
@@ -97,6 +109,10 @@ function isDevopsManager(persona: ResolvedPersona): boolean {
   return persona.domain === "devops" && persona.profile === "PRF-G";
 }
 
+function isInvestor(persona: ResolvedPersona): boolean {
+  return persona.domain === "investor" && persona.profile === "investor";
+}
+
 /**
  * ペルソナ（ダッシュボードページ本体と同じ「先頭ペルソナ採用」方針。dashboard/page.tsxの
  * 残課題コメント参照）に応じて公開するtool集合を組み立てる。該当しないtoolはToolSetに
@@ -115,6 +131,9 @@ export function buildToolsForPersona(persona: ResolvedPersona): ToolSet {
   }
   if (isDevopsManager(persona)) {
     toolSet["showAgentActivity"] = buildShowAgentActivityTool();
+  }
+  if (isInvestor(persona)) {
+    toolSet["showInvestorSummary"] = buildShowInvestorSummaryTool();
   }
 
   return toolSet;

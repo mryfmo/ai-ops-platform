@@ -128,8 +128,15 @@ export interface DoraDisplay {
   deploymentFrequencyPerWeek: number;
   medianLeadTimeHours: number;
   changeFailureRatePct: number;
+  deploymentReworkRatePct: number;
   meanTimeToRestoreHours: number;
-  deltaVsPrevWeek: { deploymentFrequency: number; leadTime: number; changeFailureRate: number; mttr: number };
+  deltaVsPrevWeek: {
+    deploymentFrequency: number;
+    leadTime: number;
+    changeFailureRate: number;
+    deploymentReworkRate: number;
+    mttr: number;
+  };
 }
 
 export interface ManagerPeriodData {
@@ -226,6 +233,9 @@ export function renderManagerPeriodBody(data: ManagerPeriodData): string {
       }</td></tr>
       <tr><td>変更失敗率(%)</td><td>${numericSpan("portfolio", "change_failure_rate", data.dora.changeFailureRatePct.toFixed(1))}</td><td>${
         data.dora.deltaVsPrevWeek.changeFailureRate
+      }</td></tr>
+      <tr><td>デプロイ手戻り率(%)</td><td>${numericSpan("portfolio", "deployment_rework_rate", data.dora.deploymentReworkRatePct.toFixed(1))}</td><td>${
+        data.dora.deltaVsPrevWeek.deploymentReworkRate
       }</td></tr>
       <tr><td>MTTR(h)</td><td>${numericSpan("portfolio", "mttr", data.dora.meanTimeToRestoreHours.toFixed(1))}</td><td>${
         data.dora.deltaVsPrevWeek.mttr

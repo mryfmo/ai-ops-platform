@@ -38,13 +38,7 @@ function setupContainer(): { container: HTMLDivElement; root: Root } {
 const executiveInitialData = {
   kind: "executiveSummary" as const,
   data: {
-    colorDistribution: { green: 1, yellow: 0, red: 0 },
-    progressAchievementPct: 80,
-    highRiskIssueCount: 0,
-    budgetConsumptionPct: null,
-    scheduleAdherencePct: 100,
-    monthOverMonthDiffText: "スタブ",
-    topTopics: [],
+    projects: [{ projectId: "PRJ-0001", name: "案件A", keys: [] }],
   },
 };
 
@@ -153,6 +147,31 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/agent-activity"));
     expect(container.textContent).toContain("AIコーディングエージェント稼働状況");
+    act(() => root.unmount());
+  });
+
+  it("kind=investorSummaryを受け取るとinvestor-summaryをfetchしInvestor Reportへ切り替える", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ highlights: ["1 portfolio companies"], kpis: [], milestones: [], risks: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container, root } = setupContainer();
+    act(() => {
+      root.render(
+        <DashboardClient initialViewSpec={{ kind: "executiveSummary" }} initialData={executiveInitialData} />,
+      );
+    });
+
+    await act(async () => {
+      capturedOnViewSpecReceived!({ kind: "investorSummary" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/investor-summary"));
+    expect(container.textContent).toContain("Investor Report");
     act(() => root.unmount());
   });
 

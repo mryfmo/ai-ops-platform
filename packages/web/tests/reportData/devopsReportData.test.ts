@@ -17,6 +17,7 @@ import {
 function fakeDb(
   projectIds: string[],
   incidents: Array<{ detected_at: string; resolved_at: string | null; affected_projects: string[] }>,
+  deployments: Array<{ project_id: string; created_at: string; updated_at: string; state: string }> = [],
 ): PgQueryable {
   const query = vi.fn(async (text: string) => {
     if (text.includes("FROM project_channels")) {
@@ -24,6 +25,9 @@ function fakeDb(
     }
     if (text.includes("FROM incidents")) {
       return { rows: incidents };
+    }
+    if (text.includes("FROM deployments")) {
+      return { rows: deployments };
     }
     throw new Error(`unexpected query: ${text}`);
   });
@@ -50,6 +54,34 @@ describe("buildDevOpsManagerSummary（PRF-G: 全プロジェクト横断）", ()
     expect(result.totalProjectCount).toBe(2);
     expect(result.totalTicketCount).toBe(2);
     expect(result.remainingTicketCount).toBe(1);
+    expect(result.dora.deploymentReworkRatePct).toBe(0);
+  });
+});
+
+describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
+  it("deployment rework rateを含むDORA5を返す", async () => {
+    const db = fakeDb(
+      ["PRJ-0001"],
+      [],
+      [
+        {
+          project_id: "PRJ-0001",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T12:00:00Z",
+          state: "rolled_back",
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
+    expect(result.dora.deploymentReworkRatePct).toBe(100);
+    expect(result.coveragePct).toBeNull();
+    expect(result.doraByProject[0]?.projectId).toBe("PRJ-0001");
   });
 });
 

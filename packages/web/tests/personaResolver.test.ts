@@ -93,6 +93,15 @@ describe("PrjopsPersonaSource + InMemoryStakeholderMasterProvider（ADR-0005: �
       participatingProjectIds: ["PRJ-0003"],
       investedProjectIds: [],
     },
+    {
+      stakeholderId: "STK-INV",
+      email: "investor@example.com",
+      profile: "PRF-05",
+      managedProjectIds: [],
+      assignedProjectIds: [],
+      participatingProjectIds: [],
+      investedProjectIds: ["PRJ-0009"],
+    },
   ];
 
   it("emailに一致するステークホルダーのペルソナを解決する", async () => {
@@ -119,6 +128,25 @@ describe("PrjopsPersonaSource + InMemoryStakeholderMasterProvider（ADR-0005: �
     const source = new PrjopsPersonaSource(provider);
     const personas = await source.resolveByEmail("unknown@example.com");
     expect(personas).toEqual([]);
+  });
+
+  it("PRF-05をinvestorペルソナとして解決する [REQ-039, SPEC-INT-066]", async () => {
+    const provider = new InMemoryStakeholderMasterProvider(records);
+    const source = new PrjopsPersonaSource(provider);
+    const personas = await source.resolveByEmail("investor@example.com");
+    expect(personas).toEqual([
+      {
+        domain: "investor",
+        profile: "investor",
+        visibility: {
+          recipientStakeholderId: "STK-INV",
+          recipientManagedProjectIds: [],
+          recipientAssignedProjectIds: [],
+          recipientParticipatingProjectIds: [],
+          investedProjectIds: ["PRJ-0009"],
+        },
+      },
+    ]);
   });
 });
 

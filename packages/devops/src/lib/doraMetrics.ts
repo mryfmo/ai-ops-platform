@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/lib/doraMetrics.ts
  *
- * 根拠: REQ-023 PRF-G（マネージャー）向け / AC-023b: DORA4指標すべてが数値で表示される。
+ * 根拠: REQ-023 PRF-G（マネージャー）向け / AC-023b: DORA5指標すべてが数値で表示される。
  *
  * DORA（DevOps Research and Assessment）の4指標定義（出典: dora.dev / Google Cloud "Four Keys"）:
  *   - Deployment Frequency（デプロイ頻度）: 本番への successful deployment の頻度。
@@ -20,6 +20,7 @@ export interface DeploymentRecord {
   commitAt: string; // ISO 8601
   deployedAt: string; // ISO 8601（本番デプロイ完了時刻）
   causedFailure: boolean; // このデプロイが本番障害を引き起こしたか
+  reworked?: boolean; // DORA 2024: デプロイ後に手戻り修正が必要だったか
 }
 
 export interface IncidentRecord {
@@ -54,6 +55,13 @@ export function calcChangeFailureRatePct(deployments: DeploymentRecord[]): numbe
   return (failed / deployments.length) * 100;
 }
 
+/** Deployment rework rate(%): 手戻り修正が必要だったデプロイの割合 */
+export function calcDeploymentReworkRatePct(deployments: DeploymentRecord[]): number {
+  if (deployments.length === 0) return 0;
+  const reworked = deployments.filter((d) => d.reworked === true).length;
+  return (reworked / deployments.length) * 100;
+}
+
 /** MTTR（平均復旧時間、時間単位）: インシデント検知から復旧までの平均時間 */
 export function calcMeanTimeToRestoreHours(incidents: IncidentRecord[]): number {
   if (incidents.length === 0) return 0;
@@ -65,6 +73,7 @@ export interface DoraSummary {
   deploymentFrequencyPerWeek: number;
   medianLeadTimeHours: number;
   changeFailureRatePct: number;
+  deploymentReworkRatePct: number;
   meanTimeToRestoreHours: number;
 }
 
@@ -78,6 +87,7 @@ export function calculateDoraSummary(
     deploymentFrequencyPerWeek: calcDeploymentFrequencyPerWeek(deployments, periodDays),
     medianLeadTimeHours: calcMedianLeadTimeHours(deployments),
     changeFailureRatePct: calcChangeFailureRatePct(deployments),
+    deploymentReworkRatePct: calcDeploymentReworkRatePct(deployments),
     meanTimeToRestoreHours: calcMeanTimeToRestoreHours(incidents),
   };
 }

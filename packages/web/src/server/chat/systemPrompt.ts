@@ -11,7 +11,7 @@
 import type { ResolvedPersona } from "../personaResolver";
 
 function describePersona(persona: ResolvedPersona): string {
-  const domainLabel = persona.domain === "prjops" ? "PrjOps" : "DevOps";
+  const domainLabel = persona.domain === "prjops" ? "PrjOps" : persona.domain === "devops" ? "DevOps" : "Investor";
   return `${domainLabel} ${persona.profile}`;
 }
 
