@@ -42,6 +42,17 @@ function makeRepoStub(queue: QueuedEvent[]) {
   };
 }
 
+function makeTaskDeps(repo: ReturnType<typeof makeRepoStub>, auditLog = new InMemoryAuditLog()) {
+  return {
+    eventsRepo: repo as unknown as EventsRepo,
+    auditLog,
+    dispatchInboundNotification: async () => {},
+    dispatchGithubEvent: async () => {},
+    dispatchMonitorEvent: async () => {},
+    traceIdProvider: () => "t",
+  };
+}
+
 describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
   it("source=inboundのgraph通知をディスパッチしdoneにする", async () => {
     const repo = makeRepoStub([makeEvent()]);
@@ -52,6 +63,8 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
       dispatchInboundNotification: async (payload, traceId) => {
         dispatched.push({ payload, traceId });
       },
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
       traceIdProvider: () => "t",
     });
 
@@ -72,6 +85,8 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
         call += 1;
         if (call === 1) throw new Error("boom");
       },
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
       traceIdProvider: () => "t",
     });
 
@@ -91,26 +106,60 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
       dispatchInboundNotification: async () => {
         called = true;
       },
-      traceIdProvider: () => "t",
-    });
-    await task.run(new Date());
-    expect(called).toBe(false);
-  });
-
-  it("source=github/monitorはディスパッチせずdone扱い（TODO: 別タスクで接続）", async () => {
-    const repo = makeRepoStub([makeEvent({ source: "github", payload: { eventName: "push" } })]);
-    let called = false;
-    const task = createEventsPollingTask({
-      eventsRepo: repo as unknown as EventsRepo,
-      auditLog: new InMemoryAuditLog(),
-      dispatchInboundNotification: async () => {
+      dispatchGithubEvent: async () => {
+        called = true;
+      },
+      dispatchMonitorEvent: async () => {
         called = true;
       },
       traceIdProvider: () => "t",
     });
     await task.run(new Date());
     expect(called).toBe(false);
+  });
+
+  it("source=githubはDevOps dispatcherへ渡してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+    const repo = makeRepoStub([
+      makeEvent({ source: "github", payload: { eventName: "push", payload: { ref: "main" } } }),
+    ]);
+    const dispatched: unknown[] = [];
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog: new InMemoryAuditLog(),
+      dispatchInboundNotification: async () => {},
+      dispatchGithubEvent: async (payload) => {
+        dispatched.push(payload);
+      },
+      dispatchMonitorEvent: async () => {},
+      traceIdProvider: () => "t",
+    });
+    await task.run(new Date());
+    expect(dispatched).toEqual([{ eventName: "push", payload: { ref: "main" } }]);
     expect(repo.done).toEqual(["evt-1"]);
+  });
+
+  it("source=monitorはDevOps monitor dispatcherへ渡してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+    const repo = makeRepoStub([makeEvent({ source: "monitor", payload: { kind: "deploy_metrics" } })]);
+    const dispatched: unknown[] = [];
+    const task = createEventsPollingTask({
+      ...makeTaskDeps(repo),
+      dispatchMonitorEvent: async (payload) => {
+        dispatched.push(payload);
+      },
+    });
+    await task.run(new Date());
+    expect(dispatched).toEqual([{ kind: "deploy_metrics" }]);
+    expect(repo.done).toEqual(["evt-1"]);
+  });
+
+  it("未対応payloadは監査ログを残してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+    const repo = makeRepoStub([makeEvent({ source: "github", payload: { bad: true } })]);
+    const auditLog = new InMemoryAuditLog();
+    const task = createEventsPollingTask(makeTaskDeps(repo, auditLog));
+    await task.run(new Date());
+    expect(repo.done).toEqual(["evt-1"]);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "event_dispatch_ignored")).toBe(true);
   });
 
   it("maxBatchSizeで1tickの処理件数を制限する", async () => {
@@ -123,6 +172,8 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
       eventsRepo: repo as unknown as EventsRepo,
       auditLog: new InMemoryAuditLog(),
       dispatchInboundNotification: async () => {},
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
       traceIdProvider: () => "t",
       maxBatchSize: 2,
     });

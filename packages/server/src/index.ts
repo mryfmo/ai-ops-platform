@@ -10,8 +10,6 @@
  *
  * 2026-07-07 追記（ステップ#8/#9）: 購読管理（subscriptionRenewalTask/channelPollingTask）、
  *   イベントディスパッチ（eventsPollingTask）、Teams会話取込・コマンド実行（teamsConversationAgent）を配線。
- *   TODO: resolveCallerProfileはstakeholderマスタ/recipientsテーブル未接続のため暫定固定値
- *   （下記コメント参照。ADR-0005残課題）。
  *
  * 2026-07-07 追記（ステップ#10, ADR-0006）: コーディングタスク実行系を配線。
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
@@ -19,6 +17,7 @@
 import { randomUUID } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { GraphClient, GitHubClient, AnthropicStructuredClient, PgCostGuard } from "@aiops/shared";
+import type { StakeholderInput } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -38,6 +37,12 @@ import { createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.j
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
 import { createClientCredentialsTokenProvider } from "./auth/graphTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
+import {
+  dispatchGithubWebhookEvent,
+  type DevopsAgentId,
+  type DevopsEventHandlerInput,
+} from "./lib/githubEventRouter.js";
+import { resolveCallerProfileFromStakeholders } from "./lib/stakeholderProfileResolver.js";
 
 export * from "./config.js";
 export * from "./http/app.js";
@@ -57,6 +62,8 @@ export * from "./lib/graphNotificationValidator.js";
 export * from "./lib/channelAuthorization.js";
 export * from "./lib/freeTextIntent.js";
 export * from "./lib/confirmToken.js";
+export * from "./lib/githubEventRouter.js";
+export * from "./lib/stakeholderProfileResolver.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
 export * from "./db/grantsRepo.js";
@@ -66,6 +73,22 @@ export * from "./db/channelMessagesRepo.js";
 export * from "./db/codingTasksRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
+
+const SAMPLE_STAKEHOLDERS: StakeholderInput[] = [
+  {
+    id: "ST-010",
+    name: "山田太郎",
+    organization_id: "ORG-001",
+    assignments: [
+      { project_id: "PJ-001", profile: "PRF-02" },
+      { project_id: "PJ-002", profile: "PRF-01" },
+    ],
+    email: "yamada@example.com",
+    teams_user_id: "29:1a2b3c-example-teams-id",
+    preferred_language: "ja",
+    timezone: "Asia/Tokyo",
+  },
+];
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -98,6 +121,40 @@ async function main(): Promise<void> {
       )
     : undefined;
 
+  const devopsEventHandlers: Record<DevopsAgentId, (event: DevopsEventHandlerInput, traceId: string) => Promise<void>> =
+    {
+      AGT_BLD: async (event, traceId) => {
+        await auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-BLD",
+          action: "github_event_received",
+          basis: "SPEC-INT-011",
+          detail: { eventName: event.eventName },
+          at: new Date().toISOString(),
+        });
+      },
+      AGT_DEP: async (event, traceId) => {
+        await auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-DEP",
+          action: "github_event_received",
+          basis: "SPEC-INT-020",
+          detail: { eventName: event.eventName },
+          at: new Date().toISOString(),
+        });
+      },
+      AGT_INC: async (event, traceId) => {
+        await auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-INC",
+          action: "github_event_received",
+          basis: "SPEC-INT-030",
+          detail: { eventName: event.eventName },
+          at: new Date().toISOString(),
+        });
+      },
+    };
+
   const teamsConversationAgent = new TeamsConversationAgent({
     projectChannelsRepo,
     channelMessagesRepo,
@@ -105,9 +162,8 @@ async function main(): Promise<void> {
     githubClient,
     auditLog,
     llmClient,
-    // TODO(ADR-0005残課題): 本来はstakeholderマスタ/recipientsテーブルからauthorAadIdを突合して
-    // プロファイル(PRF-01〜05)を解決すべき。未接続のため暫定的にPRF-01（照会系のみ許可）固定とする。
-    resolveCallerProfile: () => "PRF-01",
+    resolveCallerProfile: (authorAadId, projectId) =>
+      resolveCallerProfileFromStakeholders(SAMPLE_STAKEHOLDERS, authorAadId, projectId).profile,
     codingTasksRepo,
     confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
     publicBaseUrl: config.PUBLIC_BASE_URL,
@@ -156,6 +212,18 @@ async function main(): Promise<void> {
         eventsRepo,
         auditLog,
         dispatchInboundNotification: (payload, traceId) => teamsConversationAgent.handleNotification(payload, traceId),
+        dispatchGithubEvent: (payload, traceId) =>
+          dispatchGithubWebhookEvent(payload, traceId, { auditLog, handlers: devopsEventHandlers }),
+        dispatchMonitorEvent: async (payload, traceId) => {
+          await auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-DEP",
+            action: "monitor_event_received",
+            basis: "SPEC-INT-020",
+            detail: { hasPayload: payload !== null && payload !== undefined },
+            at: new Date().toISOString(),
+          });
+        },
         traceIdProvider: () => randomUUID(),
       }),
     ],

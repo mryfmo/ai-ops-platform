@@ -6,13 +6,13 @@
  *   ディスパッチャ実体。5秒間隔でstatus='queued'をポーリングする常駐ループの初の実装）。
  *
  * 設計: 1件処理失敗を他イベントの処理に波及させない（例外を隔離しmarkDelayedへ）。
- *   source='inbound'（graph_channel_message_notification）のみteamsConversationAgentへディスパッチする。
- *   他sourceは現時点で本タスクの対象外（github/monitorの既存ディスパッチ経路が別途あれば将来接続、
- *   本タスクでは黙って完了扱いにする＝markDone。TODO: github/monitorディスパッチは別タスクで実装）。
+ *   source='inbound' はteamsConversationAgentへ、source='github'/'monitor' はDevOps dispatcherへ渡す。
+ *   未対応payloadは無限リトライを避けるため監査ログを残してdoneにする。
  */
 import type { AuditLogWriter } from "@aiops/shared";
 import type { ScheduledTask } from "../scheduler.js";
 import type { EventsRepo, QueuedEvent } from "../../db/eventsRepo.js";
+import { isQueuedGithubWebhookEvent, type QueuedGithubWebhookEvent } from "../../lib/githubEventRouter.js";
 
 export interface InboundNotificationPayload {
   kind: "graph_channel_message_notification";
@@ -27,6 +27,10 @@ export interface EventsPollingTaskDeps {
   auditLog: AuditLogWriter;
   /** graph_channel_message_notification をディスパッチする（teamsConversationAgent.handleNotification想定） */
   dispatchInboundNotification(payload: InboundNotificationPayload, traceId: string): Promise<void>;
+  /** GitHub webhookイベントをDevOpsエージェントへディスパッチする */
+  dispatchGithubEvent(payload: QueuedGithubWebhookEvent, traceId: string): Promise<void>;
+  /** 監視イベントをDevOpsエージェントへディスパッチする */
+  dispatchMonitorEvent(payload: unknown, traceId: string): Promise<void>;
   traceIdProvider(): string;
   /** 1tickあたりの最大処理件数（既定10。無限ループ防止） */
   maxBatchSize?: number;
@@ -44,9 +48,20 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
   try {
     if (event.source === "inbound" && isInboundNotificationPayload(event.payload)) {
       await deps.dispatchInboundNotification(event.payload, event.traceId);
+    } else if (event.source === "github" && isQueuedGithubWebhookEvent(event.payload)) {
+      await deps.dispatchGithubEvent(event.payload, event.traceId);
+    } else if (event.source === "monitor") {
+      await deps.dispatchMonitorEvent(event.payload, event.traceId);
+    } else {
+      await deps.auditLog.append({
+        trace_id: event.traceId,
+        actor: "SERVER",
+        action: "event_dispatch_ignored",
+        basis: "SPEC-INT-010",
+        detail: { eventId: event.eventId, source: event.source },
+        at: now.toISOString(),
+      });
     }
-    // github/monitor は本タスクの対象外（TODO: 別タスクでディスパッチ経路を接続）。
-    // 未対応sourceも含め、正常経路として完了扱いにする（無限リトライを避ける）。
     await deps.eventsRepo.markDone(event.eventId);
   } catch (err) {
     // 1件の失敗を他イベント処理に波及させない（隔離）。delayedへ遷移させ、次tickでの再クレーム対象にする。

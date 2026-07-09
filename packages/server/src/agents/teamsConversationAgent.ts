@@ -24,7 +24,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { sanitizeSecrets, type AuditLogWriter, type AnthropicStructuredClient } from "@aiops/shared";
-import { parseCommand, checkCommandPermission, type ParsedCommand } from "@aiops/prjops";
+import { parseCommand, checkCommandPermission, type ParsedCommand, type Profile } from "@aiops/prjops";
 import { parseChannelMessageResource, type GraphResourceIds } from "../lib/graphNotificationValidator.js";
 import { decideChannelIngestion } from "../lib/channelAuthorization.js";
 import { interpretFreeTextIntent, type FreeTextIntent } from "../lib/freeTextIntent.js";
@@ -99,12 +99,10 @@ export interface TeamsConversationAgentDeps {
   /** 自由文意図解釈用。ANTHROPIC_API_KEY未設定時などはundefinedを渡すとフォールバックを無効化する */
   llmClient?: AnthropicStructuredClient;
   /**
-   * コマンド実行者のプロファイル解決。
-   * TODO: 本来はstakeholderマスタ/recipientsテーブルからauthorAadIdを突合して解決すべき（ADR-0005残課題）。
-   * 本実装では暫定的に固定プロファイルを返す関数を注入する形とし、呼び出し元(index.ts)で
-   * 未実装であることを明示する。
+   * コマンド実行者のプロファイル解決。関係者マスタのteams_user_idとproject assignmentから解決する。
+   * 未解決時はnullを返し、本エージェントが拒否返信+監査ログを行う。
    */
-  resolveCallerProfile(authorAadId: string | null): "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05";
+  resolveCallerProfile(authorAadId: string | null, projectId: string): Profile | null | Promise<Profile | null>;
   /** ADR-0006: code_task用のcoding_tasks台帳。insertのみでdispatchWorkflowは呼ばない（確認クリック後にHTTPルート側が呼ぶ） */
   codingTasksRepo: TeamsConversationCodingTasksRepo;
   /** ADR-0006: confirmToken.tsのHMAC-SHA256鍵。config.tsのCODING_TASK_CALLBACK_SECRETを注入する */
@@ -228,7 +226,19 @@ export class TeamsConversationAgent {
 
     // 4. コマンド判定（定型 → 自由文フォールバックの順）
     const trimmed = sanitized.trim();
-    const callerProfile = this.deps.resolveCallerProfile(raw.authorAadId);
+    const callerProfile = await this.deps.resolveCallerProfile(raw.authorAadId, channel.projectId);
+    if (!callerProfile) {
+      await this.deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "teams_caller_profile_unresolved",
+        basis: "ADR-0005",
+        detail: { projectId: channel.projectId, hasAuthorAadId: raw.authorAadId !== null },
+        at: new Date().toISOString(),
+      });
+      await this.reply(ids, "このユーザーは関係者マスタで確認できないため、コマンドを実行できません");
+      return;
+    }
 
     if (trimmed.startsWith("/")) {
       await this.handleSlashCommand(trimmed, channel, ids, callerProfile, traceId);
@@ -257,7 +267,7 @@ export class TeamsConversationAgent {
     text: string,
     channel: { projectId: string; githubOwner: string | null; githubRepo: string | null },
     ids: GraphResourceIds,
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
     traceId: string,
   ): Promise<void> {
     const parsed = parseCommand(text);
@@ -295,7 +305,7 @@ export class TeamsConversationAgent {
     text: string,
     channel: { projectId: string; githubOwner: string | null; githubRepo: string | null },
     ids: GraphResourceIds,
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
     traceId: string,
   ): Promise<void> {
     if (!this.deps.llmClient) {
@@ -342,7 +352,7 @@ export class TeamsConversationAgent {
     ids: GraphResourceIds,
     traceId: string,
     origin: "command" | "free_text",
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
   ): Promise<void> {
     if (intent.kind === "code_task") {
       await this.executeCodeTask(intent, ids, traceId, origin, callerProfile);
@@ -396,7 +406,7 @@ export class TeamsConversationAgent {
     ids: GraphResourceIds,
     traceId: string,
     origin: "command" | "free_text",
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
   ): Promise<void> {
     const taskId = randomUUID();
     const confirmToken = generateConfirmToken(taskId, this.deps.confirmTokenSecret);

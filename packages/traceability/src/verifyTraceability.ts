@@ -17,6 +17,7 @@
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { format as formatMarkdown } from "prettier";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..", "..");
@@ -102,24 +103,33 @@ function pct(n: number, total: number): string {
   return ((n / total) * 100).toFixed(0);
 }
 
+function markdownTable(headers: string[], rows: string[][]): string[] {
+  const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i]?.length ?? 0)));
+  const formatRow = (cells: string[]) => `| ${cells.map((c, i) => c.padEnd(widths[i]!)).join(" | ")} |`;
+  return [
+    formatRow(headers),
+    `| ${widths.map((w) => "-".repeat(w)).join(" | ")} |`,
+    ...rows.map((row) => formatRow(row)),
+  ];
+}
+
 function formatResults(systemName: string, results: CategoryResult[]): string {
+  const rows = results.map((r) => [
+    r.category,
+    String(r.total),
+    `${r.inSrc} (${pct(r.inSrc, r.total)}%)`,
+    `${r.inTest} (${pct(r.inTest, r.total)}%)`,
+    r.missingFromSrc.join(", ") || "—",
+  ]);
   const lines: string[] = [
     `## ${systemName}`,
     "",
-    "| カテゴリ | 総数 | 実装参照あり | テスト参照あり | 実装参照なし |",
-    "|---|---|---|---|---|",
+    ...markdownTable(["カテゴリ", "総数", "実装参照あり", "テスト参照あり", "実装参照なし"], rows),
   ];
-  for (const r of results) {
-    lines.push(
-      `| ${r.category} | ${r.total} | ${r.inSrc} (${pct(r.inSrc, r.total)}%) | ${r.inTest} (${pct(r.inTest, r.total)}%) | ${
-        r.missingFromSrc.join(", ") || "—"
-      } |`,
-    );
-  }
   return lines.join("\n");
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const prjopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "prjops.json"));
   const devopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "devops.json"));
 
@@ -149,20 +159,23 @@ function main(): void {
     checkCategory(devopsIndex.ISS, "ISS(参考)", devopsCorpus),
   ];
 
-  const report = [
-    "# トレーサビリティ検証結果",
-    "",
-    `生成日時: ${new Date().toISOString()}`,
-    "",
-    "凡例: 「実装参照あり」= packages/*/src 配下のコード（コメント含む）にIDが1回以上出現。",
-    "「テスト参照あり」= packages/*/tests 配下のテストコードにIDが1回以上出現。",
-    "ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装コードへの直接参照を必須としない（参考値）。",
-    "",
-    formatResults("PrjOps", prjopsResults),
-    "",
-    formatResults("DevOps", devopsResults),
-    "",
-  ].join("\n");
+  const report = await formatMarkdown(
+    [
+      "# トレーサビリティ検証結果",
+      "",
+      `生成日時: ${new Date().toISOString()}`,
+      "",
+      "凡例: 「実装参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。",
+      "「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。",
+      "ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装コードへの直接参照を必須としない（参考値）。",
+      "",
+      formatResults("PrjOps", prjopsResults),
+      "",
+      formatResults("DevOps", devopsResults),
+      "",
+    ].join("\n"),
+    { parser: "markdown" },
+  );
 
   const outDir = join(__dirname, "..", "output");
   mkdirSync(outDir, { recursive: true });
@@ -184,4 +197,4 @@ function main(): void {
   }
 }
 
-main();
+await main();

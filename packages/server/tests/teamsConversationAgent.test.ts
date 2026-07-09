@@ -87,7 +87,7 @@ function makeHarness(
     channel?: ProjectChannel | null;
     message?: Partial<TeamsConversationGraphMessage>;
     llmClient?: AnthropicStructuredClient;
-    callerProfile?: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05";
+    callerProfile?: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05" | null;
   } = {},
 ): Harness {
   const auditLog = new InMemoryAuditLog();
@@ -142,7 +142,7 @@ function makeHarness(
     githubClient,
     auditLog,
     llmClient: opts.llmClient,
-    resolveCallerProfile: () => opts.callerProfile ?? "PRF-02",
+    resolveCallerProfile: () => (opts.callerProfile === undefined ? "PRF-02" : opts.callerProfile),
     codingTasksRepo,
     confirmTokenSecret: "test-confirm-token-secret-16+",
     publicBaseUrl: "https://aiops.example.com",
@@ -186,6 +186,15 @@ describe("TeamsConversationAgent: 権限チェック拒否 (SPEC-INT-033)", () =
     expect(h.ghCalls.listPr).toBe(0);
     const logs = await h.auditLog.readAll();
     expect(logs.some((l) => l.action === "teams_message_rejected")).toBe(true);
+  });
+
+  it("関係者マスタでauthorを解決できない場合は拒否+監査ログ (ADR-0005)", async () => {
+    const h = makeHarness({ message: { content: "/gh pr list PJ-001" }, callerProfile: null });
+    await h.agent.handleNotification(makeNotification(), "trace-4b");
+    expect(h.ghCalls.listPr).toBe(0);
+    expect(h.replies[0]!.content).toContain("関係者マスタ");
+    const logs = await h.auditLog.readAll();
+    expect(logs.some((l) => l.action === "teams_caller_profile_unresolved")).toBe(true);
   });
 });
 
