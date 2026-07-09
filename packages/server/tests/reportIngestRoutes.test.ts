@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { Hono } from "hono";
 import { InMemoryAuditLog, type StandardReportPayload } from "@aiops/shared";
 import { registerReportIngestRoutes } from "../src/http/routes/reportIngest.js";
+import { standardReportId } from "../src/db/standardReportsRepo.js";
 
 const secret = "report-ingest-secret-of-at-least-32-chars";
 const payload: StandardReportPayload = {
@@ -23,12 +24,16 @@ function makeApp() {
   const auditLog = new InMemoryAuditLog();
   const inserts: StandardReportPayload[] = [];
   const delivered: string[] = [];
+  const seenReportIds = new Set<string>();
   registerReportIngestRoutes(app, {
     ingestSecret: secret,
     reportsRepo: {
       insert: async (p) => {
         inserts.push(p);
-        return { reportId: "STD-1", created: inserts.length === 1 };
+        const reportId = standardReportId(p);
+        const created = !seenReportIds.has(reportId);
+        seenReportIds.add(reportId);
+        return { reportId, created };
       },
     },
     auditLog,
@@ -73,16 +78,27 @@ describe("POST /reports/ingest [REQ-042 SPEC-INT-069 SPEC-INT-083 AC-042-1]", ()
     });
     expect(res.status).toBe(201);
     expect(inserts).toHaveLength(1);
-    expect(delivered).toEqual(["STD-1"]);
+    expect(delivered).toEqual([standardReportId(payload)]);
   });
 
-  it("再送は冪等にduplicateとして受け、配信しない", async () => {
+  it("generatedAtだけが違う再生成は冪等にduplicateとして受け、配信しない", async () => {
     const { app, delivered } = makeApp();
     const raw = JSON.stringify(payload);
-    const headers = { "x-aiops-signature-256": sign(raw) };
-    await app.request("/reports/ingest", { method: "POST", headers, body: raw });
-    const res = await app.request("/reports/ingest", { method: "POST", headers, body: raw });
+    const regenerated = JSON.stringify({
+      ...payload,
+      period: { ...payload.period, generatedAt: "2026-07-06T12:34:56.000Z" },
+    });
+    await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(raw) },
+      body: raw,
+    });
+    const res = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(regenerated) },
+      body: regenerated,
+    });
     expect(res.status).toBe(200);
-    expect(delivered).toEqual(["STD-1"]);
+    expect(delivered).toEqual([standardReportId(payload)]);
   });
 });

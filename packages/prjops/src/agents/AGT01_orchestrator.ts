@@ -4,12 +4,11 @@
  * 根拠: DOC-02 §5（例外・障害時のふるまい） / REQ-006
  *   エージェント処理が失敗した場合、AGT-01が同一ジョブを最大2回リトライ（間隔10分）し、
  *   3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知する。
- * SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を1本の
- *   ワークフロー内のjob依存で表現し、失敗時リトライ2回・10分間隔は`retry`ステップで実装する。
+ * SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を定義する。
+ *   T20時点ではpackages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。
  *
- * 設計方針: 実際のリトライ間隔待機（10分の実時間sleep）はGitHub Actionsのジョブ機構
- * （本パッケージのworkflows/配下のYAML）に委譲し、本モジュールはリトライ回数・状態遷移の
- * 決定ロジックのみを純粋関数として提供する（テスト時に実時間を待たせないための設計判断）。
+ * 設計方針: 本モジュールはリトライ回数・状態遷移の決定ロジックのみを純粋関数として提供する
+ * （テスト時に実時間を待たせないための設計判断）。
  */
 
 export interface JobAttemptState {

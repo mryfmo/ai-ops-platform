@@ -13,6 +13,7 @@ function toEntry(row: Record<string, unknown>): ImportLedgerEntry {
     githubId: String(row.github_id),
     importRunId: String(row.import_run_id),
     status: row.status as ImportLedgerEntry["status"],
+    error: row.error ? String(row.error) : undefined,
   };
 }
 
@@ -21,7 +22,7 @@ export class ImportLedgerRepo implements ImportLedger {
 
   async findBySourceKey(sourceKey: string): Promise<ImportLedgerEntry | null> {
     const res = await this.db.query(
-      `SELECT source_key, target_kind, github_id, import_run_id, status
+      `SELECT source_key, target_kind, github_id, import_run_id, status, error
        FROM import_ledger WHERE source_key = $1`,
       [sourceKey],
     );
@@ -34,6 +35,24 @@ export class ImportLedgerRepo implements ImportLedger {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (source_key) DO NOTHING`,
       [entry.sourceKey, entry.targetKind, entry.githubId, entry.importRunId, entry.status],
+    );
+  }
+
+  async markImported(sourceKey: string, githubId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE import_ledger
+       SET status = 'imported', github_id = $2, error = NULL
+       WHERE source_key = $1`,
+      [sourceKey, githubId],
+    );
+  }
+
+  async markFailed(sourceKey: string, error: string): Promise<void> {
+    await this.db.query(
+      `UPDATE import_ledger
+       SET status = 'failed', error = $2
+       WHERE source_key = $1`,
+      [sourceKey, error],
     );
   }
 }

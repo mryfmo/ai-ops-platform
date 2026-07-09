@@ -1,9 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
+import { createHmac } from "node:crypto";
 import { InMemoryAuditLog, buildXlsxImportTemplateBuffer, type XlsxImportGithubClient } from "@aiops/shared";
 import { buildApp, type AppDependencies } from "../src/http/app.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
 import type { PgQueryable } from "@aiops/shared";
 import { ImportLedgerRepo } from "../src/db/importLedgerRepo.js";
+
+const XLSX_IMPORT_SECRET = "xlsx-import-secret-32-bytes-minimum";
+
+function signedHeaders(body: Buffer, extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    ...extra,
+    "x-aiops-signature-256": "sha256=" + createHmac("sha256", XLSX_IMPORT_SECRET).update(body).digest("hex"),
+  };
+}
 
 function githubStub(): XlsxImportGithubClient {
   return {
@@ -15,7 +25,12 @@ function githubStub(): XlsxImportGithubClient {
   };
 }
 
-function deps(): AppDependencies {
+function deps(
+  options: { importSecret?: string; allowedRepos?: string[] } = {
+    importSecret: XLSX_IMPORT_SECRET,
+    allowedRepos: ["acme/widget"],
+  },
+): AppDependencies {
   const auditLog = new InMemoryAuditLog();
   const mockDb: PgQueryable = { query: async () => ({ rows: [] }) };
   return {
@@ -47,6 +62,8 @@ function deps(): AppDependencies {
       githubClient: githubStub(),
       auditLog,
       traceIdProvider: () => "00000000-0000-4000-8000-000000000008",
+      importSecret: options.importSecret,
+      allowedRepos: options.allowedRepos,
     },
   };
 }
@@ -62,31 +79,81 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
   it("dry-runは検証結果を返し、GitHubへ書き込まない", async () => {
     const d = deps();
     const app = buildApp(d);
+    const body = await buildXlsxImportTemplateBuffer();
     const res = await app.request("/xlsx-import/dry-run", {
       method: "POST",
-      body: await buildXlsxImportTemplateBuffer(),
+      headers: signedHeaders(body),
+      body,
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, rowCount: 3 });
     expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
   });
 
-  it("executeは確認ヘッダ必須", async () => {
+  it("dry-runは署名なしを401で拒否する", async () => {
     const app = buildApp(deps());
-    const res = await app.request("/xlsx-import/execute?owner=acme&repo=widget", {
+    const res = await app.request("/xlsx-import/dry-run", {
       method: "POST",
       body: await buildXlsxImportTemplateBuffer(),
     });
+    expect(res.status).toBe(401);
+  });
+
+  it("dry-runは不正署名を401で拒否する", async () => {
+    const body = await buildXlsxImportTemplateBuffer();
+    const app = buildApp(deps());
+    const res = await app.request("/xlsx-import/dry-run", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": "sha256=deadbeef" },
+      body,
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("dry-runはシークレット未設定時に503と監査ログを返す", async () => {
+    const d = deps({ importSecret: undefined, allowedRepos: ["acme/widget"] });
+    const app = buildApp(d);
+    const res = await app.request("/xlsx-import/dry-run", {
+      method: "POST",
+      body: await buildXlsxImportTemplateBuffer(),
+    });
+    expect(res.status).toBe(503);
+    expect((await d.auditLog.readAll()).some((record) => record.action === "xlsx_import_disabled")).toBe(true);
+  });
+
+  it("executeは確認ヘッダ必須", async () => {
+    const app = buildApp(deps());
+    const body = await buildXlsxImportTemplateBuffer();
+    const res = await app.request("/xlsx-import/execute?owner=acme&repo=widget", {
+      method: "POST",
+      headers: signedHeaders(body),
+      body,
+    });
     expect(res.status).toBe(409);
+  });
+
+  it("executeはallowlist外リポジトリを403で拒否して監査ログを残す", async () => {
+    const d = deps();
+    const app = buildApp(d);
+    const body = await buildXlsxImportTemplateBuffer();
+    const res = await app.request("/xlsx-import/execute?owner=evil&repo=repo", {
+      method: "POST",
+      headers: signedHeaders(body, { "x-confirm-import": "yes" }),
+      body,
+    });
+    expect(res.status).toBe(403);
+    expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
+    expect((await d.auditLog.readAll()).some((record) => record.action === "xlsx_import_repo_rejected")).toBe(true);
   });
 
   it("executeは確認後にGitHubモックへ書き込み、監査ログを追記する", async () => {
     const d = deps();
     const app = buildApp(d);
+    const body = await buildXlsxImportTemplateBuffer();
     const res = await app.request("/xlsx-import/execute?owner=acme&repo=widget", {
       method: "POST",
-      headers: { "x-confirm-import": "yes" },
-      body: await buildXlsxImportTemplateBuffer(),
+      headers: signedHeaders(body, { "x-confirm-import": "yes" }),
+      body,
     });
     expect(res.status).toBe(200);
     const json = (await res.json()) as { result: { imported: number } };

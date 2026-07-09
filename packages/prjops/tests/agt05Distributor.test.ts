@@ -64,6 +64,19 @@ describe("distributeOne [REQ-018, SPEC-INT-052]", () => {
     expect(sentMails).toHaveLength(1);
   });
 
+  it("送信済みだがsent確定前のpendingログが残る再試行は件名に再送を明示する", async () => {
+    const { deps, sentMails } = makeDeps();
+    await deps.deliveryLogStore.record({
+      reportId: baseTarget.reportId,
+      recipientId: baseTarget.recipientId,
+      deliveredAt: "2026-07-09T00:00:00.000Z",
+      status: "pending",
+    } as Parameters<typeof deps.deliveryLogStore.record>[0]);
+    const outcome = await distributeOne(baseTarget, deps);
+    expect(outcome).toBe("sent");
+    expect(sentMails[0]?.subject).toContain("(再送)");
+  });
+
   it("PRF-02/03向けはTeamsへの要約カードも投稿される", async () => {
     const { deps, cardCounter } = makeDeps();
     await distributeOne(baseTarget, deps);

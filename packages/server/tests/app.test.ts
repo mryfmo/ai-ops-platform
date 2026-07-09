@@ -67,6 +67,8 @@ function makeDeps() {
       },
       auditLog,
       traceIdProvider: () => `trace-${++traceSeq}`,
+      importSecret: "xlsx-import-secret-32-bytes-minimum",
+      allowedRepos: ["acme/widget"],
     },
   };
   return { deps, auditLog, inboundEvents, githubEvents };

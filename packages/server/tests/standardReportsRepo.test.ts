@@ -16,6 +16,15 @@ describe("StandardReportsRepo [REQ-042 SPEC-INT-069]", () => {
     expect(standardReportId(payload)).toBe(standardReportId({ ...payload }));
   });
 
+  it("reportIdは生成時刻の差で変わらない", () => {
+    expect(standardReportId(payload)).toBe(
+      standardReportId({
+        ...payload,
+        period: { ...payload.period, generatedAt: "2026-07-06T12:34:56.000Z" },
+      }),
+    );
+  });
+
   it("ON CONFLICT DO NOTHINGで冪等insertする", async () => {
     const calls: unknown[][] = [];
     const repo = new StandardReportsRepo({

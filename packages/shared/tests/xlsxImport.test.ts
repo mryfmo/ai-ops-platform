@@ -198,6 +198,25 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(sleep).toHaveBeenCalledWith(1000);
   });
 
+  it("SPEC-INT-063: 台帳pending記録に失敗した行はGitHubへ書き込まず、失敗理由を残す", async () => {
+    const ledger = new MemoryLedger();
+    const github = githubStub();
+    vi.spyOn(ledger, "insert").mockRejectedValueOnce(new Error("ledger unavailable"));
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+
+    expect(result.failed).toBe(1);
+    expect(vi.mocked(github.createIssue)).not.toHaveBeenCalled();
+    expect((result.progress[0] as { error?: string }).error).toContain("ledger unavailable");
+  });
+
   it("AC-037-1: appendImportMarkerは同一markerを重複追加しない", () => {
     expect(appendImportMarker("body\n\n<!-- import:ISS-1 -->", "ISS-1").match(/import:ISS-1/g)).toHaveLength(1);
   });

@@ -11,23 +11,32 @@ export interface DeliveryLogEntry {
   reportId: string;
   recipientId: string;
   deliveredAt: string;
+  status?: "pending" | "sent";
 }
 
 export interface DeliveryLogStore {
   exists(reportId: string, recipientId: string): Promise<boolean>;
   record(entry: DeliveryLogEntry): Promise<void>;
+  status?(reportId: string, recipientId: string): Promise<"pending" | "sent" | null>;
+  markSent?(reportId: string, recipientId: string, deliveredAt: string): Promise<void>;
 }
 
 export class InMemoryDeliveryLogStore implements DeliveryLogStore {
-  private log = new Set<string>();
+  private log = new Map<string, "pending" | "sent">();
   private key(reportId: string, recipientId: string): string {
     return `${reportId}::${recipientId}`;
   }
   async exists(reportId: string, recipientId: string): Promise<boolean> {
-    return this.log.has(this.key(reportId, recipientId));
+    return this.log.get(this.key(reportId, recipientId)) === "sent";
   }
   async record(entry: DeliveryLogEntry): Promise<void> {
-    this.log.add(this.key(entry.reportId, entry.recipientId));
+    this.log.set(this.key(entry.reportId, entry.recipientId), entry.status ?? "sent");
+  }
+  async status(reportId: string, recipientId: string): Promise<"pending" | "sent" | null> {
+    return this.log.get(this.key(reportId, recipientId)) ?? null;
+  }
+  async markSent(reportId: string, recipientId: string): Promise<void> {
+    this.log.set(this.key(reportId, recipientId), "sent");
   }
 }
 
@@ -46,6 +55,17 @@ export async function decideDelivery(
   recipientId: string,
   isRetryAttempt: boolean,
 ): Promise<DeliveryDecision> {
+  const deliveryStatus = await store.status?.(reportId, recipientId);
+  if (deliveryStatus === "pending") {
+    return { shouldSend: true, subjectSuffix: "(再送)" };
+  }
+  if (deliveryStatus === "sent" && !isRetryAttempt) {
+    return { shouldSend: false, subjectSuffix: "" };
+  }
+  if (deliveryStatus === "sent" && isRetryAttempt) {
+    return { shouldSend: true, subjectSuffix: "(再送)" };
+  }
+
   const alreadyDelivered = await store.exists(reportId, recipientId);
   if (alreadyDelivered && !isRetryAttempt) {
     return { shouldSend: false, subjectSuffix: "" };

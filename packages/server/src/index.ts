@@ -361,6 +361,8 @@ async function main(): Promise<void> {
       githubClient,
       auditLog,
       traceIdProvider: () => randomUUID(),
+      importSecret: config.XLSX_IMPORT_SECRET,
+      allowedRepos: config.XLSX_IMPORT_ALLOWED_REPOS,
     },
     reports: {
       ingestSecret: config.REPORT_INGEST_SECRET,

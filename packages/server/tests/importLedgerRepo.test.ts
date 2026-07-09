@@ -53,4 +53,20 @@ describe("ImportLedgerRepo [REQ-037, SPEC-INT-063]", () => {
     expect(calls[0]!.text).toContain("ON CONFLICT (source_key) DO NOTHING");
     expect(calls[0]!.params).toEqual(["MS-1", "milestone", "M_1", "run-1", "imported"]);
   });
+
+  it("pending台帳行をimportedへ更新する", async () => {
+    const { db, calls } = makeMockDb();
+    const repo = new ImportLedgerRepo(db);
+    await repo.markImported("ISS-1", "I_1");
+    expect(calls[0]!.text).toContain("SET status = 'imported'");
+    expect(calls[0]!.params).toEqual(["ISS-1", "I_1"]);
+  });
+
+  it("失敗理由を台帳に記録する", async () => {
+    const { db, calls } = makeMockDb();
+    const repo = new ImportLedgerRepo(db);
+    await repo.markFailed("ISS-1", "github failed");
+    expect(calls[0]!.text).toContain("SET status = 'failed'");
+    expect(calls[0]!.params).toEqual(["ISS-1", "github failed"]);
+  });
 });

@@ -47,6 +47,20 @@ const configSchema = z.object({
     .transform((v) => v === "true" || v === "1"),
   /** ADR-0014: report-generation.yml -> /reports/ingest HMAC鍵。未設定時はingest disabled。 */
   REPORT_INGEST_SECRET: z.string().min(32).optional(),
+  /** ADR-0008: /xlsx-import/* HMAC鍵。未設定時はxlsx import disabled。 */
+  XLSX_IMPORT_SECRET: z.string().min(32).optional(),
+  /** ADR-0008: xlsx import executeを許可する owner/repo のカンマ区切りallowlist。 */
+  XLSX_IMPORT_ALLOWED_REPOS: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v
+        ? v
+            .split(",")
+            .map((repo) => repo.trim())
+            .filter(Boolean)
+        : [],
+    ),
   /** ADR-0014: report card投稿先の既定Teams channel。未設定時はメールのみ。 */
   DEFAULT_TEAMS_TEAM_ID: z.string().optional(),
   DEFAULT_TEAMS_CHANNEL_ID: z.string().optional(),

@@ -47,17 +47,29 @@ export async function distributeOne(
 
   const subject = target.subject + (decision.subjectSuffix ? ` ${decision.subjectSuffix}` : "");
   try {
+    const deliveredAt = new Date().toISOString();
+    await deps.deliveryLogStore.record({
+      reportId: target.reportId,
+      recipientId: target.recipientId,
+      deliveredAt,
+      status: "pending",
+    });
     await deps.graphClient.sendMail({
       toEmail: target.recipientEmail,
       subject,
       htmlBody: target.html,
       fromMailbox: deps.fromMailbox,
     });
-    await deps.deliveryLogStore.record({
-      reportId: target.reportId,
-      recipientId: target.recipientId,
-      deliveredAt: new Date().toISOString(),
-    });
+    if (deps.deliveryLogStore.markSent) {
+      await deps.deliveryLogStore.markSent(target.reportId, target.recipientId, deliveredAt);
+    } else {
+      await deps.deliveryLogStore.record({
+        reportId: target.reportId,
+        recipientId: target.recipientId,
+        deliveredAt,
+        status: "sent",
+      });
+    }
 
     if (target.postTeamsSummaryCard && target.teamsChannelId) {
       await deps.graphClient.sendAdaptiveCard({

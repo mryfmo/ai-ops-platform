@@ -296,14 +296,18 @@ CREATE TABLE IF NOT EXISTS import_ledger (
   target_kind    TEXT NOT NULL CHECK (target_kind IN ('issue', 'project_item', 'milestone')),
   github_id      TEXT NOT NULL,
   import_run_id  UUID NOT NULL,
-  status         TEXT NOT NULL CHECK (status IN ('imported', 'skipped', 'failed')),
+  status         TEXT NOT NULL CHECK (status IN ('pending', 'imported', 'skipped', 'failed')),
+  error          TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE import_ledger DROP CONSTRAINT IF EXISTS import_ledger_status_check;
+ALTER TABLE import_ledger ADD CONSTRAINT import_ledger_status_check CHECK (status IN ('pending', 'imported', 'skipped', 'failed')) NOT VALID;
+ALTER TABLE import_ledger ADD COLUMN IF NOT EXISTS error TEXT;
 CREATE INDEX IF NOT EXISTS idx_import_ledger_run ON import_ledger (import_run_id);
 -- rollback: DROP TABLE import_ledger;
 
 -- 2026-07-09 ADR-0014 / REQ-042 / SPEC-INT-069: 統合配信の標準report受領・配信ログ。
--- report_delivery_logは追記専用で、既存idempotentDeliveryのDeliveryLogStoreをDBへ結線する。
+-- report_delivery_logはpending→sentの状態遷移で、送信後ログ失敗による無印重複を防ぐ。
 ALTER TABLE recipients DROP CONSTRAINT IF EXISTS recipients_profile_check;
 ALTER TABLE recipients ADD CONSTRAINT recipients_profile_check CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')) NOT VALID;
 ALTER TABLE recipients ADD COLUMN IF NOT EXISTS persona TEXT CHECK (persona IN ('member', 'leader', 'global-manager', 'manager', 'executive', 'investor'));
@@ -324,6 +328,10 @@ CREATE TABLE IF NOT EXISTS report_delivery_log (
   report_id    TEXT NOT NULL,
   recipient_id TEXT NOT NULL,
   delivered_at TIMESTAMPTZ NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('pending', 'sent')),
   PRIMARY KEY (report_id, recipient_id)
 );
+ALTER TABLE report_delivery_log ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'sent';
+ALTER TABLE report_delivery_log DROP CONSTRAINT IF EXISTS report_delivery_log_status_check;
+ALTER TABLE report_delivery_log ADD CONSTRAINT report_delivery_log_status_check CHECK (status IN ('pending', 'sent')) NOT VALID;
 -- rollback: DROP TABLE report_delivery_log; DROP TABLE standard_reports;

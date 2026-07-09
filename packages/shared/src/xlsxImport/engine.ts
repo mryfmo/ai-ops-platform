@@ -12,12 +12,15 @@ export interface ImportLedgerEntry {
   targetKind: ImportTargetKind;
   githubId: string;
   importRunId: string;
-  status: "imported" | "skipped" | "failed";
+  status: "pending" | "imported" | "skipped" | "failed";
+  error?: string;
 }
 
 export interface ImportLedger {
   findBySourceKey(sourceKey: string): Promise<ImportLedgerEntry | null>;
   insert(entry: ImportLedgerEntry): Promise<void>;
+  markImported?(sourceKey: string, githubId: string): Promise<void>;
+  markFailed?(sourceKey: string, error: string): Promise<void>;
 }
 
 export interface XlsxImportGithubClient {
@@ -65,7 +68,12 @@ export interface ExecuteXlsxImportResult {
   imported: number;
   skipped: number;
   failed: number;
-  progress: Array<{ sourceKey: string; kind: ImportTargetKind; status: "imported" | "skipped" | "failed" }>;
+  progress: Array<{
+    sourceKey: string;
+    kind: ImportTargetKind;
+    status: "imported" | "skipped" | "failed";
+    error?: string;
+  }>;
 }
 
 function rowKind(row: XlsxImportRow): ImportTargetKind {
@@ -88,6 +96,33 @@ async function waitForRateLimit(
   if (resetDelayMs > 0) await sleep(resetDelayMs);
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function markImported(
+  ledger: ImportLedger,
+  row: XlsxImportRow,
+  importRunId: string,
+  githubId: string,
+): Promise<void> {
+  if (ledger.markImported) {
+    await ledger.markImported(row.sourceKey, githubId);
+    return;
+  }
+  await ledger.insert({
+    sourceKey: row.sourceKey,
+    targetKind: rowKind(row),
+    githubId,
+    importRunId,
+    status: "imported",
+  });
+}
+
+async function markFailed(ledger: ImportLedger, sourceKey: string, error: string): Promise<void> {
+  await ledger.markFailed?.(sourceKey, error);
+}
+
 export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise<ExecuteXlsxImportResult> {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const throttleMs = opts.throttleMs ?? 1000;
@@ -107,11 +142,26 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
       continue;
     }
 
-    await waitForWrite(writeIndex, throttleMs, sleep);
-    await waitForRateLimit(opts.github, minGraphqlRemaining, sleep, now);
-    writeIndex += 1;
+    try {
+      await opts.ledger.insert({
+        sourceKey: row.sourceKey,
+        targetKind: rowKind(row),
+        githubId: "pending",
+        importRunId: opts.importRunId,
+        status: "pending",
+      });
+    } catch (err) {
+      failed += 1;
+      progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "failed", error: errorMessage(err) });
+      continue;
+    }
 
     try {
+      await waitForWrite(writeIndex, throttleMs, sleep);
+      await waitForRateLimit(opts.github, minGraphqlRemaining, sleep, now);
+      writeIndex += 1;
+
+      let githubId: string;
       if (row.kind === "issue") {
         const created = await opts.github.createIssue({
           owner: opts.owner,
@@ -121,13 +171,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
           labels: row.labels,
           milestone: row.milestone,
         });
-        await opts.ledger.insert({
-          sourceKey: row.sourceKey,
-          targetKind: row.kind,
-          githubId: created.nodeId ?? String(created.number),
-          importRunId: opts.importRunId,
-          status: "imported",
-        });
+        githubId = created.nodeId ?? String(created.number);
       } else if (row.kind === "milestone") {
         const created = await opts.github.createMilestone({
           owner: opts.owner,
@@ -136,13 +180,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
           dueOn: row.dueOn,
           description: row.description,
         });
-        await opts.ledger.insert({
-          sourceKey: row.sourceKey,
-          targetKind: row.kind,
-          githubId: created.nodeId ?? String(created.number),
-          importRunId: opts.importRunId,
-          status: "imported",
-        });
+        githubId = created.nodeId ?? String(created.number);
       } else {
         const added = await opts.github.addProjectV2ItemById({
           projectNodeId: row.projectNodeId,
@@ -155,19 +193,16 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
           fieldType: row.fieldType,
           value: row.value,
         });
-        await opts.ledger.insert({
-          sourceKey: row.sourceKey,
-          targetKind: row.kind,
-          githubId: added.itemNodeId,
-          importRunId: opts.importRunId,
-          status: "imported",
-        });
+        githubId = added.itemNodeId;
       }
+      await markImported(opts.ledger, row, opts.importRunId, githubId);
       imported += 1;
       progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "imported" });
-    } catch {
+    } catch (err) {
+      const error = errorMessage(err);
+      await markFailed(opts.ledger, row.sourceKey, error);
       failed += 1;
-      progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "failed" });
+      progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "failed", error });
     }
   }
 
