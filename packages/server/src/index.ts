@@ -29,6 +29,7 @@ import { GraphSubscriptionsRepo } from "./db/graphSubscriptionsRepo.js";
 import { ProjectChannelsRepo } from "./db/projectChannelsRepo.js";
 import { ChannelMessagesRepo } from "./db/channelMessagesRepo.js";
 import { CodingTasksRepo } from "./db/codingTasksRepo.js";
+import { ImportLedgerRepo } from "./db/importLedgerRepo.js";
 import { buildApp } from "./http/app.js";
 import { startScheduler } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
@@ -45,6 +46,7 @@ export * from "./http/routes/health.js";
 export * from "./http/routes/graphNotifications.js";
 export * from "./http/routes/githubWebhook.js";
 export * from "./http/routes/codingTasks.js";
+export * from "./http/routes/xlsxImport.js";
 export * from "./http/routes/webuiProxy.js";
 export * from "./scheduler/scheduler.js";
 export * from "./scheduler/tasks/healthcheckTask.js";
@@ -64,6 +66,7 @@ export * from "./db/graphSubscriptionsRepo.js";
 export * from "./db/projectChannelsRepo.js";
 export * from "./db/channelMessagesRepo.js";
 export * from "./db/codingTasksRepo.js";
+export * from "./db/importLedgerRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
 
@@ -77,6 +80,7 @@ async function main(): Promise<void> {
   const projectChannelsRepo = new ProjectChannelsRepo(pool);
   const channelMessagesRepo = new ChannelMessagesRepo(pool);
   const codingTasksRepo = new CodingTasksRepo(pool);
+  const importLedgerRepo = new ImportLedgerRepo(pool);
 
   const graphTokenProvider = createClientCredentialsTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
@@ -197,6 +201,12 @@ async function main(): Promise<void> {
         if (!channel?.githubOwner || !channel.githubRepo) return null;
         return { githubOwner: channel.githubOwner, githubRepo: channel.githubRepo };
       },
+      traceIdProvider: () => randomUUID(),
+    },
+    xlsxImport: {
+      ledger: importLedgerRepo,
+      githubClient,
+      auditLog,
       traceIdProvider: () => randomUUID(),
     },
     webui: { targetBaseUrl: `http://127.0.0.1:${config.WEBUI_INTERNAL_PORT}` },

@@ -9,3 +9,6 @@ export * from "./clients/claudeAgentClient.js";
 export * from "./clients/graphClient.js";
 export * from "./clients/githubClient.js";
 export * from "./clients/pgCostGuard.js";
+export * from "./xlsxImport/template.js";
+export * from "./xlsxImport/parser.js";
+export * from "./xlsxImport/engine.js";
