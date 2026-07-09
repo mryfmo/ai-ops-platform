@@ -35,6 +35,16 @@ export interface ManagerSummaryData {
   totalTicketCount: number;
   remainingTicketCount: number;
   burndown: ManagerSummaryBurndownWeek[];
+  velocity?: { issueThroughput: number; prThroughput: number };
+  coveragePct?: number | null;
+  dora?: {
+    deploymentFrequencyPerWeek: number;
+    medianLeadTimeHours: number;
+    changeFailureRatePct: number;
+    deploymentReworkRatePct: number;
+    meanTimeToRestoreHours: number;
+  };
+  doraByProject?: Array<{ projectId: string; dora: NonNullable<ManagerSummaryData["dora"]> }>;
 }
 
 export interface ManagerSummaryViewProps {
@@ -84,6 +94,10 @@ const TICKET_LABEL: Record<"prjops" | "devops", string> = {
   devops: "インシデント",
 };
 
+function oneDecimal(value: number): string {
+  return value.toFixed(1);
+}
+
 export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
   const columns: DataTableColumn<ManagerSummaryProjectRow>[] = [
     { key: "projectId", header: "ID", render: (r) => r.projectId },
@@ -97,6 +111,14 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
     { key: "opened", header: "新規", render: (r) => r.opened },
     { key: "resolved", header: "解消", render: (r) => r.resolved },
     { key: "remaining", header: "残件数", render: (r) => r.remaining },
+  ];
+  const doraColumns: DataTableColumn<NonNullable<ManagerSummaryData["doraByProject"]>[number]>[] = [
+    { key: "projectId", header: "サービス/Repo", render: (r) => r.projectId },
+    { key: "deployFreq", header: "デプロイ頻度/週", render: (r) => oneDecimal(r.dora.deploymentFrequencyPerWeek) },
+    { key: "leadTime", header: "変更LT(h)", render: (r) => oneDecimal(r.dora.medianLeadTimeHours) },
+    { key: "failRate", header: "失敗率(%)", render: (r) => oneDecimal(r.dora.changeFailureRatePct) },
+    { key: "reworkRate", header: "手戻り率(%)", render: (r) => oneDecimal(r.dora.deploymentReworkRatePct) },
+    { key: "restore", header: "復旧時間(h)", render: (r) => oneDecimal(r.dora.meanTimeToRestoreHours) },
   ];
 
   return (
@@ -119,6 +141,29 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
         <DataTable columns={columns} rows={data.projects} rowKey={(r) => r.projectId} />
       </Card>
 
+      {data.velocity || data.dora ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card title="ベロシティ">
+            <p className="text-sm text-gray-700">
+              Issue {data.velocity?.issueThroughput ?? 0} / PR {data.velocity?.prThroughput ?? 0}
+            </p>
+          </Card>
+          <Card title="テストカバレッジ">
+            <p className="text-sm text-gray-700">
+              {data.coveragePct === null || data.coveragePct === undefined
+                ? "未取得"
+                : `${oneDecimal(data.coveragePct)}%`}
+            </p>
+          </Card>
+          <Card title="DORA 5">
+            <p className="text-sm text-gray-700">
+              DF {oneDecimal(data.dora?.deploymentFrequencyPerWeek ?? 0)} / Rework{" "}
+              {oneDecimal(data.dora?.deploymentReworkRatePct ?? 0)}%
+            </p>
+          </Card>
+        </div>
+      ) : null}
+
       <ChartContainer
         title="バーンダウンチャート（残件数の週次推移）"
         description={`${TICKET_LABEL[domain]}の新規/解消/残件数を週次で集計`}
@@ -130,6 +175,12 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
         />
         <DataTable columns={burndownColumns} rows={data.burndown} rowKey={(r) => r.weekLabel} />
       </ChartContainer>
+
+      {data.doraByProject ? (
+        <Card title="DORA 5（サービス/Repository別）">
+          <DataTable columns={doraColumns} rows={data.doraByProject} rowKey={(r) => r.projectId} />
+        </Card>
+      ) : null}
     </div>
   );
 }

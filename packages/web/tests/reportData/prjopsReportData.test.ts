@@ -11,6 +11,7 @@ import type { ProjectVisibilityContext } from "@aiops/prjops";
 import {
   InMemoryPrjopsReportDataProvider,
   buildExecutiveSummary,
+  buildInvestorSummary,
   buildManagerSummary,
   listScopedProjectSummaries,
   type PrjopsProjectRecord,
@@ -27,6 +28,9 @@ const projects: PrjopsProjectRecord[] = [
     progressPct: 50,
     highSeverityOpenIssueCount: 1,
     isOverdue: false,
+    scopeChangeCount: 0,
+    averageReviewWaitHours: 12,
+    activeContributorCount: 2,
     periodLabel: "2026-01〜2026-03",
     ownerName: "山田太郎",
   },
@@ -39,6 +43,9 @@ const projects: PrjopsProjectRecord[] = [
     progressPct: 10,
     highSeverityOpenIssueCount: 5,
     isOverdue: true,
+    scopeChangeCount: 5,
+    averageReviewWaitHours: 90,
+    activeContributorCount: 1,
     periodLabel: "2026-01〜2026-02",
     ownerName: "鈴木花子",
   },
@@ -69,9 +76,24 @@ describe("buildExecutiveSummary（PRF-04）", () => {
       investedProjectIds: [],
     };
     const result = await buildExecutiveSummary(provider, "PRF-04", emptyCtx);
-    expect(result.colorDistribution).toEqual({ green: 1, yellow: 0, red: 1 });
-    expect(result.highRiskIssueCount).toBe(6);
-    expect(result.budgetConsumptionPct).toBeNull();
+    expect(result.projects).toHaveLength(2);
+    expect(result.projects[0]?.keys).toHaveLength(7);
+    expect(result.projects[1]?.keys.find((key) => key.keyId === "K3")?.rag).toBe("red");
+  });
+});
+
+describe("buildInvestorSummary（investor: 出資対象のみ）", () => {
+  it("PRF-05相当のinvestedProjectIdsで投資家KPIを作る", async () => {
+    const provider = new InMemoryPrjopsReportDataProvider(projects, issuesAndActions);
+    const result = await buildInvestorSummary(provider, {
+      recipientStakeholderId: "STK-INV",
+      recipientManagedProjectIds: [],
+      recipientAssignedProjectIds: [],
+      recipientParticipatingProjectIds: [],
+      investedProjectIds: ["PRJ-0002"],
+    });
+    expect(result.highlights[0]).toBe("1 portfolio companies");
+    expect(result.risks[0]?.projectId).toBe("PRJ-0002");
   });
 });
 

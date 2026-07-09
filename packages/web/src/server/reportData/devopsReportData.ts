@@ -25,6 +25,10 @@ import {
   countRemainingIncidents,
   type IncidentBurndownInput,
   type BurndownWeek,
+  calculateDoraSummary,
+  type DoraSummary,
+  type DeploymentRecord,
+  type IncidentRecord,
 } from "@aiops/devops";
 
 interface ProjectChannelRow {
@@ -35,6 +39,13 @@ interface IncidentRow {
   detected_at: string;
   resolved_at: string | null;
   affected_projects: string[];
+}
+
+interface DeploymentRow {
+  project_id: string;
+  created_at: string | Date;
+  updated_at: string | Date;
+  state: string;
 }
 
 /** project_channelsから一意なプロジェクトID一覧を取得し、スコープ内のもののみへ絞り込む */
@@ -49,6 +60,14 @@ async function fetchIncidents(db: PgQueryable): Promise<IncidentRow[]> {
   return res.rows as unknown as IncidentRow[];
 }
 
+async function fetchDeployments(db: PgQueryable): Promise<DeploymentRow[]> {
+  const res = await db.query(
+    "SELECT project_id, created_at, updated_at, state FROM deployments WHERE env = 'prod'",
+    [],
+  );
+  return res.rows as unknown as DeploymentRow[];
+}
+
 function toIsoString(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
 }
@@ -59,6 +78,10 @@ export interface DevOpsManagerSummaryResult {
   totalTicketCount: number;
   remainingTicketCount: number;
   burndown: BurndownWeek[];
+  velocity: { issueThroughput: number; prThroughput: number };
+  coveragePct: number | null;
+  dora: DoraSummary;
+  doraByProject: Array<{ projectId: string; dora: DoraSummary }>;
 }
 
 /**
@@ -78,12 +101,32 @@ export async function buildDevOpsManagerSummary(
   const scopedSet = new Set(projectIds);
 
   const allIncidents = await fetchIncidents(db);
+  const allDeployments = await fetchDeployments(db);
   const scopedIncidents = allIncidents.filter((i) => (i.affected_projects ?? []).some((pid) => scopedSet.has(pid)));
+  const scopedDeployments = allDeployments.filter((deployment) => scopedSet.has(deployment.project_id));
 
   const burndownInputs: IncidentBurndownInput[] = scopedIncidents.map((i) => ({
     detectedAt: toIsoString(i.detected_at),
     resolvedAt: i.resolved_at === null ? null : toIsoString(i.resolved_at),
   }));
+  const doraIncidentInputs: IncidentRecord[] = scopedIncidents.flatMap((incident) =>
+    (incident.affected_projects ?? [])
+      .filter((projectId) => scopedSet.has(projectId))
+      .map((projectId) => ({
+        projectId,
+        detectedAt: toIsoString(incident.detected_at),
+        resolvedAt:
+          incident.resolved_at === null ? toIsoString(incident.detected_at) : toIsoString(incident.resolved_at),
+      })),
+  );
+  const doraInputs: DeploymentRecord[] = scopedDeployments.map((deployment) => ({
+    projectId: deployment.project_id,
+    commitAt: toIsoString(deployment.created_at),
+    deployedAt: toIsoString(deployment.updated_at),
+    causedFailure: deployment.state === "rolling_back" || deployment.state === "rolled_back",
+    reworked: deployment.state === "rolling_back" || deployment.state === "rolled_back",
+  }));
+  const periodDays = Math.max(1, (Date.parse(periodEnd) - Date.parse(periodStart)) / (24 * 60 * 60 * 1000));
 
   return {
     totalProjectCount: projectIds.length,
@@ -91,6 +134,17 @@ export async function buildDevOpsManagerSummary(
     totalTicketCount: countTotalIncidentsInPeriod(burndownInputs, periodStart, periodEnd),
     remainingTicketCount: countRemainingIncidents(burndownInputs),
     burndown: computeIncidentBurndown(burndownInputs, periodStart, periodEnd),
+    velocity: { issueThroughput: countTotalIncidentsInPeriod(burndownInputs, periodStart, periodEnd), prThroughput: 0 },
+    coveragePct: null,
+    dora: calculateDoraSummary(doraInputs, doraIncidentInputs, periodDays),
+    doraByProject: projectIds.map((projectId) => ({
+      projectId,
+      dora: calculateDoraSummary(
+        doraInputs.filter((deployment) => deployment.projectId === projectId),
+        doraIncidentInputs.filter((incident) => incident.projectId === projectId),
+        periodDays,
+      ),
+    })),
   };
 }
 

@@ -19,8 +19,12 @@ import {
   isProjectInScope,
   type Profile,
   type ProjectVisibilityContext,
-  computeExecutiveSevenKeysNumeric,
+  computeExecutiveSevenKeys,
   type ExecutiveProjectInput,
+  type ExecutiveSevenKeysSummary,
+  buildInvestorReport,
+  type InvestorFinancialInputs,
+  type InvestorReport,
   computeIssueActionBurndown,
   countTotalItemsInPeriod,
   countRemainingItems,
@@ -42,6 +46,11 @@ export interface PrjopsProjectRecord {
   periodLabel: string;
   /** 担当者名（表示用。マネージャーサマリの「担当」欄に使用） */
   ownerName: string;
+  scopeChangeCount?: number;
+  averageReviewWaitHours?: number;
+  activeContributorCount?: number;
+  revenue?: number;
+  ebitda?: number;
 }
 
 /** Issue/Action相当のレコード（本リポジトリにはprjops-dataの実データが無いための抽象表現） */
@@ -58,6 +67,7 @@ export interface PrjopsIssueActionRecord {
 export interface PrjopsReportDataProvider {
   listProjects(): Promise<PrjopsProjectRecord[]>;
   listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]>;
+  getInvestorFinancialInputs?(): Promise<InvestorFinancialInputs>;
 }
 
 /**
@@ -89,13 +99,7 @@ async function scopedProjects(
   return all.filter((p) => isProjectInScope(profile, p.projectId, ctx));
 }
 
-export interface ExecutiveSummaryResult {
-  colorDistribution: { green: number; yellow: number; red: number };
-  progressAchievementPct: number;
-  highRiskIssueCount: number;
-  budgetConsumptionPct: number | null;
-  scheduleAdherencePct: number;
-}
+export type ExecutiveSummaryResult = ExecutiveSevenKeysSummary;
 
 /**
  * PRF-04向け経営層セブンキー（数値4項目）を算出する。
@@ -113,8 +117,11 @@ export async function buildExecutiveSummary(
     progressPct: p.progressPct,
     highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
     isOverdue: p.isOverdue,
+    scopeChangeCount: p.scopeChangeCount,
+    averageReviewWaitHours: p.averageReviewWaitHours,
+    activeContributorCount: p.activeContributorCount,
   }));
-  return computeExecutiveSevenKeysNumeric(inputs);
+  return computeExecutiveSevenKeys(inputs);
 }
 
 export interface ManagerSummaryResult {
@@ -168,4 +175,22 @@ export async function listScopedProjectSummaries(
 ): Promise<Array<{ id: string; name: string }>> {
   const projects = await scopedProjects(provider, profile, ctx);
   return projects.map((p) => ({ id: p.projectId, name: p.name }));
+}
+
+export async function buildInvestorSummary(
+  provider: PrjopsReportDataProvider,
+  ctx: ProjectVisibilityContext,
+): Promise<InvestorReport> {
+  const projects = await scopedProjects(provider, "PRF-05", ctx);
+  return buildInvestorReport(
+    projects.map((p) => ({
+      projectId: p.projectId,
+      name: p.name,
+      revenue: p.revenue,
+      ebitda: p.ebitda,
+      milestoneDelayDays: p.isOverdue ? 1 : 0,
+      highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
+    })),
+    provider.getInvestorFinancialInputs ? await provider.getInvestorFinancialInputs() : {},
+  );
 }

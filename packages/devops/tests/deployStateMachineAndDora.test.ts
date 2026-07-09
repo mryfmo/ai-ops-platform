@@ -8,6 +8,7 @@ import {
   calcDeploymentFrequencyPerWeek,
   calcMedianLeadTimeHours,
   calcChangeFailureRatePct,
+  calcDeploymentReworkRatePct,
   calcMeanTimeToRestoreHours,
   calculateDoraSummary,
 } from "../src/lib/doraMetrics.js";
@@ -66,7 +67,13 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
       deployedAt: "2026-07-01T10:00:00Z",
       causedFailure: false,
     },
-    { projectId: "PRJ-001", commitAt: "2026-07-02T00:00:00Z", deployedAt: "2026-07-02T20:00:00Z", causedFailure: true },
+    {
+      projectId: "PRJ-001",
+      commitAt: "2026-07-02T00:00:00Z",
+      deployedAt: "2026-07-02T20:00:00Z",
+      causedFailure: true,
+      reworked: true,
+    },
     {
       projectId: "PRJ-001",
       commitAt: "2026-07-03T00:00:00Z",
@@ -93,12 +100,18 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
     expect(calcMeanTimeToRestoreHours(incidents)).toBe(2);
   });
 
-  it("calculateDoraSummaryは4指標すべてを返す（AC-023b）", () => {
+  it("deployment rework rate: 3件中1件手戻り → 33.33...% [AC-023b]", () => {
+    const rate = calcDeploymentReworkRatePct(deployments);
+    expect(Math.round(rate * 100) / 100).toBe(33.33);
+  });
+
+  it("calculateDoraSummaryはDORA5指標すべてを返す（AC-023b）", () => {
     const summary = calculateDoraSummary(deployments, incidents, 7);
     expect(summary.deploymentFrequencyPerWeek).toBe(3);
     expect(summary.medianLeadTimeHours).toBe(10);
     expect(summary.meanTimeToRestoreHours).toBe(2);
     expect(summary.changeFailureRatePct).toBeGreaterThanOrEqual(33);
+    expect(summary.deploymentReworkRatePct).toBeGreaterThanOrEqual(33);
   });
 
   it("空データでもエラーにならず0を返す", () => {
@@ -106,6 +119,7 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
     expect(summary.deploymentFrequencyPerWeek).toBe(0);
     expect(summary.medianLeadTimeHours).toBe(0);
     expect(summary.changeFailureRatePct).toBe(0);
+    expect(summary.deploymentReworkRatePct).toBe(0);
     expect(summary.meanTimeToRestoreHours).toBe(0);
   });
 });

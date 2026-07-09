@@ -21,6 +21,7 @@ export type ManagerSummaryPeriodDays = 7 | 14 | 28;
 
 export type ViewSpec =
   | { kind: "executiveSummary" }
+  | { kind: "investorSummary" }
   | { kind: "managerSummary"; periodDays?: ManagerSummaryPeriodDays }
   | { kind: "projectList" }
   | { kind: "agentActivity" };

@@ -25,6 +25,7 @@ import type { Profile as PrjopsProfile, ProjectVisibilityContext } from "@aiops/
 
 export type ResolvedPersona =
   | { domain: "prjops"; profile: PrjopsProfile; visibility: ProjectVisibilityContext }
+  | { domain: "investor"; profile: "investor"; visibility: ProjectVisibilityContext }
   | { domain: "devops"; profile: DevopsProfile; visibility: DevOpsVisibilityContext };
 
 export interface PersonaResolver {
@@ -63,7 +64,7 @@ export class DevopsPersonaSource {
 export interface StakeholderRecord {
   stakeholderId: string;
   email: string;
-  profile: PrjopsProfile;
+  profile: PrjopsProfile | "investor";
   managedProjectIds: string[];
   assignedProjectIds: string[];
   participatingProjectIds: string[];
@@ -105,6 +106,9 @@ export class PrjopsPersonaSource {
         recipientParticipatingProjectIds: r.participatingProjectIds,
         investedProjectIds: r.investedProjectIds,
       };
+      if (r.profile === "PRF-05" || r.profile === "investor") {
+        return { domain: "investor", profile: "investor", visibility } as ResolvedPersona;
+      }
       return { domain: "prjops", profile: r.profile, visibility } as ResolvedPersona;
     });
   }

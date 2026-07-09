@@ -125,6 +125,10 @@ describe("reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)]", () => {
     expect(isProjectInScope("PRF-05", "PJ-001", ctx)).toBe(false);
     expect(isProjectInScope("PRF-05", "PJ-002", ctx)).toBe(true);
   });
+  it("investorはPRF-05と同じく出資対象プロジェクトのみ [REQ-039, SPEC-INT-066]", () => {
+    expect(isProjectInScope("investor", "PJ-001", ctx)).toBe(false);
+    expect(isProjectInScope("investor", "PJ-002", ctx)).toBe(true);
+  });
 
   it("個人名表示可否: PRF-01〜03はtrue、PRF-04/05はfalse", () => {
     expect(canShowPersonalNames("PRF-02")).toBe(true);
@@ -150,6 +154,12 @@ describe("reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)]", () => {
   it("filterIssuesForProfile: PRF-05はdetailを空にする", () => {
     const issues = [{ projectId: "PJ-002", detail: "機密の詳細", reportedByName: "田中太郎" }];
     const filtered = filterIssuesForProfile("PRF-05", issues, ctx);
+    expect(filtered[0]?.detail).toBe("");
+    expect(filtered[0]?.reportedByName).toBeUndefined();
+  });
+  it("filterIssuesForProfile: investorはdetailを空にする [AC-039-1]", () => {
+    const issues = [{ projectId: "PJ-002", detail: "機密の詳細", reportedByName: "田中太郎" }];
+    const filtered = filterIssuesForProfile("investor", issues, ctx);
     expect(filtered[0]?.detail).toBe("");
     expect(filtered[0]?.reportedByName).toBeUndefined();
   });

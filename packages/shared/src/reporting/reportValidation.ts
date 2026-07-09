@@ -70,8 +70,12 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
   if (payload.schemaVersion !== STANDARD_REPORT_SCHEMA_VERSION) {
     errors.push(`schemaVersion must be ${STANDARD_REPORT_SCHEMA_VERSION}`);
   }
-  if (payload.reportType !== "weekly-summary") {
-    errors.push("reportType must be weekly-summary");
+  if (
+    payload.reportType !== "weekly-summary" &&
+    payload.reportType !== "manager-weekly" &&
+    payload.reportType !== "investor-quarterly"
+  ) {
+    errors.push("reportType must be weekly-summary, manager-weekly, or investor-quarterly");
   }
   if (
     !Array.isArray(payload.evidenceIds) ||

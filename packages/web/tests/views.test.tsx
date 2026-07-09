@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { ReactElement } from "react";
 import { ExecutiveSevenKeysView, type ExecutiveSevenKeysData } from "../src/components/views/ExecutiveSevenKeysView";
+import { InvestorReportView, type InvestorReportData } from "../src/components/views/InvestorReportView";
 import { ManagerSummaryView, type ManagerSummaryData } from "../src/components/views/ManagerSummaryView";
 import { AgentActivityView, type AgentActivityData } from "../src/components/views/AgentActivityView";
 
@@ -53,41 +54,46 @@ function findAllElements(
 }
 
 const executiveData: ExecutiveSevenKeysData = {
-  colorDistribution: { green: 3, yellow: 2, red: 1 },
-  progressAchievementPct: 62.5,
-  highRiskIssueCount: 4,
-  budgetConsumptionPct: null,
-  scheduleAdherencePct: 83.3,
-  monthOverMonthDiffText: "先月比で順調プロジェクトが1件増加しました。",
-  topTopics: [{ title: "PRJ-0001 遅延懸念", lines: ["進捗が計画線を下回っています。", "対応策を検討中です。"] }],
+  projects: [
+    {
+      projectId: "PRJ-0001",
+      name: "案件A",
+      keys: [
+        { keyId: "K1", title: "Stakeholders are committed", rag: "grey", basis: "structured questionnaire missing" },
+      ],
+    },
+  ],
 };
 
-describe("ExecutiveSevenKeysView（ADR-0005: 経営層セブンキー）", () => {
+describe("ExecutiveSevenKeysView（REQ-038: Seven Keys RAGマトリクス）", () => {
   it("見出しにセブンキーダッシュボードのタイトルを表示する", () => {
     const el = ExecutiveSevenKeysView({ data: executiveData });
     const heading = findElement(el, (e) => e.type === "h1");
     expect(heading).not.toBeNull();
-    expect(propsOf(heading!)["children"]).toBe("経営ダッシュボード（セブンキー）");
+    expect(propsOf(heading!)["children"]).toBe("経営ダッシュボード（Seven Keys）");
   });
 
-  it("予算消化率がnullのとき「データ未整備」バッジを表示する", () => {
+  it("未評価RAGを色だけでなくラベル表示する", () => {
     const el = ExecutiveSevenKeysView({ data: executiveData });
-    const badgeText = findElement(el, (e) => propsOf(e)["children"] === "データ未整備");
-    expect(badgeText).not.toBeNull();
+    const table = findElement(el, (e) => Array.isArray(propsOf(e)["rows"]));
+    expect(propsOf(table!)["rows"]).toEqual(executiveData.projects);
   });
+});
 
-  it("予算消化率が数値のとき「データ未整備」を表示しない", () => {
-    const el = ExecutiveSevenKeysView({ data: { ...executiveData, budgetConsumptionPct: 45.2 } });
-    const badgeText = findElement(el, (e) => propsOf(e)["children"] === "データ未整備");
-    expect(badgeText).toBeNull();
-    const pctText = findElement(el, (e) => propsOf(e)["children"] === "45.2%");
-    expect(pctText).not.toBeNull();
-  });
+const investorData: InvestorReportData = {
+  highlights: ["1 portfolio companies"],
+  kpis: [{ metricId: "revenue", label: "Revenue", unit: "currency", value: 100, source: "financial-input" }],
+  milestones: [{ projectId: "PRJ-0001", name: "会社A", delayDays: 0 }],
+  risks: [],
+};
 
-  it("トップトピックスが0件のとき「該当するトピックはありません」を表示する", () => {
-    const el = ExecutiveSevenKeysView({ data: { ...executiveData, topTopics: [] } });
-    const empty = findElement(el, (e) => propsOf(e)["children"] === "該当するトピックはありません");
-    expect(empty).not.toBeNull();
+describe("InvestorReportView（REQ-039: 投資家KPIパッケージ）", () => {
+  it("Investor Report見出しとKPIテーブルを表示する", () => {
+    const el = InvestorReportView({ data: investorData });
+    const heading = findElement(el, (e) => e.type === "h1");
+    expect(propsOf(heading!)["children"]).toBe("Investor Report");
+    const table = findElement(el, (e) => Array.isArray(propsOf(e)["rows"]) && propsOf(e)["rows"] === investorData.kpis);
+    expect(table).not.toBeNull();
   });
 });
 

@@ -1,9 +1,11 @@
 import { STANDARD_REPORT_SLOT_SPECS } from "./reportSchema.js";
+import type { StandardReportType } from "./reportSchema.js";
 
 export interface WeeklySummaryPromptInput {
   evidenceIds: string[];
   periodLabel: string;
   metrics: Record<string, number>;
+  reportType?: StandardReportType;
 }
 
 export function buildWeeklySummaryPrompt(input: WeeklySummaryPromptInput): string {

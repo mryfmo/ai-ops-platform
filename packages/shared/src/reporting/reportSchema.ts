@@ -20,10 +20,11 @@ export const STANDARD_REPORT_SLOT_SPECS = [
 
 export type StandardReportSlotKey = (typeof STANDARD_REPORT_SLOT_SPECS)[number]["key"];
 export type StandardReportSlots = Record<StandardReportSlotKey, string>;
+export type StandardReportType = "weekly-summary" | "manager-weekly" | "investor-quarterly";
 
 export interface StandardReportPayload {
   schemaVersion: typeof STANDARD_REPORT_SCHEMA_VERSION;
-  reportType: "weekly-summary";
+  reportType: StandardReportType;
   evidenceIds: string[];
   period: {
     label: string;
@@ -62,7 +63,7 @@ export const STANDARD_REPORT_JSON_SCHEMA = {
   required: ["schemaVersion", "reportType", "evidenceIds", "period", "metrics", "slots"],
   properties: {
     schemaVersion: { const: STANDARD_REPORT_SCHEMA_VERSION },
-    reportType: { enum: ["weekly-summary"] },
+    reportType: { enum: ["weekly-summary", "manager-weekly", "investor-quarterly"] },
     evidenceIds: {
       type: "array",
       minItems: 1,

@@ -100,4 +100,15 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
   it("parseReportSlotsは必須スロット欠落を拒否する [AC-040-1]", () => {
     expect(() => parseReportSlots({ conclusion: "ok" })).toThrow(/E-RPT01/);
   });
+
+  it("manager-weekly / investor-quarterly reportTypeを許可する [REQ-039, SPEC-INT-066]", () => {
+    for (const reportType of ["manager-weekly", "investor-quarterly"] as const) {
+      const payload = buildStandardReportPayload(
+        { evidenceIds: ["REQ-039"], periodLabel: "2026-Q3", metrics: { value: 1 }, reportType },
+        validSlots,
+        "2026-07-09T16:00:00+09:00",
+      );
+      expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+    }
+  });
 });

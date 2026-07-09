@@ -89,6 +89,9 @@ describe("handleExecutiveSummary（正当なセッション: データ返却）"
         progressPct: 80,
         highSeverityOpenIssueCount: 0,
         isOverdue: false,
+        scopeChangeCount: 0,
+        averageReviewWaitHours: 12,
+        activeContributorCount: 2,
         periodLabel: "2026-01〜2026-03",
         ownerName: "山田太郎",
       },
@@ -100,12 +103,7 @@ describe("handleExecutiveSummary（正当なセッション: データ返却）"
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({
-      colorDistribution: { green: 1, yellow: 0, red: 0 },
-      progressAchievementPct: 80,
-      highRiskIssueCount: 0,
-      budgetConsumptionPct: null,
-      scheduleAdherencePct: 100,
-    });
+    expect(body.projects).toHaveLength(1);
+    expect(body.projects[0].keys).toHaveLength(7);
   });
 });

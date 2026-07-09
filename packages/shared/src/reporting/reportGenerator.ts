@@ -84,7 +84,7 @@ export function buildStandardReportPayload(
 ): StandardReportPayload {
   return {
     schemaVersion: STANDARD_REPORT_SCHEMA_VERSION,
-    reportType: "weekly-summary",
+    reportType: input.reportType ?? "weekly-summary",
     evidenceIds: input.evidenceIds,
     period: { label: input.periodLabel, generatedAt },
     metrics: input.metrics,

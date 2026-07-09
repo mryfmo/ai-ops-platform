@@ -58,6 +58,18 @@ const devopsMember: ResolvedPersona = {
   visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: [] },
 };
 
+const investor: ResolvedPersona = {
+  domain: "investor",
+  profile: "investor",
+  visibility: {
+    recipientStakeholderId: "STK-INV",
+    recipientManagedProjectIds: [],
+    recipientAssignedProjectIds: [],
+    recipientParticipatingProjectIds: [],
+    investedProjectIds: ["PRJ-0001"],
+  },
+};
+
 describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", () => {
   it("PRF-04にはshowExecutiveSummaryとlistProjectsのみを公開する（showManagerSummaryは露出しない）", () => {
     const tools = buildToolsForPersona(prjopsExecutive);
@@ -79,6 +91,10 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
     expect(Object.keys(buildToolsForPersona(devopsMember))).toEqual(["listProjects"]);
   });
 
+  it("investorにはshowInvestorSummaryとlistProjectsを公開する [REQ-039]", () => {
+    expect(Object.keys(buildToolsForPersona(investor)).sort()).toEqual(["listProjects", "showInvestorSummary"]);
+  });
+
   it("PRF-03（PrjOpsマネージャー）にはshowAgentActivityを公開しない（DevOps専用）", () => {
     const tools = buildToolsForPersona(prjopsManager);
     expect(Object.keys(tools)).not.toContain("showAgentActivity");
@@ -87,6 +103,14 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
   it("PRF-04（PrjOps経営陣）にはshowAgentActivityを公開しない", () => {
     const tools = buildToolsForPersona(prjopsExecutive);
     expect(Object.keys(tools)).not.toContain("showAgentActivity");
+  });
+});
+
+describe("showInvestorSummary tool（ADR-0011: investor専用）", () => {
+  it("実行するとkind: investorSummaryのViewSpecを返す", async () => {
+    const tools = buildToolsForPersona(investor);
+    const result = await tools["showInvestorSummary"]!.execute!({}, { toolCallId: "t7", messages: [] });
+    expect(result).toEqual({ kind: "investorSummary" });
   });
 });
 
