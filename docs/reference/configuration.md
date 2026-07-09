@@ -15,6 +15,11 @@
 | `PUBLIC_BASE_URL`             | Yes      | None    | Public URL used for Graph notification URL and WebUI deep links.                                                                                                |
 | `ANTHROPIC_API_KEY`           | No       | unset   | Enables LLM fallback paths that receive a configured client.                                                                                                    |
 | `GITHUB_PROJECT_NODE_ID`      | No       | unset   | When set, PM snapshot reconcile reads GitHub Projects v2. When unset, reconcile writes `pm_snapshot_reconcile_disabled` audit records and returns no snapshots. |
+| `FROM_MAILBOX`                | No       | unset   | Outlook mailbox used by report delivery. Missing value disables `reportDeliveryTask` with `report_delivery_disabled` audit records.                             |
+| `REPORT_DELIVERY_ENABLED`     | No       | `false` | Must be `true` or `1` before standard reports are sent. When false, ingest can store reports but delivery is disabled and audited.                              |
+| `REPORT_INGEST_SECRET`        | No       | unset   | HMAC key for `POST /reports/ingest`; minimum length 32. Missing value disables the ingest route with a 503 response and audit record.                           |
+| `DEFAULT_TEAMS_TEAM_ID`       | No       | unset   | Default Teams team reference for report delivery setup/runbooks.                                                                                                |
+| `DEFAULT_TEAMS_CHANNEL_ID`    | No       | unset   | Default Teams channel for report adaptive cards. Missing value means email-only delivery unless a recipient row has `teams_channel_id`.                         |
 | `CODING_TASK_CALLBACK_SECRET` | Yes      | None    | HMAC key for confirmation tokens and bearer secret for coding task callback; minimum length 32.                                                                 |
 
 `loadConfig()` fails fast with `E-CFG01` when required values are missing or invalid.
@@ -36,13 +41,15 @@
 
 ## Report Generation Environment
 
-| Variable              | Required | Default                   | Used By                                                                                               |
-| --------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `REPORT_COMPLETED`    | No       | `0`                       | `calculateReportMetrics.ts`                                                                           |
-| `REPORT_BLOCKED`      | No       | `0`                       | `calculateReportMetrics.ts`                                                                           |
-| `REPORT_EVIDENCE_IDS` | No       | `REQ-040`                 | `finalizeReportJson.ts`                                                                               |
-| `PERIOD_LABEL`        | No       | `scheduled weekly period` | `finalizeReportJson.ts`                                                                               |
-| `REPORT_TYPE`         | No       | `weekly-summary`          | `finalizeReportJson.ts`; allowed values are `weekly-summary`, `manager-weekly`, `investor-quarterly`. |
+| Variable               | Required | Default                   | Used By                                                                                                                             |
+| ---------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `REPORT_COMPLETED`     | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                         |
+| `REPORT_BLOCKED`       | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                         |
+| `REPORT_EVIDENCE_IDS`  | No       | `REQ-040`                 | `finalizeReportJson.ts`                                                                                                             |
+| `PERIOD_LABEL`         | No       | `scheduled weekly period` | `finalizeReportJson.ts`                                                                                                             |
+| `REPORT_TYPE`          | No       | `weekly-summary`          | `finalizeReportJson.ts`; allowed values are `weekly-summary`, `manager-weekly`, `investor-quarterly`.                               |
+| `REPORT_INGEST_URL`    | No       | unset                     | GitHub Actions variable. If unset, `report-generation.yml` uploads `report.json` as an artifact and skips server ingest explicitly. |
+| `REPORT_INGEST_SECRET` | No       | unset                     | GitHub Actions secret. HMAC key for posting `report.json` to `/reports/ingest`; must match the server value.                        |
 
 ## Runtime Notes
 

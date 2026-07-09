@@ -75,7 +75,12 @@ interface Harness {
   agent: TeamsConversationAgent;
   auditLog: InMemoryAuditLog;
   upserted: ChannelMessageRecord[];
-  replies: Array<{ ref: { teamId: string; channelId: string }; parentMessageId: string; content: string }>;
+  replies: Array<{
+    ref: { teamId: string; channelId: string };
+    parentMessageId: string;
+    content: string;
+    card?: unknown;
+  }>;
   ghCalls: { listPr: number; listIssue: number; createIssue: number };
   codingTaskInserts: Array<Parameters<TeamsConversationCodingTasksRepo["insert"]>[0]>;
   channel: ProjectChannel | null;
@@ -107,8 +112,8 @@ function makeHarness(
 
   const graphClient: TeamsConversationGraphClient = {
     getChannelMessage: async () => message,
-    replyToMessage: async (ref, parentMessageId, body) => {
-      replies.push({ ref, parentMessageId, content: body.content });
+    replyToMessage: async (ref, parentMessageId, body, card) => {
+      replies.push({ ref, parentMessageId, content: body.content, card });
       return { messageId: "reply-1" };
     },
   };
@@ -246,6 +251,15 @@ describe("TeamsConversationAgent: GitHub照会成功 (ADR-0005)", () => {
     const logs = await h.auditLog.readAll();
     expect(logs.some((l) => l.action === "teams_code_task_queued")).toBe(true);
     expect(logs.every((l) => l.action !== "teams_code_task_deferred")).toBe(true);
+  });
+
+  it("/dashboard はpersona付きWebUIディープリンクカードを返信する (REQ-042 SPEC-INT-069 AC-042-1)", async () => {
+    const h = makeHarness({ message: { content: "/dashboard" }, callerProfile: "PRF-02" });
+    await h.agent.handleNotification(makeNotification(), "trace-dashboard");
+    expect(h.replies[0]!.content).toContain("ダッシュボード");
+    expect(JSON.stringify(h.replies[0]!.card)).toContain("/app/dashboard?persona=PRF-02&period=current");
+    const logs = await h.auditLog.readAll();
+    expect(logs.some((l) => l.action === "teams_dashboard_link_sent")).toBe(true);
   });
 });
 

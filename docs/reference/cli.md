@@ -67,6 +67,19 @@ pnpm --filter @aiops/traceability run verify
 
 The verifier writes `packages/traceability/output/traceability_matrix.md` and fails when required REQ/SPEC-INT/TH IDs are missing from implementation references, reporting headers are missing under `packages/shared/src/reporting`, or ADR references point to nonexistent ADR files.
 
+## Graph Subscription
+
+Create a Microsoft Graph change notification subscription with the server token provider:
+
+```bash
+node packages/server/dist/tools/createGraphSubscription.js \
+  --resource "/teams/<team-id>/channels/<channel-id>/messages" \
+  --notificationUrl "https://aiops.example.com/webhooks/graph" \
+  --expiry "2026-07-09T06:00:00Z"
+```
+
+See [report delivery runbook](../../runbooks/report-delivery.md) for prerequisites and renewal expectations.
+
 ## Workspace Commands
 
 The supported project tasks are in `AGENTS.md` and `.mise.toml`; the common path is:

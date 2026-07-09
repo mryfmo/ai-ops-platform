@@ -88,3 +88,25 @@ jobs:
             test "$attempt" = "1"
           done
           pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts report.json
+
+      - name: Upload standard report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: standard-report-json
+          path: report.json
+
+      - name: Ingest standard report
+        env:
+          REPORT_INGEST_URL: ${{ vars.REPORT_INGEST_URL }}
+          REPORT_INGEST_SECRET: ${{ secrets.REPORT_INGEST_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${REPORT_INGEST_URL:-}" ] || [ -z "${REPORT_INGEST_SECRET:-}" ]; then
+            echo "report ingest skipped: REPORT_INGEST_URL or REPORT_INGEST_SECRET is not configured"
+            exit 0
+          fi
+          signature="$(node -e "const fs=require('fs'),crypto=require('crypto'); const b=fs.readFileSync('report.json'); console.log('sha256='+crypto.createHmac('sha256', process.env.REPORT_INGEST_SECRET).update(b).digest('hex'))")"
+          curl -fsS -X POST "$REPORT_INGEST_URL/reports/ingest" \
+            -H "content-type: application/json" \
+            -H "x-aiops-signature-256: $signature" \
+            --data-binary @report.json

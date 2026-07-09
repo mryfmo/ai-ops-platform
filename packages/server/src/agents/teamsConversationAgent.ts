@@ -29,6 +29,7 @@ import { parseChannelMessageResource, type GraphResourceIds } from "../lib/graph
 import { decideChannelIngestion } from "../lib/channelAuthorization.js";
 import { interpretFreeTextIntent, type FreeTextIntent } from "../lib/freeTextIntent.js";
 import { generateConfirmToken, hashConfirmToken } from "../lib/confirmToken.js";
+import { buildDashboardDeepLink } from "../lib/dashboardDeepLink.js";
 import type { ProjectChannelsRepo } from "../db/projectChannelsRepo.js";
 import type { ChannelMessagesRepo } from "../db/channelMessagesRepo.js";
 import type { InboundNotificationPayload } from "../scheduler/tasks/eventsPollingTask.js";
@@ -53,6 +54,11 @@ export interface TeamsConversationGraphClient {
     ref: { teamId: string; channelId: string },
     parentMessageId: string,
     body: { contentType: "html" | "text"; content: string },
+    card?: {
+      body: unknown[];
+      actions: Array<{ title: string; id: string }>;
+      openUrlActions?: Array<{ title: string; url: string }>;
+    },
   ): Promise<{ messageId: string }>;
 }
 
@@ -270,6 +276,11 @@ export class TeamsConversationAgent {
     callerProfile: Profile,
     traceId: string,
   ): Promise<void> {
+    if (text === "/dashboard" || text.startsWith("/dashboard ")) {
+      await this.replyDashboard(ids, channel.projectId, callerProfile, traceId);
+      return;
+    }
+
     const parsed = parseCommand(text);
     if (!parsed.ok || !parsed.command) {
       if (parsed.usageHint) {
@@ -452,7 +463,44 @@ export class TeamsConversationAgent {
     });
   }
 
-  private async reply(ids: GraphResourceIds, content: string): Promise<void> {
+  private async replyDashboard(
+    ids: GraphResourceIds,
+    projectId: string,
+    callerProfile: Profile,
+    traceId: string,
+  ): Promise<void> {
+    const url = buildDashboardDeepLink({
+      publicBaseUrl: this.deps.publicBaseUrl,
+      persona: callerProfile,
+      periodLabel: "current",
+    });
+    await this.reply(ids, "ダッシュボードを開けます", {
+      body: [
+        { type: "TextBlock", text: "AI Ops Dashboard", weight: "Bolder", wrap: true },
+        { type: "TextBlock", text: projectId, isSubtle: true, wrap: true },
+      ],
+      actions: [],
+      openUrlActions: [{ title: "Dashboard", url }],
+    });
+    await this.deps.auditLog.append({
+      trace_id: traceId,
+      actor: `USER:${callerProfile}`,
+      action: "teams_dashboard_link_sent",
+      basis: "REQ-042 SPEC-INT-069 AC-042-1",
+      detail: { projectId, persona: callerProfile },
+      at: new Date().toISOString(),
+    });
+  }
+
+  private async reply(
+    ids: GraphResourceIds,
+    content: string,
+    card?: {
+      body: unknown[];
+      actions: Array<{ title: string; id: string }>;
+      openUrlActions?: Array<{ title: string; url: string }>;
+    },
+  ): Promise<void> {
     // security-reviewer指摘(低): gh_pr_list/gh_issue_listはGitHub側のtitle等をそのまま整形して
     // 返信しており送信元での適用漏れがあり得るため、ここで一律sanitizeSecrets()を通す
     // （CLAUDE.md多層防御(c): ログ・PRコメント・Teams返信への出力前サニタイズの最終防波堤）。
@@ -461,6 +509,7 @@ export class TeamsConversationAgent {
       { teamId: ids.teamId, channelId: ids.channelId },
       ids.replyOfMessageId ?? ids.messageId,
       { contentType: "text", content: sanitized },
+      card,
     );
   }
 }

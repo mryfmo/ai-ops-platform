@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/agents/AGT05_distributor.ts
  *
- * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信
+ * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信 / ADR-0014 REQ-042 SPEC-INT-069 AC-042-1
  *   承認済み（PRF-04/05）または検証済み（PRF-01〜03）レポートを、Outlookメール（HTML添付）で
  *   各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。
  *   AC-018-1: 1配信サイクル最大2,000通が2時間以内に完了する。
@@ -19,6 +19,7 @@ export interface DeliveryTarget {
   html: string;
   postTeamsSummaryCard: boolean; // PRF-02/03向けのみtrue
   teamsChannelId?: string;
+  dashboardUrl?: string;
 }
 
 export interface DistributorDependencies {
@@ -64,6 +65,7 @@ export async function distributeOne(
         card: {
           body: [{ type: "TextBlock", text: `レポート ${target.reportId} を配信しました`, wrap: true }],
           actions: [],
+          openUrlActions: target.dashboardUrl ? [{ title: "Dashboard", url: target.dashboardUrl }] : [],
         },
       });
     }

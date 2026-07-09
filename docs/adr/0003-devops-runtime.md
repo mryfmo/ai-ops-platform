@@ -4,6 +4,8 @@
 
 採用
 
+2026-07-09 追記: ADR-0014 はアウトバウンド配信用途に限り、PrjOps を GitHub Actions cron のみで動かす決定を更新する。配信は recipients、冪等配信ログ、監査ログ、Graph token provider を同じランタイムで使う必要があるため、常駐 server scheduler で実行する。
+
 ## コンテキスト
 
 - PrjOps ASM-006: 「本システムの実行基盤はGitHub Actions（スケジュール実行）＋Claude Agent SDKとし、

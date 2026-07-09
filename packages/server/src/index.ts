@@ -38,6 +38,9 @@ import { CodingTasksRepo } from "./db/codingTasksRepo.js";
 import { PmTimeseriesRepo } from "./db/pmTimeseriesRepo.js";
 import { ImportLedgerRepo } from "./db/importLedgerRepo.js";
 import { SevenKeysSnapshotsRepo } from "./db/sevenKeysSnapshotsRepo.js";
+import { RecipientsRepo } from "./db/recipientsRepo.js";
+import { StandardReportsRepo } from "./db/standardReportsRepo.js";
+import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { buildApp } from "./http/app.js";
 import { startScheduler } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
@@ -47,6 +50,7 @@ import { createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.j
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
+import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
 import { createClientCredentialsTokenProvider } from "./auth/graphTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
 import {
@@ -63,6 +67,7 @@ export * from "./http/routes/graphNotifications.js";
 export * from "./http/routes/githubWebhook.js";
 export * from "./http/routes/codingTasks.js";
 export * from "./http/routes/xlsxImport.js";
+export * from "./http/routes/reportIngest.js";
 export * from "./http/routes/webuiProxy.js";
 export * from "./scheduler/scheduler.js";
 export * from "./scheduler/tasks/healthcheckTask.js";
@@ -72,7 +77,9 @@ export * from "./scheduler/tasks/channelPollingTask.js";
 export * from "./scheduler/tasks/eventsPollingTask.js";
 export * from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 export * from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
+export * from "./scheduler/tasks/reportDeliveryTask.js";
 export * from "./lib/schedulerPolicy.js";
+export * from "./lib/dashboardDeepLink.js";
 export * from "./lib/graphNotificationValidator.js";
 export * from "./lib/channelAuthorization.js";
 export * from "./lib/freeTextIntent.js";
@@ -89,6 +96,9 @@ export * from "./db/codingTasksRepo.js";
 export * from "./db/pmTimeseriesRepo.js";
 export * from "./db/importLedgerRepo.js";
 export * from "./db/sevenKeysSnapshotsRepo.js";
+export * from "./db/recipientsRepo.js";
+export * from "./db/standardReportsRepo.js";
+export * from "./db/reportDeliveryLogRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
 
@@ -126,6 +136,9 @@ async function main(): Promise<void> {
   const pmTimeseriesRepo = new PmTimeseriesRepo(pool);
   const importLedgerRepo = new ImportLedgerRepo(pool);
   const sevenKeysSnapshotsRepo = new SevenKeysSnapshotsRepo(pool);
+  const recipientsRepo = new RecipientsRepo(pool);
+  const standardReportsRepo = new StandardReportsRepo(pool);
+  const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
 
   const graphTokenProvider = createClientCredentialsTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
@@ -289,6 +302,19 @@ async function main(): Promise<void> {
         calendar: loadJpHolidayCalendar(),
         traceIdProvider: () => randomUUID(),
       }),
+      createReportDeliveryTask({
+        enabled: config.REPORT_DELIVERY_ENABLED,
+        fromMailbox: config.FROM_MAILBOX,
+        defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
+        publicBaseUrl: config.PUBLIC_BASE_URL,
+        calendar: loadJpHolidayCalendar(),
+        recipientsRepo,
+        standardReportsRepo,
+        graphClient,
+        deliveryLogStore: reportDeliveryLogRepo,
+        auditLog,
+        traceIdProvider: () => randomUUID(),
+      }),
     ],
     (taskName, err) => {
       // 1タスクの失敗を隔離し、秘密情報を含まない形でstderrへ
@@ -335,6 +361,43 @@ async function main(): Promise<void> {
       githubClient,
       auditLog,
       traceIdProvider: () => randomUUID(),
+    },
+    reports: {
+      ingestSecret: config.REPORT_INGEST_SECRET,
+      reportsRepo: standardReportsRepo,
+      auditLog,
+      traceIdProvider: () => randomUUID(),
+      deliverReport: async (report, traceId) => {
+        if (!config.REPORT_DELIVERY_ENABLED || !config.FROM_MAILBOX) {
+          await auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-05",
+            action: "report_delivery_disabled",
+            basis: "ADR-0014",
+            detail: {
+              reason: !config.REPORT_DELIVERY_ENABLED
+                ? "REPORT_DELIVERY_ENABLED is not true"
+                : "FROM_MAILBOX is not configured",
+            },
+            at: new Date().toISOString(),
+          });
+          return;
+        }
+        await deliverStandardReportToRecipients(
+          report,
+          {
+            fromMailbox: config.FROM_MAILBOX,
+            defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
+            publicBaseUrl: config.PUBLIC_BASE_URL,
+            recipientsRepo,
+            graphClient,
+            deliveryLogStore: reportDeliveryLogRepo,
+            auditLog,
+            traceIdProvider: () => randomUUID(),
+          },
+          traceId,
+        );
+      },
     },
     webui: { targetBaseUrl: `http://127.0.0.1:${config.WEBUI_INTERNAL_PORT}` },
   });

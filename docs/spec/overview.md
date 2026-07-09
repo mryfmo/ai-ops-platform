@@ -19,6 +19,7 @@
   - [ADR-0003](../adr/0003-devops-runtime.md): DevOps は常駐サービスが必要。
   - [ADR-0005](../adr/0005-resident-server-and-teams-integration.md): Hono server と WebUI を単一公開面へ集約。
   - [ADR-0006](../adr/0006-ai-coding-agent-integration.md): coding task は人間確認後に GitHub Actions を起動。
+  - [ADR-0014](../adr/0014-integration-delivery.md): 標準 report ingest と Outlook/Teams 配信は常駐 server scheduler で実行。
 - WebUI is served under `/app/*` by `packages/server/src/http/routes/webuiProxy.ts`.
 - Next.js API routes are under `/app/api/*` because `packages/web/next.config.mjs` uses the app base path.
 
@@ -30,6 +31,8 @@
 4. Periodic reconcile reads current GitHub Projects v2 state when `GITHUB_PROJECT_NODE_ID` is set and writes `pm_snapshots`; if unset, reconcile records a disabled audit event.
 5. `/app/api/data/timeseries` reads `pm_events` and `pm_snapshots`, filters by resolved persona scope, and calls `aggregateTimeseries`.
 6. `DashboardClient` renders the selected persona view and optional time-series panel.
+7. `report-generation.yml` uploads `report.json` and, when configured, posts it to `POST /reports/ingest`.
+8. The server validates the standard report, stores `standard_reports`, reads active `recipients`, applies recipient visibility filtering, and sends Outlook mail plus optional Teams cards with `/app/dashboard` deep links.
 
 ## AI Integration
 
@@ -43,5 +46,6 @@
 ## Current Explicit Limits
 
 - PrjOps production data provider is still represented by `InMemoryPrjopsReportDataProvider` in Web route wiring.
+- Report delivery requires `REPORT_DELIVERY_ENABLED=true`, `FROM_MAILBOX`, recipient rows, and Graph permissions. Missing config is disabled with audit rather than simulated.
 - Real DB, GitHub App, Microsoft Graph, Teams, and Anthropic smoke tests require the real environment described in [runbooks/e2e-real-environment.md](../../runbooks/e2e-real-environment.md).
 - Multiple persona switching UI is not implemented; handlers use the resolved first persona unless the route/tool has a stricter persona requirement.

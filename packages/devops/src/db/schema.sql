@@ -128,11 +128,14 @@ CREATE INDEX IF NOT EXISTS idx_grants_subject ON grants (subject);
 -- SPEC-INT-054 配信名簿（recipients）
 CREATE TABLE IF NOT EXISTS recipients (
   user_id  TEXT PRIMARY KEY,
-  profile  TEXT NOT NULL CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G')),
+  profile  TEXT NOT NULL CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')),
+  persona  TEXT CHECK (persona IN ('member', 'leader', 'global-manager', 'manager', 'executive', 'investor')),
   email    TEXT NOT NULL,
   projects TEXT[] NOT NULL DEFAULT '{}',
   language TEXT NOT NULL CHECK (language IN ('ja', 'en')) DEFAULT 'ja',
-  active   BOOLEAN NOT NULL DEFAULT true
+  active   BOOLEAN NOT NULL DEFAULT true,
+  teams_team_id TEXT,
+  teams_channel_id TEXT
 );
 
 -- SPEC-INT-055 report_snapshots
@@ -298,3 +301,29 @@ CREATE TABLE IF NOT EXISTS import_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_import_ledger_run ON import_ledger (import_run_id);
 -- rollback: DROP TABLE import_ledger;
+
+-- 2026-07-09 ADR-0014 / REQ-042 / SPEC-INT-069: 統合配信の標準report受領・配信ログ。
+-- report_delivery_logは追記専用で、既存idempotentDeliveryのDeliveryLogStoreをDBへ結線する。
+ALTER TABLE recipients DROP CONSTRAINT IF EXISTS recipients_profile_check;
+ALTER TABLE recipients ADD CONSTRAINT recipients_profile_check CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')) NOT VALID;
+ALTER TABLE recipients ADD COLUMN IF NOT EXISTS persona TEXT CHECK (persona IN ('member', 'leader', 'global-manager', 'manager', 'executive', 'investor'));
+ALTER TABLE recipients ADD COLUMN IF NOT EXISTS teams_team_id TEXT;
+ALTER TABLE recipients ADD COLUMN IF NOT EXISTS teams_channel_id TEXT;
+CREATE TABLE IF NOT EXISTS standard_reports (
+  report_id      TEXT PRIMARY KEY,
+  schema_version TEXT NOT NULL,
+  report_type    TEXT NOT NULL CHECK (report_type IN ('weekly-summary', 'manager-weekly', 'investor-quarterly')),
+  period_label   TEXT NOT NULL,
+  generated_at   TEXT NOT NULL,
+  payload        JSONB NOT NULL,
+  trace_id       UUID NOT NULL,
+  received_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_standard_reports_received ON standard_reports (received_at);
+CREATE TABLE IF NOT EXISTS report_delivery_log (
+  report_id    TEXT NOT NULL,
+  recipient_id TEXT NOT NULL,
+  delivered_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (report_id, recipient_id)
+);
+-- rollback: DROP TABLE report_delivery_log; DROP TABLE standard_reports;

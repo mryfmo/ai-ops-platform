@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/agents/AGT01_orchestrator.ts
  *
- * 根拠: DOC-02 §5（例外・障害時のふるまい）
+ * 根拠: DOC-02 §5（例外・障害時のふるまい） / REQ-006
  *   エージェント処理が失敗した場合、AGT-01が同一ジョブを最大2回リトライ（間隔10分）し、
  *   3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知する。
  * SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を1本の

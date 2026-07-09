@@ -24,6 +24,7 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.PORT).toBe(8080);
     expect(config.WEBUI_INTERNAL_PORT).toBe(3100);
     expect(config.DATABASE_URL).toContain("postgres://");
+    expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
   });
 
   it("PORTを上書きできる", () => {
@@ -51,5 +52,19 @@ describe("loadConfig (ADR-0005)", () => {
   it("CODING_TASK_CALLBACK_SECRET欠落でE-CFG01", () => {
     const { CODING_TASK_CALLBACK_SECRET: _drop, ...rest } = validEnv;
     expect(() => loadConfig(rest)).toThrow("E-CFG01");
+  });
+
+  it("ADR-0014の配信設定をパースできる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      REPORT_DELIVERY_ENABLED: "true",
+      FROM_MAILBOX: "reports@example.com",
+      REPORT_INGEST_SECRET: "report-ingest-secret-of-at-least-32-chars",
+      DEFAULT_TEAMS_TEAM_ID: "team-1",
+      DEFAULT_TEAMS_CHANNEL_ID: "channel-1",
+    });
+    expect(config.REPORT_DELIVERY_ENABLED).toBe(true);
+    expect(config.FROM_MAILBOX).toBe("reports@example.com");
+    expect(config.DEFAULT_TEAMS_CHANNEL_ID).toBe("channel-1");
   });
 });

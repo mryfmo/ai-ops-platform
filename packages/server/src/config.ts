@@ -38,6 +38,18 @@ const configSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
   GITHUB_PROJECT_NODE_ID: z.string().optional(),
+  /** ADR-0014: Outlook配信元メールボックス。未設定時はreport deliveryをdisabled+監査にする。 */
+  FROM_MAILBOX: z.string().email().optional(),
+  /** ADR-0014: reportDeliveryTaskの明示有効化フラグ。既定false。 */
+  REPORT_DELIVERY_ENABLED: z
+    .enum(["true", "false", "1", "0"])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+  /** ADR-0014: report-generation.yml -> /reports/ingest HMAC鍵。未設定時はingest disabled。 */
+  REPORT_INGEST_SECRET: z.string().min(32).optional(),
+  /** ADR-0014: report card投稿先の既定Teams channel。未設定時はメールのみ。 */
+  DEFAULT_TEAMS_TEAM_ID: z.string().optional(),
+  DEFAULT_TEAMS_CHANNEL_ID: z.string().optional(),
   /**
    * コーディングタスク関連シークレット（ADR-0006）。二用途で共有する:
    *   (a) confirmToken.ts の HMAC-SHA256鍵（確認リンクtokenの生成・検証）
