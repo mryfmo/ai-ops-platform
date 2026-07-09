@@ -48,7 +48,9 @@ describe("sevenKeysMonthlySnapshotTask (ADR-0010 / AC-038-1)", () => {
     expect(saved).toHaveLength(1);
     expect(JSON.stringify(saved[0])).toContain("K3");
     expect(JSON.stringify(saved[0])).toContain("K6");
-    expect((await auditLog.readAll())[0]?.action).toBe("seven_keys_monthly_snapshot_created");
+    const log = (await auditLog.readAll())[0]!;
+    expect(log.actor).toBe("AGT-04");
+    expect(log.action).toBe("seven_keys_monthly_snapshot_created");
   });
 
   it("AC-038-1: 同月再実行は保存せずskip監査ログを残す", async () => {
@@ -71,6 +73,50 @@ describe("sevenKeysMonthlySnapshotTask (ADR-0010 / AC-038-1)", () => {
     const log = (await auditLog.readAll())[0]!;
     expect(log.action).toBe("seven_keys_monthly_snapshot_skipped");
     expect(log.detail).toMatchObject({ month: "2026-07", created: 0, skipped: 1 });
+  });
+
+  it("AC-038-1: provider未設定時はdisabled理由を監査しcreated扱いにしない", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const task = createSevenKeysMonthlySnapshotTask({
+      repo: {
+        findByProjectMonth: async () => null,
+        findLatestBefore: async () => null,
+        insert: async () => {
+          throw new Error("must not insert when disabled");
+        },
+      },
+      disabledReason: "PrjOps report data provider is not configured",
+      auditLog,
+      calendar,
+      traceIdProvider: () => "trace-seven",
+    });
+
+    await task.run(new Date("2026-07-01T00:00:00.000Z"));
+    const log = (await auditLog.readAll())[0]!;
+    expect(log.action).toBe("seven_keys_monthly_snapshot_disabled");
+    expect(log.detail).toMatchObject({ reason: "PrjOps report data provider is not configured" });
+  });
+
+  it("AC-038-1: providerが0件を返す場合はno_data監査にしcreated扱いにしない", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const task = createSevenKeysMonthlySnapshotTask({
+      repo: {
+        findByProjectMonth: async () => null,
+        findLatestBefore: async () => null,
+        insert: async () => {
+          throw new Error("must not insert without projects");
+        },
+      },
+      provider: { listExecutiveProjects: async () => [] },
+      auditLog,
+      calendar,
+      traceIdProvider: () => "trace-seven",
+    });
+
+    await task.run(new Date("2026-07-01T00:00:00.000Z"));
+    const log = (await auditLog.readAll())[0]!;
+    expect(log.action).toBe("seven_keys_monthly_snapshot_no_data");
+    expect(log.detail).toMatchObject({ month: "2026-07", created: 0, skipped: 0 });
   });
 
   it("第1営業日以外は何もしない", async () => {

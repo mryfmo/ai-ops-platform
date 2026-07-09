@@ -15,8 +15,15 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
-import { GraphClient, GitHubClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendar } from "@aiops/shared";
+import {
+  GraphClient,
+  GitHubClient,
+  AnthropicStructuredClient,
+  PgCostGuard,
+  buildHolidayCalendarFromYaml,
+} from "@aiops/shared";
 import type { StakeholderInput } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
@@ -100,6 +107,11 @@ const SAMPLE_STAKEHOLDERS: StakeholderInput[] = [
     timezone: "Asia/Tokyo",
   },
 ];
+
+function loadJpHolidayCalendar() {
+  const yamlUrl = new URL("../../shared/src/calendar/jp_holidays.yaml", import.meta.url);
+  return buildHolidayCalendarFromYaml(readFileSync(yamlUrl, "utf8"));
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -272,9 +284,9 @@ async function main(): Promise<void> {
       }),
       createSevenKeysMonthlySnapshotTask({
         repo: sevenKeysSnapshotsRepo,
-        provider: { listExecutiveProjects: async () => [] },
+        disabledReason: "PrjOps report data provider is not configured",
         auditLog,
-        calendar: buildHolidayCalendar([]),
+        calendar: loadJpHolidayCalendar(),
         traceIdProvider: () => randomUUID(),
       }),
     ],

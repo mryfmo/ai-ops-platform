@@ -27,7 +27,7 @@
 - GitHub由来RAGの閾値（進捗70%、scope change 2/5、review wait 48/72h等）は初期校正値であり、正典の固定値ではない。運用実績に基づく見直しは別PRで扱う。
 - 現行の予算消化率はSeven Keysから除去する。必要な場合は財務・投資家向けの別ビューで扱う。
 - 月次PDCAサイクルを報告ジョブに組み込み、前月RAG、当月RAG、主要変化、次アクションを記録する。
-- 月次PDCAの永続保存は `seven_keys_snapshots` に追記専用で記録し、第1営業日の `seven-keys-monthly-snapshot` タスクで同月重複をスキップする。
+- 月次PDCAの永続保存は `seven_keys_snapshots` に追記専用で記録し、第1営業日の `seven-keys-monthly-snapshot` タスクで同月重複をスキップする。PrjOps report data providerが未設定の場合、タスクはdisabled監査ログを残して終了する。
 
 ## 根拠
 

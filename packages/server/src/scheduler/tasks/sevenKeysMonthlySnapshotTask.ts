@@ -19,7 +19,8 @@ export interface SevenKeysMonthlySnapshotProvider {
 
 export interface SevenKeysMonthlySnapshotTaskDeps {
   repo: Pick<SevenKeysSnapshotsRepo, "findByProjectMonth" | "findLatestBefore" | "insert">;
-  provider: SevenKeysMonthlySnapshotProvider;
+  provider?: SevenKeysMonthlySnapshotProvider;
+  disabledReason?: string;
   auditLog: AuditLogWriter;
   calendar: HolidayCalendar;
   traceIdProvider(): string;
@@ -41,6 +42,18 @@ export function createSevenKeysMonthlySnapshotTask(deps: SevenKeysMonthlySnapsho
       const month = today.slice(0, 7);
       const generatedAt = now.toISOString();
       const traceId = deps.traceIdProvider();
+      if (!deps.provider) {
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-04",
+          action: "seven_keys_monthly_snapshot_disabled",
+          basis: "AC-038-1",
+          detail: { month, reason: deps.disabledReason ?? "PrjOps report data provider is not configured" },
+          at: generatedAt,
+        });
+        return;
+      }
+
       let created = 0;
       let skipped = 0;
 
@@ -61,8 +74,13 @@ export function createSevenKeysMonthlySnapshotTask(deps: SevenKeysMonthlySnapsho
 
       await deps.auditLog.append({
         trace_id: traceId,
-        actor: "AGT-RPT",
-        action: skipped > 0 ? "seven_keys_monthly_snapshot_skipped" : "seven_keys_monthly_snapshot_created",
+        actor: "AGT-04",
+        action:
+          created > 0
+            ? "seven_keys_monthly_snapshot_created"
+            : skipped > 0
+              ? "seven_keys_monthly_snapshot_skipped"
+              : "seven_keys_monthly_snapshot_no_data",
         basis: "AC-038-1",
         detail: { month, created, skipped },
         at: generatedAt,
