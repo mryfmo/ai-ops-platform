@@ -1,0 +1,4 @@
+# Next.js build output（根拠: ADR-0005）
+.next/
+next-env.d.ts
+*.tsbuildinfo

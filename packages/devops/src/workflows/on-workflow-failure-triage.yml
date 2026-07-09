@@ -1,0 +1,24 @@
+name: on-workflow-failure-triage
+# 根拠: SPEC-INT-011「workflow_run.completed(conclusion=failure)イベントを受信」
+on:
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+jobs:
+  triage:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/devops run build
+      - name: AGT-BLD 分類+修正案生成（read-onlyチェックアウト, AC-002b）
+        run: node packages/devops/scripts/jobs/on-build-failure.mjs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_APP_ID: ${{ secrets.DEVOPS_GH_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.DEVOPS_GH_APP_PRIVATE_KEY }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}

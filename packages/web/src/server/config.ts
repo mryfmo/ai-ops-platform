@@ -1,0 +1,46 @@
+/**
+ * packages/web/src/server/config.ts
+ *
+ * 根拠: ADR-0005（常駐サーバ + WebUIダッシュボード。環境変数はzodで起動時にfail-fastパースする方針を
+ *   packages/server/src/config.ts と同様にWebUI側にも適用する）
+ *   - AUTH_SECRET / AUTH_MICROSOFT_ENTRA_ID_*: Auth.js v5 + Microsoft Entra ID SSO（本タスクの主題）
+ *   - DATABASE_URL: DevOps正本DB（packages/server と同一PostgreSQL）。personaResolverが
+ *     recipientsテーブルをリクエスト毎に照会するために使用する（キャッシュ禁止。CLAUDE.md設計原則6）。
+ *   - ANTHROPIC_API_KEY: /api/chat（Vercel AI SDK + Claude）用。任意項目とし、未設定でも
+ *     起動・ビルドを妨げない（/api/chat route.ts側が未設定を検知し503を返す。#14）。
+ *
+ * 注意: このモジュールを import しただけで即座に環境変数を要求しない（loadConfig()呼び出し時に
+ * 初めて検証する）。next.config.mjs の方針（ビルド時に秘匿情報を要求しない）と整合させるため、
+ * ビルド時に評価されうるモジュールのトップレベルでは loadConfig() を呼ばないこと。
+ */
+import { z } from "zod";
+
+const webConfigSchema = z.object({
+  /** Auth.js v5 セッション暗号化に使用する秘密鍵（必須） */
+  AUTH_SECRET: z.string().min(1),
+  /** Microsoft Entra ID アプリ登録の クライアントID */
+  AUTH_MICROSOFT_ENTRA_ID_ID: z.string().min(1),
+  /** Microsoft Entra ID アプリ登録の クライアントシークレット */
+  AUTH_MICROSOFT_ENTRA_ID_SECRET: z.string().min(1),
+  /** Microsoft Entra ID テナントID */
+  AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: z.string().min(1),
+  /** PostgreSQL接続文字列（DevOps正本DB。recipientsテーブル照会用） */
+  DATABASE_URL: z.string().min(1),
+  /** Anthropic APIキー（/api/chat用。未設定時はチャット機能を503で無効化する） */
+  ANTHROPIC_API_KEY: z.string().optional(),
+});
+
+export type WebConfig = z.infer<typeof webConfigSchema>;
+
+/**
+ * 環境変数をパースする。不足・不正があれば起動時に例外を投げ、
+ * 誤設定のまま黙って稼働すること（認証スキップ等）を防ぐ。
+ */
+export function loadWebConfig(env: Record<string, string | undefined> = process.env): WebConfig {
+  const parsed = webConfigSchema.safeParse(env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`E-CFG02: invalid web configuration: ${issues}`);
+  }
+  return parsed.data;
+}

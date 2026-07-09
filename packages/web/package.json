@@ -1,0 +1,42 @@
+{
+  "name": "@aiops/web",
+  "version": "1.0.0",
+  "description": "WebUIダッシュボード（Next.js App Router + Tailwind CSS v4 + Vercel AI SDKチャット。ADR-0005）",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "2.0.85",
+    "@ai-sdk/react": "2.0.212",
+    "@aiops/devops": "workspace:*",
+    "@aiops/prjops": "workspace:*",
+    "@aiops/shared": "workspace:*",
+    "ai": "5.0.210",
+    "next": "^15.0.0",
+    "next-auth": "5.0.0-beta.25",
+    "pg": "^8.13.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^20.16.11",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.1",
+    "msw": "2.7.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

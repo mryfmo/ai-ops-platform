@@ -1,0 +1,9 @@
+# サンプルデータ: 企業マスタ（REQ-002, SPEC-INT-023）
+# パス規約: organizations/{ORG-nnn}.yaml
+id: ORG-001
+name: 株式会社サンプル
+country: JP
+domestic_or_overseas: domestic
+created_at: "2026-01-05T09:00:00+09:00"
+updated_at: "2026-01-05T09:00:00+09:00"
+updated_by: ST-020

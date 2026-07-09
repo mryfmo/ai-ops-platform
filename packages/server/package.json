@@ -1,0 +1,31 @@
+{
+  "name": "@aiops/server",
+  "version": "1.0.0",
+  "description": "常駐サーバ（ADR-0005）: Graph/GitHub webhook受信、常駐ループ（ヘルスチェック/JIT失効/購読更新）、WebUIプロキシ",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "dependencies": {
+    "@aiops/shared": "workspace:*",
+    "@aiops/devops": "workspace:*",
+    "@aiops/prjops": "workspace:*",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "hono": "^4.6.14",
+    "@hono/node-server": "^1.13.7",
+    "pg": "^8.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "vitest": "^2.1.4",
+    "typescript": "^5.6.3"
+  }
+}

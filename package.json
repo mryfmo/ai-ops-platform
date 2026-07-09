@@ -1,0 +1,34 @@
+{
+  "name": "ai-ops-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PrjOps AI基盤 + AIエージェント主導DevOps運用基盤 統合モノレポ（14エージェント）",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "test": "pnpm -r --if-present run test",
+    "test:coverage": "pnpm -r --if-present run test:coverage",
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "traceability": "pnpm exec tsx packages/traceability/src/verifyTraceability.ts",
+    "verify:all": "bash verification/run_verification.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4",
+    "@vitest/coverage-v8": "^2.1.4",
+    "tsx": "^4.19.1",
+    "@types/node": "^20.16.11",
+    "eslint": "^9.15.0",
+    "typescript-eslint": "^8.15.0",
+    "@eslint/js": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.12.0",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

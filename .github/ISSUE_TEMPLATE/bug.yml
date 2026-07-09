@@ -1,0 +1,32 @@
+name: バグ報告
+description: 実装と仕様（REQ/SPEC/AC）の乖離、または明らかな不具合の報告
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待動作
+      description: 根拠となる仕様ID（REQ/SPEC-INT/AC等）があれば併記
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作
+      description: エラーメッセージ・ログ（trace_idがあれば必ず記載）
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+    validations:
+      required: false
+  - type: input
+    id: trace
+    attributes:
+      label: trace_id
+      description: audit_log/eventsから特定できる場合
+    validations:
+      required: false

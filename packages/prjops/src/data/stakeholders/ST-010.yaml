@@ -1,0 +1,17 @@
+# サンプルデータ: 関係者マスタ（REQ-002, SPEC-INT-022）
+# パス規約: stakeholders/{ST-nnn}.yaml
+id: ST-010
+name: 山田太郎
+organization_id: ORG-001
+assignments:
+  - project_id: PJ-001
+    profile: PRF-02
+  - project_id: PJ-002
+    profile: PRF-01
+email: yamada@example.com
+teams_user_id: "29:1a2b3c-example-teams-id"
+preferred_language: ja
+timezone: Asia/Tokyo
+created_at: "2026-01-05T09:00:00+09:00"
+updated_at: "2026-01-05T09:00:00+09:00"
+updated_by: ST-020

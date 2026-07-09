@@ -1,0 +1,50 @@
+# .github/actions/run-coding-agent/action.yml
+#
+# 根拠: ADR-0006決定1「実行はcomposite action化し、agentパラメータ（claude-code | droid）で
+#   差し替え可能にする」。.github/workflows/coding-task.yml から呼ばれる。
+#
+# 注意: このcomposite actionはCI環境では実行されない（workflow_dispatch経由でのみ起動される
+#   coding-task.ymlからの呼び出しを想定）。構文的な妥当性のみを確認済みで、実際のCLI引数は
+#   実運用時に要検証（下記コメント参照）。
+name: "run-coding-agent"
+description: "AIコーディングエージェント（Claude Code / Droid）にinstructionを渡して実装させる（ADR-0006）"
+
+inputs:
+  agent:
+    description: "実行エージェント（claude-code | droid）"
+    required: true
+  instruction:
+    description: "コーディング指示内容（coding_tasks.instruction由来。sanitizeSecrets済みの想定）"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    # 実運用時要検証: anthropics/claude-code-action の正式な利用方法（バージョン・入力名）が
+    # 確定していないため、ここではclaude-code CLIを直接呼ぶ想定で記述する。
+    # ANTHROPIC_API_KEYはワークフロー側のjob env（secrets.ANTHROPIC_API_KEY）で渡される前提。
+    - name: Run Claude Code (agent=claude-code)
+      if: ${{ inputs.agent == 'claude-code' }}
+      shell: bash
+      env:
+        CODING_INSTRUCTION: ${{ inputs.instruction }}
+      run: |
+        set -euo pipefail
+        echo "[run-coding-agent] launching claude-code CLI"
+        # 実運用時要検証: 正確なCLI引数・非対話モードのフラグ名は導入時に確認すること。
+        # --permission-mode acceptEdits はコード編集を自動承認するが、git commit/push・
+        # PR作成はcoding-task.yml側のステップが別途行う（AC-002b: 自動マージはしない）。
+        claude -p "${CODING_INSTRUCTION}" --permission-mode acceptEdits
+
+    # 実運用時要検証: Factory (droid) のCI実行方式はADR-0006時点で未確定（残課題）。
+    # droid execの正式な非対話フラグ・認証方式が確定次第、下記を更新する。
+    - name: Run Droid (agent=droid)
+      if: ${{ inputs.agent == 'droid' }}
+      shell: bash
+      env:
+        CODING_INSTRUCTION: ${{ inputs.instruction }}
+      run: |
+        set -euo pipefail
+        echo "[run-coding-agent] launching droid CLI"
+        # 実運用時要検証: FACTORY_API_KEYはワークフロー側のjob envで渡される前提。
+        droid exec "${CODING_INSTRUCTION}"

@@ -1,0 +1,22 @@
+# サンプルデータ: 進捗アップデート（SPEC-INT-020）
+# パス規約: status_updates/{SU-id}.yaml （id形式: SU-{PJ-nnn}-{YYYY}-W{ww}-{seq}）
+id: SU-PJ-001-2026-W27-1
+project_id: PJ-001
+period:
+  start: "2026-06-30"
+  end: "2026-07-06"
+channel: email
+reporter: ST-010
+progress_pct: 62
+self_status: yellow
+achievements: 基本設計レビューを完了し、指摘事項の一次対応まで完了した。
+plans: 詳細設計に着手し、外部連携仕様のドラフトをA社と協議する。
+issues:
+  - ref: ISSUE-0001
+risks:
+  - ref: RISK-0001
+complete: true
+raw_source: audit/raw/SU-PJ-001-2026-W27-1.txt
+created_at: "2026-07-01T10:15:00+09:00"
+updated_at: "2026-07-01T10:15:00+09:00"
+updated_by: ST-010

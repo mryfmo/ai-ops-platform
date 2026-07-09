@@ -1,0 +1,8 @@
+# サンプルデータ: 企業マスタ（海外企業の例。ASM-002の既定言語判定=enの対象）
+id: ORG-002
+name: Example Overseas Partner Inc.
+country: US
+domestic_or_overseas: overseas
+created_at: "2026-01-05T09:00:00+09:00"
+updated_at: "2026-01-05T09:00:00+09:00"
+updated_by: ST-020

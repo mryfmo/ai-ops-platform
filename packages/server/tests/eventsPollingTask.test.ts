@@ -1,0 +1,132 @@
+/**
+ * packages/server/tests/eventsPollingTask.test.ts
+ *
+ * 根拠: ADR-0005 / SPEC-INT-010（eventsテーブルのポーリングディスパッチ。1件失敗の隔離）
+ */
+import { describe, it, expect } from "vitest";
+import { InMemoryAuditLog } from "@aiops/shared";
+import { createEventsPollingTask } from "../src/scheduler/tasks/eventsPollingTask.js";
+import type { EventsRepo, QueuedEvent } from "../src/db/eventsRepo.js";
+
+function makeEvent(overrides: Partial<QueuedEvent> = {}): QueuedEvent {
+  return {
+    eventId: "evt-1",
+    traceId: "trace-1",
+    source: "inbound",
+    payload: {
+      kind: "graph_channel_message_notification",
+      changeType: "created",
+      resource: "r",
+      subscriptionId: "s",
+      ids: {},
+    },
+    status: "dispatched",
+    ...overrides,
+  };
+}
+
+function makeRepoStub(queue: QueuedEvent[]) {
+  const done: string[] = [];
+  const delayed: string[] = [];
+  return {
+    claimNextQueued: async () => queue.shift() ?? null,
+    markDone: async (id: string) => {
+      done.push(id);
+    },
+    markDelayed: async (id: string) => {
+      delayed.push(id);
+    },
+    enqueue: async () => {},
+    done,
+    delayed,
+  };
+}
+
+describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
+  it("source=inboundのgraph通知をディスパッチしdoneにする", async () => {
+    const repo = makeRepoStub([makeEvent()]);
+    const dispatched: Array<{ payload: unknown; traceId: string }> = [];
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog: new InMemoryAuditLog(),
+      dispatchInboundNotification: async (payload, traceId) => {
+        dispatched.push({ payload, traceId });
+      },
+      traceIdProvider: () => "t",
+    });
+
+    await task.run(new Date());
+    expect(dispatched).toHaveLength(1);
+    expect(repo.done).toEqual(["evt-1"]);
+    expect(repo.delayed).toEqual([]);
+  });
+
+  it("ディスパッチ失敗は他イベント処理に波及させず、delayedへ遷移+監査ログ", async () => {
+    const repo = makeRepoStub([makeEvent({ eventId: "evt-fail" }), makeEvent({ eventId: "evt-ok" })]);
+    const auditLog = new InMemoryAuditLog();
+    let call = 0;
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog,
+      dispatchInboundNotification: async () => {
+        call += 1;
+        if (call === 1) throw new Error("boom");
+      },
+      traceIdProvider: () => "t",
+    });
+
+    await task.run(new Date());
+    expect(repo.delayed).toEqual(["evt-fail"]);
+    expect(repo.done).toEqual(["evt-ok"]);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "SPEC-INT-010")).toBe(true);
+  });
+
+  it("キューが空ならdispatchを呼ばない", async () => {
+    const repo = makeRepoStub([]);
+    let called = false;
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog: new InMemoryAuditLog(),
+      dispatchInboundNotification: async () => {
+        called = true;
+      },
+      traceIdProvider: () => "t",
+    });
+    await task.run(new Date());
+    expect(called).toBe(false);
+  });
+
+  it("source=github/monitorはディスパッチせずdone扱い（TODO: 別タスクで接続）", async () => {
+    const repo = makeRepoStub([makeEvent({ source: "github", payload: { eventName: "push" } })]);
+    let called = false;
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog: new InMemoryAuditLog(),
+      dispatchInboundNotification: async () => {
+        called = true;
+      },
+      traceIdProvider: () => "t",
+    });
+    await task.run(new Date());
+    expect(called).toBe(false);
+    expect(repo.done).toEqual(["evt-1"]);
+  });
+
+  it("maxBatchSizeで1tickの処理件数を制限する", async () => {
+    const repo = makeRepoStub([
+      makeEvent({ eventId: "e1" }),
+      makeEvent({ eventId: "e2" }),
+      makeEvent({ eventId: "e3" }),
+    ]);
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog: new InMemoryAuditLog(),
+      dispatchInboundNotification: async () => {},
+      traceIdProvider: () => "t",
+      maxBatchSize: 2,
+    });
+    await task.run(new Date());
+    expect(repo.done).toEqual(["e1", "e2"]);
+  });
+});

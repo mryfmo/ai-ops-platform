@@ -1,0 +1,35 @@
+{
+  "name": "@aiops/shared",
+  "version": "1.0.0",
+  "description": "PrjOps/DevOps共通基盤: 営業日カレンダー、ID体系、言語選択、監査ログ、秘密情報サニタイザ、外部APIクライアント（Anthropic/Claude Agent SDK/Microsoft Graph/GitHub）",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "zod": "^3.23.8",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.4",
+    "typescript": "^5.6.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*"
+    }
+  }
+}

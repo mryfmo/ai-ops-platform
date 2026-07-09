@@ -1,0 +1,32 @@
+name: 仕様変更提案
+description: 閾値（TH-xxx）・判定基準・レポート内容などの仕様変更の提案
+title: "[spec] "
+labels: ["spec-change"]
+body:
+  - type: input
+    id: target
+    attributes:
+      label: 対象仕様ID
+      placeholder: "TH-001 / REQ-007 / SPEC-INT-032 など"
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: 現行仕様と課題
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 変更案
+      description: アーキテクチャに影響する場合はADR新設（new-adrスキル）を検討
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影響範囲
+      description: 影響する実装ファイル・テスト・レポート・運用手順
+    validations:
+      required: false

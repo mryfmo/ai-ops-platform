@@ -1,0 +1,26 @@
+{
+  "name": "@aiops/devops",
+  "version": "1.0.0",
+  "description": "AIエージェント主導DevOps運用基盤: AGT-ORCH/BLD/DEP/INC/CHG/RPT/SEC",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "dependencies": {
+    "@aiops/shared": "workspace:*",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "zod": "^3.23.8",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.4",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,28 @@
+name: prjops-request-weekly
+# 根拠: PrjOps SPEC-INT-040（水 09:00 JST = 水 00:00 UTC）/ SPEC-EXT-030
+on:
+  schedule:
+    - cron: "0 0 * * WED" # UTC. 09:00 JST 水曜（ASM-003: JST基準）
+  workflow_dispatch: {}
+
+concurrency:
+  group: prjops-request-weekly
+  cancel-in-progress: false
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # AC-003-1: 09:00から30分以内に完了
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/prjops run build
+      - name: Run AGT-05 request-weekly job
+        run: node packages/prjops/scripts/jobs/request-weekly.mjs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          PRJOPS_DATA_REPO_TOKEN: ${{ secrets.PRJOPS_DATA_REPO_TOKEN }}

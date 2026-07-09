@@ -1,0 +1,43 @@
+name: AIコーディングタスク指示
+description: AIコーディングエージェント（Claude Code / Droid）に実装を依頼する構造化フォーム（ADR-0006）
+title: "[coding-task] "
+labels: ["coding-task", "ai-generated"]
+body:
+  - type: input
+    id: project
+    attributes:
+      label: 対象プロジェクト
+      description: PJ-nnn または PRJ-nnn
+      placeholder: "PJ-001"
+    validations:
+      required: true
+  - type: textarea
+    id: instruction
+    attributes:
+      label: 指示内容
+      description: 何をどう変更してほしいか。対象ファイル・関数が分かる場合は明記
+      placeholder: "packages/devops/src/lib/riskScore.ts の係数を…"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受入条件
+      description: 完了と判断する条件（テストの期待値・動作の変化）
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: 実行エージェント
+      options:
+        - claude-code
+        - droid
+      default: 0
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        > 生成されるPRは `agent/{task-id}` ブランチ + `ai-generated` ラベルで作成されます。
+        > マージは人間レビュアーのみが行えます（ブランチ保護 + CODEOWNERS）。

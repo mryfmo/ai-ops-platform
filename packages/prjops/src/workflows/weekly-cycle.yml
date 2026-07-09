@@ -1,0 +1,88 @@
+name: prjops-weekly-cycle
+# 根拠: SPEC-INT-040（analyze=月06:00, report=月07:00, deliver=月08:00 JST）
+#   AGT-01（DOC-02 §5）: analyze→report→verify→deliver の依存順序をjob依存(needs)で表現し、
+#   失敗時リトライ2回・10分間隔を各jobのretryステップで実装する。
+on:
+  schedule:
+    - cron: "0 21 * * SUN" # 月06:00 JST: analyze開始
+  workflow_dispatch: {}
+
+concurrency:
+  group: prjops-weekly-cycle
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      analysis_ref: ${{ steps.run.outputs.analysis_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/prjops run build
+      - id: run
+        name: AGT-03 analyze (REQ-007/008, 最大2回リトライ・10分間隔)
+        run: |
+          for attempt in 1 2 3; do
+            if node packages/prjops/scripts/jobs/analyze-weekly.mjs; then
+              exit 0
+            fi
+            echo "attempt $attempt failed"
+            if [ "$attempt" -lt 3 ]; then sleep 600; fi
+          done
+          echo "AGT-01: 3回失敗、PMO運用担当へエスカレーション（DOC-02 §5）"
+          node packages/prjops/scripts/jobs/escalate-to-pmo.mjs --job=analyze-weekly
+          exit 1
+        env:
+          PRJOPS_DATA_REPO_TOKEN: ${{ secrets.PRJOPS_DATA_REPO_TOKEN }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+
+  report:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/prjops run build
+      - name: AGT-04 report generation (REQ-010〜016)
+        run: node packages/prjops/scripts/jobs/report-weekly.mjs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PRJOPS_DATA_REPO_TOKEN: ${{ secrets.PRJOPS_DATA_REPO_TOKEN }}
+
+  verify:
+    needs: report
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/prjops run build
+      - name: AGT-07 verify (REQ-019, SPEC-INT-051)
+        run: node packages/prjops/scripts/jobs/verify-weekly.mjs
+        env:
+          PRJOPS_DATA_REPO_TOKEN: ${{ secrets.PRJOPS_DATA_REPO_TOKEN }}
+
+  deliver:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/prjops run build
+      - name: AGT-05 deliver (REQ-018, SPEC-INT-052冪等配信)
+        run: node packages/prjops/scripts/jobs/deliver-weekly.mjs
+        env:
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          PRJOPS_DATA_REPO_TOKEN: ${{ secrets.PRJOPS_DATA_REPO_TOKEN }}

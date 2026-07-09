@@ -1,0 +1,54 @@
+/**
+ * packages/web/src/app/api/chat/route.ts
+ *
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）。POST /api/chat —
+ * 本ファイルは本番用DI（auth() + pg.Pool + createAnthropic + PgCostGuard）を組み立てて
+ * server/chat/chatHandler.ts へ委譲する薄い配線層。
+ *
+ * 注意: ANTHROPIC_API_KEY はここで初めて参照する（config.ts のコメント方針に従い、
+ * モジュールのトップレベルでは loadWebConfig() を呼ばない）。未設定時は languageModel を
+ * undefined のままハンドラへ渡し、ハンドラ側が503を返す（ビルド時にAPIキーを要求しない）。
+ */
+import pg from "pg";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import type { UIMessage } from "ai";
+import { PgCostGuard } from "@aiops/shared";
+import { auth } from "../../../auth";
+import { loadWebConfig } from "../../../server/config";
+import {
+  CompositePersonaResolver,
+  DevopsPersonaSource,
+  InMemoryStakeholderMasterProvider,
+  PrjopsPersonaSource,
+} from "../../../server/personaResolver";
+import { handleChat } from "../../../server/chat/chatHandler";
+
+export const dynamic = "force-dynamic";
+
+const CHAT_MODEL = "claude-sonnet-4-6";
+
+export async function POST(request: Request): Promise<Response> {
+  const config = loadWebConfig();
+  const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
+  const resolver = new CompositePersonaResolver(
+    new DevopsPersonaSource(pool),
+    new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
+  );
+
+  const languageModel = config.ANTHROPIC_API_KEY
+    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY })(CHAT_MODEL)
+    : undefined;
+
+  const costGuard = new PgCostGuard(pool, { perAgentDailyLimitUsd: { "WEB-CHAT": 10 } });
+
+  const body = (await request.json()) as { messages: UIMessage[] };
+
+  return handleChat({
+    getSession: async () => auth(),
+    resolver,
+    languageModel,
+    costGuard,
+    messages: body.messages,
+    modelName: CHAT_MODEL,
+  });
+}

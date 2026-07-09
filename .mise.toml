@@ -1,0 +1,39 @@
+[tools]
+node = "20"
+pnpm = "9.15.4"
+
+[tasks.install]
+description = "依存関係のインストール"
+run = "pnpm install"
+
+[tasks.build]
+description = "全パッケージのビルド"
+run = "pnpm -r --if-present run build"
+
+[tasks.test]
+description = "全パッケージのユニットテスト実行"
+run = "pnpm -r --if-present run test"
+
+[tasks."test:coverage"]
+description = "カバレッジ付きテスト実行"
+run = "pnpm -r --if-present run test:coverage"
+
+[tasks.lint]
+description = "全パッケージのlint実行"
+run = "pnpm -r --if-present run lint"
+
+[tasks.typecheck]
+description = "全パッケージの型チェック"
+run = "pnpm -r --if-present run typecheck"
+
+[tasks.format]
+description = "Prettierフォーマットチェック（差分検出のみ。整形適用は pnpm run format:write）"
+run = "pnpm run format"
+
+[tasks.traceability]
+description = "仕様ID⇔実装⇔テストのトレーサビリティ検証"
+run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts"
+
+[tasks.ci]
+description = "CIと同一の一括検証（lint→format→typecheck→build→test:coverage→traceability）"
+depends = ["lint", "format", "typecheck", "build", "test:coverage", "traceability"]

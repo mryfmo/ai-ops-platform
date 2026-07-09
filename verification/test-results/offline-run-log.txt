@@ -1,0 +1,362 @@
+[PASS] shared/tests/auditLog.test.ts :: InMemoryAuditLog [REQ-020, SPEC-INT-053/056] > 追記した順にlog_idが採番される
+[PASS] shared/tests/auditLog.test.ts :: InMemoryAuditLog [REQ-020, SPEC-INT-053/056] > readAllは追記された全レコードを返す（改変不可・追記のみ）
+[PASS] shared/tests/auditLog.test.ts :: InMemoryAuditLog [REQ-020, SPEC-INT-053/056] > シークレットを含む詳細情報は書き込み拒否される（REQ-032連携）
+[PASS] shared/tests/auditLog.test.ts :: validateReasonRequirement [REQ-021 AC-021-1] > status_overrideは理由必須
+[PASS] shared/tests/auditLog.test.ts :: validateReasonRequirement [REQ-021 AC-021-1] > 理由不要な操作はチェックされない
+[PASS] shared/tests/auditLog.test.ts :: findTraceChain [AC-020-1: 数値の根拠まで遡れる] > 同一trace_idのレコードをlog_id順に返す
+[PASS] shared/tests/businessCalendar.test.ts :: dayOfWeek / isWeekend [SPEC-INT-054] > 2026-07-06 (月) は平日
+[PASS] shared/tests/businessCalendar.test.ts :: dayOfWeek / isWeekend [SPEC-INT-054] > 2026-07-04 (土) / 2026-07-05 (日) は週末
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessDay [SPEC-INT-054] > 平日かつ祝日でない日は営業日
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessDay [SPEC-INT-054] > 祝日は営業日ではない（元日）
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessDay [SPEC-INT-054] > 土日は営業日ではない
+[PASS] shared/tests/businessCalendar.test.ts :: addBusinessDays [REQ-009 督促間隔: 超過当日/+2営業日/+5営業日] > 2026-01-01(祝, n=0) は次の営業日(01-02金)を返す
+[PASS] shared/tests/businessCalendar.test.ts :: addBusinessDays [REQ-009 督促間隔: 超過当日/+2営業日/+5営業日] > 2026-01-05(月, 平日)から+2営業日 = 01-07(水)（01-06は平日なので営業日として数える）
+[PASS] shared/tests/businessCalendar.test.ts :: addBusinessDays [REQ-009 督促間隔: 超過当日/+2営業日/+5営業日] > 成人の日(01-12,祝)をまたぐ+2営業日計算
+[PASS] shared/tests/businessCalendar.test.ts :: addBusinessDays [REQ-009 督促間隔: 超過当日/+2営業日/+5営業日] > 負の数で過去方向にも計算できる
+[PASS] shared/tests/businessCalendar.test.ts :: nthBusinessDayOfMonth / isNthBusinessDayOfMonth [REQ-014/015, REQ-019, DOC-02 §2] > 2026年1月の第1営業日は01-02(元日1/1が祝日のため翌平日)
+[PASS] shared/tests/businessCalendar.test.ts :: nthBusinessDayOfMonth / isNthBusinessDayOfMonth [REQ-014/015, REQ-019, DOC-02 §2] > 2026年1月の第3営業日は成人の日(01-12)をスキップして01-13
+[PASS] shared/tests/businessCalendar.test.ts :: nthBusinessDayOfMonth / isNthBusinessDayOfMonth [REQ-014/015, REQ-019, DOC-02 §2] > isNthBusinessDayOfMonthは境界値を正しく判定する
+[PASS] shared/tests/businessCalendar.test.ts :: isQuarterStartMonth [DOC-02 §2: 四半期初月] > 1,4,7,10月がtrue
+[PASS] shared/tests/businessCalendar.test.ts :: isQuarterStartMonth [DOC-02 §2: 四半期初月] > それ以外はfalse
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessHoursJst [DevOps SPEC-INT-021 factor E] > 平日09:00は営業時間内
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessHoursJst [DevOps SPEC-INT-021 factor E] > 平日18:59は営業時間内、19:00は営業時間外（境界値）
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessHoursJst [DevOps SPEC-INT-021 factor E] > 平日08:59は営業時間外
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessHoursJst [DevOps SPEC-INT-021 factor E] > 土日は終日営業時間外
+[PASS] shared/tests/businessCalendar.test.ts :: isBusinessHoursJst [DevOps SPEC-INT-021 factor E] > 祝日は終日営業時間外
+[PASS] shared/tests/businessCalendar.test.ts :: businessDaysBetween > 同一日は0
+[PASS] shared/tests/businessCalendar.test.ts :: businessDaysBetween > 月〜金(2026-07-06〜07-10)は開始除外で4営業日
+[PASS] shared/tests/githubClient.test.ts :: verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ対策] > 正しい署名は検証成功する
+[PASS] shared/tests/githubClient.test.ts :: verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ対策] > 誤った署名は検証失敗する
+[PASS] shared/tests/githubClient.test.ts :: verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ対策] > ペイロード改ざん時は検証失敗する
+[PASS] shared/tests/githubClient.test.ts :: verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ対策] > 署名ヘッダがない場合はfalse
+[PASS] shared/tests/githubClient.test.ts :: verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ対策] > sha256=接頭辞がない場合はfalse
+[PASS] shared/tests/githubClient.test.ts :: GitHubClient [SPEC-INT-061, REQ-025/033] > createIssueComment はPRコメントAPIをPOSTで呼ぶ（SPEC-EXT-001）
+[PASS] shared/tests/githubClient.test.ts :: GitHubClient [SPEC-INT-061, REQ-025/033] > createIssue はSevNラベル付きIssueを作成する（SPEC-EXT-015）
+[PASS] shared/tests/githubClient.test.ts :: GitHubClient [SPEC-INT-061, REQ-025/033] > dispatchWorkflow は失敗時にE-DEP01を投げる
+[PASS] shared/tests/githubClient.test.ts :: GitHubClient [SPEC-INT-061, REQ-025/033] > getWorkflowJobLog は1MB超のログを末尾優先で切り詰める（SPEC-INT-011）
+[PASS] shared/tests/graphClient.test.ts :: fetchWithBackoff [DevOps SPEC-INT-080] > 200応答は即座に返る
+[PASS] shared/tests/graphClient.test.ts :: fetchWithBackoff [DevOps SPEC-INT-080] > 429の後に200が返れば成功として返す（Retry-Afterヘッダを尊重）
+[PASS] shared/tests/graphClient.test.ts :: fetchWithBackoff [DevOps SPEC-INT-080] > maxRetriesを超えたら最後の応答（エラー）をそのまま返す
+[PASS] shared/tests/graphClient.test.ts :: fetchWithBackoff [DevOps SPEC-INT-080] > 4xx（429以外）はリトライせず即座に返る
+[PASS] shared/tests/graphClient.test.ts :: GraphClient [SPEC-EXT-010/011/012/024, REQ-018, SPEC-INT-062] > sendAdaptiveCard はAdaptive Card形式のボディでPOSTする
+[PASS] shared/tests/graphClient.test.ts :: GraphClient [SPEC-EXT-010/011/012/024, REQ-018, SPEC-INT-062] > sendMail はHTML本文をtoRecipientsへ送信する
+[PASS] shared/tests/graphClient.test.ts :: GraphClient [SPEC-EXT-010/011/012/024, REQ-018, SPEC-INT-062] > sendMail失敗時はE-DLV01を投げる
+[PASS] shared/tests/graphClient.test.ts :: GraphClient [SPEC-EXT-010/011/012/024, REQ-018, SPEC-INT-062] > renewSubscription失敗時はE-SUB02（ポーリングフォールバックへの言及付き）を投げる
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkNoPlaceholders [SPEC-INT-051(c)] > プレースホルダなしのHTMLはok=true
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkNoPlaceholders [SPEC-INT-051(c)] > {{ }} が残っているとNG
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkNoPlaceholders [SPEC-INT-051(c)] > undefined/nullの文字列出現もNG
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkFileSizeWithinLimit [REQ-010 AC-010-2] > 2MB以下はtrue
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkFileSizeWithinLimit [REQ-010 AC-010-2] > 2MB超過はfalse
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkNoExternalReferences [REQ-010 AC-010-1] > 外部参照がなければok
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkNoExternalReferences [REQ-010 AC-010-1] > 外部scriptがあればNG
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: extractDataSrcRefs / verifyNumericConsistency [SPEC-INT-051(a)] > data-src参照を抽出する
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: extractDataSrcRefs / verifyNumericConsistency [SPEC-INT-051(a)] > 正本と一致すればok
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: extractDataSrcRefs / verifyNumericConsistency [SPEC-INT-051(a)] > 不一致があればmismatchesに記録される
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkForbiddenTerms [SPEC-INT-051(b) 権限違反検査] > PRF-05向けレポートに個人名が含まれていればNG
+[PASS] shared/tests/htmlSanitizeCheck.test.ts :: checkForbiddenTerms [SPEC-INT-051(b) 権限違反検査] > 禁止語彙が含まれなければok
+[PASS] shared/tests/ids.test.ts :: ID formatting/validation [DOC-00 §6] > PJ-nnn形式を正しく検証する
+[PASS] shared/tests/ids.test.ts :: ID formatting/validation [DOC-00 §6] > status_update ID (SPEC-INT-020) を正しく生成・検証する
+[PASS] shared/tests/ids.test.ts :: ID formatting/validation [DOC-00 §6] > report ID (SPEC-INT-026) を生成する
+[PASS] shared/tests/ids.test.ts :: ID formatting/validation [DOC-00 §6] > newTraceIdはUUID形式の一意な値を返す
+[PASS] shared/tests/ids.test.ts :: ID formatting/validation [DOC-00 §6] > isoWeekOfはISO週番号を正しく計算する（2026-07-06は第28週）
+[PASS] shared/tests/ids.test.ts :: resolveLanguage [ASM-002, DOC-05 §8] > preferredLanguageが設定されていればそれを優先する
+[PASS] shared/tests/ids.test.ts :: resolveLanguage [ASM-002, DOC-05 §8] > 未設定時、国内企業(JP)はja
+[PASS] shared/tests/ids.test.ts :: resolveLanguage [ASM-002, DOC-05 §8] > 未設定時、海外企業はen
+[PASS] shared/tests/secretSanitizer.test.ts :: sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070] > GitHub personal access token を検出・マスキングする
+[PASS] shared/tests/secretSanitizer.test.ts :: sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070] > Anthropic APIキーを検出する
+[PASS] shared/tests/secretSanitizer.test.ts :: sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070] > Authorizationヘッダを検出する
+[PASS] shared/tests/secretSanitizer.test.ts :: sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070] > 秘密情報を含まないテキストはそのまま通過する
+[PASS] shared/tests/secretSanitizer.test.ts :: sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070] > isFreeOfKnownSecrets: クリーンなテキストはtrue、混入テキストはfalse
+[PASS] prjops/tests/actionReminder.test.ts :: computeReminderSchedule [REQ-009 AC-009-1: 超過当日/+2営業日/+5営業日] > 平日期限なら翌営業日が超過当日
+[PASS] prjops/tests/actionReminder.test.ts :: computeReminderSchedule [REQ-009 AC-009-1: 超過当日/+2営業日/+5営業日] > +2営業日/+5営業日が超過当日から正しく計算される
+[PASS] prjops/tests/actionReminder.test.ts :: isPreDueReminderDay [REQ-009(a): 期限3営業日前の事前通知] > 期限3営業日前はtrue
+[PASS] prjops/tests/actionReminder.test.ts :: isPreDueReminderDay [REQ-009(a): 期限3営業日前の事前通知] > それ以外の日はfalse
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > 完了済みアクションは督促しない
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > 超過当日(07-07)に1回目の督促
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > 超過当日より前は督促しない
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > +2営業日(07-09)に2回目の督促
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > +5営業日(07-14)に3回目の督促
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > 3回送付済みでまだopenならエスカレーション（AC-009-2）、督促はしない
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > 週末はバッチが走らないため督促しない
+[PASS] prjops/tests/actionReminder.test.ts :: decideReminderAction [REQ-009 AC-009-1/2] > ジョブが遅延しキャッチアップする場合も正しい回次で送付される
+[PASS] prjops/tests/agt01Orchestrator.test.ts :: decideOnJobFailure [DOC-02 §5: 最大2回リトライ、3回目でエスカレーション] > 1回目の失敗はリトライ（10分間隔）
+[PASS] prjops/tests/agt01Orchestrator.test.ts :: decideOnJobFailure [DOC-02 §5: 最大2回リトライ、3回目でエスカレーション] > 2回目の失敗もリトライ
+[PASS] prjops/tests/agt01Orchestrator.test.ts :: decideOnJobFailure [DOC-02 §5: 最大2回リトライ、3回目でエスカレーション] > 3回目の失敗でPMO運用担当へエスカレーション
+[PASS] prjops/tests/agt01Orchestrator.test.ts :: nextJobInSequence [SPEC-INT-040: analyze→report→verify→deliver] > 順序どおりに次のジョブを返す
+[PASS] prjops/tests/agt01Orchestrator.test.ts :: nextJobInSequence [SPEC-INT-040: analyze→report→verify→deliver] > 最後のジョブの次はnull
+[PASS] prjops/tests/agt01Orchestrator.test.ts :: nextJobInSequence [SPEC-INT-040: analyze→report→verify→deliver] > 依存順序は4ジョブで構成される
+[PASS] prjops/tests/agt05Distributor.test.ts :: distributeOne [REQ-018, SPEC-INT-052] > 初回配信は送信され、監査ログに記録される
+[PASS] prjops/tests/agt05Distributor.test.ts :: distributeOne [REQ-018, SPEC-INT-052] > 同一レポート・同一受信者への再配信はスキップされる（AC-018-2: 重複配信防止）
+[PASS] prjops/tests/agt05Distributor.test.ts :: distributeOne [REQ-018, SPEC-INT-052] > PRF-02/03向けはTeamsへの要約カードも投稿される
+[PASS] prjops/tests/agt05Distributor.test.ts :: distributeOne [REQ-018, SPEC-INT-052] > postTeamsSummaryCard=falseならカードは投稿されない
+[PASS] prjops/tests/agt05Distributor.test.ts :: runDistributionCycle [AC-018-1] > 複数受信者に対して送信結果を集計する
+[PASS] prjops/tests/agt05Distributor.test.ts :: runDistributionCycle [AC-018-1] > 同一サイクル内で同一reportId+recipientIdが重複していてもスキップされる
+[PASS] prjops/tests/agt05Distributor.test.ts :: sendProgressReportRequests [REQ-003, SPEC-EXT-010/030] > 日本語件名フォーマットで送信される
+[PASS] prjops/tests/agt05Distributor.test.ts :: sendProgressReportRequests [REQ-003, SPEC-EXT-010/030] > 英語件名フォーマットで送信される
+[PASS] prjops/tests/agt06Tracker.test.ts :: runDailyTracking [REQ-009, SPEC-EXT-034/035] > 完了済みアクションには何もしない
+[PASS] prjops/tests/agt06Tracker.test.ts :: runDailyTracking [REQ-009, SPEC-EXT-034/035] > 超過当日に督促メールを送信し監査ログに記録する
+[PASS] prjops/tests/agt06Tracker.test.ts :: runDailyTracking [REQ-009, SPEC-EXT-034/035] > 3回督促超過でマネージャーへエスカレーションメールを送信する
+[PASS] prjops/tests/agt06Tracker.test.ts :: runDailyTracking [REQ-009, SPEC-EXT-034/035] > 期限3営業日前には事前通知を送信する
+[PASS] prjops/tests/agt07Verifier.test.ts :: verifyReportBeforeDelivery [REQ-019 AC-019-1] > すべて正常ならok=true
+[PASS] prjops/tests/agt07Verifier.test.ts :: verifyReportBeforeDelivery [REQ-019 AC-019-1] > (a)数値不一致でV-A
+[PASS] prjops/tests/agt07Verifier.test.ts :: verifyReportBeforeDelivery [REQ-019 AC-019-1] > (b)禁止語彙検出でV-B
+[PASS] prjops/tests/agt07Verifier.test.ts :: verifyReportBeforeDelivery [REQ-019 AC-019-1] > (c)プレースホルダ残存でV-C
+[PASS] prjops/tests/agt07Verifier.test.ts :: verifyReportBeforeDelivery [REQ-019 AC-019-1] > (d)宛先不一致でV-D
+[PASS] prjops/tests/agt07Verifier.test.ts :: verifyReportBeforeDelivery [REQ-019 AC-019-1] > 複数のNGが同時に検出される
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > /action add を正しくパースする
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > /action done を正しくパースする
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > /issue close を正しくパースする
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > /status override を正しくパースする
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > 書式不正時は正しい書式例(usageHint)を返す
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > status overrideで理由がない場合は不正としてusageHintを返す（理由必須）
+[PASS] prjops/tests/commandParser.test.ts :: parseCommand [SPEC-EXT-014] > どのコマンドにも該当しない自然文はok:false, usageHintなし（LLMフォールバック対象）
+[PASS] prjops/tests/commandParser.test.ts :: checkCommandPermission [SPEC-EXT-025 権限マトリクス] > action_doneはPRF-01でも許可される
+[PASS] prjops/tests/commandParser.test.ts :: checkCommandPermission [SPEC-EXT-025 権限マトリクス] > status_overrideはPRF-01では拒否される
+[PASS] prjops/tests/commandParser.test.ts :: checkCommandPermission [SPEC-EXT-025 権限マトリクス] > status_overrideはPRF-02なら許可される
+[PASS] prjops/tests/commandParser.test.ts :: checkCommandPermission [SPEC-EXT-025 権限マトリクス] > issue_closeはPRF-04では拒否される
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 6項目すべて揃っていればcomplete
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 進捗率が範囲外ならmissing扱い
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 進捗率が小数ならmissing扱い（整数のみ許容）
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 自己申告ステータスが未設定ならmissing
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 課題・リスクは「なし」なら欠落として扱わない
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 課題が空文字なら欠落として扱う
+[PASS] prjops/tests/freeTextValidation.test.ts :: checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3] > 複数項目欠落を同時に検出する
+[PASS] prjops/tests/freeTextValidation.test.ts :: formatClarificationMessage [SPEC-EXT-012] > 「不足: ②ステータス, ⑥リスク」形式で出力する
+[PASS] prjops/tests/freeTextValidation.test.ts :: formatClarificationMessage [SPEC-EXT-012] > 欠落順序に関わらずFIELD_ORDER順で整形される
+[PASS] prjops/tests/freeTextValidation.test.ts :: decideClarificationAction [AC-005-2] > 完全ならaccept
+[PASS] prjops/tests/freeTextValidation.test.ts :: decideClarificationAction [AC-005-2] > 不完全かつ聞き返し回数が3未満ならclarify
+[PASS] prjops/tests/freeTextValidation.test.ts :: decideClarificationAction [AC-005-2] > 聞き返し3回でも不足ならescalate_incomplete
+[PASS] prjops/tests/freeTextValidation.test.ts :: normalizeSelfStatus [SPEC-EXT-011 表記ゆれ吸収] > 日本語表記を正規化する
+[PASS] prjops/tests/freeTextValidation.test.ts :: normalizeSelfStatus [SPEC-EXT-011 表記ゆれ吸収] > 英語表記(大文字小文字問わず)を正規化する
+[PASS] prjops/tests/freeTextValidation.test.ts :: normalizeSelfStatus [SPEC-EXT-011 表記ゆれ吸収] > 不明な表記はnull
+[PASS] prjops/tests/logicalDelete.test.ts :: validateLogicalDeleteRequest [SPEC-INT-027, REQ-021 AC-021-1] > PRF-03かつ理由ありなら許可される
+[PASS] prjops/tests/logicalDelete.test.ts :: validateLogicalDeleteRequest [SPEC-INT-027, REQ-021 AC-021-1] > PRF-02は拒否される
+[PASS] prjops/tests/logicalDelete.test.ts :: validateLogicalDeleteRequest [SPEC-INT-027, REQ-021 AC-021-1] > 理由が空なら拒否される（UIレベルで完了できない, AC-021-1）
+[PASS] prjops/tests/logicalDelete.test.ts :: validateLogicalDeleteRequest [SPEC-INT-027, REQ-021 AC-021-1] > 理由がundefinedなら拒否される
+[PASS] prjops/tests/logicalDelete.test.ts :: applyLogicalDelete [SPEC-INT-027: 物理削除禁止] > deletedフラグと理由・操作者・日時を付与する（元のフィールドは保持される）
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > 全属性が揃っていればok
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > 属性が1つ欠けるとエラーになり、欠落属性名がエラーメッセージに含まれる
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > 複数属性が欠けても全て列挙される
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > 不正なstatus値はエラーになる
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > report_frequencyがweekly以外はエラーになる
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > start_dateがend_dateより後ならエラーになる
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > 空文字列は欠落として扱われる
+[PASS] prjops/tests/masterValidation.test.ts :: validateProject [REQ-001 AC-001-1] > 空配列は欠落として扱われる（organization_ids）
+[PASS] prjops/tests/masterValidation.test.ts :: validateStakeholder [REQ-002 AC-002-1] > 複数プロジェクトに異なる立場で参加できる（AC-002-1）
+[PASS] prjops/tests/masterValidation.test.ts :: validateStakeholder [REQ-002 AC-002-1] > emailの形式が不正ならエラー
+[PASS] prjops/tests/masterValidation.test.ts :: validateStakeholder [REQ-002 AC-002-1] > 不正なprofile値はエラー
+[PASS] prjops/tests/masterValidation.test.ts :: validateStakeholder [REQ-002 AC-002-1] > teams_user_idは任意（欠落してもエラーにならない）
+[PASS] prjops/tests/masterValidation.test.ts :: validateOrganization [REQ-002: 企業は国内/海外区分を持つ] > 必須属性が揃っていればok
+[PASS] prjops/tests/masterValidation.test.ts :: validateOrganization [REQ-002: 企業は国内/海外区分を持つ] > countryが欠落するとエラー
+[PASS] prjops/tests/narrativeSanitizer.test.ts :: checkNarrativeHasNoNumbers [SPEC-INT-031] > 数値を含まない文章はok
+[PASS] prjops/tests/narrativeSanitizer.test.ts :: checkNarrativeHasNoNumbers [SPEC-INT-031] > 数値を含む文章はNG
+[PASS] prjops/tests/narrativeSanitizer.test.ts :: checkNarrativeHasNoNumbers [SPEC-INT-031] > 小数も検出する
+[PASS] prjops/tests/narrativeSanitizer.test.ts :: stripSentencesWithNumbers [安全側フォールバック] > 数値を含む文だけを除去する（日本語）
+[PASS] prjops/tests/narrativeSanitizer.test.ts :: stripSentencesWithNumbers [安全側フォールバック] > 数値を含む文だけを除去する（英語）
+[PASS] prjops/tests/narrativeSanitizer.test.ts :: stripSentencesWithNumbers [安全側フォールバック] > 全て数値なしなら元のまま維持される
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: evaluateApprovalTimer [REQ-017 AC-017-2] > 23時間経過ではまだ何もしない
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: evaluateApprovalTimer [REQ-017 AC-017-2] > 24時間経過で代理承認者へエスカレーション
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: evaluateApprovalTimer [REQ-017 AC-017-2] > すでにエスカレーション済みなら24h超過でも重複実行しない
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: evaluateApprovalTimer [REQ-017 AC-017-2] > 48時間経過で配信保留のまま遅延通知
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: evaluateApprovalTimer [REQ-017 AC-017-2] > すでに承認/差し戻し済みなら何もしない
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: decideDelivery [SPEC-INT-052, REQ-018 AC-018-2] > 未配信ならshouldSend=true、件名接尾辞なし
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: decideDelivery [SPEC-INT-052, REQ-018 AC-018-2] > 配信済みかつ再送要求でなければスキップ（重複配信防止）
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: decideDelivery [SPEC-INT-052, REQ-018 AC-018-2] > 配信済みだが再送要求の場合は(再送)を付けて送信する
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: decideDelivery [SPEC-INT-052, REQ-018 AC-018-2] > 別の受信者には独立して配信できる
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > PRF-01は参加プロジェクトのみ対象範囲
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > PRF-04は全プロジェクトが対象範囲
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > PRF-05は出資対象プロジェクトのみ
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > 個人名表示可否: PRF-01〜03はtrue、PRF-04/05はfalse
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > 課題詳細表示可否: PRF-05のみfalse
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > filterIssuesForProfile: PRF-01は自分の課題のみ
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > filterIssuesForProfile: PRF-05はdetailを空にする
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > buildForbiddenTermsForProfile: PRF-05は個人名＋社内固有語
+[PASS] prjops/tests/permissionAndDelivery.test.ts :: reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)] > buildForbiddenTermsForProfile: PRF-02は禁止語なし
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: requiresApproval [ASM-004] > PRF-04/05は承認必須
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: requiresApproval [ASM-004] > PRF-01/02/03は承認不要
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > PRF-02: verified -> delivered は許可される（承認不要）
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > PRF-04: verified -> delivered は許可されない（承認をスキップするため）
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > PRF-04: verified -> pending_approval は許可される
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > pending_approval -> approved / rejected は許可される
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > approved -> delivered は許可される
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > generated -> delivered のような飛び越しは許可されない
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: canTransitionReport [SPEC-INT-026 状態遷移] > delivered/rejected/failedは終端状態で以後の遷移がない
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: assertReportTransition [REQ-017 AC-017-1] > 不正な遷移は例外を投げる
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: assertReportTransition [REQ-017 AC-017-1] > 正しい遷移は例外を投げない
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: detectPreApprovalDelivery [AC-017-1 監査ログからの機械検証] > 承認前配信があれば検出する
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: detectPreApprovalDelivery [AC-017-1 監査ログからの機械検証] > 正常な順序なら検出しない
+[PASS] prjops/tests/reportJobStateMachine.test.ts :: detectPreApprovalDelivery [AC-017-1 監査ログからの機械検証] > 承認不要プロファイルには適用しない
+[PASS] prjops/tests/reportTemplates.test.ts :: composeMemberReport [PRF-01, SPEC-EXT-021] > 自己完結・プレースホルダなし・サイズ制限内
+[PASS] prjops/tests/reportTemplates.test.ts :: composeMemberReport [PRF-01, SPEC-EXT-021] > 期限超過アクションの行に overdue クラスが付く
+[PASS] prjops/tests/reportTemplates.test.ts :: composeMemberReport [PRF-01, SPEC-EXT-021] > 0件セクションでも「本日はありません」が表示される（0件でもセクション省略しない）
+[PASS] prjops/tests/reportTemplates.test.ts :: composeLeaderReport [PRF-02] > 自己完結・クリーン
+[PASS] prjops/tests/reportTemplates.test.ts :: composeLeaderReport [PRF-02] > 機械判定と自己申告の乖離が併記される（AC-007-2）
+[PASS] prjops/tests/reportTemplates.test.ts :: composeLeaderReport [PRF-02] > 未報告プロジェクトは前回値ラベル付きで表示される（AC-006-2）
+[PASS] prjops/tests/reportTemplates.test.ts :: composeLeaderReport [PRF-02] > data-src数値が正本データと一致検証できる
+[PASS] prjops/tests/reportTemplates.test.ts :: composeManagerReport [PRF-03] > 自己完結・クリーン
+[PASS] prjops/tests/reportTemplates.test.ts :: composeManagerReport [PRF-03] > 今週の変化が先頭に明示される
+[PASS] prjops/tests/reportTemplates.test.ts :: composeExecutiveReport [PRF-04: 個人名非表示] > 自己完結・クリーン・個人名を含まない
+[PASS] prjops/tests/reportTemplates.test.ts :: composeExecutiveReport [PRF-04: 個人名非表示] > ドーナツグラフのSVGが埋め込まれる
+[PASS] prjops/tests/reportTemplates.test.ts :: composeExecutiveReport [PRF-04: 個人名非表示] > 色分布の合計値が正本と一致検証できる
+[PASS] prjops/tests/reportTemplates.test.ts :: composeInvestorReport [PRF-05: 社内固有情報を含まない, 機密表示] > 自己完結・クリーン・社内固有語を含まない
+[PASS] prjops/tests/reportTemplates.test.ts :: composeInvestorReport [PRF-05: 社内固有情報を含まない, 機密表示] > 機密表示(Confidential — for investor use only相当)が含まれる
+[PASS] prjops/tests/reportTemplates.test.ts :: 英語版レポート [ASM-002, AC-016-1: 数値・色判定の日英一致] > 同一データのja/en版で色ラベルと数値が対応する
+[PASS] prjops/tests/severityProposal.test.ts :: evaluateEscalationTrigger [REQ-008] > コスト言及＋複数企業影響で提案対象になる
+[PASS] prjops/tests/severityProposal.test.ts :: evaluateEscalationTrigger [REQ-008] > キーワードがあっても単一企業影響なら提案しない
+[PASS] prjops/tests/severityProposal.test.ts :: evaluateEscalationTrigger [REQ-008] > 複数企業影響でもキーワードがなければ提案しない
+[PASS] prjops/tests/severityProposal.test.ts :: evaluateEscalationTrigger [REQ-008] > すでにhighなら再提案しない
+[PASS] prjops/tests/severityProposal.test.ts :: evaluateEscalationTrigger [REQ-008] > 英語の記述でもキーワードを検出する
+[PASS] prjops/tests/severityProposal.test.ts :: shouldAutoApplyProposal [AC-008-2: 72時間仮適用] > 71時間59分経過ではまだ仮適用しない
+[PASS] prjops/tests/severityProposal.test.ts :: shouldAutoApplyProposal [AC-008-2: 72時間仮適用] > ちょうど72時間経過で仮適用する
+[PASS] prjops/tests/severityProposal.test.ts :: shouldAutoApplyProposal [AC-008-2: 72時間仮適用] > 72時間超過でも仮適用する
+[PASS] prjops/tests/severityProposal.test.ts :: formatSeverityForDisplay [AC-008-2: 「仮」ラベル] > 通常表示（日本語）
+[PASS] prjops/tests/severityProposal.test.ts :: formatSeverityForDisplay [AC-008-2: 「仮」ラベル] > 仮適用表示（日本語）
+[PASS] prjops/tests/severityProposal.test.ts :: formatSeverityForDisplay [AC-008-2: 「仮」ラベル] > 仮適用表示（英語）
+[PASS] prjops/tests/statusJudge.test.ts :: computePlanLinePct [REQ-007: 計画線=経過期間÷全期間×100] > 開始日時点は0%
+[PASS] prjops/tests/statusJudge.test.ts :: computePlanLinePct [REQ-007: 計画線=経過期間÷全期間×100] > 終了日時点は100%
+[PASS] prjops/tests/statusJudge.test.ts :: computePlanLinePct [REQ-007: 計画線=経過期間÷全期間×100] > 中間時点は比例配分される
+[PASS] prjops/tests/statusJudge.test.ts :: computePlanLinePct [REQ-007: 計画線=経過期間÷全期間×100] > 終了日超過後は100%にクランプされる
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: 超過0日/1日] > asOfDate=endDate（超過0日）はまだRedにならない
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: 超過0日/1日] > asOfDate=endDate+1日（超過1日）はRed
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: ▲5.0/▲15.0ポイント] > gap=-4.99（境界未満）はGreen
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: ▲5.0/▲15.0ポイント] > gap=-5.0 ちょうどはYellow（計画線比▲5〜▲15ポイント）
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: ▲5.0/▲15.0ポイント] > gap=-14.99はYellow
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: ▲5.0/▲15.0ポイント] > gap=-15.0 ちょうどはRed（▲15ポイント以上）
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007 境界値: ▲5.0/▲15.0ポイント] > gap=-15.01はRed
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007: 高重要度課題・期限超過アクション] > 高重要度課題が1件以上あればRed（進捗が計画通りでも）
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007: 高重要度課題・期限超過アクション] > 期限超過アクションが2件ならまだGreen
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [REQ-007: 高重要度課題・期限超過アクション] > 期限超過アクションが3件以上ならYellow
+[PASS] prjops/tests/statusJudge.test.ts :: judgeStatus [AC-007-1: 決定性] > 同一入力は常に同一出力を返す
+[PASS] prjops/tests/statusJudge.test.ts :: selfReportDiffersFromJudged [AC-007-2] > 一致していればfalse
+[PASS] prjops/tests/statusJudge.test.ts :: selfReportDiffersFromJudged [AC-007-2] > 乖離していればtrue
+[PASS] devops/tests/agtDep.test.ts :: promoteToStagingIfEligible [REQ-003, TH-001] > TH-001充足時は昇格しTeams通知する
+[PASS] devops/tests/agtDep.test.ts :: promoteToStagingIfEligible [REQ-003, TH-001] > TH-001非充足時は昇格しない（AC-003a境界値: カバレッジ79%）
+[PASS] devops/tests/agtDep.test.ts :: executeProdDeploy [REQ-010, SPEC-INT-020] > approved状態からはprod_deployingへ遷移でき、workflow_dispatchを呼ぶ
+[PASS] devops/tests/agtDep.test.ts :: executeProdDeploy [REQ-010, SPEC-INT-020] > staging_deployed状態からの直接デプロイは許可されない例外を投げる（承認スキップ防止, AC-010a）
+[PASS] devops/tests/agtDep.test.ts :: monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c] > TH-003非該当ならロールバックしない
+[PASS] devops/tests/agtDep.test.ts :: monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c] > TH-003該当時はロールバックを実行し、Issue起票・Teams通知する
+[PASS] devops/tests/agtDep.test.ts :: monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c] > 適格なロールバック先がない場合は実行せずエスカレーション記録する（AC-012c）
+[PASS] devops/tests/agtOrch.test.ts :: evaluateFailsafe [REQ-029] > 2回連続失敗ではフェイルセーフ発動しない
+[PASS] devops/tests/agtOrch.test.ts :: evaluateFailsafe [REQ-029] > 3回連続失敗でフェイルセーフ発動
+[PASS] devops/tests/agtOrch.test.ts :: isOperationAllowedDuringFailsafe [REQ-029(a)] > 権限剥奪(revoke)は継続許可される（安全側操作）
+[PASS] devops/tests/agtOrch.test.ts :: isOperationAllowedDuringFailsafe [REQ-029(a)] > 通知送信は許可される
+[PASS] devops/tests/agtOrch.test.ts :: isOperationAllowedDuringFailsafe [REQ-029(a)] > 自動デプロイは停止される
+[PASS] devops/tests/agtOrch.test.ts :: isOperationAllowedDuringFailsafe [REQ-029(a)] > 権限付与(grant)は停止される
+[PASS] devops/tests/agtOrch.test.ts :: isOperationAllowedDuringFailsafe [REQ-029(a)] > 自動クローズは停止される
+[PASS] devops/tests/agtOrch.test.ts :: decideOnSchemaViolation [逸脱監視: 最大2回リトライ] > 1回目・2回目はretry
+[PASS] devops/tests/agtOrch.test.ts :: decideOnSchemaViolation [逸脱監視: 最大2回リトライ] > 3回目でescalate_to_human
+[PASS] devops/tests/agtRpt.test.ts :: resolveActiveRecipients [REQ-024 AC-024a] > 非activeな宛先を除外する
+[PASS] devops/tests/agtRpt.test.ts :: deliverMemberDailyReport > メール送信され監査ログに記録される
+[PASS] devops/tests/agtRpt.test.ts :: buildAndDeliverManagerReport [AC-023a/b] > DORA指標を計算し配信する
+[PASS] devops/tests/agtSec.test.ts :: validateGrantApplication [SPEC-INT-032] > すべて妥当ならok
+[PASS] devops/tests/agtSec.test.ts :: validateGrantApplication [SPEC-INT-032] > 所属プロジェクト不一致はエラー
+[PASS] devops/tests/agtSec.test.ts :: validateGrantApplication [SPEC-INT-032] > 理由が空はエラー
+[PASS] devops/tests/agtSec.test.ts :: validateGrantApplication [SPEC-INT-032] > 既存の有効な権限がある場合はエラー
+[PASS] devops/tests/agtSec.test.ts :: validateGrantApplication [SPEC-INT-032] > TH-007上限超過の申請期間はエラー（本番かつ9時間）
+[PASS] devops/tests/agtSec.test.ts :: executeGrant / revokeExpiredGrants > executeGrantは権限付与APIを呼び、監査ログに記録する
+[PASS] devops/tests/agtSec.test.ts :: executeGrant / revokeExpiredGrants > revokeExpiredGrantsは期限到来分のみ剥奪する
+[PASS] devops/tests/agtSec.test.ts :: executeGrant / revokeExpiredGrants > すでにrevokedAtが設定済みのものは再処理しない
+[PASS] devops/tests/agtSec.test.ts :: detectManualPermissionDrift [SPEC-INT-032 手動変更検出] > 台帳にない権限保持者を検出する
+[PASS] devops/tests/agtSec.test.ts :: detectManualPermissionDrift [SPEC-INT-032 手動変更検出] > 台帳と一致していれば差分なし
+[PASS] devops/tests/buildClassification.test.ts :: applyConfidenceGuard [SPEC-INT-011 手順6, AC-001c] > confidence>=0.6ならそのまま
+[PASS] devops/tests/buildClassification.test.ts :: applyConfidenceGuard [SPEC-INT-011 手順6, AC-001c] > confidence=0.6ちょうどはそのまま（境界値、閾値未満のみ強制）
+[PASS] devops/tests/buildClassification.test.ts :: applyConfidenceGuard [SPEC-INT-011 手順6, AC-001c] > confidence<0.6ならunknownへ強制される
+[PASS] devops/tests/buildClassification.test.ts :: applyConfidenceGuard [SPEC-INT-011 手順6, AC-001c] > すでにunknownならそのまま
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateCondition5xxMovingAverage [TH-003(a): 5分移動平均5%超] > 5xx率が常に低ければfalse
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateCondition5xxMovingAverage [TH-003(a): 5分移動平均5%超] > 5分移動平均が5%を超えればtrue
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateCondition5xxMovingAverage [TH-003(a): 5分移動平均5%超] > 複数サンプルの単純平均が5%を超えた場合にtrue（各点は超えていなくても平均で超える）
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateConditionLatencySustained [TH-003(b): 200%超が10分継続] > 一時的なスパイク（10分未満）はfalse
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateConditionLatencySustained [TH-003(b): 200%超が10分継続] > 200%超が10分(600秒)以上継続すればtrue
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateConditionLatencySustained [TH-003(b): 200%超が10分継続] > 途中で回復すると連続カウントがリセットされる
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateTh003Rollback [AC-012a] > 両条件とも非該当ならロールバックしない
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateTh003Rollback [AC-012a] > 条件(a)のみ該当
+[PASS] devops/tests/deployMonitor.test.ts :: evaluateTh003Rollback [AC-012a] > 条件(b)のみ該当
+[PASS] devops/tests/deployMonitor.test.ts :: selectRollbackTarget [AC-012c: 直前に15分以上安定稼働したバージョン] > 15分未満の候補は除外される
+[PASS] devops/tests/deployMonitor.test.ts :: selectRollbackTarget [AC-012c: 直前に15分以上安定稼働したバージョン] > 複数の適格候補から最も新しいものを選ぶ
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: deployStateMachine [SPEC-INT-020] > 正常な遷移列はすべて許可される
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: deployStateMachine [SPEC-INT-020] > 承認をスキップしたprod_deployingへの遷移は禁止される
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: deployStateMachine [SPEC-INT-020] > 却下・期限切れは終端状態
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: deployStateMachine [SPEC-INT-020] > assertDeployTransitionは不正遷移で例外を投げる
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: deployStateMachine [SPEC-INT-020] > reachesProdDeployingWithoutApproval: 承認前にprod_deployingへ到達した場合を検出する
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: deployStateMachine [SPEC-INT-020] > 正常な順序なら検出しない
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: doraMetrics [REQ-023 AC-023b] > デプロイ頻度: 3件/7日間 → 週あたり3件
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: doraMetrics [REQ-023 AC-023b] > リードタイム中央値: [10h, 20h, 5h] → 中央値10h
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: doraMetrics [REQ-023 AC-023b] > 変更失敗率: 3件中1件失敗 → 33.33...%
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: doraMetrics [REQ-023 AC-023b] > MTTR: 1インシデント2時間 → 平均2時間
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: doraMetrics [REQ-023 AC-023b] > calculateDoraSummaryは4指標すべてを返す（AC-023b）
+[PASS] devops/tests/deployStateMachineAndDora.test.ts :: doraMetrics [REQ-023 AC-023b] > 空データでもエラーにならず0を返す
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateTh006FalsePositiveCandidate [TH-006, AC-017a] > 3回以上の誤検知履歴＋閾値110%未満で候補化される
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateTh006FalsePositiveCandidate [TH-006, AC-017a] > 誤検知履歴が2回では候補化されない
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateTh006FalsePositiveCandidate [TH-006, AC-017a] > メトリクス値が110%以上なら候補化されない
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateTh006FalsePositiveCandidate [TH-006, AC-017a] > 110%ちょうどは候補化されない（未満のみ許容、境界値）
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateConfirmationWindow [AC-017b: 人間確認なしで自動クローズされない] > 23時間経過はまだ確認待ち
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateConfirmationWindow [AC-017b: 人間確認なしで自動クローズされない] > 24時間経過しても人間確認がなければオープンのまま維持（自動クローズしない）
+[PASS] devops/tests/falsePositiveRule.test.ts :: evaluateConfirmationWindow [AC-017b: 人間確認なしで自動クローズされない] > 人間が確認すればclosed_by_human
+[PASS] devops/tests/jitExpiry.test.ts :: maxGrantDurationMs [TH-007] > 本番(内部)は8時間
+[PASS] devops/tests/jitExpiry.test.ts :: maxGrantDurationMs [TH-007] > 開発(内部)は30日
+[PASS] devops/tests/jitExpiry.test.ts :: maxGrantDurationMs [TH-007] > ステージング(内部)は30日
+[PASS] devops/tests/jitExpiry.test.ts :: maxGrantDurationMs [TH-007] > 外部企業は全環境で90日（本番でも90日、内部の8時間ルールより優先）
+[PASS] devops/tests/jitExpiry.test.ts :: validateGrantRequest [AC-018a/b] > 本番8時間の申請は許可される
+[PASS] devops/tests/jitExpiry.test.ts :: validateGrantRequest [AC-018a/b] > 本番9時間の申請は拒否される
+[PASS] devops/tests/jitExpiry.test.ts :: validateGrantRequest [AC-018a/b] > 外部企業91日は拒否される
+[PASS] devops/tests/jitExpiry.test.ts :: isGrantExpired [TH-007自動失効判定] > 有効期限前はfalse
+[PASS] devops/tests/jitExpiry.test.ts :: isGrantExpired [TH-007自動失効判定] > 有効期限到達でtrue（8時間ちょうどの境界値）
+[PASS] devops/tests/jitExpiry.test.ts :: canExtendWithoutReapproval [AC-018b] > 常にfalse（再承認必須）
+[PASS] devops/tests/reportPermissionFilter.test.ts :: isProjectInScope [REQ-021/022/023] > PRF-Gは全プロジェクトが対象
+[PASS] devops/tests/reportPermissionFilter.test.ts :: isProjectInScope [REQ-021/022/023] > PRF-Lは担当プロジェクトのみ
+[PASS] devops/tests/reportPermissionFilter.test.ts :: filterOwnPrsForMember [REQ-021 AC-021b] > 自分がauthorまたはreviewerのPRのみ残る
+[PASS] devops/tests/reportPermissionFilter.test.ts :: aggregateStalePrsByTaskType [SPEC-EXT-022(5): 個人名を含まない集計] > 48時間以上滞留したものをタスク種別別に集計する
+[PASS] devops/tests/reportPermissionFilter.test.ts :: aggregateStalePrsByTaskType [SPEC-EXT-022(5): 個人名を含まない集計] > 結果オブジェクトに個人名(authorUserId)フィールドを含まない
+[PASS] devops/tests/reportPermissionFilter.test.ts :: isActiveRecipient [REQ-024 AC-024a] > activeな受信者はtrue
+[PASS] devops/tests/reportPermissionFilter.test.ts :: isActiveRecipient [REQ-024 AC-024a] > 非activeな受信者はfalse（名簿から削除された宛先には配信しない）
+[PASS] devops/tests/reportPermissionFilter.test.ts :: isActiveRecipient [REQ-024 AC-024a] > 名簿に存在しない場合もfalse
+[PASS] devops/tests/reportTemplates.test.ts :: buildSubject [SPEC-EXT-020] > 件名書式が [DevOpsレポート][種別] YYYY-MM-DD になる
+[PASS] devops/tests/reportTemplates.test.ts :: composeMemberDailyReport [SPEC-EXT-021] > 自己完結・クリーンなHTMLを生成する
+[PASS] devops/tests/reportTemplates.test.ts :: composeMemberDailyReport [SPEC-EXT-021] > 0件セクションは「本日はありません」と表示される（セクション自体は省略しない）
+[PASS] devops/tests/reportTemplates.test.ts :: composeLeaderReport [SPEC-EXT-022/023] > 日次レポートは週次トレンドセクションを含まない
+[PASS] devops/tests/reportTemplates.test.ts :: composeLeaderReport [SPEC-EXT-022/023] > 週次レポートは週次トレンドを含む
+[PASS] devops/tests/reportTemplates.test.ts :: composeLeaderReport [SPEC-EXT-022/023] > 数値がdata-src経由で正本と一致検証できる
+[PASS] devops/tests/reportTemplates.test.ts :: selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準] > 変更失敗率降順でソートされる
+[PASS] devops/tests/reportTemplates.test.ts :: selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準] > 同率の場合オープンSev2件数降順
+[PASS] devops/tests/reportTemplates.test.ts :: selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準] > Top5に絞り込まれる
+[PASS] devops/tests/reportTemplates.test.ts :: composeManagerReport [SPEC-EXT-024/025] > 週次レポートは権限棚卸しを含まない
+[PASS] devops/tests/reportTemplates.test.ts :: composeManagerReport [SPEC-EXT-024/025] > 月次レポートは権限棚卸しサマリを含む（REQ-019/023）
+[PASS] devops/tests/reportTemplates.test.ts :: composeManagerReport [SPEC-EXT-024/025] > 自己完結・クリーンなHTML
+[PASS] devops/tests/riskScore.test.ts :: factorA_changedLines [SPEC-INT-021 A] > 0行は0
+[PASS] devops/tests/riskScore.test.ts :: factorA_changedLines [SPEC-INT-021 A] > 1000行は50（線形）
+[PASS] devops/tests/riskScore.test.ts :: factorA_changedLines [SPEC-INT-021 A] > 2000行は100
+[PASS] devops/tests/riskScore.test.ts :: factorA_changedLines [SPEC-INT-021 A] > 2000行超は100でクランプ
+[PASS] devops/tests/riskScore.test.ts :: factorB_sensitivePaths [SPEC-INT-021 B] > /infra/を含めば100
+[PASS] devops/tests/riskScore.test.ts :: factorB_sensitivePaths [SPEC-INT-021 B] > /migrations/を含めば100
+[PASS] devops/tests/riskScore.test.ts :: factorB_sensitivePaths [SPEC-INT-021 B] > /auth/を含めば100
+[PASS] devops/tests/riskScore.test.ts :: factorB_sensitivePaths [SPEC-INT-021 B] > 該当なしなら0
+[PASS] devops/tests/riskScore.test.ts :: factorD_testResult [SPEC-INT-021 D] > 失敗0・カバレッジ80%以上は0
+[PASS] devops/tests/riskScore.test.ts :: factorD_testResult [SPEC-INT-021 D] > 失敗0・カバレッジ70〜80%未満は50
+[PASS] devops/tests/riskScore.test.ts :: factorD_testResult [SPEC-INT-021 D] > カバレッジ70%未満は100
+[PASS] devops/tests/riskScore.test.ts :: factorD_testResult [SPEC-INT-021 D] > テスト失敗が1件でもあれば100（カバレッジ問わず）
+[PASS] devops/tests/riskScore.test.ts :: factorE_offHours [SPEC-INT-021 E: 平日19:00〜翌9:00・土日] > 平日日中は0
+[PASS] devops/tests/riskScore.test.ts :: factorE_offHours [SPEC-INT-021 E: 平日19:00〜翌9:00・土日] > 平日19:00以降は100
+[PASS] devops/tests/riskScore.test.ts :: factorE_offHours [SPEC-INT-021 E: 平日19:00〜翌9:00・土日] > 土日は100
+[PASS] devops/tests/riskScore.test.ts :: calculateRiskScore [AC-011a: 決定性, AC-011b: 70以上で高リスク] > 全て低リスク要因なら低スコア
+[PASS] devops/tests/riskScore.test.ts :: calculateRiskScore [AC-011a: 決定性, AC-011b: 70以上で高リスク] > /infra/変更＋営業時間外の複合スコアが正しく合成される
+[PASS] devops/tests/riskScore.test.ts :: calculateRiskScore [AC-011a: 決定性, AC-011b: 70以上で高リスク] > 全要因が最大なら100点で高リスク
+[PASS] devops/tests/riskScore.test.ts :: calculateRiskScore [AC-011a: 決定性, AC-011b: 70以上で高リスク] > スコア70ちょうどはisHighRisk=true（境界値）
+[PASS] devops/tests/riskScore.test.ts :: calculateRiskScore [AC-011a: 決定性, AC-011b: 70以上で高リスク] > 同一入力は常に同一スコアを返す（決定性）
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh001StagingPromotion [TH-001, AC-003a境界値] > 全条件充足で昇格可
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh001StagingPromotion [TH-001, AC-003a境界値] > カバレッジ80.0%ちょうどは充足（境界値）
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh001StagingPromotion [TH-001, AC-003a境界値] > カバレッジ79%は非充足
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh001StagingPromotion [TH-001, AC-003a境界値] > CI失敗があれば非充足
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh001StagingPromotion [TH-001, AC-003a境界値] > Critical指摘が1件でもあれば非充足
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh002ApprovalTimer [TH-002] > 29分経過はnone
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh002ApprovalTimer [TH-002] > 30分経過でマネージャーへエスカレーション
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh002ApprovalTimer [TH-002] > 60分経過で期限切れ
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh002ApprovalTimer [TH-002] > 既に承認/却下済みならnone
+[PASS] devops/tests/thresholds.test.ts :: isWithinTh004Sla [TH-004: 5分以内] > 5分ちょうどはSLA内
+[PASS] devops/tests/thresholds.test.ts :: isWithinTh004Sla [TH-004: 5分以内] > 5分1秒はSLA外
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh005Escalation [TH-005: 10分でリーダー、20分でマネージャー] > 9分はnone
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh005Escalation [TH-005: 10分でリーダー、20分でマネージャー] > 10分でリーダー
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh005Escalation [TH-005: 10分でリーダー、20分でマネージャー] > 20分でマネージャー
+[PASS] devops/tests/thresholds.test.ts :: evaluateTh005Escalation [TH-005: 10分でリーダー、20分でマネージャー] > Ack済みなら停止
+
+合計: 359件 / 成功: 359件 / 失敗: 0件
+

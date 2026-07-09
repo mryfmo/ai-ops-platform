@@ -1,0 +1,23 @@
+name: prjops-remind-weekly
+# 根拠: SPEC-INT-040（金 09:00 JST = 金 00:00 UTC）/ SPEC-EXT-031 / REQ-006
+on:
+  schedule:
+    - cron: "0 0 * * FRI"
+  workflow_dispatch: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aiops/shared --filter @aiops/prjops run build
+      - name: Run AGT-06 remind-weekly job
+        run: node packages/prjops/scripts/jobs/remind-weekly.mjs
+        env:
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          PRJOPS_DATA_REPO_TOKEN: ${{ secrets.PRJOPS_DATA_REPO_TOKEN }}

@@ -1,0 +1,17 @@
+{
+  "name": "@aiops/traceability",
+  "version": "1.0.0",
+  "description": "仕様ID(REQ/SPEC-EXT/SPEC-INT/TH/AC)⇔実装コード⇔検証コードの相互参照検証ツール",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "verify": "tsx src/verifyTraceability.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

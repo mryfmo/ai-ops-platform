@@ -1,0 +1,53 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "REPLACE-WITH-TEAMS-APP-GUID",
+  "packageName": "com.example.aiops.platform",
+  "developer": {
+    "name": "AI Ops Platform",
+    "websiteUrl": "https://REPLACE-WITH-PUBLIC-FQDN",
+    "privacyUrl": "https://REPLACE-WITH-PUBLIC-FQDN/privacy",
+    "termsOfUseUrl": "https://REPLACE-WITH-PUBLIC-FQDN/terms"
+  },
+  "name": {
+    "short": "AI Ops Platform",
+    "full": "PrjOps/DevOps 統合AIエージェント基盤"
+  },
+  "description": {
+    "short": "プロジェクト進捗・DevOps運用の自動化基盤（ADR-0005）",
+    "full": "プロジェクト専用チャネルの進捗会話取込、GitHub操作・照会、承認リンクの提供を行う。本アプリをチームにインストールした場合のみ、当該チームのチャネルメッセージを読み取る（RSC権限。テナント全体権限は要求しない）。"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#2e7d32",
+  "webApplicationInfo": {
+    "id": "REPLACE-WITH-GRAPH_CLIENT_ID",
+    "resource": "https://REPLACE-WITH-PUBLIC-FQDN"
+  },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "ChannelMessage.Read.Group",
+          "type": "Application"
+        },
+        {
+          "name": "ChannelMessage.Send.Group",
+          "type": "Application"
+        },
+        {
+          "name": "Channel.ReadBasic.Group",
+          "type": "Application"
+        },
+        {
+          "name": "TeamMember.Read.Group",
+          "type": "Application"
+        }
+      ]
+    }
+  },
+  "validDomains": ["REPLACE-WITH-PUBLIC-FQDN"]
+}

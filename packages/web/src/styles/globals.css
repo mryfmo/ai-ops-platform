@@ -1,0 +1,24 @@
+/**
+ * packages/web/src/styles/globals.css
+ *
+ * 根拠: ADR-0005（WebUIダッシュボード）/ SPEC-EXT-020（共通仕様: ステータス色）
+ *   - ステータス色は既存メールレポート（packages/prjops/src/templates/reportShell.ts の
+ *     STATUS_COLOR_HEX）と同一: Green=#2e7d32, Yellow=#f9a825, Red=#c62828。
+ *   - 色だけに依存せず文字ラベルを併記する（StatusChip コンポーネント側で担保）。
+ */
+@import "tailwindcss";
+
+@theme {
+  /* ステータス色（reportShell.ts STATUS_COLOR_HEX と同一値を維持すること） */
+  --color-status-green: #2e7d32;
+  --color-status-yellow: #f9a825;
+  --color-status-red: #c62828;
+
+  /* 基本トークン */
+  --font-sans:
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", Meiryo, ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-card: 0.5rem;
+  --spacing-page: 1.5rem;
+}

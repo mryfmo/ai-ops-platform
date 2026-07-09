@@ -1,0 +1,14 @@
+# サンプルデータ: プロジェクトマスタ（REQ-001, SPEC-INT-021）
+# パス規約: projects/{PJ-nnn}.yaml
+id: PJ-001
+name: サンプル案件A（基幹システム刷新）
+leader_id: ST-010 # PRF-02
+manager_id: ST-020 # PRF-03
+organization_ids: [ORG-001, ORG-002]
+start_date: "2026-01-05"
+end_date: "2026-09-30"
+report_frequency: weekly
+status: active
+created_at: "2026-01-05T09:00:00+09:00"
+updated_at: "2026-07-06T09:00:00+09:00"
+updated_by: ST-020

@@ -1,0 +1,41 @@
+name: deploy-prod
+# 根拠: DevOps SPEC-INT-020「本番デプロイ実行はGitHub Actionsのdeploy-prodワークフローを
+#   workflow_dispatchで起動する方式とし、当該ワークフローはエージェントのサービスアカウントのみが
+#   起動できるようGitHub Environments保護ルールで制限する（AC-010a）」。
+#   SPEC-INT-060: エージェント停止時、人間はこのワークフローを手動workflow_dispatchで起動できる。
+#   この場合Environments保護ルールの必須レビュアー（リーダー以上）承認が代替の人間承認として機能する。
+#
+# 運用上の重要事項（GitHub Environments設定はリポジトリ設定で行うため、このファイル自体には
+# 表現できない）:
+#   - Settings > Environments > production に Required reviewers を設定し、
+#     AGT-DEPのサービスアカウント（GitHub App）と、手動運用時のリーダー以上のみを許可する。
+#   - Deployment branches は保護対象ブランチ（main等）のみに制限する。
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "デプロイ対象のコミットSHA（通常運用時。AGT-DEPが指定）"
+        required: false
+      rollback:
+        description: "ロールバック実行フラグ（'true'の場合、target_versionへロールバック）"
+        required: false
+        default: "false"
+      target_version:
+        description: "ロールバック先バージョン（rollback=trueの場合必須。selectRollbackTarget()の出力）"
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.rollback == 'true' && inputs.target_version || inputs.commit_sha }}
+      - name: デプロイ実行（実際のデプロイ手順はプロジェクトごとのデプロイスクリプトに委譲）
+        run: |
+          echo "Deploying ref=${{ inputs.rollback == 'true' && inputs.target_version || inputs.commit_sha }} rollback=${{ inputs.rollback }}"
+      - name: 15分監視ウィンドウの起動をイベントバスへ通知（TH-003監視の起点）
+        run: |
+          echo "monitoring window start notified to event bus (SPEC-INT-020)"

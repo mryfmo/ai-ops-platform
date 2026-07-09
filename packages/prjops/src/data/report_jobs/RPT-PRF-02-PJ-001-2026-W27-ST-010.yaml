@@ -1,0 +1,14 @@
+# サンプルデータ: レポートジョブ（SPEC-INT-026）
+# パス規約: report_jobs/{RPT-id}.yaml （id形式: RPT-{profile}-{scope}-{period}-{recipient}）
+id: RPT-PRF-02-PJ-001-2026-W27-ST-010
+profile: PRF-02
+scope: PJ-001
+period: "2026-W27"
+recipient: ST-010
+status: delivered
+transitions:
+  - { state: generated, at: "2026-07-06T07:00:10+09:00" }
+  - { state: verified, at: "2026-07-06T07:00:45+09:00" }
+  - { state: delivered, at: "2026-07-06T07:01:02+09:00" }
+delivery_log_ref: prjops-reports/delivery_log/RPT-PRF-02-PJ-001-2026-W27-ST-010.yaml
+created_at: "2026-07-06T07:00:10+09:00"

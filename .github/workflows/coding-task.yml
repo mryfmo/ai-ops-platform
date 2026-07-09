@@ -1,0 +1,213 @@
+# .github/workflows/coding-task.yml
+#
+# 根拠: ADR-0006決定1「コーディングタスクの実行環境はGitHub Actionsランナーとする」。
+#   POST /coding-tasks/:taskId/confirm（packages/server/src/http/routes/codingTasks.ts）が
+#   人間の明示クリックを受理した後にのみ workflow_dispatch で起動される
+#   （runbooks/coding-task-failure.md の手動dispatchコマンド例と入力名を一致させること:
+#    `gh workflow run coding-task.yml -f task_id=<ID> -f instruction="<指示>" -f base_ref=main`）。
+#
+# 実行フロー:
+#   1. base_refをcheckout
+#   2. agent/{task_id} ブランチを作成
+#   3. .github/actions/run-coding-agent でコーディングエージェントを実行
+#   4. 変更があればcommit+push、PR作成（[AI] プレフィックス + ai-generatedラベル、AC-002b）
+#      変更が無ければジョブをスキップし、statusをcancelledでcallbackする
+#   5. 成功/失敗いずれの場合もPOST /internal/coding-tasks/:taskId/callback で
+#      coding_tasks台帳へ結果を反映する（Bearer認証, CODING_TASK_CALLBACK_SECRET）
+#
+# 必要なsecrets（GitHub Organization/Repository Settings側で登録すること）:
+#   - PUBLIC_BASE_URL: 常駐サーバの公開FQDN（callback送信先。config.tsと同一値）
+#   - CODING_TASK_CALLBACK_SECRET: callback認証用Bearerトークン（config.tsと同一値）
+#   - GITHUB_TOKEN: PR作成用（既定のActionsトークンでも可。ai-generatedラベル付与に
+#     issues:write / pull-requests:write 権限が必要）
+#   - ANTHROPIC_API_KEY / FACTORY_API_KEY: run-coding-agent実行時にjob envとして渡す（ADR-0006影響節）
+#
+# 注意: 本ワークフローはworkflow_dispatchでのみ起動され、この開発環境では実行できない
+#   （構文的な妥当性のみ確認済み）。
+name: coding-task
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: "coding_tasks.task_id（UUID）"
+        required: true
+        type: string
+      project_id:
+        description: "対象プロジェクトID（PJ-nnn）"
+        required: true
+        type: string
+      instruction:
+        description: "コーディング指示内容"
+        required: true
+        type: string
+      base_ref:
+        description: "ベースブランチ"
+        required: false
+        type: string
+        default: main
+      agent:
+        description: "実行エージェント（claude-code | droid）"
+        required: true
+        type: choice
+        options:
+          - claude-code
+          - droid
+        default: claude-code
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BRANCH_NAME: agent/${{ inputs.task_id }}
+
+jobs:
+  run-coding-task:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout base_ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_ref }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create agent branch
+        run: |
+          set -euo pipefail
+          git config user.name "aiops-coding-agent[bot]"
+          git config user.email "aiops-coding-agent[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH_NAME}"
+
+      - name: Run coding agent (ADR-0006 composite action)
+        uses: ./.github/actions/run-coding-agent
+        with:
+          agent: ${{ inputs.agent }}
+          instruction: ${{ inputs.instruction }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+
+      - name: Detect changes
+        id: detect
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push changes
+        if: steps.detect.outputs.changed == 'true'
+        env:
+          PROJECT_ID: ${{ inputs.project_id }}
+          TASK_ID: ${{ inputs.task_id }}
+          INSTRUCTION: ${{ inputs.instruction }}
+        run: |
+          set -euo pipefail
+          git add -A
+          git commit -m "[AI] ${PROJECT_ID}: ${INSTRUCTION}" -m "task_id: ${TASK_ID}"
+          # AC-002b: mainへの直接pushはしない。agent/{task_id}ブランチへのpushのみ許可する。
+          git push origin "${BRANCH_NAME}"
+
+      - name: Create pull request
+        if: steps.detect.outputs.changed == 'true'
+        id: create_pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_ID: ${{ inputs.project_id }}
+          TASK_ID: ${{ inputs.task_id }}
+          AGENT_NAME: ${{ inputs.agent }}
+          INSTRUCTION: ${{ inputs.instruction }}
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          set -euo pipefail
+          PR_BODY_FILE="$(mktemp)"
+          {
+            echo "## 概要"
+            echo "AIコーディングエージェント（${AGENT_NAME}）による自動生成PRです（ADR-0006）。"
+            echo ""
+            echo "- task_id: ${TASK_ID}"
+            echo "- project_id: ${PROJECT_ID}"
+            echo "- 指示内容:"
+            echo ""
+            echo "${INSTRUCTION}"
+            echo ""
+            echo "マージには人間レビュアーの承認が必要です（CODEOWNERS + ブランチ保護）。"
+          } > "${PR_BODY_FILE}"
+          PR_URL=$(gh pr create \
+            --title "[AI] ${PROJECT_ID}: ${INSTRUCTION}" \
+            --body-file "${PR_BODY_FILE}" \
+            --base "${BASE_REF}" \
+            --head "${BRANCH_NAME}" \
+            --label "ai-generated")
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+
+      # security-reviewer指摘(中): callbackペイロードを文字列結合でJSON化していたため
+      # jq --arg/--argjsonでの安全な組み立てに置き換える。github.run_idも他の値と同様に
+      # env:経由にして`run:`シェル文字列へ`${{ }}`を直接埋め込まない原則を統一する。
+      - name: Callback success (pr_created)
+        if: success() && steps.detect.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n --arg status "pr_created" --arg prUrl "${PR_URL}" --arg branch "${BRANCH_NAME}" \
+            --argjson workflowRunId "${RUN_ID}" \
+            '{status: $status, prUrl: $prUrl, branch: $branch, workflowRunId: $workflowRunId}')
+          curl -sS -X POST "${PUBLIC_BASE_URL}/internal/coding-tasks/${TASK_ID}/callback" \
+            -H "Authorization: Bearer ${CALLBACK_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}"
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          CALLBACK_SECRET: ${{ secrets.CODING_TASK_CALLBACK_SECRET }}
+          TASK_ID: ${{ inputs.task_id }}
+          PR_URL: ${{ steps.create_pr.outputs.pr_url }}
+          RUN_ID: ${{ github.run_id }}
+
+      - name: Callback cancelled (no changes produced)
+        if: success() && steps.detect.outputs.changed == 'false'
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n --arg status "cancelled" --argjson workflowRunId "${RUN_ID}" \
+            '{status: $status, workflowRunId: $workflowRunId}')
+          curl -sS -X POST "${PUBLIC_BASE_URL}/internal/coding-tasks/${TASK_ID}/callback" \
+            -H "Authorization: Bearer ${CALLBACK_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}"
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          CALLBACK_SECRET: ${{ secrets.CODING_TASK_CALLBACK_SECRET }}
+          TASK_ID: ${{ inputs.task_id }}
+          RUN_ID: ${{ github.run_id }}
+
+      - name: Callback failure
+        if: failure()
+        run: |
+          set -euo pipefail
+          PAYLOAD=$(jq -n --arg status "failed" --argjson workflowRunId "${RUN_ID}" \
+            '{status: $status, workflowRunId: $workflowRunId}')
+          curl -sS -X POST "${PUBLIC_BASE_URL}/internal/coding-tasks/${TASK_ID}/callback" \
+            -H "Authorization: Bearer ${CALLBACK_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}"
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          CALLBACK_SECRET: ${{ secrets.CODING_TASK_CALLBACK_SECRET }}
+          TASK_ID: ${{ inputs.task_id }}
+          RUN_ID: ${{ github.run_id }}

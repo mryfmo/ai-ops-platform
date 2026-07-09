@@ -1,0 +1,11 @@
+# サンプルデータ: アクション（SPEC-INT-025）
+id: ACT-0001
+project_id: PJ-001
+title: A社との外部連携仕様の協議・確定
+assignee: ST-010
+due: "2026-07-10"
+status: open
+reminders_sent: []
+created_at: "2026-07-01T10:15:00+09:00"
+updated_at: "2026-07-01T10:15:00+09:00"
+updated_by: ST-010

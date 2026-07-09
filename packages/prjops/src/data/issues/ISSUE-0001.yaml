@@ -1,0 +1,13 @@
+# サンプルデータ: 課題（SPEC-INT-024）
+id: ISSUE-0001
+project_id: PJ-001
+title: 外部連携APIの仕様確定遅延
+detail: A社側の仕様確定が遅れており、詳細設計のスケジュールに影響する可能性がある。追加コストが発生する見込み。
+severity: medium
+severity_proposed: null
+status: open
+closed_by: null
+closed_reason: null
+created_at: "2026-07-01T10:15:00+09:00"
+updated_at: "2026-07-01T10:15:00+09:00"
+updated_by: ST-010

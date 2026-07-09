@@ -1,0 +1,33 @@
+name: ci
+# このリポジトリ自体（ai-ops-platform モノレポ）のCI。
+# 根拠: REQ-032/DevOps REQ-030（gitleaksによる秘密情報検知, DEV-10）、
+#       DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテストが存在し合格していること」
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --if-present run typecheck
+      - run: pnpm -r --if-present run build
+      - run: pnpm -r --if-present run test:coverage
+      - name: トレーサビリティ検証（全SPEC-ID⇔実装⇔テストの対応チェック）
+        run: pnpm exec tsx packages/traceability/src/verifyTraceability.ts
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks secret scan (DEV-10, REQ-032)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
