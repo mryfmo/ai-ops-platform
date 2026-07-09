@@ -1,7 +1,8 @@
 /**
  * packages/web/src/server/chat/tools.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   ペルソナに応じて「LLMのコンテキストに見せるtoolそのもの」を絞り込む。権限外のtoolは
  *   ToolSetに含めないため、LLMはそもそも権限外の表示を要求できない
  *   （CLAUDE.md設計原則6: 権限フィルタはデータ取得側で強制、表示層での後付けマスキングは禁止、
@@ -28,6 +29,10 @@ const showExecutiveSummaryInputSchema = z.object({});
 const showManagerSummaryInputSchema = z.object({
   /** バーンダウン集計期間（日数）。未指定時は呼び出し側の既定値（28日）が使われる。 */
   periodDays: z.union([z.literal(7), z.literal(14), z.literal(28)]).optional(),
+});
+
+const showTimeseriesInputSchema = z.object({
+  period: z.enum(["week", "month", "quarter", "half", "year"]).optional(),
 });
 
 const listProjectsInputSchema = z.object({});
@@ -83,6 +88,18 @@ function buildShowInvestorSummaryTool() {
   });
 }
 
+function buildShowTimeseriesTool() {
+  return tool({
+    description:
+      "現在ページの選択ペルソナ範囲で時系列スナップショットを表示する。periodでweek/month/quarter/half/yearを指定できる。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
+    inputSchema: showTimeseriesInputSchema,
+    execute: async (input): Promise<ViewSpec> => {
+      const parsed = showTimeseriesInputSchema.parse(input);
+      return { kind: "timeseries", period: parsed.period };
+    },
+  });
+}
+
 /** 全ペルソナ共通: スコープ内プロジェクト一覧の表示要求 */
 function buildListProjectsTool() {
   return tool({
@@ -121,19 +138,25 @@ function isInvestor(persona: ResolvedPersona): boolean {
 export function buildToolsForPersona(persona: ResolvedPersona): ToolSet {
   const toolSet: ToolSet = {
     listProjects: buildListProjectsTool(),
+    show_projects_table: buildListProjectsTool(),
+    show_timeseries: buildShowTimeseriesTool(),
   };
 
   if (isPrjopsExecutive(persona)) {
     toolSet["showExecutiveSummary"] = buildShowExecutiveSummaryTool();
+    toolSet["show_seven_keys"] = buildShowExecutiveSummaryTool();
   }
   if (isManager(persona)) {
     toolSet["showManagerSummary"] = buildShowManagerSummaryTool();
+    toolSet["show_burndown"] = buildShowManagerSummaryTool();
+    toolSet["show_dora"] = buildShowManagerSummaryTool();
   }
   if (isDevopsManager(persona)) {
     toolSet["showAgentActivity"] = buildShowAgentActivityTool();
   }
   if (isInvestor(persona)) {
     toolSet["showInvestorSummary"] = buildShowInvestorSummaryTool();
+    toolSet["show_investor_kpis"] = buildShowInvestorSummaryTool();
   }
 
   return toolSet;

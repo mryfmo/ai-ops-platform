@@ -1,7 +1,8 @@
 /**
  * packages/web/src/components/DashboardClient.tsx
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   サーバーコンポーネント（dashboard/page.tsx）が取得した初期ViewSpec/初期データを表示しつつ、
  *   ChatPanelを併設し、ChatPanelがtool結果（ViewSpec）を受け取ったら対応する /api/data/* を
  *   fetchしてビューを再レンダリングする。
@@ -20,7 +21,7 @@
 
 import { useCallback, useState } from "react";
 import type { PeriodKind, TimeseriesAggregate } from "@aiops/shared";
-import { ChatPanel } from "./chat/ChatPanel";
+import { PageAgentPanel } from "./chat/ChatPanel";
 import { Card } from "./ui/Card";
 import { Skeleton } from "./ui/Skeleton";
 import { DataTable, type DataTableColumn } from "./ui/DataTable";
@@ -240,40 +241,49 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadView = useCallback((spec: ViewSpec, selection: PeriodSelection, includeTimeseries: boolean) => {
-    setIsLoading(true);
-    setError(null);
-    (async () => {
-      try {
-        let nextView: DashboardData;
-        if (spec.kind === "executiveSummary") {
-          const data = await fetchExecutiveSummary();
-          nextView = { kind: "executiveSummary", data };
-        } else if (spec.kind === "managerSummary") {
-          const { domain, data } = await fetchManagerSummary(spec.periodDays, selection);
-          nextView = { kind: "managerSummary", domain, data };
-        } else if (spec.kind === "agentActivity") {
-          const data = await fetchAgentActivity();
-          nextView = { kind: "agentActivity", data };
-        } else if (spec.kind === "investorSummary") {
-          const data = await fetchInvestorSummary();
-          nextView = { kind: "investorSummary", data };
-        } else {
-          const data = await fetchProjectList();
-          nextView = { kind: "projectList", data };
+  const loadView = useCallback(
+    (spec: ViewSpec, selection: PeriodSelection, includeTimeseries: boolean) => {
+      setIsLoading(true);
+      setError(null);
+      (async () => {
+        try {
+          if (spec.kind === "timeseries") {
+            const nextSelection = spec.period ? { ...selection, period: spec.period } : selection;
+            if (spec.period) setPeriodSelection(nextSelection);
+            setTimeseries(await fetchTimeseries(nextSelection, personaForView(view)));
+            return;
+          }
+          let nextView: DashboardData;
+          if (spec.kind === "executiveSummary") {
+            const data = await fetchExecutiveSummary();
+            nextView = { kind: "executiveSummary", data };
+          } else if (spec.kind === "managerSummary") {
+            const { domain, data } = await fetchManagerSummary(spec.periodDays, selection);
+            nextView = { kind: "managerSummary", domain, data };
+          } else if (spec.kind === "agentActivity") {
+            const data = await fetchAgentActivity();
+            nextView = { kind: "agentActivity", data };
+          } else if (spec.kind === "investorSummary") {
+            const data = await fetchInvestorSummary();
+            nextView = { kind: "investorSummary", data };
+          } else {
+            const data = await fetchProjectList();
+            nextView = { kind: "projectList", data };
+          }
+          setView(nextView);
+          setCurrentSpec(spec);
+          if (includeTimeseries) {
+            setTimeseries(await fetchTimeseries(selection, personaForView(nextView)));
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "表示の切り替えに失敗しました");
+        } finally {
+          setIsLoading(false);
         }
-        setView(nextView);
-        setCurrentSpec(spec);
-        if (includeTimeseries) {
-          setTimeseries(await fetchTimeseries(selection, personaForView(nextView)));
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "表示の切り替えに失敗しました");
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, []);
+      })();
+    },
+    [view],
+  );
 
   const handleViewSpecReceived = useCallback(
     (spec: ViewSpec) => loadView(spec, periodSelection, false),
@@ -336,7 +346,15 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
         {timeseries ? <TimeseriesPanel data={timeseries} /> : null}
       </div>
       <div className="lg:col-span-1">
-        <ChatPanel onViewSpecReceived={handleViewSpecReceived} />
+        <PageAgentPanel
+          onViewSpecReceived={handleViewSpecReceived}
+          pageContext={{
+            persona: personaForView(view),
+            period: periodSelection.period,
+            baseDate: periodSelection.baseDate,
+            view: currentSpec,
+          }}
+        />
       </div>
     </div>
   );

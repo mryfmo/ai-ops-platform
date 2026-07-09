@@ -20,7 +20,7 @@ import { createRoot, type Root } from "react-dom/client";
 let capturedOnViewSpecReceived: ((spec: { kind: string; periodDays?: number }) => void) | null = null;
 
 vi.mock("../src/components/chat/ChatPanel", () => ({
-  ChatPanel: (props: { onViewSpecReceived: (spec: { kind: string; periodDays?: number }) => void }) => {
+  PageAgentPanel: (props: { onViewSpecReceived: (spec: { kind: string; periodDays?: number }) => void }) => {
     capturedOnViewSpecReceived = props.onViewSpecReceived;
     return null;
   },
@@ -117,6 +117,37 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/projects"));
     expect(container.textContent).toContain("プロジェクト一覧");
     expect(container.textContent).toContain("案件A");
+    act(() => root.unmount());
+  });
+
+  it("kind=timeseriesを受け取るとtimeseriesだけをfetchし時系列パネルを表示する [REQ-041 / SPEC-INT-068 / AC-041-1]", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        period: "week",
+        baseDate: "2026-07-09",
+        range: { start: "2026-07-06T00:00:00+09:00", end: "2026-07-13T00:00:00+09:00", label: "2026-W28" },
+        buckets: [],
+        totals: { opened: 1, closed: 0, statusTransitions: 0, milestoneCompleted: 0, deployments: 0 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container, root } = setupContainer();
+    act(() => {
+      root.render(
+        <DashboardClient initialViewSpec={{ kind: "executiveSummary" }} initialData={executiveInitialData} />,
+      );
+    });
+
+    await act(async () => {
+      capturedOnViewSpecReceived!({ kind: "timeseries" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/timeseries?"));
+    expect(container.textContent).toContain("時系列スナップショット");
     act(() => root.unmount());
   });
 

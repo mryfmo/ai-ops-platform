@@ -28,6 +28,10 @@ const webConfigSchema = z.object({
   DATABASE_URL: z.string().min(1),
   /** Anthropic APIキー（/api/chat用。未設定時はチャット機能を503で無効化する） */
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** ページエージェントの最大toolステップ数（SPEC-INT-068）。未指定時は5。 */
+  PAGE_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(10).optional(),
+  /** Anthropic extended thinkingのtoken budget（SPEC-INT-068）。未指定時は12000。 */
+  PAGE_AGENT_THINKING_BUDGET_TOKENS: z.coerce.number().int().min(1024).max(64000).optional(),
 });
 
 export type WebConfig = z.infer<typeof webConfigSchema>;

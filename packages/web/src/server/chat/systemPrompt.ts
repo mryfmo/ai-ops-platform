@@ -1,7 +1,8 @@
 /**
  * packages/web/src/server/chat/systemPrompt.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   ペルソナ情報を埋め込んだシステムプロンプトを生成する純粋関数。
  *   CLAUDE.md設計原則2（数値・色・表はコード算出、LLMは文章スロット/表示パラメータのみ）に
  *   従い、「数値を本文で述べず必ずtoolで表示する」ことを明記する。
@@ -9,6 +10,14 @@
  *   （配置はchat機能の凝集性を優先しserver/chat/配下に置く）。
  */
 import type { ResolvedPersona } from "../personaResolver";
+import type { ViewSpec } from "../viewSpec";
+
+export interface PageAgentContext {
+  period?: string;
+  baseDate?: string;
+  projectId?: string;
+  currentView?: ViewSpec;
+}
 
 function describePersona(persona: ResolvedPersona): string {
   const domainLabel = persona.domain === "prjops" ? "PrjOps" : persona.domain === "devops" ? "DevOps" : "Investor";
@@ -19,10 +28,22 @@ function describePersona(persona: ResolvedPersona): string {
  * チャットの利用者ペルソナ（ダッシュボードページ本体と同じ「先頭ペルソナ採用」方針）を
  * 埋め込んだ短いシステムプロンプトを生成する。
  */
-export function buildSystemPrompt(persona: ResolvedPersona): string {
+export function buildSystemPrompt(persona: ResolvedPersona, pageContext?: PageAgentContext): string {
+  const contextLines = pageContext
+    ? [
+        "現在のページ状態:",
+        JSON.stringify({
+          period: pageContext.period,
+          baseDate: pageContext.baseDate,
+          projectId: pageContext.projectId,
+          currentView: pageContext.currentView,
+        }),
+      ]
+    : [];
   return [
     "あなたはAIOpsダッシュボードの表示切替アシスタントです。",
     `現在の利用者ペルソナは ${describePersona(persona)} です。`,
+    ...contextLines,
     "このペルソナに公開されているtoolのみが呼び出し可能です。公開されていない表示を求められた場合は、",
     "その旨を伝え、代わりに公開されているtoolで表示できる内容を提案してください。",
     "重要な制約: 進捗率・件数・金額などの具体的な数値は、あなた自身の本文（自由文）で決して述べては",
