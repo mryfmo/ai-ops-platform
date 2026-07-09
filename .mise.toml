@@ -34,6 +34,10 @@ run = "pnpm run format"
 description = "仕様ID⇔実装⇔テストのトレーサビリティ検証"
 run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts"
 
+[tasks.governance]
+description = "本番ゲートの軽量チェック（CODEOWNERSプレースホルダ警告など）"
+run = "pnpm run governance:check"
+
 [tasks.ci]
-description = "CIと同一の一括検証（lint→traceability→format→build→typecheck→test:coverage）"
-run = "mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage"
+description = "CIと同一の一括検証（governance→lint→traceability→format→build→typecheck→test:coverage）"
+run = "mise run governance && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage"

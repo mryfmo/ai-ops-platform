@@ -69,6 +69,8 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 - mainへの直接pushは禁止。ブランチを切りPRを作成する
 - AIエージェントが生成するPRは `agent/{task-id}` ブランチ + `ai-generated` ラベル（ADR-0006）
 - 自動マージ禁止。マージは人間レビュアーのみ（CODEOWNERS + ブランチ保護）
+- CODEOWNERS の `@OWNER` は go-live 前に実GitHubユーザー/チームへ置換する。設定手順は `runbooks/production-gates.md`。
+- AI PR 作成には `AIOPS_PR_TOKEN`（GitHub App installation token または専用PAT）を使う。未設定のまま運用しない。
 - PRテンプレート（.github/PULL_REQUEST_TEMPLATE.md）のチェックリストを埋める
 - コミット前に gitleaks 相当の秘密情報混入がないことを確認（CIでも検証される）
 

@@ -42,6 +42,7 @@ export interface CodingTaskRoutesDeps {
   /** taskIdのprojectIdから対象GitHubリポジトリを解決する（未登録ならnull） */
   resolveRepoForProject(projectId: string): Promise<CodingTaskRepoScope | null>;
   traceIdProvider(): string;
+  isFailsafeActive?: () => boolean;
 }
 
 function escapeHtml(input: string): string {
@@ -151,6 +152,18 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
     }
 
     const traceId = deps.traceIdProvider();
+
+    if (deps.isFailsafeActive?.()) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "coding_task_blocked_by_failsafe",
+        basis: "REQ-029",
+        detail: { taskId, projectId: task.projectId },
+        at: new Date().toISOString(),
+      });
+      return c.html(errorPage("フェイルセーフ中のためコーディングタスク実行を停止しています。"), 503);
+    }
 
     // 人間の明示クリックが成立した瞬間にのみworkflow_dispatchを呼ぶ（ADR-0006「誤発火防止」の核心）
     await deps.githubClient.dispatchWorkflow({

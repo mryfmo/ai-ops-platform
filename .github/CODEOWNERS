@@ -1,4 +1,5 @@
 # CODEOWNERS — agent/*ブランチPRを含む全PRの必須レビュアー（ADR-0006: 自動マージ禁止の実効化）
+# TODO(human): replace @OWNER with a real GitHub user/team before go-live.
 # 注意: @OWNER は実際のGitHubユーザー名/チームに置き換えること（組織導入時の残課題）
 #       ブランチ保護で "Require review from Code Owners" を有効にすること
 

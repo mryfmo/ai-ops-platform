@@ -11,6 +11,7 @@
  *   - 1タスクの例外は他タスク・プロセスに波及させない（onErrorへ隔離）
  *   - SIGTERM時は stop() で実行中タスクの完了を待ってから解決（graceful shutdown）
  */
+import type { AuditLogWriter } from "@aiops/shared";
 import { decideTick, nextCheckDelayMs, type TickState } from "../lib/schedulerPolicy.js";
 
 export interface ScheduledTask {
@@ -23,6 +24,29 @@ export interface ScheduledTask {
 export interface SchedulerHandle {
   /** 新規tickを止め、実行中の run() の完了を待って解決する */
   stop(): Promise<void>;
+}
+
+export function guardFailsafeTask(
+  task: ScheduledTask,
+  deps: { isFailsafeActive(): boolean; auditLog: AuditLogWriter; traceIdProvider(): string },
+): ScheduledTask {
+  return {
+    ...task,
+    async run(now: Date): Promise<void> {
+      if (!deps.isFailsafeActive()) {
+        await task.run(now);
+        return;
+      }
+      await deps.auditLog.append({
+        trace_id: deps.traceIdProvider(),
+        actor: "SERVER",
+        action: "failsafe_task_skipped",
+        basis: "REQ-029",
+        detail: { taskName: task.name },
+        at: now.toISOString(),
+      });
+    },
+  };
 }
 
 export function startScheduler(

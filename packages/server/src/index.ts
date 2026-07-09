@@ -42,7 +42,7 @@ import { RecipientsRepo } from "./db/recipientsRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { buildApp } from "./http/app.js";
-import { startScheduler } from "./scheduler/scheduler.js";
+import { guardFailsafeTask, startScheduler, type ScheduledTask } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
 import { createJitRevocationTask } from "./scheduler/tasks/jitRevocationTask.js";
 import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRenewalTask.js";
@@ -209,6 +209,12 @@ async function main(): Promise<void> {
   });
 
   let failsafeActive = false;
+  const guardTask = (task: ScheduledTask): ScheduledTask =>
+    guardFailsafeTask(task, {
+      isFailsafeActive: () => failsafeActive,
+      auditLog,
+      traceIdProvider: () => randomUUID(),
+    });
 
   const scheduler = startScheduler(
     [
@@ -217,9 +223,7 @@ async function main(): Promise<void> {
           await pool.query("SELECT 1");
           return true;
         },
-        activateFailsafe: async () => {
-          // T21 documented-scope-out: フェイルセーフは状態と監査のみ。配信/dispatch停止は未実装。
-        },
+        activateFailsafe: async () => {},
         isFailsafeActive: () => failsafeActive,
         setFailsafeActive: (v) => {
           failsafeActive = v;
@@ -232,88 +236,101 @@ async function main(): Promise<void> {
         secDeps: { githubClient, auditLog },
         traceIdProvider: () => randomUUID(),
       }),
-      createSubscriptionRenewalTask({
-        graphSubscriptionsRepo,
-        graphClient,
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
-      createChannelPollingTask({
-        graphSubscriptionsRepo,
-        projectChannelsRepo,
-        channelMessagesRepo,
-        graphClient,
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
-      createEventsPollingTask({
-        eventsRepo,
-        auditLog,
-        dispatchInboundNotification: (payload, traceId) => teamsConversationAgent.handleNotification(payload, traceId),
-        dispatchGithubEvent: (payload, traceId) =>
-          dispatchGithubWebhookEvent(payload, traceId, {
-            auditLog,
-            handlers: devopsEventHandlers,
-            pmRepo: pmTimeseriesRepo,
-          }),
-        dispatchMonitorEvent: async (payload, traceId) => {
-          await auditLog.append({
-            trace_id: traceId,
-            actor: "AGT-DEP",
-            action: "monitor_event_received",
-            basis: "SPEC-INT-020",
-            detail: { hasPayload: payload !== null && payload !== undefined },
-            at: new Date().toISOString(),
-          });
-        },
-        traceIdProvider: () => randomUUID(),
-      }),
-      createPmSnapshotReconcileTask({
-        repo: pmTimeseriesRepo,
-        client: config.GITHUB_PROJECT_NODE_ID
-          ? {
-              listCurrentSnapshots: (cursor) =>
-                githubClient.listCurrentProjectV2Snapshots({
-                  projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
-                  cursor,
-                }),
-            }
-          : {
-              listCurrentSnapshots: async () => {
-                await auditLog.append({
-                  trace_id: randomUUID(),
-                  actor: "SERVER",
-                  action: "pm_snapshot_reconcile_disabled",
-                  basis: "SPEC-INT-081",
-                  detail: { reason: "GITHUB_PROJECT_NODE_ID is not configured" },
-                  at: new Date().toISOString(),
-                });
-                return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
+      guardTask(
+        createSubscriptionRenewalTask({
+          graphSubscriptionsRepo,
+          graphClient,
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
+      guardTask(
+        createChannelPollingTask({
+          graphSubscriptionsRepo,
+          projectChannelsRepo,
+          channelMessagesRepo,
+          graphClient,
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
+      guardTask(
+        createEventsPollingTask({
+          eventsRepo,
+          auditLog,
+          dispatchInboundNotification: (payload, traceId) =>
+            teamsConversationAgent.handleNotification(payload, traceId),
+          dispatchGithubEvent: (payload, traceId) =>
+            dispatchGithubWebhookEvent(payload, traceId, {
+              auditLog,
+              handlers: devopsEventHandlers,
+              pmRepo: pmTimeseriesRepo,
+            }),
+          dispatchMonitorEvent: async (payload, traceId) => {
+            await auditLog.append({
+              trace_id: traceId,
+              actor: "AGT-DEP",
+              action: "monitor_event_received",
+              basis: "SPEC-INT-020",
+              detail: { hasPayload: payload !== null && payload !== undefined },
+              at: new Date().toISOString(),
+            });
+          },
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
+      guardTask(
+        createPmSnapshotReconcileTask({
+          repo: pmTimeseriesRepo,
+          client: config.GITHUB_PROJECT_NODE_ID
+            ? {
+                listCurrentSnapshots: (cursor) =>
+                  githubClient.listCurrentProjectV2Snapshots({
+                    projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
+                    cursor,
+                  }),
+              }
+            : {
+                listCurrentSnapshots: async () => {
+                  await auditLog.append({
+                    trace_id: randomUUID(),
+                    actor: "SERVER",
+                    action: "pm_snapshot_reconcile_disabled",
+                    basis: "SPEC-INT-081",
+                    detail: { reason: "GITHUB_PROJECT_NODE_ID is not configured" },
+                    at: new Date().toISOString(),
+                  });
+                  return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
+                },
               },
-            },
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
-      createSevenKeysMonthlySnapshotTask({
-        repo: sevenKeysSnapshotsRepo,
-        disabledReason: "PrjOps report data provider is not configured",
-        auditLog,
-        calendar: loadJpHolidayCalendar(),
-        traceIdProvider: () => randomUUID(),
-      }),
-      createReportDeliveryTask({
-        enabled: config.REPORT_DELIVERY_ENABLED,
-        fromMailbox: config.FROM_MAILBOX,
-        defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
-        publicBaseUrl: config.PUBLIC_BASE_URL,
-        calendar: loadJpHolidayCalendar(),
-        recipientsRepo,
-        standardReportsRepo,
-        graphClient,
-        deliveryLogStore: reportDeliveryLogRepo,
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
+      guardTask(
+        createSevenKeysMonthlySnapshotTask({
+          repo: sevenKeysSnapshotsRepo,
+          disabledReason: "PrjOps report data provider is not configured",
+          auditLog,
+          calendar: loadJpHolidayCalendar(),
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
+      guardTask(
+        createReportDeliveryTask({
+          enabled: config.REPORT_DELIVERY_ENABLED,
+          fromMailbox: config.FROM_MAILBOX,
+          defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
+          publicBaseUrl: config.PUBLIC_BASE_URL,
+          calendar: loadJpHolidayCalendar(),
+          recipientsRepo,
+          standardReportsRepo,
+          graphClient,
+          deliveryLogStore: reportDeliveryLogRepo,
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
     ],
     (taskName, err) => {
       // 1タスクの失敗を隔離し、秘密情報を含まない形でstderrへ
@@ -326,7 +343,7 @@ async function main(): Promise<void> {
     readiness: {
       isReady: async () => {
         await pool.query("SELECT 1");
-        return true;
+        return !failsafeActive;
       },
     },
     graph: {
@@ -354,6 +371,7 @@ async function main(): Promise<void> {
         return { githubOwner: channel.githubOwner, githubRepo: channel.githubRepo };
       },
       traceIdProvider: () => randomUUID(),
+      isFailsafeActive: () => failsafeActive,
     },
     xlsxImport: {
       ledger: importLedgerRepo,
