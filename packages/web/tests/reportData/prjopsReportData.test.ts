@@ -108,6 +108,22 @@ describe("buildExecutiveSummary（PRF-04）", () => {
     expect(keys.get("K2")).toBe("yellow");
     expect(keys.get("K7")).toBe("red");
   });
+
+  it("AC-038-1: 月次PDCAスナップショットは権限スコープ内プロジェクトだけ返す", async () => {
+    const provider = new InMemoryPrjopsReportDataProvider(projects, issuesAndActions, [
+      { month: "2026-07", projectId: "PRJ-0001", name: "案件A", improvedKeys: ["K1"], worsenedKeys: [], keys: [] },
+      { month: "2026-07", projectId: "PRJ-999", name: "範囲外", improvedKeys: [], worsenedKeys: ["K3"], keys: [] },
+    ]);
+    const emptyCtx: ProjectVisibilityContext = {
+      recipientStakeholderId: "STK-EXEC",
+      recipientManagedProjectIds: [],
+      recipientAssignedProjectIds: [],
+      recipientParticipatingProjectIds: [],
+      investedProjectIds: [],
+    };
+    const result = await buildExecutiveSummary(provider, "PRF-04", emptyCtx);
+    expect(result.monthlySnapshots?.map((snapshot) => snapshot.projectId)).toEqual(["PRJ-0001"]);
+  });
 });
 
 describe("buildInvestorSummary（investor: 出資対象のみ）", () => {

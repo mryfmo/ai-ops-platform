@@ -195,7 +195,7 @@ DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテス�
 - verified-integration: `mise run ci` により、lint / traceability / format / build / typecheck / test:coverage を並列実行で確認した。
 - verified-integration: Seven Keys質問票は `PrjopsProjectRecord.questionnaire` から `ExecutiveProjectInput.questionnaire` へ配線済み。欠落時はgrey、入力時はK1/K2/K7へ反映される。
 - verified-integration: `buildSevenKeysMonthlySnapshot` の前月RAGとの差分算出はテスト済み。
-- requires-follow-up: 月次PDCAスナップショットの永続保存と報告ジョブ配線は、実運用の月次ストア設計が必要なため本スコープ外。ADR-0010にスコープ境界を明記した。
+- verified-integration: 月次PDCAスナップショットは `seven_keys_snapshots` に追記専用で永続化し、第1営業日の `seven-keys-monthly-snapshot` タスクで同月重複をskip監査ログに記録する。前月比は Executive Seven Keys view に optional snapshot として表示する。
 
 1. `mise run install`（内部で`pnpm install`）を実行し、`@anthropic-ai/sdk` 等のLLM依存コードのユニットテスト（モック注入）を追加実行する。
 2. GitHub Organization・3リポジトリ（`prjops-data`/`prjops-system`/`prjops-reports`、DevOps側は単一リポジトリ+DB）
@@ -218,7 +218,7 @@ DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテス�
 - 仕様のREQ/SPEC-EXT/SPEC-INT/TH IDは、実装コードのコメント・型・関数名に明記されている
   （`packages/traceability`によって機械検証、必須カテゴリ100%）。
 - 実装コード（特に決定的ロジック）は、対応するAC境界値を明示したテストで検証され、
-  **740件全て合格**している（このサンドボックス内で `mise run ci` を実際に実行して確認済み）。
+  **747件全て合格**している（このサンドボックス内で `mise run ci` を実際に実行して確認済み）。
 - LLM・外部API依存部分は、SDK呼び出し方自体を2026年7月時点の公式ドキュメントに基づいて実装し、
   周辺の決定的ガード（完全性判定・数値混入防止・confidence閾値処理）を分離してオフライン検証済みとした。
 - 未検証部分（実インフラ・実LLM呼び出し）は隠さず本書 §1.2, §5 に明記した。

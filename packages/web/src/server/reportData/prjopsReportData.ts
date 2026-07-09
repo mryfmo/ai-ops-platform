@@ -22,6 +22,7 @@ import {
   computeExecutiveSevenKeys,
   type ExecutiveProjectInput,
   type ExecutiveSevenKeysSummary,
+  type SevenKeysMonthlySnapshot,
   type SevenKeysQuestionnaireInput,
   buildInvestorReport,
   type InvestorFinancialInputs,
@@ -69,6 +70,7 @@ export interface PrjopsIssueActionRecord {
 export interface PrjopsReportDataProvider {
   listProjects(): Promise<PrjopsProjectRecord[]>;
   listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]>;
+  listSevenKeysMonthlySnapshots?(): Promise<SevenKeysMonthlySnapshot[]>;
   getInvestorFinancialInputs?(): Promise<InvestorFinancialInputs>;
 }
 
@@ -80,6 +82,7 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
   constructor(
     private readonly projects: PrjopsProjectRecord[] = [],
     private readonly issuesAndActions: PrjopsIssueActionRecord[] = [],
+    private readonly sevenKeysMonthlySnapshots: SevenKeysMonthlySnapshot[] = [],
   ) {}
 
   async listProjects(): Promise<PrjopsProjectRecord[]> {
@@ -88,6 +91,10 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
 
   async listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]> {
     return this.issuesAndActions;
+  }
+
+  async listSevenKeysMonthlySnapshots(): Promise<SevenKeysMonthlySnapshot[]> {
+    return this.sevenKeysMonthlySnapshots;
   }
 }
 
@@ -101,7 +108,9 @@ async function scopedProjects(
   return all.filter((p) => isProjectInScope(profile, p.projectId, ctx));
 }
 
-export type ExecutiveSummaryResult = ExecutiveSevenKeysSummary;
+export type ExecutiveSummaryResult = ExecutiveSevenKeysSummary & {
+  monthlySnapshots?: SevenKeysMonthlySnapshot[];
+};
 
 /**
  * PRF-04向け経営層セブンキーを算出する。
@@ -124,7 +133,14 @@ export async function buildExecutiveSummary(
     activeContributorCount: p.activeContributorCount,
     questionnaire: p.questionnaire,
   }));
-  return computeExecutiveSevenKeys(inputs);
+  const summary: ExecutiveSummaryResult = computeExecutiveSevenKeys(inputs);
+  if (provider.listSevenKeysMonthlySnapshots) {
+    const scopedIds = new Set(projects.map((p) => p.projectId));
+    summary.monthlySnapshots = (await provider.listSevenKeysMonthlySnapshots()).filter((s) =>
+      scopedIds.has(s.projectId),
+    );
+  }
+  return summary;
 }
 
 export interface ManagerSummaryResult {

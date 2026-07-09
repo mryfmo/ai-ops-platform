@@ -23,8 +23,15 @@ export interface ExecutiveSevenKeysProject {
   keys: ExecutiveSevenKeyAssessment[];
 }
 
+export interface ExecutiveSevenKeysMonthlySnapshot extends ExecutiveSevenKeysProject {
+  month: string;
+  improvedKeys: string[];
+  worsenedKeys: string[];
+}
+
 export interface ExecutiveSevenKeysData {
   projects: ExecutiveSevenKeysProject[];
+  monthlySnapshots?: ExecutiveSevenKeysMonthlySnapshot[];
 }
 
 export interface ExecutiveSevenKeysViewProps {
@@ -58,6 +65,13 @@ function ragBadge(rag: SevenKeysRag) {
 }
 
 export function ExecutiveSevenKeysView({ data }: ExecutiveSevenKeysViewProps) {
+  const latestMonth = data.monthlySnapshots
+    ?.map((snapshot) => snapshot.month)
+    .sort()
+    .at(-1);
+  const latestSnapshots = latestMonth
+    ? data.monthlySnapshots?.filter((snapshot) => snapshot.month === latestMonth)
+    : [];
   const columns: DataTableColumn<ExecutiveSevenKeysProject>[] = [
     { key: "project", header: "プロジェクト", render: (row) => `${row.projectId} ${row.name}` },
     ...(["K1", "K2", "K3", "K4", "K5", "K6", "K7"] as const).map((keyId) => ({
@@ -89,6 +103,25 @@ export function ExecutiveSevenKeysView({ data }: ExecutiveSevenKeysViewProps) {
       <Card title="Seven Keys RAGマトリクス" eyebrow="Portfolio health">
         <DataTable columns={columns} rows={data.projects} rowKey={(row) => row.projectId} />
       </Card>
+      {latestSnapshots && latestSnapshots.length > 0 ? (
+        <Card title="前月比" eyebrow={latestMonth}>
+          <div className="grid gap-3 md:grid-cols-2">
+            {latestSnapshots.map((snapshot) => (
+              <div key={snapshot.projectId} className="rounded-md border border-dashboard-border p-3">
+                <p className="text-sm font-semibold text-dashboard-ink">
+                  {snapshot.projectId} {snapshot.name}
+                </p>
+                <p className="mt-2 text-sm text-dashboard-muted">
+                  改善 {snapshot.improvedKeys.length}件 / 悪化 {snapshot.worsenedKeys.length}件
+                </p>
+                {snapshot.worsenedKeys.length > 0 ? (
+                  <p className="mt-1 text-xs text-status-red">悪化: {snapshot.worsenedKeys.join(", ")}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

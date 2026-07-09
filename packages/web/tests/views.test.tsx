@@ -63,6 +63,19 @@ const executiveData: ExecutiveSevenKeysData = {
       ],
     },
   ],
+  monthlySnapshots: [
+    {
+      projectId: "PRJ-0001",
+      name: "案件A",
+      month: "2026-07",
+      improvedKeys: ["K1"],
+      worsenedKeys: ["K3"],
+      keys: [
+        { keyId: "K1", title: "Stakeholders are committed", rag: "green", basis: "questionnaire" },
+        { keyId: "K3", title: "Work and schedule are predictable", rag: "red", basis: "progress/isOverdue" },
+      ],
+    },
+  ],
 };
 
 describe("ExecutiveSevenKeysView（REQ-038: Seven Keys RAGマトリクス）", () => {
@@ -90,6 +103,12 @@ describe("ExecutiveSevenKeysView（REQ-038: Seven Keys RAGマトリクス）", (
     const badge = findElement(cell, (e) => propsOf(e)["variant"] === "grey");
     expect(JSON.stringify(propsOf(badge!)["children"])).toContain("◇");
     expect(JSON.stringify(propsOf(badge!)["children"])).toContain("未評価");
+  });
+
+  it("AC-038-1: 月次PDCAスナップショットの前月比を表示する", () => {
+    const el = ExecutiveSevenKeysView({ data: executiveData });
+    const delta = findElement(el, (e) => e.type === "p" && JSON.stringify(propsOf(e)["children"]).includes("改善"));
+    expect(JSON.stringify(propsOf(delta!)["children"])).toContain("悪化");
   });
 });
 

@@ -55,6 +55,22 @@ CREATE TABLE IF NOT EXISTS pm_snapshots (
 CREATE INDEX IF NOT EXISTS idx_pm_snapshots_time ON pm_snapshots (captured_at);
 CREATE INDEX IF NOT EXISTS idx_pm_snapshots_project_time ON pm_snapshots (project_id, captured_at);
 
+-- ADR-0010 / AC-038-1: Seven Keys月次PDCA snapshot。
+-- 追記専用。月次ジョブの冪等性は (month, project_id) の一意制約と repo のskip監査で担保する。
+CREATE TABLE IF NOT EXISTS seven_keys_snapshots (
+  snapshot_id  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  month        TEXT NOT NULL CHECK (month ~ '^\d{4}-\d{2}$'),
+  project_id   TEXT NOT NULL,
+  keys_rag     JSONB NOT NULL,
+  improved_keys TEXT[] NOT NULL DEFAULT '{}',
+  worsened_keys TEXT[] NOT NULL DEFAULT '{}',
+  next_actions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (month, project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_seven_keys_snapshots_project_month ON seven_keys_snapshots (project_id, month);
+-- rollback: DROP TABLE seven_keys_snapshots;
+
 -- SPEC-INT-020 デプロイ状態機械の値のみ許可（lib/deployStateMachine.tsのDeployState型と一致させること）
 CREATE TABLE IF NOT EXISTS deployments (
   deploy_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -16,7 +16,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { serve } from "@hono/node-server";
-import { GraphClient, GitHubClient, AnthropicStructuredClient, PgCostGuard } from "@aiops/shared";
+import { GraphClient, GitHubClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendar } from "@aiops/shared";
 import type { StakeholderInput } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
@@ -30,6 +30,7 @@ import { ChannelMessagesRepo } from "./db/channelMessagesRepo.js";
 import { CodingTasksRepo } from "./db/codingTasksRepo.js";
 import { PmTimeseriesRepo } from "./db/pmTimeseriesRepo.js";
 import { ImportLedgerRepo } from "./db/importLedgerRepo.js";
+import { SevenKeysSnapshotsRepo } from "./db/sevenKeysSnapshotsRepo.js";
 import { buildApp } from "./http/app.js";
 import { startScheduler } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
@@ -38,6 +39,7 @@ import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRen
 import { createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
+import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createClientCredentialsTokenProvider } from "./auth/graphTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
 import {
@@ -62,6 +64,7 @@ export * from "./scheduler/tasks/subscriptionRenewalTask.js";
 export * from "./scheduler/tasks/channelPollingTask.js";
 export * from "./scheduler/tasks/eventsPollingTask.js";
 export * from "./scheduler/tasks/pmSnapshotReconcileTask.js";
+export * from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 export * from "./lib/schedulerPolicy.js";
 export * from "./lib/graphNotificationValidator.js";
 export * from "./lib/channelAuthorization.js";
@@ -78,6 +81,7 @@ export * from "./db/channelMessagesRepo.js";
 export * from "./db/codingTasksRepo.js";
 export * from "./db/pmTimeseriesRepo.js";
 export * from "./db/importLedgerRepo.js";
+export * from "./db/sevenKeysSnapshotsRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
 
@@ -109,6 +113,7 @@ async function main(): Promise<void> {
   const codingTasksRepo = new CodingTasksRepo(pool);
   const pmTimeseriesRepo = new PmTimeseriesRepo(pool);
   const importLedgerRepo = new ImportLedgerRepo(pool);
+  const sevenKeysSnapshotsRepo = new SevenKeysSnapshotsRepo(pool);
 
   const graphTokenProvider = createClientCredentialsTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
@@ -263,6 +268,13 @@ async function main(): Promise<void> {
               },
             },
         auditLog,
+        traceIdProvider: () => randomUUID(),
+      }),
+      createSevenKeysMonthlySnapshotTask({
+        repo: sevenKeysSnapshotsRepo,
+        provider: { listExecutiveProjects: async () => [] },
+        auditLog,
+        calendar: buildHolidayCalendar([]),
         traceIdProvider: () => randomUUID(),
       }),
     ],
