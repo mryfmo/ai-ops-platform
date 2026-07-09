@@ -29,19 +29,27 @@ export interface InvestorReportData {
 export function InvestorReportView({ data }: { data: InvestorReportData }) {
   const kpiColumns: DataTableColumn<InvestorMetricValue>[] = [
     { key: "label", header: "KPI", render: (row) => row.label },
-    { key: "value", header: "値", render: (row) => (row.value === null ? "未入力" : row.value) },
+    {
+      key: "value",
+      header: "値",
+      render: (row) => <span className="tabular">{row.value === null ? "未入力" : row.value}</span>,
+    },
     { key: "unit", header: "単位", render: (row) => row.unit },
     { key: "source", header: "ソース", render: (row) => row.source },
   ];
   const milestoneColumns: DataTableColumn<InvestorReportData["milestones"][number]>[] = [
     { key: "projectId", header: "ID", render: (row) => row.projectId },
     { key: "name", header: "会社/案件", render: (row) => row.name },
-    { key: "delayDays", header: "遅延日数", render: (row) => row.delayDays },
+    { key: "delayDays", header: "遅延日数", render: (row) => <span className="tabular">{row.delayDays}</span> },
   ];
   const riskColumns: DataTableColumn<InvestorReportData["risks"][number]>[] = [
     { key: "projectId", header: "ID", render: (row) => row.projectId },
     { key: "name", header: "会社/案件", render: (row) => row.name },
-    { key: "risk", header: "高重大度リスク", render: (row) => row.highSeverityOpenIssueCount },
+    {
+      key: "risk",
+      header: "高重大度リスク",
+      render: (row) => <span className="tabular">{row.highSeverityOpenIssueCount}</span>,
+    },
   ];
 
   return (

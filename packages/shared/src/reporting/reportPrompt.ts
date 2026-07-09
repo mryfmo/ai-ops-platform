@@ -1,3 +1,8 @@
+/**
+ * packages/shared/src/reporting/reportPrompt.ts
+ *
+ * 根拠: REQ-040 / SPEC-INT-067 / SPEC-INT-082。
+ */
 import { STANDARD_REPORT_SLOT_SPECS } from "./reportSchema.js";
 import type { StandardReportType } from "./reportSchema.js";
 

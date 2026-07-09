@@ -349,7 +349,6 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
         <PageAgentPanel
           onViewSpecReceived={handleViewSpecReceived}
           pageContext={{
-            persona: personaForView(view),
             period: periodSelection.period,
             baseDate: periodSelection.baseDate,
             view: currentSpec,

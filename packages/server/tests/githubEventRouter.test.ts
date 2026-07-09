@@ -14,7 +14,7 @@ import {
 } from "../src/lib/githubEventRouter.js";
 
 describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
-  it("workflow_run failureはAGT_BLDへ振り分ける", () => {
+  it("SPEC-INT-010: workflow_run failureはAGT_BLDへ振り分ける", () => {
     expect(
       selectDevopsAgentForGithubEvent({
         eventName: "workflow_run",
@@ -23,7 +23,7 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     ).toBe("AGT_BLD");
   });
 
-  it("deploy workflowとdeployment eventはAGT_DEPへ振り分ける", () => {
+  it("SPEC-INT-010: deploy workflowとdeployment eventはAGT_DEPへ振り分ける", () => {
     expect(
       selectDevopsAgentForGithubEvent({
         eventName: "workflow_run",
@@ -33,11 +33,11 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(selectDevopsAgentForGithubEvent({ eventName: "deployment_status", payload: {} })).toBe("AGT_DEP");
   });
 
-  it("issues eventはAGT_INCへ振り分ける", () => {
+  it("SPEC-INT-010: issues eventはAGT_INCへ振り分ける", () => {
     expect(selectDevopsAgentForGithubEvent({ eventName: "issues", payload: { action: "opened" } })).toBe("AGT_INC");
   });
 
-  it("handlerへ渡し、dispatch監査ログを残す", async () => {
+  it("SPEC-INT-010: handlerへ渡し、dispatch監査ログを残す", async () => {
     const auditLog = new InMemoryAuditLog();
     const called: DevopsAgentId[] = [];
     await dispatchGithubWebhookEvent({ eventName: "pull_request", payload: { action: "opened" } }, "trace-1", {
@@ -55,7 +55,7 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(logs.some((l) => l.action === "github_event_dispatched")).toBe(true);
   });
 
-  it("未対応eventはhandlerを呼ばずignored監査ログを残す", async () => {
+  it("SPEC-INT-010: 未対応eventはhandlerを呼ばずignored監査ログを残す", async () => {
     const auditLog = new InMemoryAuditLog();
     let called = false;
     await dispatchGithubWebhookEvent({ eventName: "star", payload: {} }, "trace-2", {
@@ -77,7 +77,7 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(logs.some((l) => l.action === "github_event_ignored")).toBe(true);
   });
 
-  it("queued payload型を判定する", () => {
+  it("SPEC-INT-010: queued payload型を判定する", () => {
     expect(isQueuedGithubWebhookEvent({ eventName: "push", payload: {} })).toBe(true);
     expect(isQueuedGithubWebhookEvent({ eventName: "push" })).toBe(false);
   });
@@ -105,6 +105,34 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
       subjectId: "PVTI_1",
       fromStatus: "Todo",
       toStatus: "Done",
+    });
+  });
+
+  it("REQ-036 / SPEC-INT-062: projects_v2_status_updateをpm_events向けに正規化する", () => {
+    const record = normalizePmWebhookEvent(
+      {
+        eventName: "projects_v2_status_update",
+        payload: {
+          action: "edited",
+          projects_v2_status_update: {
+            node_id: "PVTSU_1",
+            project_node_id: "PVT_1",
+            updated_at: "2026-07-09T00:00:00Z",
+          },
+          changes: { status: { from: "On track", to: "At risk" } },
+        },
+      },
+      "trace-pm",
+      new Date("2026-07-09T01:00:00Z"),
+    );
+    expect(record).toMatchObject({
+      eventName: "projects_v2_status_update",
+      action: "edited",
+      projectId: "PVT_1",
+      subjectType: "project_status",
+      subjectId: "PVTSU_1",
+      fromStatus: "On track",
+      toStatus: "At risk",
     });
   });
 

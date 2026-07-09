@@ -119,6 +119,49 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
     expect(calls.every((call) => call.url.endsWith("/graphql"))).toBe(true);
   });
 
+  it("SPEC-INT-081: Projects v2 current snapshotをGraphQLで読む", async () => {
+    const { fetch: fetchImpl } = makeFakeFetch([
+      {
+        status: 200,
+        body: {
+          data: {
+            rateLimit: { remaining: 999, resetAt: "2026-07-09T00:00:00Z" },
+            node: {
+              items: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: [
+                  {
+                    id: "PVTI_1",
+                    content: {
+                      __typename: "Issue",
+                      id: "I_1",
+                      number: 1,
+                      title: "Issue",
+                      state: "OPEN",
+                      repository: { nameWithOwner: "acme/widget" },
+                    },
+                    fieldValues: {
+                      nodes: [{ name: "Todo", field: { name: "Status" } }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const page = await client.listCurrentProjectV2Snapshots({ projectNodeId: "PVT_1" });
+    expect(page.snapshots[0]).toMatchObject({
+      projectId: "PVT_1",
+      repository: "acme/widget",
+      sourceType: "issue",
+      sourceId: "I_1",
+      state: "Todo",
+    });
+  });
+
   it("dispatchWorkflow は失敗時にE-DEP01を投げる", async () => {
     const { fetch: fetchImpl } = makeFakeFetch([{ status: 403 }]);
     const client = new GitHubClient(tokenProvider, fetchImpl);

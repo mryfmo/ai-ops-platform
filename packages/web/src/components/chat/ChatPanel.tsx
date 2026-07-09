@@ -150,7 +150,6 @@ function MessageParts({
 }
 
 export interface PageAgentContext {
-  persona: "executive" | "manager" | "investor";
   period: string;
   baseDate: string;
   view: ViewSpec;

@@ -101,6 +101,10 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(() => parseReportSlots({ conclusion: "ok" })).toThrow(/E-RPT01/);
   });
 
+  it("AC-040-1: 根拠IDヘッダが空ならE-RPT03で拒否する", () => {
+    expect(() => renderEvidenceHeader([])).toThrow(/E-RPT03/);
+  });
+
   it("manager-weekly / investor-quarterly reportTypeを許可する [REQ-039, SPEC-INT-066]", () => {
     for (const reportType of ["manager-weekly", "investor-quarterly"] as const) {
       const payload = buildStandardReportPayload(

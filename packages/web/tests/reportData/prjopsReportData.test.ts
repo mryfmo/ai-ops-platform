@@ -80,6 +80,34 @@ describe("buildExecutiveSummary（PRF-04）", () => {
     expect(result.projects[0]?.keys).toHaveLength(7);
     expect(result.projects[1]?.keys.find((key) => key.keyId === "K3")?.rag).toBe("red");
   });
+
+  it("AC-038-1: 構造化質問票をSeven Keysの定性キーへ渡す", async () => {
+    const provider = new InMemoryPrjopsReportDataProvider(
+      [
+        {
+          ...projects[0]!,
+          questionnaire: {
+            stakeholdersCommitted: "green",
+            businessBenefits: "yellow",
+            deliveryOrgBenefits: "red",
+          },
+        },
+      ],
+      issuesAndActions,
+    );
+    const emptyCtx: ProjectVisibilityContext = {
+      recipientStakeholderId: "STK-EXEC",
+      recipientManagedProjectIds: [],
+      recipientAssignedProjectIds: [],
+      recipientParticipatingProjectIds: [],
+      investedProjectIds: [],
+    };
+    const result = await buildExecutiveSummary(provider, "PRF-04", emptyCtx);
+    const keys = new Map(result.projects[0]?.keys.map((key) => [key.keyId, key.rag]));
+    expect(keys.get("K1")).toBe("green");
+    expect(keys.get("K2")).toBe("yellow");
+    expect(keys.get("K7")).toBe("red");
+  });
 });
 
 describe("buildInvestorSummary（investor: 出資対象のみ）", () => {

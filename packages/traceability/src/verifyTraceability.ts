@@ -14,8 +14,8 @@
  *   ISS/TOBE/ASM（現状課題・将来プロセス・仮定）は文書間トレーサビリティの記録用IDであり、
  *   実装コードへの直接参照を必須としない（警告のみ）。
  */
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format as formatMarkdown } from "prettier";
 
@@ -129,6 +129,34 @@ function formatResults(systemName: string, results: CategoryResult[]): string {
   return lines.join("\n");
 }
 
+function reportingHeaderFailures(): string[] {
+  const reportingDir = join(REPO_ROOT, "packages", "shared", "src", "reporting");
+  return listFiles(reportingDir, [".ts"])
+    .filter(
+      (file) =>
+        !readFileSync(file, "utf8")
+          .slice(0, 500)
+          .match(/根拠:[\s\S]*(REQ|SPEC-INT|AC|ADR)-\d{3,4}/),
+    )
+    .map((file) => `packages/shared/src/reporting/${basename(file)}`);
+}
+
+function adrReferenceFailures(): string[] {
+  const adrDir = join(REPO_ROOT, "docs", "adr");
+  const files = [
+    ...listFiles(join(REPO_ROOT, "packages"), [".ts", ".md"]),
+    ...listFiles(join(REPO_ROOT, "docs"), [".md"]),
+  ];
+  const refs = new Set<string>();
+  for (const file of files) {
+    for (const match of readFileSync(file, "utf8").matchAll(/ADR-(\d{4})/g)) refs.add(match[1]!);
+  }
+  return [...refs]
+    .sort()
+    .filter((id) => !readdirSync(adrDir).some((entry) => entry.startsWith(`${id}-`) && entry.endsWith(".md")))
+    .map((id) => `ADR-${id}`);
+}
+
 async function main(): Promise<void> {
   const prjopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "prjops.json"));
   const devopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "devops.json"));
@@ -174,6 +202,11 @@ async function main(): Promise<void> {
       "",
       formatResults("DevOps", devopsResults),
       "",
+      "## Traceability Guards",
+      "",
+      `- reporting根拠ヘッダ不足: ${reportingHeaderFailures().join(", ") || "—"}`,
+      `- 存在しないADR参照: ${adrReferenceFailures().join(", ") || "—"}`,
+      "",
     ].join("\n"),
     { parser: "markdown" },
   );
@@ -187,11 +220,13 @@ async function main(): Promise<void> {
     ["REQ", "SPEC-INT", "TH"].includes(r.category),
   );
   const hardFailures = mandatoryCategories.flatMap((r) => r.missingFromSrc);
+  const guardFailures = [
+    ...reportingHeaderFailures().map((file) => `reporting header missing: ${file}`),
+    ...adrReferenceFailures().map((id) => `ADR reference missing file: ${id}`),
+  ];
 
-  if (hardFailures.length > 0) {
-    console.error(
-      `\nE-TRACE01: 以下のID(REQ/SPEC-INT/TH)が実装コードに一切参照されていません: ${hardFailures.join(", ")}`,
-    );
+  if (hardFailures.length > 0 || guardFailures.length > 0) {
+    console.error(`\nE-TRACE01: トレーサビリティ検証に失敗しました: ${[...hardFailures, ...guardFailures].join(", ")}`);
     process.exitCode = 1;
   } else {
     console.log("\nOK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。");

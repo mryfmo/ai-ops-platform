@@ -7,13 +7,13 @@ import {
 } from "../src/components/charts/chartData";
 
 describe("chartData (ADR-0009 / SPEC-INT-064 / AC-010-3)", () => {
-  it("バーンダウンをRechartsのComposedChart用propsへ変換する", () => {
+  it("AC-010-3: バーンダウンをRechartsのComposedChart用propsへ変換する", () => {
     expect(toBurndownChartData([{ weekLabel: "2026-W28", opened: 3, resolved: 2, remaining: 5 }])).toEqual([
       { label: "2026-W28", opened: 3, resolved: 2, remaining: 5 },
     ]);
   });
 
-  it("時系列集計をchange-over-time用propsへ変換する", () => {
+  it("AC-010-3: 時系列集計をchange-over-time用propsへ変換する", () => {
     const rows = toTimeseriesChartData({
       period: "week",
       baseDate: "2026-07-09",
@@ -34,7 +34,7 @@ describe("chartData (ADR-0009 / SPEC-INT-064 / AC-010-3)", () => {
     expect(rows[0]).toMatchObject({ label: "07-09", opened: 1, closed: 2, remaining: 5, deployments: 6 });
   });
 
-  it("DORA 5をサービス単位trend propsへ変換する", () => {
+  it("AC-010-3: DORA 5をサービス単位trend propsへ変換する", () => {
     expect(
       toDoraChartData([
         {
@@ -53,7 +53,7 @@ describe("chartData (ADR-0009 / SPEC-INT-064 / AC-010-3)", () => {
     ]);
   });
 
-  it("KPI横棒は未入力値を除外する", () => {
+  it("AC-010-3: KPI横棒は未入力値を除外する", () => {
     expect(
       toMetricBarData([
         { label: "Revenue", value: 100 },

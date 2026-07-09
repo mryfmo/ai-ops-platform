@@ -13,9 +13,10 @@ export interface InvestorMetricDefinition {
   unit: string;
   cadence: "monthly" | "quarterly";
   kind: InvestorMetricKind;
-  version: "ILPA-2019";
+  version: string;
   effectiveFrom: string;
   required: boolean;
+  compute: (companies: InvestorPortfolioCompanyInput[], financialInputs: InvestorFinancialInputs) => number | null;
 }
 
 export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
@@ -28,6 +29,8 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
     version: "ILPA-2019",
     effectiveFrom: "2019-01-01",
     required: true,
+    compute: (companies, financialInputs) =>
+      financialInputs["revenue"] ?? sum(companies.map((company) => company.revenue)),
   },
   {
     id: "ebitda",
@@ -38,6 +41,8 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
     version: "ILPA-2019",
     effectiveFrom: "2019-01-01",
     required: false,
+    compute: (companies, financialInputs) =>
+      financialInputs["ebitda"] ?? sum(companies.map((company) => company.ebitda)),
   },
   {
     id: "milestone_delay_days",
@@ -48,6 +53,7 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
     version: "ILPA-2019",
     effectiveFrom: "2019-01-01",
     required: false,
+    compute: (companies) => companies.reduce((acc, company) => acc + company.milestoneDelayDays, 0),
   },
   {
     id: "high_severity_open_issues",
@@ -58,6 +64,7 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
     version: "ILPA-2019",
     effectiveFrom: "2019-01-01",
     required: false,
+    compute: (companies) => companies.reduce((acc, company) => acc + company.highSeverityOpenIssueCount, 0),
   },
 ];
 
@@ -96,13 +103,6 @@ export function buildInvestorReport(
   companies: InvestorPortfolioCompanyInput[],
   financialInputs: InvestorFinancialInputs = {},
 ): InvestorReport {
-  const metrics = new Map<string, number | null>([
-    ["revenue", financialInputs["revenue"] ?? sum(companies.map((company) => company.revenue))],
-    ["ebitda", financialInputs["ebitda"] ?? sum(companies.map((company) => company.ebitda))],
-    ["milestone_delay_days", companies.reduce((acc, company) => acc + company.milestoneDelayDays, 0)],
-    ["high_severity_open_issues", companies.reduce((acc, company) => acc + company.highSeverityOpenIssueCount, 0)],
-  ]);
-
   return {
     highlights: [
       `${companies.length} portfolio companies`,
@@ -112,7 +112,7 @@ export function buildInvestorReport(
       metricId: definition.id,
       label: definition.label,
       unit: definition.unit,
-      value: metrics.get(definition.id) ?? null,
+      value: definition.compute(companies, financialInputs),
       source: definition.kind,
     })),
     milestones: companies.map((company) => ({

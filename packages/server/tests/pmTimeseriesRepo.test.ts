@@ -21,6 +21,26 @@ describe("PmTimeseriesRepo (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-I
     expect(JSON.stringify(query.mock.calls[0]![1])).toContain("***REDACTED:generic_bearer***");
   });
 
+  it("AC-036-1: pm_events from_status/to_statusを保存する", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const repo = new PmTimeseriesRepo({ query });
+    await repo.recordEvent({
+      traceId: "00000000-0000-4000-8000-000000000001",
+      eventName: "projects_v2_item",
+      action: "edited",
+      projectId: "PVT_1",
+      repository: "octo/repo",
+      subjectType: "project_item",
+      subjectId: "PVTI_1",
+      occurredAt: "2026-07-09T00:00:00.000Z",
+      fromStatus: "Todo",
+      toStatus: "Done",
+      normalized: {},
+      rawPayload: {},
+    });
+    expect(query.mock.calls[0]![1]).toEqual(expect.arrayContaining(["projects_v2_item", "Todo", "Done"]));
+  });
+
   it("AC-031a: pm_snapshotsをupsert相当で保存する", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const repo = new PmTimeseriesRepo({ query });

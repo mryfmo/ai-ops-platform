@@ -9,7 +9,7 @@
 - `REQ-010 AC-010-1` は既存の手書きSVGチャート制約を前提にしているが、今後の週/月/四半期/半年/年切替、tooltip、軸、アクセシビリティ、RAG冗長表現を全て自前実装すると保守負担が大きい。
 - `docs/research/2026-07-09-charts-and-design.md` は、Recharts 3.9.2がReact 19 peerDeps対応、活発メンテ、a11yデフォルト有効、Tailwind v4のCSS変数テーミングと整合、MITであることを確認している。
 - 同調査は、Rechartsがclient-onlyであること、手書きSVG継続が唯一のゼロJS/RSC選択肢であることも確認している。
-- 仕様変更手続きとして、`.github/ISSUE_TEMPLATE/spec-change.yml` に従い `REQ-010 AC-010-1` のspec-change issue（https://github.com/mryfmo/ai-ops-platform/issues/2）を起票した。
+- 仕様変更手続きとして、`.github/ISSUE_TEMPLATE/spec-change.yml` に従い `REQ-010 AC-010-1` のspec-change issue（https://github.com/mryfmo/ai-ops-platform/issues/2）を起票した。正式承認は同issueで追跡し、本ADRは承認待ちの変更手続きに依存する。
 - 予定仕様ID: PrjOps `SPEC-INT-064` / `AC-010-3`。`SPEC-INT` のspec-id登録は実装コード参照と同じPRへ送る。
 
 ## 決定

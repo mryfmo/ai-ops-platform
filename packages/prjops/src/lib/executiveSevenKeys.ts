@@ -68,6 +68,13 @@ export interface ExecutiveSevenKeysSummary {
 }
 
 const RANK: Record<SevenKeysRag, number> = { red: 0, yellow: 1, grey: 2, green: 3 };
+// ADR-0010: GitHub由来RAGの初期校正値。運用実績で見直す前提で、正典キー名とは分離する。
+const WORK_PREDICTABILITY_YELLOW_PROGRESS_PCT = 70;
+const SCOPE_RED_CHANGE_COUNT = 5;
+const SCOPE_YELLOW_CHANGE_COUNT = 2;
+const TEAM_RED_MIN_ACTIVE_CONTRIBUTORS = 1;
+const TEAM_RED_REVIEW_WAIT_HOURS = 72;
+const TEAM_YELLOW_REVIEW_WAIT_HOURS = 48;
 
 function q(value: SevenKeysRag | undefined, missing: string): { rag: SevenKeysRag; basis: string } {
   return value ? { rag: value, basis: "questionnaire" } : { rag: "grey", basis: missing };
@@ -75,21 +82,25 @@ function q(value: SevenKeysRag | undefined, missing: string): { rag: SevenKeysRa
 
 function workAndSchedule(p: ExecutiveProjectInput): SevenKeysRag {
   if (p.isOverdue) return "red";
-  if (p.progressPct < 70) return "yellow";
+  if (p.progressPct < WORK_PREDICTABILITY_YELLOW_PROGRESS_PCT) return "yellow";
   return "green";
 }
 
 function scopeManaged(p: ExecutiveProjectInput): SevenKeysRag {
   if (p.scopeChangeCount === undefined) return "grey";
-  if (p.scopeChangeCount >= 5) return "red";
-  if (p.scopeChangeCount >= 2) return "yellow";
+  if (p.scopeChangeCount >= SCOPE_RED_CHANGE_COUNT) return "red";
+  if (p.scopeChangeCount >= SCOPE_YELLOW_CHANGE_COUNT) return "yellow";
   return "green";
 }
 
 function teamPerformance(p: ExecutiveProjectInput): SevenKeysRag {
   if (p.averageReviewWaitHours === undefined || p.activeContributorCount === undefined) return "grey";
-  if (p.activeContributorCount <= 1 || p.averageReviewWaitHours >= 72) return "red";
-  if (p.averageReviewWaitHours >= 48) return "yellow";
+  if (
+    p.activeContributorCount <= TEAM_RED_MIN_ACTIVE_CONTRIBUTORS ||
+    p.averageReviewWaitHours >= TEAM_RED_REVIEW_WAIT_HOURS
+  )
+    return "red";
+  if (p.averageReviewWaitHours >= TEAM_YELLOW_REVIEW_WAIT_HOURS) return "yellow";
   return "green";
 }
 

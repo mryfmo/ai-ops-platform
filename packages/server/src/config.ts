@@ -36,6 +36,8 @@ const configSchema = z.object({
   PUBLIC_BASE_URL: z.string().url(),
   /** Anthropic APIキー（自由文意図解釈で使用。未設定時はLLMフォールバック無効） */
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
+  GITHUB_PROJECT_NODE_ID: z.string().optional(),
   /**
    * コーディングタスク関連シークレット（ADR-0006）。二用途で共有する:
    *   (a) confirmToken.ts の HMAC-SHA256鍵（確認リンクtokenの生成・検証）

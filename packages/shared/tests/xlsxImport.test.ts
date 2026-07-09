@@ -44,13 +44,13 @@ function githubStub(): XlsxImportGithubClient {
 }
 
 describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
-  it("テンプレートxlsxを生成してパースできる", async () => {
+  it("AC-037-1: テンプレートxlsxを生成してパースできる", async () => {
     const parsed = await parseXlsxImport(await buildXlsxImportTemplateBuffer());
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows.map((row) => row.kind)).toEqual(["issue", "project_item", "milestone"]);
   });
 
-  it("未知列・必須欠落・source_key重複を全件レポートし、行を返さない", async () => {
+  it("AC-037-1: 未知列・必須欠落・source_key重複を全件レポートし、行を返さない", async () => {
     const buffer = await workbookBuffer((workbook) => {
       const issues = workbook.getWorksheet("issues")!;
       addHeaders(issues, ["source_key", "title", "body", "unknown"]);
@@ -77,7 +77,7 @@ describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     expect(parsed.errors.some((error) => error.message.includes("duplicate source_key"))).toBe(true);
   });
 
-  it("入力テキストの既知シークレットをサニタイズする", async () => {
+  it("AC-037-1: 入力テキストの既知シークレットをサニタイズする", async () => {
     const buffer = await workbookBuffer((workbook) => {
       const issues = workbook.getWorksheet("issues")!;
       addHeaders(issues, ["source_key", "title", "body", "labels", "milestone"]);
@@ -96,10 +96,31 @@ describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     expect(parsed.rows[0]?.kind).toBe("issue");
     expect(JSON.stringify(parsed.rows[0])).toContain("***REDACTED:authorization_header***");
   });
+
+  it("AC-037-1: 未知列名の既知シークレットをサニタイズする", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      const issues = workbook.getWorksheet("issues")!;
+      addHeaders(issues, ["source_key", "title", "body", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"]);
+      issues.addRow(["ISS-1", "title", "body", "x"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      addHeaders(workbook.getWorksheet("milestones")!, ["source_key", "title", "due_on", "description"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.errors.find((error) => error.message === "unknown column")?.column).toBe(
+      "***REDACTED:authorization_header***",
+    );
+  });
 });
 
 describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
-  it("既存source_keyをスキップし、issue bodyへimport markerを付ける", async () => {
+  it("AC-037-1: 既存source_keyをスキップし、issue bodyへimport markerを付ける", async () => {
     const ledger = new MemoryLedger();
     await ledger.insert({
       sourceKey: "SKIP-1",
@@ -125,7 +146,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].body).toContain("<!-- import:ISS-1 -->");
   });
 
-  it("Project v2はadd→updateの2段GraphQL相当を直列スロットリングする", async () => {
+  it("SPEC-INT-063: Project v2はadd→updateの2段GraphQL相当を直列スロットリングする", async () => {
     const github = githubStub();
     const sleep = vi.fn(async () => {});
     await executeXlsxImport({
@@ -155,7 +176,29 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     );
   });
 
-  it("appendImportMarkerは同一markerを重複追加しない", () => {
+  it("SPEC-INT-063: GraphQL rateLimit remainingが低ければresetAtまで待つ", async () => {
+    const github = githubStub();
+    vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
+      remaining: 1,
+      resetAt: "2026-07-09T00:00:01.000Z",
+    });
+    const sleep = vi.fn(async () => {});
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      minGraphqlRemaining: 50,
+      now: () => new Date("2026-07-09T00:00:00.000Z"),
+      sleep,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+    expect(sleep).toHaveBeenCalledWith(1000);
+  });
+
+  it("AC-037-1: appendImportMarkerは同一markerを重複追加しない", () => {
     expect(appendImportMarker("body\n\n<!-- import:ISS-1 -->", "ISS-1").match(/import:ISS-1/g)).toHaveLength(1);
   });
 });

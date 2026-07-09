@@ -76,7 +76,7 @@ describe("handleTimeseries (ADR-0007)", () => {
     expect(body.buckets.some((bucket: { burndownRemaining: number }) => bucket.burndownRemaining === 1)).toBe(true);
   });
 
-  it("personaが無ければ403を返す", async () => {
+  it("SPEC-INT-062: personaが無ければ403を返す", async () => {
     const res = await handleTimeseries({
       getSession: sessionWithEmail,
       resolver: resolverWith([]),

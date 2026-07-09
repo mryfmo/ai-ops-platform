@@ -66,17 +66,30 @@ const executiveData: ExecutiveSevenKeysData = {
 };
 
 describe("ExecutiveSevenKeysView（REQ-038: Seven Keys RAGマトリクス）", () => {
-  it("見出しにセブンキーダッシュボードのタイトルを表示する", () => {
+  it("AC-038-1: 見出しにセブンキーダッシュボードのタイトルを表示する", () => {
     const el = ExecutiveSevenKeysView({ data: executiveData });
     const heading = findElement(el, (e) => e.type === "h1");
     expect(heading).not.toBeNull();
     expect(propsOf(heading!)["children"]).toBe("経営ダッシュボード（Seven Keys）");
   });
 
-  it("未評価RAGを色だけでなくラベル表示する", () => {
+  it("AC-038-1: 未評価RAGを色だけでなくラベル表示する", () => {
     const el = ExecutiveSevenKeysView({ data: executiveData });
     const table = findElement(el, (e) => Array.isArray(propsOf(e)["rows"]));
     expect(propsOf(table!)["rows"]).toEqual(executiveData.projects);
+  });
+
+  it("AC-038-1: RAGセルに形状記号とテキストラベルを含める", () => {
+    const el = ExecutiveSevenKeysView({ data: executiveData });
+    const table = findElement(el, (e) => Array.isArray(propsOf(e)["columns"]));
+    const columns = propsOf(table!)["columns"] as Array<{
+      key: string;
+      render: (row: ExecutiveSevenKeysData["projects"][number]) => ReactElement;
+    }>;
+    const cell = columns.find((column) => column.key === "K1")!.render(executiveData.projects[0]!);
+    const badge = findElement(cell, (e) => propsOf(e)["variant"] === "grey");
+    expect(JSON.stringify(propsOf(badge!)["children"])).toContain("◇");
+    expect(JSON.stringify(propsOf(badge!)["children"])).toContain("未評価");
   });
 });
 
@@ -88,12 +101,23 @@ const investorData: InvestorReportData = {
 };
 
 describe("InvestorReportView（REQ-039: 投資家KPIパッケージ）", () => {
-  it("Investor Report見出しとKPIテーブルを表示する", () => {
+  it("AC-039-1: Investor Report見出しとKPIテーブルを表示する", () => {
     const el = InvestorReportView({ data: investorData });
     const heading = findElement(el, (e) => e.type === "h1");
     expect(propsOf(heading!)["children"]).toBe("Investor Report");
     const table = findElement(el, (e) => Array.isArray(propsOf(e)["rows"]) && propsOf(e)["rows"] === investorData.kpis);
     expect(table).not.toBeNull();
+  });
+
+  it("AC-010-3: KPIの数値セルをtabularで表示する", () => {
+    const el = InvestorReportView({ data: investorData });
+    const table = findElement(el, (e) => Array.isArray(propsOf(e)["rows"]) && propsOf(e)["rows"] === investorData.kpis);
+    const columns = propsOf(table!)["columns"] as Array<{
+      key: string;
+      render: (row: InvestorReportData["kpis"][number]) => ReactElement;
+    }>;
+    const cell = columns.find((column) => column.key === "value")!.render(investorData.kpis[0]!);
+    expect(propsOf(cell)["className"]).toBe("tabular");
   });
 });
 
@@ -112,7 +136,7 @@ const managerData: ManagerSummaryData = {
 };
 
 describe("ManagerSummaryView（ADR-0005: マネージャーサマリ+バーンダウン）", () => {
-  it("総プロジェクト数・総チケット数・残チケット数を表示する", () => {
+  it("AC-010-3: 総プロジェクト数・総チケット数・残チケット数を表示する", () => {
     const el = ManagerSummaryView({ data: managerData, domain: "prjops" });
     // <p>{count}件</p> はJSX上 children=[count, "件"] の配列になる
     const countEls = findAllElements(
@@ -125,19 +149,19 @@ describe("ManagerSummaryView（ADR-0005: マネージャーサマリ+バーン�
     expect(counts).toContain(4);
   });
 
-  it("domain=prjopsのときチケットラベルが「課題・アクション」になる", () => {
+  it("AC-010-3: domain=prjopsのときチケットラベルが「課題・アクション」になる", () => {
     const el = ManagerSummaryView({ data: managerData, domain: "prjops" });
     const label = findElement(el, (e) => propsOf(e)["title"] === "総課題・アクション数");
     expect(label).not.toBeNull();
   });
 
-  it("domain=devopsのときチケットラベルが「インシデント」になる", () => {
+  it("AC-010-3: domain=devopsのときチケットラベルが「インシデント」になる", () => {
     const el = ManagerSummaryView({ data: managerData, domain: "devops" });
     const label = findElement(el, (e) => propsOf(e)["title"] === "総インシデント数");
     expect(label).not.toBeNull();
   });
 
-  it("プロジェクト一覧DataTableに全プロジェクトのrowsを渡す", () => {
+  it("AC-010-3: プロジェクト一覧DataTableに全プロジェクトのrowsを渡す", () => {
     const el = ManagerSummaryView({ data: managerData, domain: "prjops" });
     const table = findElement(
       el,
@@ -149,7 +173,7 @@ describe("ManagerSummaryView（ADR-0005: マネージャーサマリ+バーン�
     expect(table).not.toBeNull();
   });
 
-  it("バーンダウンのDataTableにweekLabel/opened/resolved/remainingを持つrowsを渡す", () => {
+  it("AC-010-3: バーンダウンのDataTableにweekLabel/opened/resolved/remainingを持つrowsを渡す", () => {
     const el = ManagerSummaryView({ data: managerData, domain: "prjops" });
     const table = findElement(
       el,

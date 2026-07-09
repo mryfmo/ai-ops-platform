@@ -179,8 +179,7 @@ export function aggregateTimeseries(input: {
       bucket,
       opened: events.filter((event) => isOpenAction(event.action)).length,
       closed: events.filter((event) => isClosedAction(event.action, event.state)).length,
-      statusTransitions: events.filter((event) => event.fromStatus !== undefined || event.toStatus !== undefined)
-        .length,
+      statusTransitions: events.filter((event) => event.fromStatus != null || event.toStatus != null).length,
       milestoneCompleted: events.filter(
         (event) => event.kind === "milestone" && isClosedAction(event.action, event.state),
       ).length,

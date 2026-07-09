@@ -241,10 +241,27 @@ async function main(): Promise<void> {
       }),
       createPmSnapshotReconcileTask({
         repo: pmTimeseriesRepo,
-        client: {
-          // ponytail: no configured Projects v2 target yet; replace with a GitHub GraphQL client when installation tokens land.
-          listCurrentSnapshots: async () => ({ rateLimit: { remaining: 999 }, snapshots: [] }),
-        },
+        client: config.GITHUB_PROJECT_NODE_ID
+          ? {
+              listCurrentSnapshots: (cursor) =>
+                githubClient.listCurrentProjectV2Snapshots({
+                  projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
+                  cursor,
+                }),
+            }
+          : {
+              listCurrentSnapshots: async () => {
+                await auditLog.append({
+                  trace_id: randomUUID(),
+                  actor: "SERVER",
+                  action: "pm_snapshot_reconcile_disabled",
+                  basis: "SPEC-INT-081",
+                  detail: { reason: "GITHUB_PROJECT_NODE_ID is not configured" },
+                  at: new Date().toISOString(),
+                });
+                return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
+              },
+            },
         auditLog,
         traceIdProvider: () => randomUUID(),
       }),

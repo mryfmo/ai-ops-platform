@@ -14,9 +14,9 @@
 ## 決定
 
 - 標準報告はCI（GitHub Actions）からのheadless生成のみを正規経路とする。対話セッションで生成した文章は標準報告として扱わない。
-- Claude Codeは `claude -p --bare --output-format json --json-schema` で実行する。
-- Droidは `droid exec -o json` で実行し、リポジトリ側でJSON内容を共通スキーマ検証する。
-- スロット文字数の上限は両プラットフォームともスキーマだけでは強制できないため、sharedの `anthropicClient` ラッパーに検証、リトライ、切詰めを実装する方針とする。
+- Claude Codeは `claude -p --bare --output-format json --json-schema` で実行する。ただしLLMに渡すスキーマは文章スロット専用であり、数値・根拠ID・reportType・periodLabelはCI側のコードで算出・注入する。
+- Droidは `droid exec -o json` で実行し、リポジトリ側で文章スロットJSONを検証する。最終報告JSONは `finalizeReportJson` がCI内で組み立てる。
+- スロット文字数の上限は両プラットフォームともスキーマだけでは強制できないため、CIの最終化ステップで検証、必要時の決定的切詰め、監査ファイル出力を行う。
 - 報告テンプレートとスキーマは共通ソース1箇所に置く。`.claude/skills` と `.factory/droids` / `.factory/skills` は、その共通ソースを参照する薄い入口に限定する。
 
 ## 根拠

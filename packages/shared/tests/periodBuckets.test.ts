@@ -37,4 +37,21 @@ describe("periodBuckets (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-
     expect(result.totals).toMatchObject({ opened: 2, closed: 1, statusTransitions: 1, deployments: 1 });
     expect(result.buckets.find((b) => b.bucket.id === "2026-07-06")?.burndownRemaining).toBe(1);
   });
+
+  it("SPEC-INT-062: nullのfrom/to statusは遷移として数えない", () => {
+    const result = aggregateTimeseries({
+      period: "week",
+      baseDate: "2026-07-09",
+      events: [
+        {
+          occurredAt: "2026-07-08T10:00:00+09:00",
+          kind: "projects_v2_item",
+          fromStatus: null,
+          toStatus: null,
+        },
+      ],
+      snapshots: [],
+    });
+    expect(result.totals.statusTransitions).toBe(0);
+  });
 });

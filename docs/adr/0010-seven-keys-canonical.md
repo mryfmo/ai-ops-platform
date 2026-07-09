@@ -23,8 +23,11 @@
   - Delivery organization benefits
 - direct controlsであるキー3/4/5と、キー6の一部はGitHub由来データからコードで算出する。
 - indirect controlsであるキー1/2/7と、キー6の定性的部分は構造化質問票で入力する。LLMは文章スロットの整形に限定し、RAG判定の数値算出には使わない。
+- 構造化質問票は `PrjopsProjectRecord.questionnaire` から `ExecutiveProjectInput.questionnaire` へ渡し、欠落時は推測せずgreyにする。
+- GitHub由来RAGの閾値（進捗70%、scope change 2/5、review wait 48/72h等）は初期校正値であり、正典の固定値ではない。運用実績に基づく見直しは別PRで扱う。
 - 現行の予算消化率はSeven Keysから除去する。必要な場合は財務・投資家向けの別ビューで扱う。
 - 月次PDCAサイクルを報告ジョブに組み込み、前月RAG、当月RAG、主要変化、次アクションを記録する。
+- 月次PDCAの永続保存とジョブ配線は、現時点では純粋関数 `buildSevenKeysMonthlySnapshot` までを本スコープとし、保存先・スケジューラ連携は実運用の月次ストア設計へ送る。
 
 ## 根拠
 

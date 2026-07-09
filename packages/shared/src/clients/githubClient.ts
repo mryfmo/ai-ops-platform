@@ -75,6 +75,22 @@ export interface WorkflowDispatchInput {
   inputs: Record<string, string>;
 }
 
+export interface ProjectV2SnapshotRecord {
+  projectId: string | null;
+  repository: string | null;
+  sourceType: "issue" | "pull_request" | "milestone" | "project_item" | "project_status";
+  sourceId: string;
+  state: string | null;
+  payload: unknown;
+}
+
+export interface ProjectV2SnapshotPage {
+  rateLimit: { remaining: number; cost?: number; resetAt?: string };
+  snapshots: ProjectV2SnapshotRecord[];
+  hasMore: boolean;
+  nextCursor?: string | null;
+}
+
 export class GitHubClient {
   constructor(
     private readonly tokenProvider: GitHubTokenProvider,
@@ -148,6 +164,57 @@ export class GitHubClient {
       {},
     );
     return { remaining: data.rateLimit.remaining, resetAt: data.rateLimit.resetAt };
+  }
+
+  async listCurrentProjectV2Snapshots(input: {
+    projectNodeId: string;
+    cursor?: string | null;
+  }): Promise<ProjectV2SnapshotPage> {
+    const data = await this.graphql<{
+      rateLimit: { remaining: number; cost?: number; resetAt?: string };
+      node?: {
+        items?: {
+          pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+          nodes: Array<Record<string, unknown>>;
+        };
+      };
+    }>(
+      `query ProjectSnapshots($projectId: ID!, $cursor: String) {
+        node(id: $projectId) {
+          ... on ProjectV2 {
+            items(first: 50, after: $cursor) {
+              pageInfo { hasNextPage endCursor }
+              nodes {
+                id
+                content {
+                  __typename
+                  ... on Issue { id number title state repository { nameWithOwner } }
+                  ... on PullRequest { id number title state repository { nameWithOwner } }
+                  ... on Milestone { id title state dueOn }
+                }
+                fieldValues(first: 20) {
+                  nodes {
+                    __typename
+                    ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
+                    ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        rateLimit { remaining cost resetAt }
+      }`,
+      { projectId: input.projectNodeId, cursor: input.cursor ?? null },
+    );
+    const items = data.node?.items;
+    const snapshots = (items?.nodes ?? []).map((item) => toProjectV2Snapshot(input.projectNodeId, item));
+    return {
+      rateLimit: data.rateLimit,
+      snapshots,
+      hasMore: items?.pageInfo.hasNextPage ?? false,
+      nextCursor: items?.pageInfo.endCursor ?? null,
+    };
   }
 
   async addProjectV2ItemById(input: { projectNodeId: string; contentNodeId: string }): Promise<{ itemNodeId: string }> {
@@ -353,5 +420,38 @@ function toPullRequestSummary(raw: Record<string, unknown>): PullRequestSummary 
     createdAt: String(raw.created_at ?? ""),
     updatedAt: String(raw.updated_at ?? ""),
     merged: raw.merged === true || raw.merged_at != null,
+  };
+}
+
+function fieldName(field: unknown): string {
+  return String((field as Record<string, unknown> | undefined)?.name ?? "");
+}
+
+function statusFromFieldValues(fieldValues: unknown): string | null {
+  const nodes = (fieldValues as { nodes?: Array<Record<string, unknown>> } | undefined)?.nodes ?? [];
+  const status = nodes.find((node) => fieldName(node.field).toLowerCase() === "status");
+  if (!status) return null;
+  return typeof status.name === "string" ? status.name : typeof status.text === "string" ? status.text : null;
+}
+
+function toProjectV2Snapshot(projectId: string, item: Record<string, unknown>): ProjectV2SnapshotRecord {
+  const content = (item.content as Record<string, unknown> | null | undefined) ?? undefined;
+  const typeName = String(content?.__typename ?? "");
+  const sourceType =
+    typeName === "Issue"
+      ? "issue"
+      : typeName === "PullRequest"
+        ? "pull_request"
+        : typeName === "Milestone"
+          ? "milestone"
+          : "project_item";
+  const repository = (content?.repository as Record<string, unknown> | undefined)?.nameWithOwner;
+  return {
+    projectId,
+    repository: typeof repository === "string" ? repository : null,
+    sourceType,
+    sourceId: String(content?.id ?? item.id),
+    state: statusFromFieldValues(item.fieldValues) ?? (typeof content?.state === "string" ? content.state : null),
+    payload: item,
   };
 }

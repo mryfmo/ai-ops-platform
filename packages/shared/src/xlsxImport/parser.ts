@@ -1,6 +1,12 @@
+/**
+ * packages/shared/src/xlsxImport/parser.ts
+ *
+ * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
+ * Excelインポート入力を検証し、GitHub APIに渡す前に既知シークレットをサニタイズする。
+ */
 import ExcelJS from "exceljs";
 import { sanitizeSecrets } from "../secretSanitizer.js";
-import { XLSX_IMPORT_TEMPLATE, type ImportTargetKind, type SheetName } from "./template.js";
+import { XLSX_IMPORT_TEMPLATE, type SheetName } from "./template.js";
 
 export interface ImportValidationError {
   sheet: SheetName;
@@ -73,7 +79,7 @@ function rowValues(sheet: ExcelJS.Worksheet, rowNumber: number): Record<string, 
   const row = sheet.getRow(rowNumber);
   const out: Record<string, unknown> = {};
   header.eachCell((cell, colNumber) => {
-    const key = asText(cell.value);
+    const key = cleanText(cell.value);
     if (key) out[key] = row.getCell(colNumber).value;
   });
   return out;
@@ -82,7 +88,7 @@ function rowValues(sheet: ExcelJS.Worksheet, rowNumber: number): Record<string, 
 function validateHeaders(sheet: ExcelJS.Worksheet, sheetName: SheetName, errors: ImportValidationError[]): void {
   const expected = new Set(XLSX_IMPORT_TEMPLATE[sheetName].map((column) => column.key));
   sheet.getRow(1).eachCell((cell) => {
-    const key = asText(cell.value);
+    const key = cleanText(cell.value);
     if (key && !expected.has(key)) errors.push({ sheet: sheetName, row: 1, column: key, message: "unknown column" });
   });
 }
@@ -102,12 +108,6 @@ function validateRequired(
       errors.push({ sheet: sheetName, row: rowNumber, column: column.key, message: "required value missing" });
     }
   }
-}
-
-function kindForSheet(sheetName: SheetName): ImportTargetKind {
-  if (sheetName === "issues") return "issue";
-  if (sheetName === "project_items") return "project_item";
-  return "milestone";
 }
 
 function toImportRow(sheetName: SheetName, values: Record<string, unknown>): XlsxImportRow {
@@ -181,7 +181,5 @@ export async function parseXlsxImport(buffer: Buffer): Promise<ParsedXlsxImport>
   }
 
   const validRows = errors.length === 0 ? rows : [];
-  // kindForSheet is intentionally referenced for traceability: target kinds are fixed to ADR-0008 scope.
-  void kindForSheet;
   return { rows: validRows, errors };
 }

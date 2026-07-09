@@ -22,6 +22,7 @@ import {
   computeExecutiveSevenKeys,
   type ExecutiveProjectInput,
   type ExecutiveSevenKeysSummary,
+  type SevenKeysQuestionnaireInput,
   buildInvestorReport,
   type InvestorFinancialInputs,
   type InvestorReport,
@@ -49,6 +50,7 @@ export interface PrjopsProjectRecord {
   scopeChangeCount?: number;
   averageReviewWaitHours?: number;
   activeContributorCount?: number;
+  questionnaire?: SevenKeysQuestionnaireInput;
   revenue?: number;
   ebitda?: number;
 }
@@ -102,8 +104,8 @@ async function scopedProjects(
 export type ExecutiveSummaryResult = ExecutiveSevenKeysSummary;
 
 /**
- * PRF-04向け経営層セブンキー（数値4項目）を算出する。
- * color/isOverdueはPrjopsProjectRecordに保持済みの判定結果（REQ-007 judgeStatus相当）をそのまま使う。
+ * PRF-04向け経営層セブンキーを算出する。
+ * 定性キーはPrjopsProjectRecord.questionnaireから渡し、GitHub由来キーだけをコードで算出する。
  */
 export async function buildExecutiveSummary(
   provider: PrjopsReportDataProvider,
@@ -113,13 +115,14 @@ export async function buildExecutiveSummary(
   const projects = await scopedProjects(provider, profile, ctx);
   const inputs: ExecutiveProjectInput[] = projects.map((p) => ({
     projectId: p.projectId,
-    color: p.color,
+    name: p.name,
     progressPct: p.progressPct,
     highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
     isOverdue: p.isOverdue,
     scopeChangeCount: p.scopeChangeCount,
     averageReviewWaitHours: p.averageReviewWaitHours,
     activeContributorCount: p.activeContributorCount,
+    questionnaire: p.questionnaire,
   }));
   return computeExecutiveSevenKeys(inputs);
 }

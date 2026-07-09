@@ -1,3 +1,9 @@
+/**
+ * packages/shared/src/xlsxImport/engine.ts
+ *
+ * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
+ * Excelインポート行をGitHub Issue / Project v2 / Milestoneへ反映し、source_key台帳で冪等化する。
+ */
 import { appendImportMarker, type ImportTargetKind } from "./template.js";
 import type { XlsxImportRow } from "./parser.js";
 
@@ -49,7 +55,9 @@ export interface ExecuteXlsxImportOptions {
   ledger: ImportLedger;
   github: XlsxImportGithubClient;
   throttleMs?: number;
+  minGraphqlRemaining?: number;
   sleep?: (ms: number) => Promise<void>;
+  now?: () => Date;
 }
 
 export interface ExecuteXlsxImportResult {
@@ -68,9 +76,23 @@ async function waitForWrite(index: number, throttleMs: number, sleep: (ms: numbe
   if (index > 0 && throttleMs > 0) await sleep(throttleMs);
 }
 
+async function waitForRateLimit(
+  github: XlsxImportGithubClient,
+  minRemaining: number,
+  sleep: (ms: number) => Promise<void>,
+  now: () => Date,
+): Promise<void> {
+  const rateLimit = await github.getGraphqlRateLimit();
+  if (rateLimit.remaining > minRemaining) return;
+  const resetDelayMs = Date.parse(rateLimit.resetAt) - now().getTime();
+  if (resetDelayMs > 0) await sleep(resetDelayMs);
+}
+
 export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise<ExecuteXlsxImportResult> {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const throttleMs = opts.throttleMs ?? 1000;
+  const minGraphqlRemaining = opts.minGraphqlRemaining ?? 50;
+  const now = opts.now ?? (() => new Date());
   const progress: ExecuteXlsxImportResult["progress"] = [];
   let imported = 0;
   let skipped = 0;
@@ -86,7 +108,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
     }
 
     await waitForWrite(writeIndex, throttleMs, sleep);
-    await opts.github.getGraphqlRateLimit();
+    await waitForRateLimit(opts.github, minGraphqlRemaining, sleep, now);
     writeIndex += 1;
 
     try {

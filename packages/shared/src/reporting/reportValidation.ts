@@ -1,3 +1,8 @@
+/**
+ * packages/shared/src/reporting/reportValidation.ts
+ *
+ * 根拠: REQ-040 / SPEC-INT-067 / SPEC-INT-082。
+ */
 import {
   STANDARD_REPORT_SCHEMA_VERSION,
   standardReportSlotKeys,

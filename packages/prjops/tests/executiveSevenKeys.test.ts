@@ -53,6 +53,11 @@ describe("assessProjectSevenKeys [REQ-038, SPEC-INT-065, AC-038-1]", () => {
     expect(rag(result, "K5")).toBe("red");
     expect(rag(result, "K6")).toBe("red");
   });
+
+  it("AC-038-1: 高重大度リスクなしでリスク質問票も無いK6はgreyにする", () => {
+    const result = assessProjectSevenKeys(project({ highSeverityOpenIssueCount: 0, questionnaire: undefined }));
+    expect(rag(result, "K6")).toBe("grey");
+  });
 });
 
 describe("computeExecutiveSevenKeys [REQ-038]", () => {

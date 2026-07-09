@@ -12,7 +12,7 @@ const sessionWithEmail = async (): Promise<Session | null> =>
   ({ user: { email: "investor@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
 
 describe("handleInvestorSummary [REQ-039, SPEC-INT-066, AC-039-1]", () => {
-  it("investorペルソナで投資家サマリを返す", async () => {
+  it("AC-039-1: investorペルソナで投資家サマリを返す", async () => {
     const personas: ResolvedPersona[] = [
       {
         domain: "investor",
@@ -52,5 +52,26 @@ describe("handleInvestorSummary [REQ-039, SPEC-INT-066, AC-039-1]", () => {
     const body = await res.json();
     expect(body.kpis.find((kpi: { metricId: string }) => kpi.metricId === "revenue").value).toBe(100);
     expect(body.risks).toHaveLength(1);
+  });
+
+  it("AC-039-1: investorペルソナが無ければ403を返す", async () => {
+    const res = await handleInvestorSummary({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([
+        {
+          domain: "prjops",
+          profile: "PRF-03",
+          visibility: {
+            recipientStakeholderId: "STK-MGR",
+            recipientManagedProjectIds: ["PRJ-0001"],
+            recipientAssignedProjectIds: [],
+            recipientParticipatingProjectIds: [],
+            investedProjectIds: [],
+          },
+        },
+      ]),
+      provider: new InMemoryPrjopsReportDataProvider([], []),
+    });
+    expect(res.status).toBe(403);
   });
 });
