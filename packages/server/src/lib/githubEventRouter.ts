@@ -91,6 +91,14 @@ function subjectId(payload: unknown, type: PmSubjectType): string | null {
     return String(readNumber(payload, ["milestone", "number"]) ?? readString(payload, ["milestone", "node_id"]) ?? "");
   if (type === "project_item")
     return readString(payload, ["projects_v2_item", "node_id"]) ?? readString(payload, ["projects_v2_item", "id"]);
+  if (type === "deployment")
+    return String(
+      readNumber(payload, ["deployment_status", "id"]) ??
+        readNumber(payload, ["deployment", "id"]) ??
+        readString(payload, ["deployment_status", "node_id"]) ??
+        readString(payload, ["deployment", "node_id"]) ??
+        "",
+    );
   return (
     readString(payload, ["projects_v2_status_update", "node_id"]) ??
     readString(payload, ["projects_v2_status_update", "id"])
@@ -101,6 +109,12 @@ function occurredAt(payload: unknown, type: PmSubjectType, fallback: string): st
   if (type === "issue") return readString(payload, ["issue", "updated_at"]) ?? fallback;
   if (type === "pull_request") return readString(payload, ["pull_request", "updated_at"]) ?? fallback;
   if (type === "milestone") return readString(payload, ["milestone", "updated_at"]) ?? fallback;
+  if (type === "deployment")
+    return (
+      readString(payload, ["deployment_status", "created_at"]) ??
+      readString(payload, ["deployment", "created_at"]) ??
+      fallback
+    );
   if (type === "project_status") return readString(payload, ["projects_v2_status_update", "updated_at"]) ?? fallback;
   return readString(payload, ["projects_v2_item", "updated_at"]) ?? fallback;
 }
@@ -116,6 +130,8 @@ export function normalizePmWebhookEvent(
     milestone: "milestone",
     projects_v2_item: "project_item",
     projects_v2_status_update: "project_status",
+    deployment: "deployment",
+    deployment_status: "deployment",
   };
   const subjectType = subjectTypeByEvent[event.eventName];
   if (!subjectType) return null;

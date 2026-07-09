@@ -91,9 +91,12 @@ async function waitForRateLimit(
   now: () => Date,
 ): Promise<void> {
   const rateLimit = await github.getGraphqlRateLimit();
-  if (rateLimit.remaining > minRemaining) return;
+  if (rateLimit.remaining >= minRemaining) return;
   const resetDelayMs = Date.parse(rateLimit.resetAt) - now().getTime();
-  if (resetDelayMs > 0) await sleep(resetDelayMs);
+  if (resetDelayMs <= 0) throw new Error("rateLimit resetAt is in the past");
+  await sleep(resetDelayMs);
+  const refreshed = await github.getGraphqlRateLimit();
+  if (refreshed.remaining < minRemaining) throw new Error("rateLimit remaining is still below floor after reset");
 }
 
 function errorMessage(err: unknown): string {

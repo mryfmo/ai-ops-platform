@@ -19,6 +19,13 @@ describe("periodBuckets (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-
     expect(buildPeriodBuckets("year", "2026-07-09")).toHaveLength(12);
   });
 
+  it("不正baseDateは無音集計せず明示エラーにする", () => {
+    expect(() => resolvePeriodRange("week", "")).toThrow(/invalid date/i);
+    expect(() => aggregateTimeseries({ period: "week", baseDate: "2026-13-45", events: [], snapshots: [] })).toThrow(
+      /invalid date/i,
+    );
+  });
+
   it("SPEC-INT-062: pm_events/pm_snapshotsから決定的に集計する", () => {
     const result = aggregateTimeseries({
       period: "week",

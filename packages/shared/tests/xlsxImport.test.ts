@@ -117,6 +117,25 @@ describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
       "***REDACTED:authorization_header***",
     );
   });
+
+  it("AC-037-1: due_onはTZ付き文字列でも日付部分を保つ", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title", "body", "labels", "milestone"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      const milestones = workbook.getWorksheet("milestones")!;
+      addHeaders(milestones, ["source_key", "title", "due_on", "description"]);
+      milestones.addRow(["MS-1", "v1", "2026-07-09T00:00:00+09:00", "desc"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows[0]).toMatchObject({ kind: "milestone", dueOn: "2026-07-09" });
+  });
 });
 
 describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
@@ -196,6 +215,50 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
       rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
     });
     expect(sleep).toHaveBeenCalledWith(1000);
+  });
+
+  it("SPEC-INT-063: rateLimit remainingがfloorちょうどなら待たない", async () => {
+    const github = githubStub();
+    vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
+      remaining: 50,
+      resetAt: "2026-07-09T00:00:01.000Z",
+    });
+    const sleep = vi.fn(async () => {});
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      minGraphqlRemaining: 50,
+      now: () => new Date("2026-07-09T00:00:00.000Z"),
+      sleep,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("SPEC-INT-063: rateLimit resetAtが過去ならGitHubへ書き込まず失敗理由を残す", async () => {
+    const github = githubStub();
+    vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
+      remaining: 1,
+      resetAt: "2026-07-08T00:00:00.000Z",
+    });
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      minGraphqlRemaining: 50,
+      now: () => new Date("2026-07-09T00:00:00.000Z"),
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+    expect(result.failed).toBe(1);
+    expect(vi.mocked(github.createIssue)).not.toHaveBeenCalled();
+    expect(result.progress[0]?.error).toContain("rateLimit");
   });
 
   it("SPEC-INT-063: 台帳pending記録に失敗した行はGitHubへ書き込まず、失敗理由を残す", async () => {

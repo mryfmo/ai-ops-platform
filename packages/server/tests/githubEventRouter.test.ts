@@ -156,4 +156,32 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(saved).toHaveLength(1);
     expect(saved[0]).toMatchObject({ eventName: "issues", subjectType: "issue" });
   });
+
+  it("L1b-2: deployment_status webhookをpm_eventsへ正規化しDeploy集計に使える形で保存する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const saved: unknown[] = [];
+    await dispatchGithubWebhookEvent(
+      {
+        eventName: "deployment_status",
+        payload: {
+          action: "created",
+          repository: { full_name: "octo/repo" },
+          deployment: { id: 123, created_at: "2026-07-09T00:00:00Z" },
+          deployment_status: { id: 456, state: "success", created_at: "2026-07-09T00:01:00Z" },
+        },
+      },
+      "trace-deploy",
+      {
+        auditLog,
+        pmRepo: { recordEvent: async (event: unknown) => saved.push(event) } as never,
+        handlers: { AGT_BLD: async () => {}, AGT_DEP: async () => {}, AGT_INC: async () => {} },
+      },
+    );
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      eventName: "deployment_status",
+      subjectType: "deployment",
+      subjectId: "456",
+    });
+  });
 });

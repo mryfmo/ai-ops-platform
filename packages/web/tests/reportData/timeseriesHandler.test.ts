@@ -86,4 +86,46 @@ describe("handleTimeseries (ADR-0007)", () => {
     });
     expect(res.status).toBe(403);
   });
+
+  it("L1b-2: pm_eventsのdeployment_statusをDeploy数として集計する", async () => {
+    const personas: ResolvedPersona[] = [
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        visibility: {
+          recipientUserId: "ST-001",
+          recipientAssignedProjectIds: [],
+        },
+      },
+    ];
+    const db: PgQueryable = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes("pm_events")) {
+          return {
+            rows: [
+              {
+                event_name: "deployment_status",
+                action: "created",
+                project_id: null,
+                occurred_at: "2026-07-09T00:01:00+09:00",
+                from_status: null,
+                to_status: null,
+              },
+            ],
+          };
+        }
+        return { rows: [] };
+      }),
+    };
+    const res = await handleTimeseries({
+      getSession: sessionWithEmail,
+      resolver: resolverWith(personas),
+      db,
+      period: "week",
+      baseDate: "2026-07-09",
+      persona: "manager",
+    });
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ totals: { deployments: 1 } });
+  });
 });

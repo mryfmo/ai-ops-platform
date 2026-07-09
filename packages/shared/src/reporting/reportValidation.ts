@@ -22,7 +22,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function countChars(value: string): number {
-  return Array.from(value).length;
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(value)).length;
+  }
+  return Array.from(value.normalize("NFC")).length;
+}
+
+function splitChars(value: string): string[] {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(value), (part) => part.segment);
+  }
+  return Array.from(value.normalize("NFC"));
 }
 
 function validateSlots(slots: unknown): ReportValidationResult {
@@ -101,8 +113,8 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
     }
   }
 
-  if (!isRecord(payload.metrics) || Object.values(payload.metrics).some((value) => typeof value !== "number")) {
-    errors.push("metrics must be an object of numbers");
+  if (!isRecord(payload.metrics) || Object.values(payload.metrics).some((value) => !Number.isFinite(value))) {
+    errors.push("metrics must be an object of finite numbers");
   }
 
   const slotResult = validateSlots(payload.slots);
@@ -117,7 +129,7 @@ export function assertValidStandardReportPayload(payload: unknown): asserts payl
 }
 
 function truncateText(value: string, maxChars: number): string {
-  const chars = Array.from(value);
+  const chars = splitChars(value);
   if (chars.length <= maxChars) return value;
   if (maxChars <= 1) return chars.slice(0, maxChars).join("");
   return `${chars.slice(0, maxChars - 1).join("")}…`;

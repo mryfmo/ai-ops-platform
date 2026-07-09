@@ -47,7 +47,7 @@ export function createPmSnapshotReconcileTask(deps: PmSnapshotReconcileTaskDeps)
             actor: "SERVER",
             action: "pm_snapshot_reconcile_skipped",
             basis: "SPEC-INT-081",
-            detail: { remaining: page.rateLimit.remaining, resetAt: page.rateLimit.resetAt ?? null },
+            detail: { remaining: page.rateLimit.remaining, resetAt: page.rateLimit.resetAt ?? null, stored },
             at: now.toISOString(),
           });
           return;

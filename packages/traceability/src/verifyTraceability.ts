@@ -15,7 +15,7 @@
  *   実装コードへの直接参照を必須としない（警告のみ）。
  */
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format as formatMarkdown } from "prettier";
 
@@ -129,16 +129,17 @@ function formatResults(systemName: string, results: CategoryResult[]): string {
   return lines.join("\n");
 }
 
-function reportingHeaderFailures(): string[] {
+function basisHeaderFailures(): string[] {
   const reportingDir = join(REPO_ROOT, "packages", "shared", "src", "reporting");
-  return listFiles(reportingDir, [".ts"])
+  const serverDir = join(REPO_ROOT, "packages", "server", "src");
+  return [...listFiles(reportingDir, [".ts"]), ...listFiles(serverDir, [".ts"])]
     .filter(
       (file) =>
         !readFileSync(file, "utf8")
           .slice(0, 500)
           .match(/根拠:[\s\S]*(REQ|SPEC-INT|AC|ADR)-\d{3,4}/),
     )
-    .map((file) => `packages/shared/src/reporting/${basename(file)}`);
+    .map((file) => file.replace(`${REPO_ROOT}/`, ""));
 }
 
 function adrReferenceFailures(): string[] {
@@ -205,7 +206,7 @@ async function main(): Promise<void> {
       "",
       "## Traceability Guards",
       "",
-      `- reporting根拠ヘッダ不足: ${reportingHeaderFailures().join(", ") || "—"}`,
+      `- 根拠ヘッダ不足: ${basisHeaderFailures().join(", ") || "—"}`,
       `- 存在しないADR参照: ${adrReferenceFailures().join(", ") || "—"}`,
       "",
     ].join("\n"),
@@ -222,7 +223,7 @@ async function main(): Promise<void> {
   );
   const hardFailures = mandatoryCategories.flatMap((r) => r.missingFromSrc);
   const guardFailures = [
-    ...reportingHeaderFailures().map((file) => `reporting header missing: ${file}`),
+    ...basisHeaderFailures().map((file) => `basis header missing: ${file}`),
     ...adrReferenceFailures().map((id) => `ADR reference missing file: ${id}`),
   ];
 

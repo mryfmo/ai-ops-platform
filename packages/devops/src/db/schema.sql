@@ -16,7 +16,7 @@ CREATE INDEX IF NOT EXISTS idx_events_trace_id ON events (trace_id);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events (status);
 
 -- ADR-0007 / PrjOps SPEC-INT-062 / DevOps SPEC-INT-081: GitHub PM時系列イベント。
--- projects_v2_item / projects_v2_status_update / issues / pull_request / milestone webhookを正規化し、
+-- projects_v2_item / projects_v2_status_update / issues / pull_request / milestone / deployment webhookを正規化し、
 -- raw_payloadは保存前にsanitizeSecrets()を通すこと（REQ-036 / REQ-031）。
 CREATE TABLE IF NOT EXISTS pm_events (
   event_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS pm_events (
   action      TEXT,
   project_id  TEXT,
   repository  TEXT,
-  subject_type TEXT NOT NULL CHECK (subject_type IN ('issue', 'pull_request', 'milestone', 'project_item', 'project_status')),
+  subject_type TEXT NOT NULL CHECK (subject_type IN ('issue', 'pull_request', 'milestone', 'project_item', 'project_status', 'deployment')),
   subject_id  TEXT,
   occurred_at TIMESTAMPTZ NOT NULL,
   from_status TEXT,
@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS pm_events (
 CREATE INDEX IF NOT EXISTS idx_pm_events_time ON pm_events (occurred_at);
 CREATE INDEX IF NOT EXISTS idx_pm_events_project_time ON pm_events (project_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_pm_events_subject ON pm_events (subject_type, subject_id);
+ALTER TABLE pm_events DROP CONSTRAINT IF EXISTS pm_events_subject_type_check;
+ALTER TABLE pm_events ADD CONSTRAINT pm_events_subject_type_check CHECK (subject_type IN ('issue', 'pull_request', 'milestone', 'project_item', 'project_status', 'deployment')) NOT VALID;
 
 -- ADR-0007 / DevOps AC-031a: 定期フルsnapshot。webhook取りこぼしreconcileの正本。
 CREATE TABLE IF NOT EXISTS pm_snapshots (

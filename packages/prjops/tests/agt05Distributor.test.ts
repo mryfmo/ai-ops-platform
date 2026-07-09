@@ -83,6 +83,33 @@ describe("distributeOne [REQ-018, SPEC-INT-052]", () => {
     expect(cardCounter.count).toBe(1);
   });
 
+  it("メール成功後のカード失敗はメール失敗扱いにせず、次回カードだけ再試行する", async () => {
+    const sentMails: Array<{ subject: string }> = [];
+    let cardCalls = 0;
+    const deps: DistributorDependencies = {
+      graphClient: {
+        sendMail: async (input) => {
+          sentMails.push({ subject: input.subject });
+        },
+        sendAdaptiveCard: async () => {
+          cardCalls += 1;
+          if (cardCalls === 1) throw new Error("card down");
+          return { messageId: "card-2" };
+        },
+      },
+      deliveryLogStore: new InMemoryDeliveryLogStore(),
+      auditLog: new InMemoryAuditLog(),
+      traceId: "trace-card",
+      fromMailbox: "prjops-system@example.com",
+    };
+
+    await expect(distributeOne(baseTarget, deps)).resolves.toBe("sent");
+    await expect(distributeOne(baseTarget, deps)).resolves.toBe("sent");
+    expect(sentMails).toHaveLength(1);
+    expect(cardCalls).toBe(2);
+    expect((await deps.auditLog.readAll()).some((record) => record.action === "deliver_card_failed")).toBe(true);
+  });
+
   it("postTeamsSummaryCard=falseならカードは投稿されない", async () => {
     const { deps, cardCounter } = makeDeps();
     await distributeOne({ ...baseTarget, postTeamsSummaryCard: false }, deps);

@@ -68,8 +68,16 @@ function parseCsv(value: unknown): string[] {
 }
 
 function normalizeDate(value: unknown): string {
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
   const text = asText(value);
   if (!text) return "";
+  const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
+  if (datePart) return datePart;
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? text : date.toISOString().slice(0, 10);
 }

@@ -87,14 +87,14 @@ function workAndSchedule(p: ExecutiveProjectInput): SevenKeysRag {
 }
 
 function scopeManaged(p: ExecutiveProjectInput): SevenKeysRag {
-  if (p.scopeChangeCount === undefined) return "grey";
+  if (p.scopeChangeCount == null) return "grey";
   if (p.scopeChangeCount >= SCOPE_RED_CHANGE_COUNT) return "red";
   if (p.scopeChangeCount >= SCOPE_YELLOW_CHANGE_COUNT) return "yellow";
   return "green";
 }
 
 function teamPerformance(p: ExecutiveProjectInput): SevenKeysRag {
-  if (p.averageReviewWaitHours === undefined || p.activeContributorCount === undefined) return "grey";
+  if (p.averageReviewWaitHours == null || p.activeContributorCount == null) return "grey";
   if (
     p.activeContributorCount <= TEAM_RED_MIN_ACTIVE_CONTRIBUTORS ||
     p.averageReviewWaitHours >= TEAM_RED_REVIEW_WAIT_HOURS
@@ -118,12 +118,12 @@ export function assessProjectSevenKeys(project: ExecutiveProjectInput): Executiv
     K3: { rag: workAndSchedule(project), basis: "progress/isOverdue" },
     K4: {
       rag: scopeManaged(project),
-      basis: project.scopeChangeCount === undefined ? "scope change data missing" : "scopeChangeCount",
+      basis: project.scopeChangeCount == null ? "scope change data missing" : "scopeChangeCount",
     },
     K5: {
       rag: teamPerformance(project),
       basis:
-        project.averageReviewWaitHours === undefined || project.activeContributorCount === undefined
+        project.averageReviewWaitHours == null || project.activeContributorCount == null
           ? "review/contributor data missing"
           : "review wait/contributors",
     },

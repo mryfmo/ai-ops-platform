@@ -71,6 +71,29 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(countChars(truncated.slots.conclusion)).toBeLessThanOrEqual(standardReportSlotMaxChars("conclusion"));
   });
 
+  it("metricsのNaN/Infinityを拒否する [SPEC-INT-067]", () => {
+    const payload = buildStandardReportPayload(
+      {
+        evidenceIds: ["REQ-040"],
+        periodLabel: "2026-W28",
+        metrics: { completed: Number.NaN, blocked: Number.POSITIVE_INFINITY },
+      },
+      validSlots,
+      "2026-07-09T16:00:00+09:00",
+    );
+    expect(validateStandardReportPayload(payload).ok).toBe(false);
+  });
+
+  it("文字数と切詰めは書記素クラスタを割らない [SPEC-INT-067]", () => {
+    expect(countChars("🇯🇵👨‍👩‍👧‍👦é")).toBe(3);
+    const truncated = truncateReportSlots({
+      ...validSlots,
+      conclusion: "🇯🇵".repeat(standardReportSlotMaxChars("conclusion") + 1),
+    });
+    expect(countChars(truncated.slots.conclusion)).toBe(standardReportSlotMaxChars("conclusion"));
+    expect(truncated.slots.conclusion).not.toContain("\ud83c…");
+  });
+
   it("LLMラッパーは1回リトライ後も超過なら切詰めを監査ログへ記録する [SPEC-INT-067, SPEC-INT-082]", async () => {
     const tooLong = {
       ...validSlots,

@@ -67,7 +67,14 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function parseJstDate(dateLike: string): Date {
   const datePart = dateLike.slice(0, 10);
-  const [year, month, day] = datePart.split("-").map(Number);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (!match) throw new Error(`invalid date: ${dateLike}`);
+  const [, y, m, d] = match;
+  const year = Number(y);
+  const month = Number(m);
+  const day = Number(d);
+  const roundTrip = new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
+  if (roundTrip !== datePart) throw new Error(`invalid date: ${dateLike}`);
   return new Date(Date.UTC(year!, month! - 1, day!) - JST_OFFSET_MS);
 }
 

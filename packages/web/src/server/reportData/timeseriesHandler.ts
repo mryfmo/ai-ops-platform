@@ -53,7 +53,7 @@ function eventKind(eventName: string): TimeseriesEventInput["kind"] {
   if (eventName === "milestone") return "milestone";
   if (eventName === "projects_v2_item") return "projects_v2_item";
   if (eventName === "projects_v2_status_update") return "projects_v2_status_update";
-  if (eventName === "deployment") return "deployment";
+  if (eventName === "deployment" || eventName === "deployment_status") return "deployment";
   return "issue";
 }
 

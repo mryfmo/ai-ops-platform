@@ -6,7 +6,7 @@
  */
 import { sanitizeSecrets, type PgQueryable } from "@aiops/shared";
 
-export type PmSubjectType = "issue" | "pull_request" | "milestone" | "project_item" | "project_status";
+export type PmSubjectType = "issue" | "pull_request" | "milestone" | "project_item" | "project_status" | "deployment";
 
 export interface PmEventRecordInput {
   traceId: string;
@@ -27,7 +27,7 @@ export interface PmSnapshotRecordInput {
   traceId: string;
   projectId: string | null;
   repository: string | null;
-  sourceType: PmSubjectType | "deployment";
+  sourceType: PmSubjectType;
   sourceId: string;
   state: string | null;
   capturedAt: string;

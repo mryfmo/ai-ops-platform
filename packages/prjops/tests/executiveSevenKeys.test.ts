@@ -54,6 +54,18 @@ describe("assessProjectSevenKeys [REQ-038, SPEC-INT-065, AC-038-1]", () => {
     expect(rag(result, "K6")).toBe("red");
   });
 
+  it("nullのGitHub由来メトリクスは欠損としてgreyにする", () => {
+    const result = assessProjectSevenKeys(
+      project({
+        scopeChangeCount: null,
+        averageReviewWaitHours: null,
+        activeContributorCount: null,
+      } as unknown as Partial<ExecutiveProjectInput>),
+    );
+    expect(rag(result, "K4")).toBe("grey");
+    expect(rag(result, "K5")).toBe("grey");
+  });
+
   it("AC-038-1: 高重大度リスクなしでリスク質問票も無いK6はgreyにする", () => {
     const result = assessProjectSevenKeys(project({ highSeverityOpenIssueCount: 0, questionnaire: undefined }));
     expect(rag(result, "K6")).toBe("grey");

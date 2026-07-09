@@ -44,6 +44,28 @@ function jstDayOfWeek(now: Date): number {
   return new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCDay();
 }
 
+function jstDateAtStart(now: Date): Date {
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - 9 * 60 * 60 * 1000);
+}
+
+function toJstDateString(date: Date): string {
+  return todayJstDateString(date);
+}
+
+function isFirstBusinessDayOfWeek(calendar: HolidayCalendar, now: Date): boolean {
+  const today = toJstDateString(now);
+  if (!isBusinessDay(calendar, today)) return false;
+  const start = jstDateAtStart(now);
+  const day = jstDayOfWeek(now);
+  const daysSinceMonday = (day + 6) % 7;
+  for (let i = 1; i <= daysSinceMonday; i += 1) {
+    const previous = new Date(start.getTime() - i * 24 * 60 * 60 * 1000);
+    if (isBusinessDay(calendar, toJstDateString(previous))) return false;
+  }
+  return true;
+}
+
 function escapeHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,
@@ -115,15 +137,31 @@ export async function deliverStandardReportToRecipients(
   const recipients = await deps.recipientsRepo.listForDelivery();
   const activeRecords = devopsActiveRecords(recipients);
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
-  const targets: DeliveryTarget[] = activeRecipients.map((recipient) => {
+  const targets: DeliveryTarget[] = [];
+  for (const recipient of activeRecipients) {
     const persona = recipient.persona ?? recipient.profile;
-    const dashboardUrl = buildDashboardDeepLink({
-      publicBaseUrl: deps.publicBaseUrl,
-      persona,
-      periodLabel: record.periodLabel,
-    });
     const teamsChannelId = recipient.teamsChannelId ?? deps.defaultTeamsChannelId;
-    return {
+    let dashboardUrl: string | undefined;
+    if (teamsChannelId) {
+      try {
+        dashboardUrl = buildDashboardDeepLink({
+          publicBaseUrl: deps.publicBaseUrl,
+          persona,
+          periodLabel: record.periodLabel,
+        });
+      } catch (err) {
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-05",
+          action: "report_delivery_recipient_skipped",
+          basis: "REQ-042 SPEC-INT-069",
+          detail: { recipientId: recipient.userId, reason: String(err) },
+          at: new Date().toISOString(),
+        });
+        continue;
+      }
+    }
+    targets.push({
       reportId: record.reportId,
       recipientId: recipient.userId,
       recipientEmail: recipient.email,
@@ -132,8 +170,8 @@ export async function deliverStandardReportToRecipients(
       postTeamsSummaryCard: Boolean(teamsChannelId),
       teamsChannelId: teamsChannelId ?? undefined,
       dashboardUrl,
-    };
-  });
+    });
+  }
   const result = await runDistributionCycle(targets, {
     graphClient: deps.graphClient,
     deliveryLogStore: deps.deliveryLogStore,
@@ -170,13 +208,12 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
         return;
       }
 
-      const today = todayJstDateString(now);
-      if (!isBusinessDay(deps.calendar, today) || jstDayOfWeek(now) !== 1) return;
+      if (!isFirstBusinessDayOfWeek(deps.calendar, now)) return;
 
       let sent = 0;
       let skipped = 0;
       let failed = 0;
-      for (const report of await deps.standardReportsRepo.listRecent()) {
+      for (const report of await deps.standardReportsRepo.listRecent(100)) {
         const result = await deliverStandardReportToRecipients(
           report,
           { ...deps, fromMailbox: deps.fromMailbox },

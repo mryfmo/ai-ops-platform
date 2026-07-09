@@ -120,4 +120,60 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(JSON.stringify(cards[0])).toContain("openUrlActions");
     expect(JSON.stringify(cards[0])).toContain("/app/dashboard?persona=manager&period=2026-W28");
   });
+
+  it("月曜祝日なら週内の次営業日にキャッチアップ配信する", async () => {
+    const mails: unknown[] = [];
+    const task = createReportDeliveryTask({
+      enabled: true,
+      fromMailbox: "from@example.com",
+      publicBaseUrl: "https://aiops.example.com",
+      calendar: buildHolidayCalendar([{ date: "2026-07-06", name_ja: "振替休日", verified: true }]),
+      recipientsRepo: { listForDelivery: async () => [recipient()] },
+      standardReportsRepo: { listRecent: async () => [report] },
+      graphClient: { sendMail: async (m) => void mails.push(m), sendAdaptiveCard: async () => ({ messageId: "m" }) },
+      deliveryLogStore: new InMemoryDeliveryLogStore(),
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-catchup",
+    });
+    await task.run(new Date("2026-07-07T00:00:00.000Z"));
+    expect(mails).toHaveLength(1);
+  });
+
+  it("不正publicBaseUrlは該当受信者だけskipして監査し、他受信者を継続する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const mails: Array<{ toEmail: string }> = [];
+    const result = await deliverStandardReportToRecipients(
+      report,
+      {
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "not-a-url",
+        recipientsRepo: {
+          listForDelivery: async () => [
+            recipient({
+              userId: "ST-001",
+              email: "bad-link@example.com",
+              persona: "manager",
+              teamsChannelId: "chan-1",
+            }),
+            recipient({ userId: "ST-002", email: "ok@example.com", persona: "investor" }),
+          ],
+        },
+        graphClient: {
+          sendMail: async (m: { toEmail: string }) => void mails.push(m),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog,
+        traceIdProvider: () => "trace-link",
+      },
+      "trace-link",
+    );
+    expect(result.activeRecipients).toBe(2);
+    expect(result.sent).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(mails.map((mail) => mail.toEmail)).toEqual(["ok@example.com"]);
+    expect((await auditLog.readAll()).some((record) => record.action === "report_delivery_recipient_skipped")).toBe(
+      true,
+    );
+  });
 });

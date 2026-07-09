@@ -193,6 +193,9 @@ DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテス�
 ### T15 整合監査の残範囲
 
 - verified-integration: `mise run ci` により、lint / traceability / format / build / typecheck / test:coverage を並列実行で確認した。
+- verified-integration: T17標準レポート配信は `reportIngestRoutes.test.ts` / `reportDeliveryTask.test.ts` / `createGraphSubscriptionTool.test.ts` でDI結合検証済み。`/reports/ingest` はHMAC検証、schema検証、`standard_reports` 永続化、新規作成時のみ配信起動を確認した。`reportDeliveryTask` は recipients/filter、Outlookメール、Teamsカード、deep link、delivery log 冪等性をモックGraphで確認済み。
+- requires-real-env: T17標準レポート配信の実Graph送信、Teams card投稿、GitHub Actions `report-generation.yml` から公開 `/reports/ingest` への実POSTは、Microsoft 365 tenant、Graph app permission、GitHub org secrets、public endpoint が必要なため未実施。
+- documented-scope-out: フェイルセーフは T21 時点で healthcheck task が `failsafe_activated` / `failsafe_recovered` を監査し共有状態を更新するところまで。配信/dispatchタスクの自動停止と全プロジェクトチャネル通知は未実装で、実装済み停止機能としては扱わない。
 - verified-integration: Seven Keys質問票は `PrjopsProjectRecord.questionnaire` から `ExecutiveProjectInput.questionnaire` へ配線済み。欠落時はgrey、入力時はK1/K2/K7へ反映される。
 - verified-integration: `buildSevenKeysMonthlySnapshot` の前月RAGとの差分算出はテスト済み。
 - verified-integration (data source pending): 月次PDCAスナップショットは `seven_keys_snapshots` に追記専用で永続化し、第1営業日の `seven-keys-monthly-snapshot` タスクで同月重複をskip監査ログに記録する。前月比は Executive Seven Keys view に optional snapshot として表示する。現composition rootではPrjOps report data providerが未実装のため、provider不在時はdisabled監査ログを理由つきで残し、created扱いにはしない。

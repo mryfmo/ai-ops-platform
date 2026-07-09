@@ -218,8 +218,7 @@ async function main(): Promise<void> {
           return true;
         },
         activateFailsafe: async () => {
-          // SPEC-EXT-042: 全プロジェクトチャネルへの「自動運用一時停止」通知は
-          // teamsConversationAgent実装後に接続する（現段階では監査ログのみ）
+          // T21 documented-scope-out: フェイルセーフは状態と監査のみ。配信/dispatch停止は未実装。
         },
         isFailsafeActive: () => failsafeActive,
         setFailsafeActive: (v) => {
