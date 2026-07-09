@@ -77,7 +77,8 @@
     "SPEC-INT-063",
     "SPEC-INT-064",
     "SPEC-INT-070",
-    "SPEC-INT-080"
+    "SPEC-INT-080",
+    "SPEC-INT-082"
   ],
   "TH": ["TH-001", "TH-002", "TH-003", "TH-004", "TH-005", "TH-006", "TH-007"],
   "ISS": ["ISS-01", "ISS-02", "ISS-03", "ISS-04", "ISS-05", "ISS-06", "ISS-07", "ISS-08"],
@@ -121,6 +122,7 @@
     "AC-027a",
     "AC-028a",
     "AC-029a",
-    "AC-030a"
+    "AC-030a",
+    "AC-032a"
   ]
 }

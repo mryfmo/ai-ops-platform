@@ -1,0 +1,74 @@
+# .github/workflows/report-generation.yml
+#
+# 根拠: ADR-0012 / REQ-040 / SPEC-INT-067 / SPEC-INT-082。
+# 標準報告はCIからheadless生成し、共通スキーマで検証する。実LLM呼び出しはworkflow_dispatch/schedule時のみ。
+name: report-generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "report generator (claude-code | droid)"
+        required: true
+        type: choice
+        options:
+          - claude-code
+          - droid
+        default: claude-code
+      period_label:
+        description: "Report period label"
+        required: true
+        type: string
+  schedule:
+    # 雛形: 毎週月曜 07:00 JST
+    - cron: "0 22 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-standard-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare common schema and prompt
+        run: |
+          set -euo pipefail
+          pnpm exec tsx packages/shared/src/reporting/printReportSchema.ts > standard-report.schema.json
+          pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts <<'JSON'
+          {"schemaVersion":"standard-report.v1","reportType":"weekly-summary","evidenceIds":["REQ-040"],"period":{"label":"dry-run","generatedAt":"dry-run"},"metrics":{"completed":0},"slots":{"conclusion":"dry-run","riskSummary":"dry-run","nextActions":"dry-run"}}
+          JSON
+
+      - name: Generate report with Claude Code
+        if: ${{ inputs.agent == 'claude-code' || github.event_name == 'schedule' }}
+        env:
+          PERIOD_LABEL: ${{ inputs.period_label || 'scheduled weekly period' }}
+        run: |
+          set -euo pipefail
+          claude -p /generate-report --bare --output-format json --json-schema standard-report.schema.json > report.json
+          pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts report.json
+
+      - name: Generate report with Droid
+        if: ${{ inputs.agent == 'droid' }}
+        env:
+          PERIOD_LABEL: ${{ inputs.period_label }}
+        run: |
+          set -euo pipefail
+          droid exec -f .factory/droids/report-generator.md -o json > report.json
+          pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts report.json

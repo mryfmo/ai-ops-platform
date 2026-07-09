@@ -82,3 +82,4 @@ export function composeInvestorReport(common: ComposeCommonOptions, data: Invest
 export * from "./reportShell.js";
 export * from "./svgCharts.js";
 export * from "./profileReports.js";
+export * from "./weeklySummaryReport.js";
