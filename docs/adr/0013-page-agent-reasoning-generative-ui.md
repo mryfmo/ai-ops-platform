@@ -16,7 +16,7 @@
 1. **client-side Generative UI** を採用する。`useChat` が受け取る typed UI message parts を React で分岐し、`tool-*` part の `output` に含まれる ViewSpec を既存 DashboardClient の表示更新へ渡す。
 2. **`ai/rsc` と `streamUI` は使わない**。AI SDK v5 の RSC surface は experimental であり、本番導線には AI SDK UI の client-side Generative UI を使う。
 3. **Reasoning UI** は `streamText(...).toUIMessageStreamResponse({ sendReasoning: true })` で転送し、クライアントでは `part.type === "reasoning"` を折りたたみ表示する。
-4. **Anthropic extended thinking** は `providerOptions.anthropic.thinking: { type: "enabled", budgetTokens }` で有効化する。budget は環境変数で設定可能にし、未指定時は既定値を使う。
+4. **Anthropic extended thinking** は `providerOptions.anthropic.thinking: { type: "enabled", budgetTokens }` で有効化する。budget は環境変数で設定可能にし、未指定時は既定値を使う。Anthropic公式ドキュメントでは extended thinking と `temperature` / `top_k` の変更は非互換のため、ページエージェントは thinking 有効時に `temperature` を送らない。`claude-sonnet-4-6` の manual thinking はサポート対象だが deprecated とされているため、adaptive thinking への移行はモデル移行タスクで扱う。
 5. **エージェントループ** は `streamText` + `stopWhen: stepCountIs(N)` + `prepareStep` を使う。`Experimental_Agent` は v7 で surface が変わるため使わない。
 6. **HITL が必要な破壊的操作は今回入れない**。将来必要になった場合も v5 の手動パターン（execute なし tool + `addToolOutput`）に限定し、`toolApproval` は使わない。
 7. **resumable streams は導入しない**。Redis 依存と abort 非互換があるため、必要性が実証されるまで見送る。

@@ -37,5 +37,5 @@ The page agent exposes tools in [`packages/web/src/server/chat/tools.ts`](../../
 
 - Auth and persona resolution happen before tool construction.
 - If `ANTHROPIC_API_KEY` is unset, `/app/api/chat` returns 503.
-- The model is called with temperature `0`, step cap `PAGE_AGENT_MAX_STEPS` or 5, and Anthropic thinking budget `PAGE_AGENT_THINKING_BUDGET_TOKENS` or 12000.
+- The model is called with step cap `PAGE_AGENT_MAX_STEPS` or 5 and Anthropic thinking budget `PAGE_AGENT_THINKING_BUDGET_TOKENS` or 12000. `temperature` is intentionally omitted because Anthropic extended thinking is not compatible with non-default temperature settings.
 - The system prompt forbids the assistant from inventing numeric values in prose.

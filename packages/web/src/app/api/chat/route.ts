@@ -40,7 +40,10 @@ export async function POST(request: Request): Promise<Response> {
     ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY })(CHAT_MODEL)
     : undefined;
 
-  const costGuard = new PgCostGuard(pool, { perAgentDailyLimitUsd: { "WEB-CHAT": 10 } });
+  const costGuard = new PgCostGuard(pool, {
+    perAgentDailyLimitUsd: { "WEB-CHAT": 10 },
+    perAgentRequestLimitUsd: { "WEB-CHAT": 1 },
+  });
 
   const body = (await request.json()) as { messages: UIMessage[]; pageContext?: unknown };
 

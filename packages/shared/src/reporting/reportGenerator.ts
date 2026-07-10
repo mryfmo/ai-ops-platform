@@ -73,6 +73,12 @@ export async function generateReportSlots(opts: GenerateReportSlotsOptions): Pro
   const retryPayload = buildStandardReportPayload(opts, retry.value);
   const retryValidation = validateStandardReportPayload(retryPayload);
   if (retryValidation.ok) return { slots: retry.value, attempts: 2, truncatedKeys: [] };
+  if (retryValidation.errors.some((error) => error.includes("ungrounded numeric value"))) {
+    await appendAudit(opts.auditLog, opts.traceId, opts.actor, "report_slot_numeric_rejected", {
+      errors: retryValidation.errors,
+    });
+    throw new Error(`E-RPT04: report slot contains ungrounded numeric value: ${retryValidation.errors.join("; ")}`);
+  }
 
   const truncated = truncateReportSlots(retry.value);
   await appendAudit(opts.auditLog, opts.traceId, opts.actor, "report_slot_truncated", {

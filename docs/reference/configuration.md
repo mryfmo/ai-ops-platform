@@ -66,4 +66,4 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 ## Runtime Notes
 
 - `GITHUB_TOKEN` is read directly in `packages/server/src/index.ts` for the GitHub token provider fallback.
-- Web chat records cost through `PgCostGuard` as agent `WEB-CHAT` with a daily limit configured in route code.
+- Web chat records cost through `PgCostGuard` as agent `WEB-CHAT` with route-code daily and per-request limits. The resident server uses the same guard for Teams free-text fallback as agent `SERVER`.

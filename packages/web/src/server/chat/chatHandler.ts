@@ -6,12 +6,12 @@
  *
  * 認可: dataApiSupport.resolvePersonas（requireSession+requirePersona経由）で未認証401・
  *   権限外403を処理する（既存 /api/data/* ハンドラと同じ方式）。
- * コストガード: PgCostGuard.assertWithinBudget() で日次上限超過を検知し429を返す
+ * コストガード: PgCostGuard.reserve() で呼び出し前に見積コストを予約し、日次上限超過を429で返す
  *   （SPEC-INT-060。agent="WEB-CHAT"としてサブ上限を区別できるようにする）。
  *   security-reviewer指摘(高): 従来assertWithinBudgetの事前チェックのみで、応答後の
  *   costGuard.record()が一度も呼ばれておらず、llm_usageに実消費が記録されないため日次上限が
  *   実質機能していなかった。streamTextのonFinishでusageを受け取り記録するよう修正した
- *   （既存AnthropicStructuredClient.callと同じestimateCostUsdを再利用）。
+ *   T26ではreserve/reconcile方式にして、ストリーム途中エラーでも予約行が残るようにする。
  * 未設定時503: ANTHROPIC_API_KEY が無い場合はモデル呼び出し自体を行わず503を返す
  *   （呼び出し側route.tsがconfig.ANTHROPIC_API_KEYの有無を渡す）。
  *
@@ -34,6 +34,7 @@ import { buildSystemPrompt, type PageAgentContext } from "./systemPrompt";
 export const CHAT_COST_AGENT = "WEB-CHAT";
 const DEFAULT_PAGE_AGENT_MAX_STEPS = 5;
 const DEFAULT_THINKING_BUDGET_TOKENS = 12000;
+const DEFAULT_CHAT_ESTIMATED_OUTPUT_TOKENS = 4096;
 
 export interface ChatHandlerDeps {
   getSession: () => Promise<Session | null>;
@@ -93,6 +94,21 @@ function sanitizeMessages(messages: UIMessage[]): UIMessage[] {
   }));
 }
 
+export class ChatRefusalError extends Error {
+  constructor() {
+    super("E-LLM-REFUSAL: model refused the chat request");
+    this.name = "ChatRefusalError";
+  }
+}
+
+function estimatedMessageTokens(system: string, messages: UIMessage[]): number {
+  return Math.ceil((system.length + JSON.stringify(messages).length) / 4) + 512;
+}
+
+export function isRefusalFinishReason(finishReason: unknown): boolean {
+  return finishReason === "refusal" || finishReason === "content-filter";
+}
+
 export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
   try {
     const personas = await resolvePersonas(deps.getSession, deps.resolver);
@@ -102,8 +118,27 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
       return Response.json({ error: "チャット機能は現在利用できません" }, { status: 503 });
     }
 
+    const tools = buildToolsForPersona(persona);
+    const system = buildSystemPrompt(persona, sanitizePageContext(deps.pageContext));
+
+    const modelName = deps.modelName ?? DEFAULT_MODEL;
+    const sanitizedMessages = sanitizeMessages(deps.messages);
+    const reservedUsage = {
+      at: new Date().toISOString(),
+      agent: CHAT_COST_AGENT,
+      purpose: "view_switching",
+      model: modelName,
+      input_tokens: estimatedMessageTokens(system, sanitizedMessages),
+      output_tokens: DEFAULT_CHAT_ESTIMATED_OUTPUT_TOKENS,
+      estimated_cost_usd: estimateCostUsd(
+        modelName,
+        estimatedMessageTokens(system, sanitizedMessages),
+        DEFAULT_CHAT_ESTIMATED_OUTPUT_TOKENS,
+      ),
+    };
+    let reservationId: string;
     try {
-      await deps.costGuard.assertWithinBudget(CHAT_COST_AGENT);
+      reservationId = await deps.costGuard.reserve(reservedUsage);
     } catch {
       return Response.json(
         { error: "E-COST01: 本日のLLM利用上限に達したため、チャットは一時的に利用できません" },
@@ -111,16 +146,11 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
       );
     }
 
-    const tools = buildToolsForPersona(persona);
-    const system = buildSystemPrompt(persona, sanitizePageContext(deps.pageContext));
-
-    const modelName = deps.modelName ?? DEFAULT_MODEL;
     const result = streamText({
       model: deps.languageModel,
       system,
-      messages: convertToModelMessages(sanitizeMessages(deps.messages)),
+      messages: convertToModelMessages(sanitizedMessages),
       tools,
-      temperature: 0,
       stopWhen: stepCountIs(deps.maxSteps ?? DEFAULT_PAGE_AGENT_MAX_STEPS),
       providerOptions: {
         anthropic: {
@@ -131,12 +161,11 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
         },
       },
       prepareStep: async () => ({ toolChoice: "auto" }),
-      onFinish: async ({ usage }) => {
-        // security-reviewer指摘(高)対応: 応答完了時に必ずllm_usageへ記録し、
-        // assertWithinBudgetの日次上限チェックを実効化する。
-        const inputTokens = usage?.inputTokens ?? 0;
-        const outputTokens = usage?.outputTokens ?? 0;
-        await deps.costGuard.record({
+      onFinish: async ({ finishReason, totalUsage }) => {
+        if (finishReason === "error") return;
+        const inputTokens = totalUsage?.inputTokens ?? 0;
+        const outputTokens = totalUsage?.outputTokens ?? 0;
+        await deps.costGuard.reconcileReservation(reservationId, {
           at: new Date().toISOString(),
           agent: CHAT_COST_AGENT,
           purpose: "view_switching",
@@ -145,6 +174,9 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
           output_tokens: outputTokens,
           estimated_cost_usd: estimateCostUsd(modelName, inputTokens, outputTokens),
         });
+        if (isRefusalFinishReason(finishReason)) {
+          throw new ChatRefusalError();
+        }
       },
     });
 

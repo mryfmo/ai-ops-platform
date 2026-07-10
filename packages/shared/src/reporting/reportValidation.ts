@@ -17,6 +17,13 @@ export interface ReportValidationResult {
   errors: string[];
 }
 
+export interface ReportSlotNumericFinding {
+  slot: StandardReportSlotKey;
+  value: string;
+}
+
+const NUMBER_PATTERN = /\d+(?:\.\d+)?%?/g;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -60,6 +67,33 @@ function validateSlots(slots: unknown): ReportValidationResult {
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+function metricNumberStrings(metrics: Record<string, unknown>): Set<string> {
+  const values = new Set<string>();
+  for (const value of Object.values(metrics)) {
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    const numberValue = Number(value);
+    values.add(String(numberValue));
+    if (Number.isInteger(numberValue)) values.add(String(Math.trunc(numberValue)));
+  }
+  return values;
+}
+
+export function findUngroundedSlotNumbers(
+  slots: StandardReportSlots,
+  metrics: Record<string, number>,
+): ReportSlotNumericFinding[] {
+  const allowed = metricNumberStrings(metrics);
+  const findings: ReportSlotNumericFinding[] = [];
+  for (const key of standardReportSlotKeys()) {
+    const matches = slots[key].match(NUMBER_PATTERN) ?? [];
+    for (const raw of matches) {
+      const normalized = raw.endsWith("%") ? raw.slice(0, -1) : raw;
+      if (!allowed.has(normalized)) findings.push({ slot: key, value: raw });
+    }
+  }
+  return findings;
 }
 
 export function parseReportSlots(raw: unknown): StandardReportSlots {
@@ -119,6 +153,15 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
 
   const slotResult = validateSlots(payload.slots);
   errors.push(...slotResult.errors);
+  if (isRecord(payload.metrics) && slotResult.ok) {
+    const findings = findUngroundedSlotNumbers(
+      payload.slots as StandardReportSlots,
+      payload.metrics as Record<string, number>,
+    );
+    for (const finding of findings) {
+      errors.push(`slots.${finding.slot} contains ungrounded numeric value ${finding.value}`);
+    }
+  }
 
   return { ok: errors.length === 0, errors };
 }

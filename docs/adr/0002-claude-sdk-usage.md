@@ -23,6 +23,13 @@
   Messages APIを、**ツール強制（`tool_choice: {type:"tool", name:...}`）**方式で呼び出す
   （`packages/shared/src/clients/anthropicClient.ts`）。この方式は自由文からのJSON抽出よりも
   パース失敗率が低く、決定的なスキーマ検証と組み合わせやすい。
+- Messages API の既定モデルは `claude-sonnet-4-6` に意図的にピンする。2026-07-10時点の
+  Anthropic公式ドキュメントではより新しい `claude-sonnet-5` が存在するが、Sonnet 5 へ移行すると
+  manual extended thinking と非既定サンプリングパラメータの扱いが変わるため、モデル移行は別タスクで
+  互換性検証と一緒に行う。
+- 自由文構造化のエスカレーション先 `claude-opus-4-8` では、Anthropic公式 migration guide に従い
+  非既定 `temperature` / `top_p` / `top_k` を送らない。`claude-sonnet-4-6` の通常構造化呼び出しは
+  従来どおり `temperature: 0` を維持する。
 - **コード修正案の生成**（DevOps AGT-BLDのみ）は `@anthropic-ai/claude-agent-sdk` の`query()`を
   使用し、read-only権限（`allowedTools`を`Read`/`Grep`/`Glob`のみに限定、`disallowedTools`で
   `Write`/`Edit`/`Bash`等を明示的に禁止、さらに`canUseTool`フックで多層防御）で実行する

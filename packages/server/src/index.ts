@@ -187,7 +187,7 @@ async function main(): Promise<void> {
   const llmClient = config.ANTHROPIC_API_KEY
     ? new AnthropicStructuredClient(
         new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }),
-        new PgCostGuard(pool, { perAgentDailyLimitUsd: { SERVER: 10 } }),
+        new PgCostGuard(pool, { perAgentDailyLimitUsd: { SERVER: 10 }, perAgentRequestLimitUsd: { SERVER: 1 } }),
       )
     : undefined;
 

@@ -38,6 +38,10 @@ export interface CostGuard {
   getTodaySpendUsd(): Promise<number>;
   /** 利用実績を記録する（audit/llm_usage.jsonl相当） */
   record(usage: LlmUsageRecord): Promise<void>;
+  /** 呼び出し前に見積コストを予約する */
+  reserve?(usage: LlmUsageRecord): Promise<string>;
+  /** 予約済み行を実コストへ照合する */
+  reconcileReservation?(reservationId: string, usage: LlmUsageRecord): Promise<void>;
   /** 日次上限（既定 $20。SPEC-INT-060。PRF-03が設定ファイルで変更可） */
   dailyLimitUsd: number;
 }
@@ -52,6 +56,20 @@ export class InMemoryCostGuard implements CostGuard {
   async record(usage: LlmUsageRecord): Promise<void> {
     this.spend += usage.estimated_cost_usd;
     this.records.push(usage);
+  }
+  async reserve(usage: LlmUsageRecord): Promise<string> {
+    if (this.spend + usage.estimated_cost_usd > this.dailyLimitUsd) {
+      throw new DailyCostLimitExceededError(this.spend + usage.estimated_cost_usd, this.dailyLimitUsd);
+    }
+    await this.record(usage);
+    return String(this.records.length - 1);
+  }
+  async reconcileReservation(reservationId: string, usage: LlmUsageRecord): Promise<void> {
+    const index = Number(reservationId);
+    const previous = this.records[index];
+    if (!previous) return;
+    this.spend += usage.estimated_cost_usd - previous.estimated_cost_usd;
+    this.records[index] = usage;
   }
   getRecords(): LlmUsageRecord[] {
     return [...this.records];
@@ -73,6 +91,13 @@ export function estimateCostUsd(model: string, inputTokens: number, outputTokens
 export class DailyCostLimitExceededError extends Error {
   constructor(spend: number, limit: number) {
     super(`E-COST01: daily LLM spend $${spend.toFixed(2)} would exceed limit $${limit.toFixed(2)} (SPEC-INT-060)`);
+  }
+}
+
+export class AnthropicRefusalError extends Error {
+  constructor(model: string) {
+    super(`E-LLM-REFUSAL: Anthropic returned stop_reason=refusal [model=${model}]`);
+    this.name = "AnthropicRefusalError";
   }
 }
 
@@ -120,16 +145,25 @@ export class AnthropicStructuredClient {
         currentModel = ESCALATION_MODEL;
       }
 
-      const todaySpend = await this.costGuard.getTodaySpendUsd();
-      if (todaySpend >= this.costGuard.dailyLimitUsd) {
-        throw new DailyCostLimitExceededError(todaySpend, this.costGuard.dailyLimitUsd);
-      }
+      const estimatedInputTokens = Math.ceil((opts.system.length + sanitizedUser.length) / 4) + 256;
+      const reservedUsage: LlmUsageRecord = {
+        at: new Date().toISOString(),
+        agent: opts.agent,
+        purpose: opts.purpose,
+        model: currentModel,
+        input_tokens: estimatedInputTokens,
+        output_tokens: 2048,
+        estimated_cost_usd: estimateCostUsd(currentModel, estimatedInputTokens, 2048),
+      };
+      const reservationId = this.costGuard.reserve
+        ? await this.costGuard.reserve(reservedUsage)
+        : await legacyReserve(this.costGuard, reservedUsage);
 
       try {
-        const response = await this.client.messages.create({
+        const request = {
           model: currentModel,
           max_tokens: 2048,
-          temperature: 0, // SPEC-INT-030: 温度0
+          ...(shouldSendTemperature(currentModel) ? { temperature: 0 } : {}),
           system: opts.system,
           messages: [{ role: "user", content: sanitizedUser }],
           tools: [
@@ -140,9 +174,10 @@ export class AnthropicStructuredClient {
             },
           ],
           tool_choice: { type: "tool", name: opts.toolName },
-        });
+        } satisfies Anthropic.MessageCreateParamsNonStreaming;
+        const response = await this.client.messages.create(request);
 
-        await this.costGuard.record({
+        const actualUsage = {
           at: new Date().toISOString(),
           agent: opts.agent,
           purpose: opts.purpose,
@@ -150,7 +185,14 @@ export class AnthropicStructuredClient {
           input_tokens: response.usage.input_tokens,
           output_tokens: response.usage.output_tokens,
           estimated_cost_usd: estimateCostUsd(currentModel, response.usage.input_tokens, response.usage.output_tokens),
-        });
+        };
+        if (this.costGuard.reconcileReservation) {
+          await this.costGuard.reconcileReservation(reservationId, actualUsage);
+        }
+
+        if ((response as { stop_reason?: string }).stop_reason === "refusal") {
+          throw new AnthropicRefusalError(currentModel);
+        }
 
         const toolUseBlock = response.content.find(
           (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === opts.toolName,
@@ -166,6 +208,7 @@ export class AnthropicStructuredClient {
           usage: { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens },
         };
       } catch (err) {
+        if (err instanceof AnthropicRefusalError || err instanceof DailyCostLimitExceededError) throw err;
         lastError = err;
         // 次のループでリトライ（最終ラウンドなら下でthrow）
       }
@@ -176,4 +219,17 @@ export class AnthropicStructuredClient {
       )}`,
     );
   }
+}
+
+export function shouldSendTemperature(model: string): boolean {
+  return model !== ESCALATION_MODEL;
+}
+
+async function legacyReserve(costGuard: CostGuard, usage: LlmUsageRecord): Promise<string> {
+  const todaySpend = await costGuard.getTodaySpendUsd();
+  if (todaySpend + usage.estimated_cost_usd > costGuard.dailyLimitUsd) {
+    throw new DailyCostLimitExceededError(todaySpend + usage.estimated_cost_usd, costGuard.dailyLimitUsd);
+  }
+  await costGuard.record(usage);
+  return "";
 }

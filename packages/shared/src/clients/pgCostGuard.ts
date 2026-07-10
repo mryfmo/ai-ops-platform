@@ -27,6 +27,8 @@ export interface PgCostGuardOptions {
   dailyLimitUsd?: number;
   /** agent名ごとの日次サブ上限USD（例: { "WEB-CHAT": 10 }）。全体上限とは独立に適用される */
   perAgentDailyLimitUsd?: Record<string, number>;
+  /** agent名ごとの1リクエスト上限USD。設定時は予約時に超過を拒否する */
+  perAgentRequestLimitUsd?: Record<string, number>;
 }
 
 /** JSTの「本日」の開始・終了をUTC ISO文字列で返す（ASM-003: JST基準の日次リセット） */
@@ -43,6 +45,7 @@ export function jstDayRange(now: Date): { startIso: string; endIso: string } {
 export class PgCostGuard implements CostGuard {
   public dailyLimitUsd: number;
   private readonly perAgentDailyLimitUsd: Record<string, number>;
+  private readonly perAgentRequestLimitUsd: Record<string, number>;
 
   constructor(
     private readonly db: PgQueryable,
@@ -51,6 +54,7 @@ export class PgCostGuard implements CostGuard {
   ) {
     this.dailyLimitUsd = opts.dailyLimitUsd ?? 20;
     this.perAgentDailyLimitUsd = opts.perAgentDailyLimitUsd ?? {};
+    this.perAgentRequestLimitUsd = opts.perAgentRequestLimitUsd ?? {};
   }
 
   async getTodaySpendUsd(): Promise<number> {
@@ -80,6 +84,66 @@ export class PgCostGuard implements CostGuard {
       usage.estimated_cost_usd,
       usage.at,
     ]);
+  }
+
+  async reserve(usage: LlmUsageRecord): Promise<string> {
+    const requestLimit = this.perAgentRequestLimitUsd[usage.agent];
+    if (requestLimit !== undefined && usage.estimated_cost_usd > requestLimit) {
+      throw new Error(
+        `E-COST01: per-request LLM budget for agent ${usage.agent} exceeded ($${usage.estimated_cost_usd.toFixed(
+          6,
+        )} > $${requestLimit})`,
+      );
+    }
+
+    const { startIso, endIso } = jstDayRange(this.nowProvider());
+    const agentLimit = this.perAgentDailyLimitUsd[usage.agent] ?? null;
+    const res = await this.db.query(
+      `WITH guard_lock AS (
+         SELECT pg_advisory_xact_lock(hashtext('aiops_llm_usage_budget')) AS locked
+       ),
+       total_spend AS (
+         SELECT COALESCE(SUM(cost_usd), 0) AS total
+           FROM llm_usage, guard_lock
+          WHERE at >= $1 AND at < $2
+       ),
+       agent_spend AS (
+         SELECT COALESCE(SUM(cost_usd), 0) AS total
+           FROM llm_usage, guard_lock
+          WHERE agent = $3 AND at >= $1 AND at < $2
+       )
+       INSERT INTO llm_usage (agent, purpose, model, cost_usd, at)
+       SELECT $3, $4, $5, $6, $7
+         FROM total_spend, agent_spend
+        WHERE (total_spend.total + $6) <= $8
+          AND ($9::numeric IS NULL OR (agent_spend.total + $6) <= $9::numeric)
+       RETURNING usage_id`,
+      [
+        startIso,
+        endIso,
+        usage.agent,
+        usage.purpose,
+        usage.model,
+        usage.estimated_cost_usd,
+        usage.at,
+        this.dailyLimitUsd,
+        agentLimit,
+      ],
+    );
+    const usageId = res.rows[0]?.usage_id;
+    if (usageId === undefined) {
+      throw new Error(`E-COST01: daily LLM budget exceeded for agent ${usage.agent}`);
+    }
+    return String(usageId);
+  }
+
+  async reconcileReservation(reservationId: string, usage: LlmUsageRecord): Promise<void> {
+    await this.db.query(
+      `UPDATE llm_usage
+          SET agent = $2, purpose = $3, model = $4, cost_usd = $5, at = $6
+        WHERE usage_id = $1`,
+      [reservationId, usage.agent, usage.purpose, usage.model, usage.estimated_cost_usd, usage.at],
+    );
   }
 
   /**
