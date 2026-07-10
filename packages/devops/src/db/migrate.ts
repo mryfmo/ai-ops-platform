@@ -20,6 +20,14 @@ export interface MigrationResult {
   skipped: string[];
 }
 
+interface PgMigrationClient extends PgQueryable {
+  release(err?: Error): void;
+}
+
+interface PgMigrationPool {
+  connect(): Promise<PgMigrationClient>;
+}
+
 export function loadSqlMigrations(dir = new URL("./migrations", import.meta.url).pathname): SqlMigration[] {
   return readdirSync(dir)
     .filter((file) => /^\d+_.+\.sql$/.test(file))
@@ -30,39 +38,55 @@ export function loadSqlMigrations(dir = new URL("./migrations", import.meta.url)
     });
 }
 
-export async function applyMigrations(db: PgQueryable, migrations: SqlMigration[]): Promise<MigrationResult> {
-  await db.query(
-    `CREATE TABLE IF NOT EXISTS schema_migrations (
-       version    TEXT PRIMARY KEY,
-       name       TEXT NOT NULL,
-       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-     )`,
-  );
-  const appliedRows = await db.query("SELECT version FROM schema_migrations");
-  const appliedVersions = new Set(appliedRows.rows.map((row) => String(row.version)));
-  const result: MigrationResult = { applied: [], skipped: [] };
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
 
-  for (const migration of migrations) {
-    if (appliedVersions.has(migration.version)) {
-      result.skipped.push(migration.version);
-      continue;
-    }
-    await db.query("BEGIN");
-    try {
-      await db.query(migration.sql);
-      await db.query("INSERT INTO schema_migrations (version, name) VALUES ($1, $2)", [
+export async function applyMigrations(pool: PgMigrationPool, migrations: SqlMigration[]): Promise<MigrationResult> {
+  const client = await pool.connect();
+  let released = false;
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [240024]);
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS schema_migrations (
+         version    TEXT PRIMARY KEY,
+         name       TEXT NOT NULL,
+         applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`,
+    );
+    const appliedRows = await client.query("SELECT version FROM schema_migrations");
+    const appliedVersions = new Set(appliedRows.rows.map((row) => String(row.version)));
+    const result: MigrationResult = { applied: [], skipped: [] };
+
+    for (const migration of migrations) {
+      if (appliedVersions.has(migration.version)) {
+        result.skipped.push(migration.version);
+        continue;
+      }
+      await client.query(migration.sql);
+      await client.query("INSERT INTO schema_migrations (version, name) VALUES ($1, $2)", [
         migration.version,
         migration.name,
       ]);
-      await db.query("COMMIT");
       result.applied.push(migration.version);
-    } catch (error) {
-      await db.query("ROLLBACK");
-      throw error;
     }
-  }
 
-  return result;
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      const releaseError = toError(rollbackError);
+      client.release(releaseError);
+      released = true;
+      throw releaseError;
+    }
+    throw error;
+  } finally {
+    if (!released) client.release();
+  }
 }
 
 async function main(): Promise<void> {

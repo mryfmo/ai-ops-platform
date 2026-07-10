@@ -76,6 +76,7 @@ DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/aiops pnpm --filter @aiops/devop
 ```
 
 Applied versions are recorded in `schema_migrations`. See [database migrations runbook](../../runbooks/database-migrations.md).
+The command runs from the source checkout with `tsx`; compiled server startup does not auto-apply migrations.
 
 ## Graph Subscription
 

@@ -60,7 +60,7 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 
 ## schema.sql 変更手順
 
-1. `packages/devops/src/db/schema.sql` に `CREATE TABLE IF NOT EXISTS` で追記（既存テーブルのALTERは別途DDLコメントで明示）
+1. `packages/devops/src/db/schema.sql` はfresh-DB用の最新形だけを更新する。既存テーブルのALTERは `packages/devops/src/db/migrations/NNN_description.sql` を新規作成し、schema.sqlへinline ALTERを書かない
 2. 対応するリポジトリ層（`packages/server/src/db/*Repo.ts`）とテストを同一PRで追加
 3. audit_logテーブルへのUPDATE/DELETE権限をアプリロールに付与しない（REVOKE維持）
 

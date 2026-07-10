@@ -4,7 +4,6 @@
  * 根拠: A-11。schema_migrationsでDDL適用順序と冪等性を担保する。
  */
 import { describe, expect, it } from "vitest";
-import type { PgQueryable } from "@aiops/shared";
 import { applyMigrations, type SqlMigration } from "../src/db/migrate.js";
 
 interface Call {
@@ -13,18 +12,30 @@ interface Call {
 }
 
 function fakeDb(appliedVersions: string[] = [], failSql?: string) {
-  const calls: Call[] = [];
-  const db: PgQueryable = {
+  const clientCalls: Call[] = [];
+  const poolCalls: Call[] = [];
+  let released = false;
+  const client = {
     query: async (text: string, params?: unknown[]) => {
-      calls.push({ text, params });
+      clientCalls.push({ text, params });
       if (failSql && text === failSql) throw new Error("migration failed");
       if (text === "SELECT version FROM schema_migrations") {
         return { rows: appliedVersions.map((version) => ({ version })) };
       }
       return { rows: [] };
     },
+    release: () => {
+      released = true;
+    },
   };
-  return { db, calls };
+  const pool = {
+    query: async (text: string, params?: unknown[]) => {
+      poolCalls.push({ text, params });
+      throw new Error("pool.query must not be used for migrations");
+    },
+    connect: async () => client,
+  };
+  return { pool, clientCalls, poolCalls, wasReleased: () => released };
 }
 
 const migrations: SqlMigration[] = [
@@ -34,44 +45,47 @@ const migrations: SqlMigration[] = [
 
 describe("applyMigrations (A-11)", () => {
   it("未適用migrationを順序通りtransactionで適用して記録する", async () => {
-    const { db, calls } = fakeDb();
+    const { pool, clientCalls, poolCalls, wasReleased } = fakeDb();
 
-    await expect(applyMigrations(db, migrations)).resolves.toEqual({
+    await expect(applyMigrations(pool, migrations)).resolves.toEqual({
       applied: ["202607100001", "202607100002"],
       skipped: [],
     });
 
-    expect(calls.map((call) => call.text)).toEqual([
+    expect(poolCalls).toEqual([]);
+    expect(clientCalls.map((call) => call.text)).toEqual([
+      "BEGIN",
+      "SELECT pg_advisory_xact_lock($1)",
       expect.stringContaining("CREATE TABLE IF NOT EXISTS schema_migrations"),
       "SELECT version FROM schema_migrations",
-      "BEGIN",
       "ALTER TABLE one;",
       "INSERT INTO schema_migrations (version, name) VALUES ($1, $2)",
-      "COMMIT",
-      "BEGIN",
       "ALTER TABLE two;",
       "INSERT INTO schema_migrations (version, name) VALUES ($1, $2)",
       "COMMIT",
     ]);
+    expect(clientCalls[1]?.params).toEqual([240024]);
+    expect(wasReleased()).toBe(true);
   });
 
   it("適用済みversionはskipする", async () => {
-    const { db, calls } = fakeDb(["202607100001"]);
+    const { pool, clientCalls } = fakeDb(["202607100001"]);
 
-    await expect(applyMigrations(db, migrations)).resolves.toEqual({
+    await expect(applyMigrations(pool, migrations)).resolves.toEqual({
       applied: ["202607100002"],
       skipped: ["202607100001"],
     });
 
-    expect(calls.some((call) => call.text === "ALTER TABLE one;")).toBe(false);
-    expect(calls.some((call) => call.text === "ALTER TABLE two;")).toBe(true);
+    expect(clientCalls.some((call) => call.text === "ALTER TABLE one;")).toBe(false);
+    expect(clientCalls.some((call) => call.text === "ALTER TABLE two;")).toBe(true);
   });
 
   it("migration失敗時はROLLBACKして失敗を返す", async () => {
-    const { db, calls } = fakeDb([], "ALTER TABLE one;");
+    const { pool, clientCalls, wasReleased } = fakeDb([], "ALTER TABLE one;");
 
-    await expect(applyMigrations(db, migrations)).rejects.toThrow("migration failed");
+    await expect(applyMigrations(pool, migrations)).rejects.toThrow("migration failed");
 
-    expect(calls.at(-1)?.text).toBe("ROLLBACK");
+    expect(clientCalls.at(-1)?.text).toBe("ROLLBACK");
+    expect(wasReleased()).toBe(true);
   });
 });

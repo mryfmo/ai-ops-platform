@@ -4,6 +4,8 @@
 
 Use `schema_migrations` plus ordered SQL files under `packages/devops/src/db/migrations/` to upgrade existing PostgreSQL databases without rewriting audit history or dropping data.
 
+The migration command is source-checkout oriented: it runs `tsx src/db/migrate.ts` inside `@aiops/devops` and reads SQL from `packages/devops/src/db/migrations/`. It is not run automatically from the compiled server.
+
 ## New Database
 
 1. Set `DATABASE_URL`.
