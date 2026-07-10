@@ -34,6 +34,8 @@ const DEPLOYMENT_INCIDENT_CAUSALITY_WINDOW_HOURS = 24;
 
 interface ProjectChannelRow {
   project_id: string;
+  github_owner?: string | null;
+  github_repo?: string | null;
 }
 
 interface IncidentRow {
@@ -51,18 +53,24 @@ interface DeploymentRow {
 
 interface PmEventRow {
   project_id: string | null;
+  repository: string | null;
   subject_type: string;
   subject_id: string | null;
   action: string | null;
   occurred_at: string | Date;
   normalized: unknown;
+  raw_payload?: unknown;
 }
 
 /** project_channelsから一意なプロジェクトID一覧を取得し、スコープ内のもののみへ絞り込む */
-async function scopedProjectIds(db: PgQueryable, profile: Profile, ctx: DevOpsVisibilityContext): Promise<string[]> {
-  const res = await db.query("SELECT DISTINCT project_id FROM project_channels", []);
-  const allIds = (res.rows as unknown as ProjectChannelRow[]).map((r) => r.project_id);
-  return allIds.filter((id) => isProjectInScope(profile, id, ctx));
+async function scopedProjectChannels(
+  db: PgQueryable,
+  profile: Profile,
+  ctx: DevOpsVisibilityContext,
+): Promise<ProjectChannelRow[]> {
+  const res = await db.query("SELECT DISTINCT project_id, github_owner, github_repo FROM project_channels", []);
+  const allRows = res.rows as unknown as ProjectChannelRow[];
+  return allRows.filter((row) => isProjectInScope(profile, row.project_id, ctx));
 }
 
 async function fetchIncidents(db: PgQueryable): Promise<IncidentRow[]> {
@@ -84,7 +92,7 @@ async function fetchDeployments(db: PgQueryable, periodStart: string, periodEnd:
 
 async function fetchPmEvents(db: PgQueryable, periodStart: string, periodEnd: string): Promise<PmEventRow[]> {
   const res = await db.query(
-    `SELECT project_id, subject_type, subject_id, action, occurred_at, normalized
+    `SELECT project_id, repository, subject_type, subject_id, action, occurred_at, normalized, raw_payload
        FROM pm_events
       WHERE occurred_at >= $1 AND occurred_at < $2
         AND subject_type IN ('issue', 'pull_request')`,
@@ -116,33 +124,60 @@ export interface DevOpsManagerSummaryResult {
 function countThroughput(
   events: PmEventRow[],
   scopedSet: Set<string>,
+  repositoryProjectIds: Map<string, string>,
 ): { issueThroughput: number; prThroughput: number } {
   const closedIssues = new Set<string>();
   const mergedPullRequests = new Set<string>();
   for (const event of events) {
-    if (!event.project_id || !scopedSet.has(event.project_id)) continue;
-    const key = `${event.project_id}:${event.subject_type}:${event.subject_id ?? ""}`;
+    const projectId = event.project_id ?? (event.repository ? repositoryProjectIds.get(event.repository) : undefined);
+    if (!projectId || !scopedSet.has(projectId)) continue;
+    const key = `${projectId}:${event.subject_type}:${event.subject_id ?? ""}`;
     if (event.subject_id === null) continue;
-    if (event.subject_type === "issue" && event.action === "closed" && !isNotPlannedIssue(event.normalized)) {
+    if (
+      event.subject_type === "issue" &&
+      event.action === "closed" &&
+      !isNotPlannedIssue(event.normalized, event.raw_payload)
+    ) {
       closedIssues.add(key);
     }
-    if (event.subject_type === "pull_request" && event.action === "closed" && isMergedPullRequest(event.normalized)) {
+    if (
+      event.subject_type === "pull_request" &&
+      event.action === "closed" &&
+      isMergedPullRequest(event.normalized, event.raw_payload)
+    ) {
       mergedPullRequests.add(key);
     }
   }
   return { issueThroughput: closedIssues.size, prThroughput: mergedPullRequests.size };
 }
 
-function isNotPlannedIssue(normalized: unknown): boolean {
-  if (typeof normalized !== "object" || normalized === null) return false;
-  const value = normalized as Record<string, unknown>;
-  return value["not_planned"] === true || value["state_reason"] === "not_planned";
+function readObject(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
-function isMergedPullRequest(normalized: unknown): boolean {
-  if (typeof normalized !== "object" || normalized === null) return false;
-  const value = normalized as Record<string, unknown>;
-  return value["merged"] === true || value["state"] === "merged";
+function nestedObject(value: unknown, key: string): Record<string, unknown> {
+  return readObject(readObject(value)[key]);
+}
+
+function isNotPlannedIssue(normalized: unknown, rawPayload?: unknown): boolean {
+  const value = readObject(normalized);
+  const rawIssue = nestedObject(rawPayload, "issue");
+  return (
+    value["not_planned"] === true ||
+    value["state_reason"] === "not_planned" ||
+    rawIssue["state_reason"] === "not_planned"
+  );
+}
+
+function isMergedPullRequest(normalized: unknown, rawPayload?: unknown): boolean {
+  const value = readObject(normalized);
+  const rawPullRequest = nestedObject(rawPayload, "pull_request");
+  return (
+    value["merged"] === true ||
+    value["state"] === "merged" ||
+    rawPullRequest["merged"] === true ||
+    rawPullRequest["state"] === "merged"
+  );
 }
 
 function countIncidentsActiveInWindow(items: IncidentBurndownInput[], periodStart: string, periodEnd: string): number {
@@ -168,8 +203,14 @@ export async function buildDevOpsManagerSummary(
   periodStart: string,
   periodEnd: string,
 ): Promise<DevOpsManagerSummaryResult> {
-  const projectIds = await scopedProjectIds(db, profile, ctx);
+  const scopedChannels = await scopedProjectChannels(db, profile, ctx);
+  const projectIds = scopedChannels.map((row) => row.project_id);
   const scopedSet = new Set(projectIds);
+  const repositoryProjectIds = new Map(
+    scopedChannels
+      .filter((row) => row.github_owner && row.github_repo)
+      .map((row) => [`${row.github_owner}/${row.github_repo}`, row.project_id]),
+  );
 
   const allIncidents = await fetchIncidents(db);
   const allDeployments = await fetchDeployments(db, periodStart, periodEnd);
@@ -242,7 +283,7 @@ export async function buildDevOpsManagerSummary(
       periodDays,
     ),
   }));
-  const throughput = countThroughput(pmEvents, scopedSet);
+  const throughput = countThroughput(pmEvents, scopedSet, repositoryProjectIds);
 
   return {
     totalProjectCount: projectIds.length,
@@ -264,6 +305,6 @@ export async function listDevOpsScopedProjectSummaries(
   profile: Profile,
   ctx: DevOpsVisibilityContext,
 ): Promise<Array<{ id: string; name: string }>> {
-  const projectIds = await scopedProjectIds(db, profile, ctx);
-  return projectIds.map((id) => ({ id, name: id }));
+  const channels = await scopedProjectChannels(db, profile, ctx);
+  return channels.map((row) => ({ id: row.project_id, name: row.project_id }));
 }

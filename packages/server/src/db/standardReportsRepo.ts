@@ -28,12 +28,7 @@ function stableJson(value: unknown): string {
 }
 
 export function standardReportId(payload: StandardReportPayload): string {
-  const stable = stableJson({
-    reportType: payload.reportType,
-    periodLabel: payload.period.label,
-    metrics: payload.metrics,
-    slots: payload.slots,
-  });
+  const stable = stableJson({ ...payload, period: { ...payload.period, generatedAt: "" } });
   return `STD-${createHash("sha256").update(stable).digest("hex").slice(0, 16)}`;
 }
 

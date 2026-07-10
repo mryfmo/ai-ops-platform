@@ -97,7 +97,7 @@ describe("POST /reports/ingest [REQ-042 SPEC-INT-069 SPEC-INT-083 AC-042-1]", ()
     expect(logs.some((l) => l.action === "report_delivery_blocked_by_failsafe" && l.basis === "REQ-029")).toBe(true);
   });
 
-  it("generatedAtだけが違う再生成は冪等にduplicateとして受け、配信しない", async () => {
+  it("generatedAtだけが違う再生成は冪等にduplicateとして受け、配信を再試行する", async () => {
     const { app, delivered } = makeApp();
     const raw = JSON.stringify(payload);
     const regenerated = JSON.stringify({
@@ -115,6 +115,6 @@ describe("POST /reports/ingest [REQ-042 SPEC-INT-069 SPEC-INT-083 AC-042-1]", ()
       body: regenerated,
     });
     expect(res.status).toBe(200);
-    expect(delivered).toEqual([standardReportId(payload)]);
+    expect(delivered).toEqual([standardReportId(payload), standardReportId(payload)]);
   });
 });

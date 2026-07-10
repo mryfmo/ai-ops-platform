@@ -67,7 +67,8 @@ import { resolveCallerProfileFromStakeholders } from "./lib/stakeholderProfileRe
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
-import { startTelemetry } from "./observability/telemetry.js";
+import type { Logger } from "./observability/logger.js";
+import type { TelemetryHandle } from "./observability/telemetry.js";
 import { createReadinessCheck } from "./http/routes/health.js";
 import { createShutdownSignalHandler, gracefulShutdown } from "./serverLifecycle.js";
 
@@ -139,18 +140,17 @@ function loadJpHolidayCalendar() {
   return buildHolidayCalendarFromYaml(readFileSync(yamlUrl, "utf8"));
 }
 
-async function main(): Promise<void> {
-  const config = loadConfig();
-  const logger = createLogger(config.LOG_LEVEL);
+export async function main(
+  bootstrap: {
+    config?: ReturnType<typeof loadConfig>;
+    logger?: Logger;
+    telemetry?: TelemetryHandle;
+  } = {},
+): Promise<void> {
+  const config = bootstrap.config ?? loadConfig();
+  const logger = bootstrap.logger ?? createLogger(config.LOG_LEVEL);
   const metrics = new MetricsRegistry();
-  const telemetry = await startTelemetry(
-    {
-      serviceName: config.OTEL_SERVICE_NAME,
-      otlpEndpoint: config.OTEL_EXPORTER_OTLP_ENDPOINT,
-      otlpTracesEndpoint: config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    },
-    logger,
-  );
+  const telemetry = bootstrap.telemetry ?? { shutdown: async () => {} };
   const pool = createPool(config.DATABASE_URL, {
     max: config.DB_POOL_MAX,
     connectionTimeoutMillis: config.DB_POOL_CONNECTION_TIMEOUT_MS,
@@ -522,16 +522,4 @@ async function main(): Promise<void> {
   };
   process.on("SIGTERM", () => void shutdown());
   process.on("SIGINT", () => void shutdown());
-}
-
-// Composition rootは直接実行時のみ起動（テスト・ライブラリimport時は起動しない）
-const isDirectRun = process.argv[1]?.replace(/\\/g, "/").endsWith("dist/index.js") ?? false;
-if (isDirectRun) {
-  main().catch((err) => {
-    createLogger(process.env.LOG_LEVEL ?? "info").error(
-      { err: err instanceof Error ? err.message : String(err) },
-      "fatal startup error",
-    );
-    process.exit(1);
-  });
 }

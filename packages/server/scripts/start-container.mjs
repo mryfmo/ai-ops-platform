@@ -26,7 +26,7 @@ function launch(name, command, args, env = {}) {
 }
 
 // Hono常駐サーバ（:8080公開）
-launch("server", "node", ["packages/server/dist/index.js"]);
+launch("server", "node", ["packages/server/dist/main.js"]);
 
 // Next.js standalone（:3100内部）。ビルド成果物が存在する場合のみ起動（縮退運転可）
 const nextServer = "packages/web/.next/standalone/packages/web/server.js";

@@ -128,12 +128,26 @@ describe("computeExecutiveSevenKeys [REQ-038]", () => {
 
 describe("buildSevenKeysMonthlySnapshot [AC-038-1]", () => {
   it("前月RAGとの差分から改善/悪化キーを返す", () => {
-    const previous = assessProjectSevenKeys(project({ progressPct: 90, highSeverityOpenIssueCount: 0 }));
+    const previous = assessProjectSevenKeys(
+      project({ progressPct: 90, highSeverityOpenIssueCount: 0, questionnaire: { riskMitigation: "green" } }),
+    );
     const snapshot = buildSevenKeysMonthlySnapshot(
       project({ progressPct: 50, highSeverityOpenIssueCount: 1 }),
       "2026-07",
       previous,
     );
     expect(snapshot.worsenedKeys).toEqual(expect.arrayContaining(["K3", "K6"]));
+  });
+
+  it("greyはunknownとして月次差分の改善/悪化から除外する", () => {
+    const previous = assessProjectSevenKeys(
+      project({ scopeChangeCount: 3, averageReviewWaitHours: 50, activeContributorCount: 3 }),
+    );
+    const snapshot = buildSevenKeysMonthlySnapshot(project({ scopeChangeCount: undefined }), "2026-07", previous);
+
+    expect(previous.keys.find((key) => key.keyId === "K4")?.rag).toBe("yellow");
+    expect(snapshot.keys.find((key) => key.keyId === "K4")?.rag).toBe("grey");
+    expect(snapshot.improvedKeys).not.toContain("K4");
+    expect(snapshot.worsenedKeys).not.toContain("K4");
   });
 });

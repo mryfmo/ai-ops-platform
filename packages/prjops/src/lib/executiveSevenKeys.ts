@@ -76,7 +76,7 @@ export interface ExecutiveSevenKeysSummary {
   projects: ExecutiveProjectSevenKeys[];
 }
 
-const RANK: Record<SevenKeysRag, number> = { red: 0, yellow: 1, grey: 2, green: 3 };
+const RANK: Record<Exclude<SevenKeysRag, "grey">, number> = { red: 0, yellow: 1, green: 2 };
 // ADR-0010: GitHub由来RAGの初期校正値。運用実績で見直す前提で、正典キー名とは分離する。
 const WORK_PREDICTABILITY_TOLERANCE_PCT = 10;
 const SCOPE_RED_CHANGE_COUNT = 5;
@@ -190,6 +190,7 @@ export function buildSevenKeysMonthlySnapshot(
   for (const key of current.keys) {
     const prev = previousByKey.get(key.keyId);
     if (!prev) continue;
+    if (prev === "grey" || key.rag === "grey") continue;
     if (RANK[key.rag] > RANK[prev]) improvedKeys.push(key.keyId);
     if (RANK[key.rag] < RANK[prev]) worsenedKeys.push(key.keyId);
   }

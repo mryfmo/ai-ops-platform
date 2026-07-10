@@ -117,6 +117,26 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
     const limit = await client.getGraphqlRateLimit();
     expect(limit.remaining).toBe(123);
     expect(calls.every((call) => call.url.endsWith("/graphql"))).toBe(true);
+    expect(JSON.parse(String(calls[1]!.init?.body)).variables.value).toEqual({ text: "Ready" });
+  });
+
+  it("Project v2 single select fieldはfield_typeに合わせたGraphQL valueで更新する", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      { status: 200, body: { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: "PVTI_1" } } } } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    await client.updateProjectV2ItemFieldValue({
+      projectNodeId: "P",
+      itemNodeId: "PVTI_1",
+      fieldNodeId: "F",
+      fieldType: "single_select",
+      value: "OPT_1",
+    });
+
+    const body = JSON.parse(String(calls[0]!.init?.body));
+    expect(body.query).toContain("$value: ProjectV2FieldValue!");
+    expect(body.variables.value).toEqual({ singleSelectOptionId: "OPT_1" });
   });
 
   it("SPEC-INT-081: Projects v2 current snapshotをGraphQLで読む", async () => {

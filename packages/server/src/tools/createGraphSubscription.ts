@@ -6,6 +6,8 @@
  */
 import { GraphClient } from "@aiops/shared";
 import { loadConfig } from "../config.js";
+import { createPool } from "../db/pool.js";
+import { GraphSubscriptionsRepo } from "../db/graphSubscriptionsRepo.js";
 import { createClientCredentialsTokenProvider } from "../auth/graphTokenProvider.js";
 
 export interface CreateSubscriptionCliArgs {
@@ -36,11 +38,19 @@ export async function createGraphSubscriptionFromCliArgs(
   args: CreateSubscriptionCliArgs,
   client: Pick<GraphClient, "createSubscription">,
   clientState: string,
+  repo?: Pick<GraphSubscriptionsRepo, "upsert">,
 ): Promise<{ id: string }> {
-  return client.createSubscription(args.resource, args.notificationUrl, args.expiry, {
+  const result = await client.createSubscription(args.resource, args.notificationUrl, args.expiry, {
     clientState,
     changeType: "created,updated,deleted",
   });
+  await repo?.upsert({
+    subscriptionId: result.id,
+    resource: args.resource,
+    expiresAt: args.expiry,
+    mode: "notification",
+  });
+  return result;
 }
 
 async function main(): Promise<void> {
@@ -51,12 +61,23 @@ async function main(): Promise<void> {
     clientId: config.GRAPH_CLIENT_ID,
     clientSecret: config.GRAPH_CLIENT_SECRET,
   });
-  const result = await createGraphSubscriptionFromCliArgs(
-    args,
-    new GraphClient(tokenProvider),
-    config.GRAPH_CLIENT_STATE,
-  );
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  const pool = createPool(config.DATABASE_URL, {
+    max: config.DB_POOL_MAX,
+    connectionTimeoutMillis: config.DB_POOL_CONNECTION_TIMEOUT_MS,
+    statementTimeoutMs: config.DB_STATEMENT_TIMEOUT_MS,
+    idleInTransactionSessionTimeoutMs: config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS,
+  });
+  try {
+    const result = await createGraphSubscriptionFromCliArgs(
+      args,
+      new GraphClient(tokenProvider),
+      config.GRAPH_CLIENT_STATE,
+      new GraphSubscriptionsRepo(pool),
+    );
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } finally {
+    await pool.end();
+  }
 }
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("createGraphSubscription.js")) {

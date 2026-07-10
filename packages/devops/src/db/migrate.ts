@@ -6,8 +6,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { Pool } from "pg";
+import pg from "pg";
 import type { PgQueryable } from "@aiops/shared";
+
+const { Pool } = pg;
 
 export interface SqlMigration {
   version: string;

@@ -1,3 +1,4 @@
+# 根拠: ADR-0003 / A-9。本番ゲートの依存更新通知をDependabotで維持する。
 version: 2
 updates:
   - package-ecosystem: npm

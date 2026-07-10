@@ -281,6 +281,32 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(graphLifecycleCalls).toEqual(["reauthorizationRequired", "subscriptionRemoved", "missed"]);
   });
 
+  it("Graph lifecycle通知はhandler完了を待たず202を返す", async () => {
+    const { deps, graphLifecycleCalls } = makeDeps();
+    let releaseHandler!: () => void;
+    deps.graph.handleLifecycleEvent = async (event) => {
+      await new Promise<void>((resolve) => {
+        releaseHandler = resolve;
+      });
+      graphLifecycleCalls.push(event.lifecycleEvent);
+    };
+    const app = buildApp(deps);
+
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [{ clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" }],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(graphLifecycleCalls).toEqual([]);
+    releaseHandler();
+    await Promise.resolve();
+    expect(graphLifecycleCalls).toEqual(["reauthorizationRequired"]);
+  });
+
   it("clientState不一致は破棄+監査ログ、それでも202（検証結果を漏らさない）", async () => {
     const { deps, auditLog, inboundEvents } = makeDeps();
     const app = buildApp(deps);

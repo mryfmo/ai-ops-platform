@@ -53,6 +53,15 @@ function readNumber(payload: unknown, path: string[]): number | null {
   return typeof cur === "number" ? cur : null;
 }
 
+function readBoolean(payload: unknown, path: string[]): boolean | null {
+  let cur: unknown = payload;
+  for (const key of path) {
+    if (typeof cur !== "object" || cur === null) return null;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return typeof cur === "boolean" ? cur : null;
+}
+
 function readStatusChange(payload: unknown): { fromStatus: string | null; toStatus: string | null } {
   return {
     fromStatus:
@@ -135,10 +144,18 @@ export function normalizePmWebhookEvent(
   };
   const subjectType = subjectTypeByEvent[event.eventName];
   if (!subjectType) return null;
+  if (event.eventName === "deployment_status") {
+    const state = readString(event.payload, ["deployment_status", "state"]);
+    if (state !== "success" && state !== "failure" && state !== "error" && state !== "inactive") return null;
+  }
 
   const fallback = now.toISOString();
   const { fromStatus, toStatus } = readStatusChange(event.payload);
   const action = readString(event.payload, ["action"]);
+  const pullRequestMerged = readBoolean(event.payload, ["pull_request", "merged"]);
+  const pullRequestState = readString(event.payload, ["pull_request", "state"]);
+  const issueStateReason = readString(event.payload, ["issue", "state_reason"]);
+  const deploymentState = readString(event.payload, ["deployment_status", "state"]);
   return {
     traceId,
     eventName: event.eventName,
@@ -158,6 +175,10 @@ export function normalizePmWebhookEvent(
       subjectId: subjectId(event.payload, subjectType),
       fromStatus,
       toStatus,
+      ...(pullRequestMerged !== null ? { merged: pullRequestMerged } : {}),
+      ...(pullRequestState ? { state: pullRequestState } : {}),
+      ...(issueStateReason ? { state_reason: issueStateReason, not_planned: issueStateReason === "not_planned" } : {}),
+      ...(deploymentState ? { deploymentState } : {}),
     },
     rawPayload: event.payload,
   };

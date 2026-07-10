@@ -43,6 +43,23 @@ export function verifyGithubWebhookSignature(
   return timingSafeEqual(a, b);
 }
 
+function projectV2FieldValue(fieldType: string, value: string): Record<string, string | number> {
+  switch (fieldType.trim().toLowerCase()) {
+    case "single_select":
+    case "single-select":
+    case "single_select_option":
+      return { singleSelectOptionId: value };
+    case "number":
+      return { number: Number(value) };
+    case "date":
+      return { date: value };
+    case "iteration":
+      return { iterationId: value };
+    default:
+      return { text: value };
+  }
+}
+
 export interface CreateIssueCommentInput {
   owner: string;
   repo: string;
@@ -56,7 +73,7 @@ export interface CreateIssueInput {
   title: string;
   body: string;
   labels: string[];
-  milestone?: string;
+  milestone?: number;
 }
 
 export interface CreateMilestoneInput {
@@ -235,20 +252,19 @@ export class GitHubClient {
     value: string;
   }): Promise<void> {
     await this.graphql(
-      `mutation UpdateProjectItem($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+      `mutation UpdateProjectItem($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
         updateProjectV2ItemFieldValue(input: {
           projectId: $projectId,
           itemId: $itemId,
           fieldId: $fieldId,
-          value: { text: $value }
+          value: $value
         }) { projectV2Item { id } }
       }`,
       {
         projectId: input.projectNodeId,
         itemId: input.itemNodeId,
         fieldId: input.fieldNodeId,
-        value: input.value,
-        fieldType: input.fieldType,
+        value: projectV2FieldValue(input.fieldType, input.value),
       },
     );
   }

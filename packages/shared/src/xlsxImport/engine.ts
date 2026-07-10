@@ -30,7 +30,7 @@ export interface XlsxImportGithubClient {
     title: string;
     body: string;
     labels: string[];
-    milestone?: string;
+    milestone?: number;
   }): Promise<{ number: number; htmlUrl: string; nodeId?: string }>;
   createMilestone(input: {
     owner: string;
@@ -103,6 +103,19 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function orderedRows(rows: XlsxImportRow[]): XlsxImportRow[] {
+  return [...rows].sort((a, b) => (a.kind === "milestone" ? -1 : 0) - (b.kind === "milestone" ? -1 : 0));
+}
+
+function milestoneNumber(titleOrNumber: string | undefined, knownMilestones: Map<string, number>): number | undefined {
+  if (!titleOrNumber) return undefined;
+  const numeric = Number(titleOrNumber);
+  if (Number.isInteger(numeric) && numeric > 0) return numeric;
+  const resolved = knownMilestones.get(titleOrNumber);
+  if (!resolved) throw new Error(`milestone title not resolved: ${titleOrNumber}`);
+  return resolved;
+}
+
 async function markImported(
   ledger: ImportLedger,
   row: XlsxImportRow,
@@ -136,10 +149,11 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
   let skipped = 0;
   let failed = 0;
   let writeIndex = 0;
+  const knownMilestones = new Map<string, number>();
 
-  for (const row of opts.rows) {
+  for (const row of orderedRows(opts.rows)) {
     const existing = await opts.ledger.findBySourceKey(row.sourceKey);
-    if (existing) {
+    if (existing?.status === "imported") {
       skipped += 1;
       progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "skipped" });
       continue;
@@ -172,7 +186,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
           title: row.title,
           body: appendImportMarker(row.body, row.sourceKey),
           labels: row.labels,
-          milestone: row.milestone,
+          milestone: milestoneNumber(row.milestone, knownMilestones),
         });
         githubId = created.nodeId ?? String(created.number);
       } else if (row.kind === "milestone") {
@@ -183,6 +197,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
           dueOn: row.dueOn,
           description: row.description,
         });
+        knownMilestones.set(row.title, created.number);
         githubId = created.nodeId ?? String(created.number);
       } else {
         const added = await opts.github.addProjectV2ItemById({

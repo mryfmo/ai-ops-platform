@@ -92,6 +92,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
           payload: "{}",
           status: "dispatched",
           attempts: 1,
+          claimed_at: "2026-07-10T00:00:00.000Z",
         },
       ],
     ]);
@@ -105,6 +106,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
 
     expect(event?.eventId).toBe("evt-1");
     expect(event?.attempts).toBe(1);
+    expect(event?.claimedAt).toBe("2026-07-10T00:00:00.000Z");
     expect(calls.map((c) => c.text.trim())).toEqual([
       "BEGIN",
       expect.stringContaining("FOR UPDATE SKIP LOCKED"),
@@ -136,6 +138,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
           payload: "{}",
           status: "dispatched",
           attempts: 3,
+          claimed_at: "2026-07-10T00:00:00.000Z",
         },
       ],
     ]);
@@ -205,6 +208,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
           payload: "{}",
           status: "dispatched",
           attempts: 0,
+          claimed_at: "2026-07-10T00:00:00.000Z",
         },
       ],
     ]);
@@ -285,6 +289,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
     expect(calls[0]!.text).toContain("attempts = attempts + 1");
     expect(calls[0]!.text).toContain("status = CASE");
     expect(calls[0]!.text).toContain("'dead'");
+    expect(calls[0]!.text).toContain("status = 'dispatched'");
   });
 
   it("markFailed: 上限到達時は dead にして再クレーム対象から外す", async () => {
@@ -297,6 +302,21 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
         nextAttemptAt: new Date("2026-07-10T00:01:00Z"),
       }),
     ).resolves.toEqual({ status: "dead", attempts: 5 });
+  });
+
+  it("markFailed: claimed_atが一致しないstale workerは現行状態を上書きしない", async () => {
+    const { db, calls } = makeMockDb([]);
+    const repo = new EventsRepo(db);
+
+    const result = await repo.markFailed("evt-1", {
+      maxAttempts: 5,
+      nextAttemptAt: new Date("2026-07-10T00:01:00Z"),
+      claimedAt: "2026-07-10T00:00:00.000Z",
+    });
+
+    expect(result).toEqual({ status: "stale", attempts: 0 });
+    expect(calls[0]!.text).toContain("claimed_at = $4::timestamptz");
+    expect(calls[0]!.params).toEqual(["evt-1", 5, "2026-07-10T00:01:00.000Z", "2026-07-10T00:00:00.000Z"]);
   });
 });
 

@@ -24,6 +24,7 @@ describe("createGraphSubscription CLI [REQ-042 SPEC-INT-069]", () => {
 
   it("既存GraphClient interfaceへclientState付きで委譲する", async () => {
     const calls: unknown[] = [];
+    const persisted: unknown[] = [];
     const result = await createGraphSubscriptionFromCliArgs(
       {
         resource: "/resource",
@@ -37,9 +38,18 @@ describe("createGraphSubscription CLI [REQ-042 SPEC-INT-069]", () => {
         },
       },
       "client-state-of-at-least-32-chars",
+      { upsert: async (sub) => persisted.push(sub) },
     );
     expect(result.id).toBe("sub-1");
     expect(JSON.stringify(calls[0])).toContain("created,updated,deleted");
     expect(JSON.stringify(calls[0])).toContain("client-state-of-at-least-32-chars");
+    expect(persisted).toEqual([
+      {
+        subscriptionId: "sub-1",
+        resource: "/resource",
+        expiresAt: "2026-07-09T06:00:00Z",
+        mode: "notification",
+      },
+    ]);
   });
 });

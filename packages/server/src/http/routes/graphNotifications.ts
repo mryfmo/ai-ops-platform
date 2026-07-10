@@ -44,6 +44,33 @@ function toLifecycleEvent(notification: GraphNotification): GraphLifecycleEvent 
   };
 }
 
+function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycleEvent, traceId: string): void {
+  const work = deps.handleLifecycleEvent
+    ? deps.handleLifecycleEvent(event, traceId)
+    : deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "graph_lifecycle_disabled",
+        basis: "SPEC-INT-001",
+        detail: { lifecycleEvent: event.lifecycleEvent, subscriptionId: event.subscriptionId },
+        at: new Date().toISOString(),
+      });
+  void work.catch((error) =>
+    deps.auditLog.append({
+      trace_id: traceId,
+      actor: "SERVER",
+      action: "graph_lifecycle_failed",
+      basis: "SPEC-INT-001",
+      detail: {
+        lifecycleEvent: event.lifecycleEvent,
+        subscriptionId: event.subscriptionId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      at: new Date().toISOString(),
+    }),
+  );
+}
+
 export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificationDeps): void {
   app.post("/webhooks/graph", async (c) => {
     // (1) サブスクリプション検証ハンドシェイク
@@ -77,18 +104,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
     for (const { notification, ids } of accepted) {
       const lifecycleEvent = toLifecycleEvent(notification);
       if (lifecycleEvent) {
-        if (deps.handleLifecycleEvent) {
-          await deps.handleLifecycleEvent(lifecycleEvent, traceId);
-        } else {
-          await deps.auditLog.append({
-            trace_id: traceId,
-            actor: "SERVER",
-            action: "graph_lifecycle_disabled",
-            basis: "SPEC-INT-001",
-            detail: { lifecycleEvent: lifecycleEvent.lifecycleEvent, subscriptionId: lifecycleEvent.subscriptionId },
-            at: new Date().toISOString(),
-          });
-        }
+        runLifecycleAfterAck(deps, lifecycleEvent, traceId);
         continue;
       }
 

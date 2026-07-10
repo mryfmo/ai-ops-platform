@@ -157,6 +157,23 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(saved[0]).toMatchObject({ eventName: "issues", subjectType: "issue" });
   });
 
+  it("pull_request webhookはmergedフラグをnormalizedへ保存する", () => {
+    const record = normalizePmWebhookEvent(
+      {
+        eventName: "pull_request",
+        payload: {
+          action: "closed",
+          repository: { full_name: "octo/repo" },
+          pull_request: { number: 42, state: "closed", merged: true, updated_at: "2026-07-09T00:00:00Z" },
+        },
+      },
+      "trace-pr",
+      new Date("2026-07-09T01:00:00Z"),
+    );
+
+    expect(record?.normalized).toMatchObject({ merged: true, state: "closed", repository: "octo/repo" });
+  });
+
   it("L1b-2: deployment_status webhookをpm_eventsへ正規化しDeploy集計に使える形で保存する", async () => {
     const auditLog = new InMemoryAuditLog();
     const saved: unknown[] = [];
@@ -182,6 +199,23 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
       eventName: "deployment_status",
       subjectType: "deployment",
       subjectId: "456",
+      normalized: { deploymentState: "success" },
     });
+  });
+
+  it("deployment_status webhookはterminal stateだけpm_eventsへ保存する", () => {
+    expect(
+      normalizePmWebhookEvent(
+        {
+          eventName: "deployment_status",
+          payload: {
+            action: "created",
+            deployment: { id: 123, created_at: "2026-07-09T00:00:00Z" },
+            deployment_status: { id: 456, state: "in_progress", created_at: "2026-07-09T00:01:00Z" },
+          },
+        },
+        "trace-deploy",
+      ),
+    ).toBeNull();
   });
 });

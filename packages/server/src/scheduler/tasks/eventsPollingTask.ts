@@ -81,11 +81,17 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
     const result = await deps.eventsRepo.markFailed(event.eventId, {
       maxAttempts,
       nextAttemptAt: new Date(now.getTime() + backoffMs),
+      claimedAt: event.claimedAt,
     });
     await deps.auditLog.append({
       trace_id: event.traceId,
       actor: "SERVER",
-      action: result.status === "dead" ? "event_dispatch_dead" : "event_dispatch_failed",
+      action:
+        result.status === "dead"
+          ? "event_dispatch_dead"
+          : result.status === "stale"
+            ? "event_dispatch_stale_failure"
+            : "event_dispatch_failed",
       basis: "SPEC-INT-010",
       detail: {
         eventId: event.eventId,

@@ -15,21 +15,25 @@ import {
 } from "../../src/server/reportData/devopsReportData";
 
 function fakeDb(
-  projectIds: string[],
+  projectIds: Array<string | { project_id: string; github_owner?: string | null; github_repo?: string | null }>,
   incidents: Array<{ detected_at: string; resolved_at: string | null; affected_projects: string[] }>,
   deployments: Array<{ project_id: string; created_at: string; updated_at: string; state: string }> = [],
   pmEvents: Array<{
     project_id: string | null;
+    repository?: string | null;
     subject_type: string;
     subject_id?: string | null;
     action: string | null;
     occurred_at: string;
     normalized: unknown;
+    raw_payload?: unknown;
   }> = [],
 ): PgQueryable {
   const query = vi.fn(async (text: string, params: unknown[] = []) => {
     if (text.includes("FROM project_channels")) {
-      return { rows: projectIds.map((project_id) => ({ project_id })) };
+      return {
+        rows: projectIds.map((project) => (typeof project === "string" ? { project_id: project } : project)),
+      };
     }
     if (text.includes("FROM incidents")) {
       return { rows: incidents };
@@ -144,6 +148,43 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
       "2026-01-08",
     );
     expect(result.totalTicketCount).toBe(2);
+    expect(result.velocity).toEqual({ issueThroughput: 1, prThroughput: 1 });
+  });
+
+  it("throughputはproject_idが無いGitHub issue/PRをrepository対応でスコープ判定しraw_payloadのmergedも読む", async () => {
+    const db = fakeDb(
+      [{ project_id: "PRJ-0001", github_owner: "octo", github_repo: "repo" }],
+      [],
+      [],
+      [
+        {
+          project_id: null,
+          subject_type: "issue",
+          subject_id: "I-1",
+          action: "closed",
+          occurred_at: "2026-01-06T00:00:00Z",
+          normalized: { repository: "octo/repo" },
+          repository: "octo/repo",
+        },
+        {
+          project_id: null,
+          subject_type: "pull_request",
+          subject_id: "PR-1",
+          action: "closed",
+          occurred_at: "2026-01-07T00:00:00Z",
+          normalized: { repository: "octo/repo" },
+          repository: "octo/repo",
+          raw_payload: { pull_request: { merged: true } },
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
     expect(result.velocity).toEqual({ issueThroughput: 1, prThroughput: 1 });
   });
 

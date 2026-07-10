@@ -119,6 +119,15 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(html).toContain("[masked]");
   });
 
+  it("PRF-Gは空projectsでもglobal audienceとして標準レポート本文を読める", () => {
+    const html = renderStandardReportHtml(
+      payload,
+      recipient({ profile: "PRF-G", persona: "global-manager", projects: [] }),
+    );
+    expect(html).toContain("Alice finished InternalPhoenix migration");
+    expect(html).not.toContain("[masked]");
+  });
+
   it("Teamsカードにdashboardディープリンクを付ける", async () => {
     const cards: unknown[] = [];
     await deliverStandardReportToRecipients(

@@ -87,7 +87,7 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
       at: new Date().toISOString(),
     });
 
-    if (inserted.created && deps.isFailsafeActive?.()) {
+    if (deps.isFailsafeActive?.()) {
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "SERVER",
@@ -96,7 +96,7 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
         detail: { reportId: inserted.reportId, reportType: reportPayload.reportType },
         at: new Date().toISOString(),
       });
-    } else if (inserted.created) {
+    } else {
       await deps.deliverReport?.(
         { reportId: inserted.reportId, payload: reportPayload, periodLabel: reportPayload.period.label },
         traceId,

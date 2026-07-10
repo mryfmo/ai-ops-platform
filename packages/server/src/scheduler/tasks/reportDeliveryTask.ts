@@ -79,6 +79,7 @@ function escapeHtml(value: string): string {
 
 function audienceForRecipient(recipient: DeliveryRecipient): ReportAudience {
   if (recipient.persona === "investor") return "investor";
+  if (recipient.profile === "PRF-G") return "PRF-04";
   if (["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05"].includes(recipient.profile)) {
     return recipient.profile as ReportAudience;
   }

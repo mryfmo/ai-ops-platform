@@ -16,6 +16,7 @@ export interface QueuedEvent {
   payload: unknown;
   status: "queued" | "dispatched" | "delayed" | "done" | "dead";
   attempts: number;
+  claimedAt: string;
 }
 
 export interface EnqueueOptions {
@@ -32,10 +33,11 @@ export interface ClaimOptions {
 export interface MarkFailedOptions {
   maxAttempts: number;
   nextAttemptAt: Date;
+  claimedAt?: string;
 }
 
 export interface MarkFailedResult {
-  status: "queued" | "dead";
+  status: "queued" | "dead" | "stale";
   attempts: number;
 }
 
@@ -176,7 +178,7 @@ export class EventsRepo {
           `UPDATE events
            SET status = 'dispatched', attempts = $2, claimed_at = $3::timestamptz
            WHERE event_id = $1
-           RETURNING event_id, trace_id, source, payload, status, attempts`,
+           RETURNING event_id, trace_id, source, payload, status, attempts, claimed_at`,
           [row.event_id, disposition.attempts, now.toISOString()],
         );
         const claimedRow = claimed.rows[0];
@@ -188,6 +190,7 @@ export class EventsRepo {
           payload: typeof claimedRow.payload === "string" ? JSON.parse(claimedRow.payload) : claimedRow.payload,
           status: claimedRow.status as QueuedEvent["status"],
           attempts: Number(claimedRow.attempts ?? 0),
+          claimedAt: new Date(String(claimedRow.claimed_at)).toISOString(),
         };
         break;
       }
@@ -222,10 +225,12 @@ export class EventsRepo {
            next_attempt_at = CASE WHEN attempts + 1 >= $2 THEN NULL ELSE $3::timestamptz END,
            claimed_at = NULL
        WHERE event_id = $1
+         AND status = 'dispatched'
+         AND ($4::timestamptz IS NULL OR claimed_at = $4::timestamptz)
        RETURNING status, attempts`,
-      [eventId, options.maxAttempts, options.nextAttemptAt.toISOString()],
+      [eventId, options.maxAttempts, options.nextAttemptAt.toISOString(), options.claimedAt ?? null],
     );
-    const row = res.rows[0] ?? { status: "dead", attempts: options.maxAttempts };
+    const row = res.rows[0] ?? { status: "stale", attempts: 0 };
     return { status: row.status as MarkFailedResult["status"], attempts: Number(row.attempts) };
   }
 
