@@ -109,15 +109,6 @@ export function isRefusalFinishReason(finishReason: unknown): boolean {
   return finishReason === "refusal" || finishReason === "content-filter";
 }
 
-function containsRefusalMarker(value: unknown): boolean {
-  if (value === null || value === undefined) return false;
-  try {
-    return /"?(stop[_-]?reason|finish[_-]?reason|reason)"?\s*:\s*"refusal"/i.test(JSON.stringify(value));
-  } catch {
-    return false;
-  }
-}
-
 export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
   try {
     const personas = await resolvePersonas(deps.getSession, deps.resolver);
@@ -170,11 +161,8 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
         },
       },
       prepareStep: async () => ({ toolChoice: "auto" }),
-      onFinish: async ({ finishReason, totalUsage, providerMetadata, response }) => {
-        const isRefusal =
-          isRefusalFinishReason(finishReason) ||
-          containsRefusalMarker(providerMetadata) ||
-          containsRefusalMarker(response.body);
+      onFinish: async ({ finishReason, totalUsage }) => {
+        const isRefusal = isRefusalFinishReason(finishReason);
         if (finishReason === "error" && !isRefusal) return;
         const inputTokens = totalUsage?.inputTokens ?? 0;
         const outputTokens = totalUsage?.outputTokens ?? 0;

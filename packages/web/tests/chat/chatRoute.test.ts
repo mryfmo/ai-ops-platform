@@ -345,33 +345,4 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
 
     await expect(res.text()).rejects.toThrow("E-LLM-REFUSAL");
   });
-
-  it("finishReason=errorでもproviderMetadataにrefusalがあれば拒否として扱う [C-6/T26-R3]", async () => {
-    const model = new MockLanguageModelV2({
-      doStream: async () => ({
-        stream: new ReadableStream({
-          start(controller) {
-            controller.enqueue({ type: "stream-start", warnings: [] });
-            controller.enqueue({
-              type: "finish",
-              finishReason: "error",
-              usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
-              providerMetadata: { anthropic: { stop_reason: "refusal" } },
-            });
-            controller.close();
-          },
-        }),
-      }),
-    });
-
-    const res = await handleChat({
-      getSession: sessionWithEmail,
-      resolver: resolverWith([prjopsExecutive]),
-      languageModel: model,
-      costGuard: new PgCostGuard(emptyCostDb()),
-      messages: userMessage("こんにちは"),
-    });
-
-    await expect(res.text()).rejects.toThrow("E-LLM-REFUSAL");
-  });
 });

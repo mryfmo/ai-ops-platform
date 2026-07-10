@@ -111,6 +111,7 @@ export class PgCostGuard implements CostGuard {
     let released = false;
     try {
       await tx.query("BEGIN");
+      // ponytail: one global lock protects the system-wide daily cap; if concurrency suffers, shorten this critical section or add lock timeouts.
       await tx.query("SELECT pg_advisory_xact_lock(hashtext('aiops_llm_usage_budget'))");
       const res = await tx.query(
         `WITH total_spend AS (

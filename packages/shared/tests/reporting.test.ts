@@ -110,13 +110,26 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(findUngroundedSlotNumbers(slots, { processed: 1500 })).toEqual([]);
   });
 
-  it("期間ラベル由来の年・四半期数字は捏造数値として扱わない [C-1/T26-R2]", () => {
+  it("期間ラベル全体は除外し、同じ桁の単独数値は拒否する [C-1/T26-R6]", () => {
     const payload = buildStandardReportPayload(
-      { evidenceIds: ["REQ-040"], periodLabel: "2026-Q3", metrics: { completed: 3 } },
-      { ...validSlots, conclusion: "2026-Q3の進捗は安定しています。" },
+      { evidenceIds: ["REQ-040"], periodLabel: "2026-Q3", metrics: { completed: 1 } },
+      { ...validSlots, conclusion: "2026-Q3の進捗は安定しています。3件のインシデントがあります。" },
       "2026-07-09T16:00:00+09:00",
     );
-    expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+    expect(validateStandardReportPayload(payload).errors).toContain(
+      "slots.conclusion contains ungrounded numeric value 3",
+    );
+  });
+
+  it("週ラベルの年・週番号も単独数値の根拠にしない [C-1/T26-R6]", () => {
+    const payload = buildStandardReportPayload(
+      { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: { completed: 1 } },
+      { ...validSlots, conclusion: "2026-W28の状況です。28件と2026件を未根拠で書いています。" },
+      "2026-07-09T16:00:00+09:00",
+    );
+    const errors = validateStandardReportPayload(payload).errors;
+    expect(errors).toContain("slots.conclusion contains ungrounded numeric value 28");
+    expect(errors).toContain("slots.conclusion contains ungrounded numeric value 2026");
   });
 
   it("長さ超過があっても未根拠数値チェックをマスクしない [C-1/T26-R2]", () => {

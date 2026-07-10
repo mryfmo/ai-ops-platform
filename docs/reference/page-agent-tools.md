@@ -38,5 +38,5 @@ The page agent exposes tools in [`packages/web/src/server/chat/tools.ts`](../../
 - Auth and persona resolution happen before tool construction.
 - If `ANTHROPIC_API_KEY` is unset, `/app/api/chat` returns 503.
 - The model is called with step cap `PAGE_AGENT_MAX_STEPS` or 5 and Anthropic thinking budget `PAGE_AGENT_THINKING_BUDGET_TOKENS` or 12000. `temperature` is intentionally omitted because Anthropic extended thinking is not compatible with non-default temperature settings.
-- Chat refusal is detected after the streaming response has started, so it is surfaced as an `E-LLM-REFUSAL` UI stream error event rather than a pre-stream HTTP status.
+- Chat refusal is surfaced by AI SDK as `finishReason: "content-filter"` after the streaming response has started, so it becomes an `E-LLM-REFUSAL` UI stream error event rather than a pre-stream HTTP status.
 - The system prompt forbids the assistant from inventing numeric values in prose.

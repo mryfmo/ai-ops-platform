@@ -39,9 +39,9 @@ export interface CostGuard {
   /** 利用実績を記録する（audit/llm_usage.jsonl相当） */
   record(usage: LlmUsageRecord): Promise<void>;
   /** 呼び出し前に見積コストを予約する */
-  reserve?(usage: LlmUsageRecord): Promise<string>;
+  reserve(usage: LlmUsageRecord): Promise<string>;
   /** 予約済み行を実コストへ照合する */
-  reconcileReservation?(reservationId: string, usage: LlmUsageRecord): Promise<void>;
+  reconcileReservation(reservationId: string, usage: LlmUsageRecord): Promise<void>;
   /** 日次上限（既定 $20。SPEC-INT-060。PRF-03が設定ファイルで変更可） */
   dailyLimitUsd: number;
 }
@@ -155,9 +155,7 @@ export class AnthropicStructuredClient {
         output_tokens: 2048,
         estimated_cost_usd: estimateCostUsd(currentModel, estimatedInputTokens, 2048),
       };
-      const reservationId = this.costGuard.reserve
-        ? await this.costGuard.reserve(reservedUsage)
-        : await legacyReserve(this.costGuard, reservedUsage);
+      const reservationId = await this.costGuard.reserve(reservedUsage);
 
       let reconciledActualUsage = false;
       try {
@@ -187,10 +185,8 @@ export class AnthropicStructuredClient {
           output_tokens: response.usage.output_tokens,
           estimated_cost_usd: estimateCostUsd(currentModel, response.usage.input_tokens, response.usage.output_tokens),
         };
-        if (this.costGuard.reconcileReservation) {
-          await this.costGuard.reconcileReservation(reservationId, actualUsage);
-          reconciledActualUsage = true;
-        }
+        await this.costGuard.reconcileReservation(reservationId, actualUsage);
+        reconciledActualUsage = true;
 
         if ((response as { stop_reason?: string }).stop_reason === "refusal") {
           throw new AnthropicRefusalError(currentModel);
@@ -212,7 +208,7 @@ export class AnthropicStructuredClient {
       } catch (err) {
         if (err instanceof AnthropicRefusalError || err instanceof DailyCostLimitExceededError) throw err;
         if (!reconciledActualUsage) {
-          await this.costGuard.reconcileReservation?.(reservationId, {
+          await this.costGuard.reconcileReservation(reservationId, {
             ...reservedUsage,
             at: new Date().toISOString(),
             input_tokens: 0,
@@ -234,13 +230,4 @@ export class AnthropicStructuredClient {
 
 export function shouldSendTemperature(model: string): boolean {
   return model !== ESCALATION_MODEL;
-}
-
-async function legacyReserve(costGuard: CostGuard, usage: LlmUsageRecord): Promise<string> {
-  const todaySpend = await costGuard.getTodaySpendUsd();
-  if (todaySpend + usage.estimated_cost_usd > costGuard.dailyLimitUsd) {
-    throw new DailyCostLimitExceededError(todaySpend + usage.estimated_cost_usd, costGuard.dailyLimitUsd);
-  }
-  await costGuard.record(usage);
-  return "";
 }

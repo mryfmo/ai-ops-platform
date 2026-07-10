@@ -75,7 +75,6 @@ function metricNumberStrings(metrics: Record<string, unknown>): Set<string> {
     if (typeof value !== "number" || !Number.isFinite(value)) continue;
     const numberValue = Number(value);
     values.add(String(numberValue));
-    values.add(new Intl.NumberFormat("en-US", { maximumFractionDigits: 20, useGrouping: true }).format(numberValue));
     if (Number.isInteger(numberValue)) values.add(String(Math.trunc(numberValue)));
   }
   return values;
@@ -89,16 +88,24 @@ function extractNumberTexts(text: string): string[] {
   return text.match(NUMBER_PATTERN) ?? [];
 }
 
+function stripLiteralText(value: string, literals: Iterable<string>): string {
+  let stripped = value;
+  for (const literal of literals) {
+    if (literal.length === 0) continue;
+    stripped = stripped.replaceAll(literal, "");
+  }
+  return stripped;
+}
+
 export function findUngroundedSlotNumbers(
   slots: StandardReportSlots,
   metrics: Record<string, number>,
-  ignoredNumberTexts: Iterable<string> = [],
+  ignoredLiterals: Iterable<string> = [],
 ): ReportSlotNumericFinding[] {
   const allowed = metricNumberStrings(metrics);
-  for (const value of ignoredNumberTexts) allowed.add(normalizeNumberText(value));
   const findings: ReportSlotNumericFinding[] = [];
   for (const key of standardReportSlotKeys()) {
-    const matches = extractNumberTexts(slots[key]);
+    const matches = extractNumberTexts(stripLiteralText(slots[key], ignoredLiterals));
     for (const raw of matches) {
       const normalized = normalizeNumberText(raw);
       if (!allowed.has(normalized)) findings.push({ slot: key, value: raw });
@@ -165,14 +172,12 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
   const slotResult = validateSlots(payload.slots);
   errors.push(...slotResult.errors);
   if (isRecord(payload.metrics) && validateSlotsShapeOnly(payload.slots).ok) {
-    const periodLabelNumbers =
-      isRecord(payload.period) && typeof payload.period.label === "string"
-        ? extractNumberTexts(payload.period.label)
-        : [];
+    const ignoredLiterals =
+      isRecord(payload.period) && typeof payload.period.label === "string" ? [payload.period.label] : [];
     const findings = findUngroundedSlotNumbers(
       payload.slots as StandardReportSlots,
       payload.metrics as Record<string, number>,
-      periodLabelNumbers,
+      ignoredLiterals,
     );
     for (const finding of findings) {
       errors.push(`slots.${finding.slot} contains ungrounded numeric value ${finding.value}`);
