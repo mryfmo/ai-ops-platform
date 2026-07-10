@@ -18,6 +18,13 @@ function fakeDb(
   projectIds: string[],
   incidents: Array<{ detected_at: string; resolved_at: string | null; affected_projects: string[] }>,
   deployments: Array<{ project_id: string; created_at: string; updated_at: string; state: string }> = [],
+  pmEvents: Array<{
+    project_id: string | null;
+    subject_type: string;
+    action: string | null;
+    occurred_at: string;
+    normalized: unknown;
+  }> = [],
 ): PgQueryable {
   const query = vi.fn(async (text: string) => {
     if (text.includes("FROM project_channels")) {
@@ -28,6 +35,9 @@ function fakeDb(
     }
     if (text.includes("FROM deployments")) {
       return { rows: deployments };
+    }
+    if (text.includes("FROM pm_events")) {
+      return { rows: pmEvents };
     }
     throw new Error(`unexpected query: ${text}`);
   });
@@ -54,7 +64,7 @@ describe("buildDevOpsManagerSummary（PRF-G: 全プロジェクト横断）", ()
     expect(result.totalProjectCount).toBe(2);
     expect(result.totalTicketCount).toBe(2);
     expect(result.remainingTicketCount).toBe(1);
-    expect(result.dora.deploymentReworkRatePct).toBe(0);
+    expect(result.dora.deploymentReworkRatePct).toBeNull();
   });
 });
 
@@ -79,9 +89,87 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
       "2026-01-01",
       "2026-01-08",
     );
-    expect(result.dora.deploymentReworkRatePct).toBe(100);
+    expect(result.dora.deploymentReworkRatePct).toBe(0);
+    expect(result.dora.changeFailureRatePct).toBe(100);
     expect(result.coveragePct).toBeNull();
     expect(result.doraByProject[0]?.projectId).toBe("PRJ-0001");
+  });
+
+  it("throughputはclosed issueとmerged PR由来で、incident流入数を混入しない", async () => {
+    const db = fakeDb(
+      ["PRJ-0001"],
+      [
+        { detected_at: "2026-01-05T00:00:00Z", resolved_at: null, affected_projects: ["PRJ-0001"] },
+        { detected_at: "2026-01-06T00:00:00Z", resolved_at: null, affected_projects: ["PRJ-0001"] },
+      ],
+      [],
+      [
+        {
+          project_id: "PRJ-0001",
+          subject_type: "issue",
+          action: "closed",
+          occurred_at: "2026-01-06T00:00:00Z",
+          normalized: {},
+        },
+        {
+          project_id: "PRJ-0001",
+          subject_type: "pull_request",
+          action: "closed",
+          occurred_at: "2026-01-07T00:00:00Z",
+          normalized: { merged: true },
+        },
+        {
+          project_id: "PRJ-0001",
+          subject_type: "pull_request",
+          action: "closed",
+          occurred_at: "2026-01-07T00:00:00Z",
+          normalized: { merged: false },
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
+    expect(result.totalTicketCount).toBe(2);
+    expect(result.velocity).toMatchObject({ issueThroughput: 1, prThroughput: 1, wipCount: 2 });
+  });
+
+  it("未解決incidentはfailed deployment recovery timeへ0時間として混入しない", async () => {
+    const db = fakeDb(
+      ["PRJ-0001"],
+      [
+        {
+          detected_at: "2026-01-01T13:00:00Z",
+          resolved_at: null,
+          affected_projects: ["PRJ-0001"],
+        },
+        {
+          detected_at: "2026-01-01T13:00:00Z",
+          resolved_at: "2026-01-01T15:00:00Z",
+          affected_projects: ["PRJ-0001"],
+        },
+      ],
+      [
+        {
+          project_id: "PRJ-0001",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T12:00:00Z",
+          state: "rolled_back",
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
+    expect(result.dora.failedDeploymentRecoveryTimeHours).toBe(2);
   });
 });
 

@@ -111,7 +111,7 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
       medianLeadTimeHours: 4.2,
       changeFailureRatePct: 8.3,
       deploymentReworkRatePct: 3.1,
-      meanTimeToRestoreHours: 1.5,
+      failedDeploymentRecoveryTimeHours: 1.5,
       deltaVsPrevWeek: {
         deploymentFrequency: 1,
         leadTime: -0.5,

@@ -52,6 +52,7 @@ export interface PrjopsProjectRecord {
   averageReviewWaitHours?: number;
   activeContributorCount?: number;
   questionnaire?: SevenKeysQuestionnaireInput;
+  ownershipPct?: number;
   revenue?: number;
   ebitda?: number;
 }
@@ -126,6 +127,9 @@ export async function buildExecutiveSummary(
     projectId: p.projectId,
     name: p.name,
     progressPct: p.progressPct,
+    startDate: p.startDate,
+    endDate: p.endDate,
+    asOfDate: new Date().toISOString(),
     highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
     isOverdue: p.isOverdue,
     scopeChangeCount: p.scopeChangeCount,
@@ -181,7 +185,7 @@ export async function buildManagerSummary(
       ownerName: p.ownerName,
     })),
     totalTicketCount: countTotalItemsInPeriod(burndownInputs, periodStart, periodEnd),
-    remainingTicketCount: countRemainingItems(burndownInputs),
+    remainingTicketCount: countRemainingItems(burndownInputs, periodEnd),
     burndown: computeIssueActionBurndown(burndownInputs, periodStart, periodEnd),
   };
 }
@@ -205,6 +209,7 @@ export async function buildInvestorSummary(
     projects.map((p) => ({
       projectId: p.projectId,
       name: p.name,
+      ownershipPct: p.ownershipPct,
       revenue: p.revenue,
       ebitda: p.ebitda,
       milestoneDelayDays: p.isOverdue ? 1 : 0,

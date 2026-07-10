@@ -38,14 +38,14 @@ export interface ManagerSummaryData {
   totalTicketCount: number;
   remainingTicketCount: number;
   burndown: ManagerSummaryBurndownWeek[];
-  velocity?: { issueThroughput: number; prThroughput: number };
+  velocity?: { issueThroughput: number; prThroughput: number; cycleTimeMedianHours?: number | null; wipCount?: number };
   coveragePct?: number | null;
   dora?: {
-    deploymentFrequencyPerWeek: number;
-    medianLeadTimeHours: number;
-    changeFailureRatePct: number;
-    deploymentReworkRatePct: number;
-    meanTimeToRestoreHours: number;
+    deploymentFrequencyPerWeek: number | null;
+    medianLeadTimeHours: number | null;
+    changeFailureRatePct: number | null;
+    deploymentReworkRatePct: number | null;
+    failedDeploymentRecoveryTimeHours: number | null;
   };
   doraByProject?: Array<{ projectId: string; dora: NonNullable<ManagerSummaryData["dora"]> }>;
 }
@@ -65,6 +65,10 @@ function oneDecimal(value: number): string {
   return value.toFixed(1);
 }
 
+function metric(value: number | null | undefined, suffix = ""): string {
+  return value === null || value === undefined ? "未取得" : `${oneDecimal(value)}${suffix}`;
+}
+
 export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
   const columns: DataTableColumn<ManagerSummaryProjectRow>[] = [
     { key: "projectId", header: "ID", render: (r) => r.projectId },
@@ -81,11 +85,11 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
   ];
   const doraColumns: DataTableColumn<NonNullable<ManagerSummaryData["doraByProject"]>[number]>[] = [
     { key: "projectId", header: "サービス/Repo", render: (r) => r.projectId },
-    { key: "deployFreq", header: "デプロイ頻度/週", render: (r) => oneDecimal(r.dora.deploymentFrequencyPerWeek) },
-    { key: "leadTime", header: "変更LT(h)", render: (r) => oneDecimal(r.dora.medianLeadTimeHours) },
-    { key: "failRate", header: "失敗率(%)", render: (r) => oneDecimal(r.dora.changeFailureRatePct) },
-    { key: "reworkRate", header: "手戻り率(%)", render: (r) => oneDecimal(r.dora.deploymentReworkRatePct) },
-    { key: "restore", header: "復旧時間(h)", render: (r) => oneDecimal(r.dora.meanTimeToRestoreHours) },
+    { key: "deployFreq", header: "デプロイ頻度/週", render: (r) => metric(r.dora.deploymentFrequencyPerWeek) },
+    { key: "leadTime", header: "変更LT(h)", render: (r) => metric(r.dora.medianLeadTimeHours) },
+    { key: "failRate", header: "失敗率(%)", render: (r) => metric(r.dora.changeFailureRatePct) },
+    { key: "reworkRate", header: "手戻り率(%)", render: (r) => metric(r.dora.deploymentReworkRatePct) },
+    { key: "restore", header: "復旧時間(h)", render: (r) => metric(r.dora.failedDeploymentRecoveryTimeHours) },
   ];
 
   return (
@@ -115,9 +119,12 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
 
       {data.velocity || data.dora ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card title="ベロシティ">
+          <Card title="Throughput">
             <p className="tabular text-sm text-dashboard-ink">
               Issue {data.velocity?.issueThroughput ?? 0} / PR {data.velocity?.prThroughput ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-dashboard-muted">
+              Cycle {metric(data.velocity?.cycleTimeMedianHours, "h")} / WIP {data.velocity?.wipCount ?? 0}
             </p>
           </Card>
           <Card title="テストカバレッジ">
@@ -129,8 +136,8 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
           </Card>
           <Card title="DORA 5">
             <p className="tabular text-sm text-dashboard-ink">
-              DF {oneDecimal(data.dora?.deploymentFrequencyPerWeek ?? 0)} / Rework{" "}
-              {oneDecimal(data.dora?.deploymentReworkRatePct ?? 0)}%
+              DF {metric(data.dora?.deploymentFrequencyPerWeek)} / Rework{" "}
+              {metric(data.dora?.deploymentReworkRatePct, "%")}
             </p>
           </Card>
         </div>

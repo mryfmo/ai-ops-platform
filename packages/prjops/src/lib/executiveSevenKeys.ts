@@ -32,10 +32,19 @@ export interface SevenKeysQuestionnaireInput {
   deliveryOrgBenefits?: SevenKeysRag;
 }
 
+export interface SevenKeysQuestionnaireRecord {
+  projectId: string;
+  month: string;
+  answers: SevenKeysQuestionnaireInput;
+}
+
 export interface ExecutiveProjectInput {
   projectId: string;
   name?: string;
   progressPct: number;
+  startDate?: string;
+  endDate?: string;
+  asOfDate?: string;
   highSeverityOpenIssueCount: number;
   isOverdue: boolean;
   scopeChangeCount?: number;
@@ -69,7 +78,7 @@ export interface ExecutiveSevenKeysSummary {
 
 const RANK: Record<SevenKeysRag, number> = { red: 0, yellow: 1, grey: 2, green: 3 };
 // ADR-0010: GitHub由来RAGの初期校正値。運用実績で見直す前提で、正典キー名とは分離する。
-const WORK_PREDICTABILITY_YELLOW_PROGRESS_PCT = 70;
+const WORK_PREDICTABILITY_TOLERANCE_PCT = 10;
 const SCOPE_RED_CHANGE_COUNT = 5;
 const SCOPE_YELLOW_CHANGE_COUNT = 2;
 const TEAM_RED_MIN_ACTIVE_CONTRIBUTORS = 1;
@@ -80,9 +89,29 @@ function q(value: SevenKeysRag | undefined, missing: string): { rag: SevenKeysRa
   return value ? { rag: value, basis: "questionnaire" } : { rag: "grey", basis: missing };
 }
 
+export function applySevenKeysQuestionnaire(
+  project: ExecutiveProjectInput,
+  questionnaires: SevenKeysQuestionnaireRecord[],
+  month: string,
+): ExecutiveProjectInput {
+  const record = questionnaires.find((q) => q.projectId === project.projectId && q.month === month);
+  return record ? { ...project, questionnaire: record.answers } : project;
+}
+
+function expectedProgressPct(p: ExecutiveProjectInput): number | null {
+  if (!p.startDate || !p.endDate || !p.asOfDate) return null;
+  const start = Date.parse(p.startDate);
+  const end = Date.parse(p.endDate);
+  const asOf = Date.parse(p.asOfDate);
+  if (!(end > start)) return null;
+  return Math.min(100, Math.max(0, ((asOf - start) / (end - start)) * 100));
+}
+
 function workAndSchedule(p: ExecutiveProjectInput): SevenKeysRag {
   if (p.isOverdue) return "red";
-  if (p.progressPct < WORK_PREDICTABILITY_YELLOW_PROGRESS_PCT) return "yellow";
+  const expected = expectedProgressPct(p);
+  if (expected === null) return p.progressPct < 70 ? "yellow" : "green";
+  if (p.progressPct + WORK_PREDICTABILITY_TOLERANCE_PCT < expected) return "yellow";
   return "green";
 }
 
@@ -115,7 +144,7 @@ export function assessProjectSevenKeys(project: ExecutiveProjectInput): Executiv
   const values: Record<SevenKeyId, { rag: SevenKeysRag; basis: string }> = {
     K1: q(questionnaire.stakeholdersCommitted, qualitativeMissing),
     K2: q(questionnaire.businessBenefits, qualitativeMissing),
-    K3: { rag: workAndSchedule(project), basis: "progress/isOverdue" },
+    K3: { rag: workAndSchedule(project), basis: "progress vs elapsed schedule/isOverdue" },
     K4: {
       rag: scopeManaged(project),
       basis: project.scopeChangeCount == null ? "scope change data missing" : "scopeChangeCount",

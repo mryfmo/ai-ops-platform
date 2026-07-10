@@ -16,6 +16,9 @@ export interface InvestorMetricValue {
   label: string;
   unit: string;
   value: number | null;
+  target: number | null;
+  variance: number | null;
+  trend: number[];
   source: "financial-input" | "github-derived";
 }
 
@@ -34,6 +37,17 @@ export function InvestorReportView({ data }: { data: InvestorReportData }) {
       header: "値",
       render: (row) => <span className="tabular">{row.value === null ? "未入力" : row.value}</span>,
     },
+    {
+      key: "target",
+      header: "Target",
+      render: (row) => <span className="tabular">{row.target === null ? "未入力" : row.target}</span>,
+    },
+    {
+      key: "variance",
+      header: "Variance",
+      render: (row) => <span className="tabular">{row.variance === null ? "未入力" : row.variance}</span>,
+    },
+    { key: "trend", header: "Trend", render: (row) => row.trend.join(" → ") || "未入力" },
     { key: "unit", header: "単位", render: (row) => row.unit },
     { key: "source", header: "ソース", render: (row) => row.source },
   ];

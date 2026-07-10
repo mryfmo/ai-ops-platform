@@ -30,7 +30,7 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
     effectiveFrom: "2019-01-01",
     required: true,
     compute: (companies, financialInputs) =>
-      financialInputs["revenue"] ?? sum(companies.map((company) => company.revenue)),
+      financialInputs["revenue"] ?? weightedSum(companies.map((company) => [company.revenue, company.ownershipPct])),
   },
   {
     id: "ebitda",
@@ -42,37 +42,21 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
     effectiveFrom: "2019-01-01",
     required: false,
     compute: (companies, financialInputs) =>
-      financialInputs["ebitda"] ?? sum(companies.map((company) => company.ebitda)),
-  },
-  {
-    id: "milestone_delay_days",
-    label: "Milestone delay days",
-    unit: "days",
-    cadence: "monthly",
-    kind: "github-derived",
-    version: "ILPA-2019",
-    effectiveFrom: "2019-01-01",
-    required: false,
-    compute: (companies) => companies.reduce((acc, company) => acc + company.milestoneDelayDays, 0),
-  },
-  {
-    id: "high_severity_open_issues",
-    label: "High severity open issues",
-    unit: "count",
-    cadence: "monthly",
-    kind: "github-derived",
-    version: "ILPA-2019",
-    effectiveFrom: "2019-01-01",
-    required: false,
-    compute: (companies) => companies.reduce((acc, company) => acc + company.highSeverityOpenIssueCount, 0),
+      financialInputs["ebitda"] ?? weightedSum(companies.map((company) => [company.ebitda, company.ownershipPct])),
   },
 ];
 
 export type InvestorFinancialInputs = Record<string, number | undefined>;
 
+export interface InvestorMetricTargetInputs {
+  targets?: Record<string, number | undefined>;
+  trends?: Record<string, number[] | undefined>;
+}
+
 export interface InvestorPortfolioCompanyInput {
   projectId: string;
   name: string;
+  ownershipPct?: number;
   revenue?: number;
   ebitda?: number;
   milestoneDelayDays: number;
@@ -84,6 +68,9 @@ export interface InvestorMetricValue {
   label: string;
   unit: string;
   value: number | null;
+  target: number | null;
+  variance: number | null;
+  trend: number[];
   source: InvestorMetricKind;
 }
 
@@ -94,27 +81,37 @@ export interface InvestorReport {
   risks: Array<{ projectId: string; name: string; highSeverityOpenIssueCount: number }>;
 }
 
-function sum(values: Array<number | undefined>): number | null {
-  const present = values.filter((value): value is number => typeof value === "number");
-  return present.length === 0 ? null : present.reduce((acc, value) => acc + value, 0);
+function weightedSum(values: Array<[number | undefined, number | undefined]>): number | null {
+  const present = values.filter((value): value is [number, number | undefined] => typeof value[0] === "number");
+  return present.length === 0
+    ? null
+    : present.reduce((acc, [value, ownershipPct]) => acc + value * ((ownershipPct ?? 100) / 100), 0);
 }
 
 export function buildInvestorReport(
   companies: InvestorPortfolioCompanyInput[],
   financialInputs: InvestorFinancialInputs = {},
+  boardPack: InvestorMetricTargetInputs = {},
 ): InvestorReport {
   return {
     highlights: [
       `${companies.length} portfolio companies`,
       `${companies.filter((company) => company.highSeverityOpenIssueCount > 0).length} companies with high severity risks`,
     ],
-    kpis: INVESTOR_METRIC_DEFINITIONS.map((definition) => ({
-      metricId: definition.id,
-      label: definition.label,
-      unit: definition.unit,
-      value: definition.compute(companies, financialInputs),
-      source: definition.kind,
-    })),
+    kpis: INVESTOR_METRIC_DEFINITIONS.map((definition) => {
+      const value = definition.compute(companies, financialInputs);
+      const target = boardPack.targets?.[definition.id] ?? null;
+      return {
+        metricId: definition.id,
+        label: definition.label,
+        unit: definition.unit,
+        value,
+        target,
+        variance: value === null || target === null ? null : value - target,
+        trend: boardPack.trends?.[definition.id] ?? [],
+        source: definition.kind,
+      };
+    }),
     milestones: companies.map((company) => ({
       projectId: company.projectId,
       name: company.name,

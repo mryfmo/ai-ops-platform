@@ -114,7 +114,18 @@ describe("ExecutiveSevenKeysView（REQ-038: Seven Keys RAGマトリクス）", (
 
 const investorData: InvestorReportData = {
   highlights: ["1 portfolio companies"],
-  kpis: [{ metricId: "revenue", label: "Revenue", unit: "currency", value: 100, source: "financial-input" }],
+  kpis: [
+    {
+      metricId: "revenue",
+      label: "Revenue",
+      unit: "currency",
+      value: 100,
+      target: 80,
+      variance: 20,
+      trend: [70, 90, 100],
+      source: "financial-input",
+    },
+  ],
   milestones: [{ projectId: "PRJ-0001", name: "会社A", delayDays: 0 }],
   risks: [],
 };

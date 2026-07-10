@@ -45,12 +45,12 @@ describe("factorD_testResult [SPEC-INT-021 D]", () => {
     expect(factorD_testResult(0, 80)).toBe(0);
     expect(factorD_testResult(0, 95)).toBe(0);
   });
-  it("失敗0・カバレッジ70〜80%未満は50", () => {
-    expect(factorD_testResult(0, 70)).toBe(50);
-    expect(factorD_testResult(0, 79.9)).toBe(50);
+  it("失敗0・カバレッジ80%未満は不足分を線形評価する", () => {
+    expect(factorD_testResult(0, 70)).toBe(20);
+    expect(factorD_testResult(0, 79.9)).toBeCloseTo(0.2);
   });
-  it("カバレッジ70%未満は100", () => {
-    expect(factorD_testResult(0, 69.9)).toBe(100);
+  it("カバレッジ大幅不足は100でクランプする", () => {
+    expect(factorD_testResult(0, 20)).toBe(100);
   });
   it("テスト失敗が1件でもあれば100（カバレッジ問わず）", () => {
     expect(factorD_testResult(1, 95)).toBe(100);

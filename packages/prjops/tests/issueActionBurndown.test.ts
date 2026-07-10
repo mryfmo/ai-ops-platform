@@ -43,6 +43,12 @@ describe("computeIssueActionBurndown [ADR-0005: 週次バーンダウン集計]"
     const result = computeIssueActionBurndown(items, "2026-01-01", "2026-01-08");
     expect(result[0]).toEqual({ weekLabel: "2026-01-01", opened: 0, resolved: 0, remaining: 0 });
   });
+
+  it("窓前にopenしたbacklogが窓内でcloseされてもremainingは正しく減る", () => {
+    const items: IssueActionBurndownInput[] = [{ createdAt: "2025-12-20T00:00:00Z", closedAt: "2026-01-03T00:00:00Z" }];
+    const result = computeIssueActionBurndown(items, "2026-01-01", "2026-01-08");
+    expect(result[0]).toEqual({ weekLabel: "2026-01-01", opened: 0, resolved: 1, remaining: 0 });
+  });
 });
 
 describe("countTotalItemsInPeriod [ADR-0005: 総チケット数=期間内に作成された件数]", () => {
@@ -71,5 +77,17 @@ describe("countRemainingItems [ADR-0005: 残チケット数=closedAt IS NULL]", 
 
   it("0件のときは0", () => {
     expect(countRemainingItems([])).toBe(0);
+  });
+
+  it("periodEnd指定時は期間終端時点の未完了件数を返す", () => {
+    expect(
+      countRemainingItems(
+        [
+          { createdAt: "2025-12-20T00:00:00Z", closedAt: "2026-01-03T00:00:00Z" },
+          { createdAt: "2026-01-02T00:00:00Z", closedAt: null },
+        ],
+        "2026-01-08",
+      ),
+    ).toBe(1);
   });
 });

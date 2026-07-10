@@ -44,7 +44,7 @@ describe("chartData (ADR-0009 / SPEC-INT-064 / AC-010-3)", () => {
             medianLeadTimeHours: 4,
             changeFailureRatePct: 5,
             deploymentReworkRatePct: 6,
-            meanTimeToRestoreHours: 7,
+            failedDeploymentRecoveryTimeHours: 7,
           },
         },
       ]),

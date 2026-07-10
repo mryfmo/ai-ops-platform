@@ -125,11 +125,11 @@ ${trendHtml}`;
 
 // ---------- PRF-G 週次/月次 ----------
 export interface DoraDisplay {
-  deploymentFrequencyPerWeek: number;
-  medianLeadTimeHours: number;
-  changeFailureRatePct: number;
-  deploymentReworkRatePct: number;
-  meanTimeToRestoreHours: number;
+  deploymentFrequencyPerWeek: number | null;
+  medianLeadTimeHours: number | null;
+  changeFailureRatePct: number | null;
+  deploymentReworkRatePct: number | null;
+  failedDeploymentRecoveryTimeHours: number | null;
   deltaVsPrevWeek: {
     deploymentFrequency: number;
     leadTime: number;
@@ -166,6 +166,8 @@ export function selectTopRiskProjects(
 }
 
 export function renderManagerPeriodBody(data: ManagerPeriodData): string {
+  const metricCell = (path: string, metric: string, value: number | null | undefined, suffix = "") =>
+    value === null || value === undefined ? "未取得" : numericSpan(path, metric, `${value.toFixed(1)}${suffix}`);
   const sevRows = data.sev1And2.length
     ? data.sev1And2
         .map(
@@ -221,23 +223,23 @@ export function renderManagerPeriodBody(data: ManagerPeriodData): string {
 
   return `
 <section>
-  <h2>DORA指標（全プロジェクト横断）</h2>
+  <h2>DORA 5指標（全プロジェクト横断）</h2>
   <table>
     <thead><tr><th>指標</th><th>今週値</th><th>前週比</th></tr></thead>
     <tbody>
-      <tr><td>デプロイ頻度(週)</td><td>${numericSpan("portfolio", "deploy_freq", data.dora.deploymentFrequencyPerWeek.toFixed(1))}</td><td>${
+      <tr><td>デプロイ頻度(週)</td><td>${metricCell("portfolio", "deploy_freq", data.dora.deploymentFrequencyPerWeek)}</td><td>${
         data.dora.deltaVsPrevWeek.deploymentFrequency
       }</td></tr>
-      <tr><td>変更リードタイム(h)</td><td>${numericSpan("portfolio", "lead_time", data.dora.medianLeadTimeHours.toFixed(1))}</td><td>${
+      <tr><td>変更リードタイム(h)</td><td>${metricCell("portfolio", "lead_time", data.dora.medianLeadTimeHours)}</td><td>${
         data.dora.deltaVsPrevWeek.leadTime
       }</td></tr>
-      <tr><td>変更失敗率(%)</td><td>${numericSpan("portfolio", "change_failure_rate", data.dora.changeFailureRatePct.toFixed(1))}</td><td>${
+      <tr><td>変更失敗率(%)</td><td>${metricCell("portfolio", "change_failure_rate", data.dora.changeFailureRatePct, "%")}</td><td>${
         data.dora.deltaVsPrevWeek.changeFailureRate
       }</td></tr>
-      <tr><td>デプロイ手戻り率(%)</td><td>${numericSpan("portfolio", "deployment_rework_rate", data.dora.deploymentReworkRatePct.toFixed(1))}</td><td>${
+      <tr><td>デプロイ手戻り率(%)</td><td>${metricCell("portfolio", "deployment_rework_rate", data.dora.deploymentReworkRatePct, "%")}</td><td>${
         data.dora.deltaVsPrevWeek.deploymentReworkRate
       }</td></tr>
-      <tr><td>MTTR(h)</td><td>${numericSpan("portfolio", "mttr", data.dora.meanTimeToRestoreHours.toFixed(1))}</td><td>${
+      <tr><td>Failed deployment recovery time(h)</td><td>${metricCell("portfolio", "failed_deployment_recovery_time", data.dora.failedDeploymentRecoveryTimeHours)}</td><td>${
         data.dora.deltaVsPrevWeek.mttr
       }</td></tr>
     </tbody>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  applySevenKeysQuestionnaire,
   assessProjectSevenKeys,
   buildSevenKeysMonthlySnapshot,
   computeExecutiveSevenKeys,
@@ -38,6 +39,39 @@ describe("assessProjectSevenKeys [REQ-038, SPEC-INT-065, AC-038-1]", () => {
     expect(rag(result, "K7")).toBe("grey");
   });
 
+  it("月次質問票入力でK1/K2/K6/K7をRAG化する", () => {
+    const input = applySevenKeysQuestionnaire(
+      project({ questionnaire: undefined }),
+      [
+        {
+          projectId: "PRJ-0001",
+          month: "2026-07",
+          answers: {
+            stakeholdersCommitted: "green",
+            businessBenefits: "yellow",
+            riskMitigation: "green",
+            deliveryOrgBenefits: "red",
+          },
+        },
+      ],
+      "2026-07",
+    );
+    const result = assessProjectSevenKeys(input);
+    expect(rag(result, "K1")).toBe("green");
+    expect(rag(result, "K2")).toBe("yellow");
+    expect(rag(result, "K6")).toBe("green");
+    expect(rag(result, "K7")).toBe("red");
+  });
+
+  it("質問票が無い月はK1/K2/K6/K7をgreyのままにする", () => {
+    const input = applySevenKeysQuestionnaire(project({ questionnaire: undefined }), [], "2026-07");
+    const result = assessProjectSevenKeys(input);
+    expect(rag(result, "K1")).toBe("grey");
+    expect(rag(result, "K2")).toBe("grey");
+    expect(rag(result, "K6")).toBe("grey");
+    expect(rag(result, "K7")).toBe("grey");
+  });
+
   it("GitHub由来のスケジュール・スコープ・チーム・リスク信号をRAG化する", () => {
     const result = assessProjectSevenKeys(
       project({
@@ -69,6 +103,18 @@ describe("assessProjectSevenKeys [REQ-038, SPEC-INT-065, AC-038-1]", () => {
   it("AC-038-1: 高重大度リスクなしでリスク質問票も無いK6はgreyにする", () => {
     const result = assessProjectSevenKeys(project({ highSeverityOpenIssueCount: 0, questionnaire: undefined }));
     expect(rag(result, "K6")).toBe("grey");
+  });
+
+  it("K3は生進捗率ではなく経過時間上の期待進捗と比較する", () => {
+    const result = assessProjectSevenKeys(
+      project({
+        progressPct: 50,
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+        asOfDate: "2026-01-16",
+      }),
+    );
+    expect(rag(result, "K3")).toBe("green");
   });
 });
 

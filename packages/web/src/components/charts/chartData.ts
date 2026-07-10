@@ -24,9 +24,9 @@ export interface TimeseriesChartPoint {
 
 export interface DoraChartPoint {
   projectId: string;
-  deploymentFrequencyPerWeek: number;
-  changeFailureRatePct: number;
-  deploymentReworkRatePct: number;
+  deploymentFrequencyPerWeek: number | null;
+  changeFailureRatePct: number | null;
+  deploymentReworkRatePct: number | null;
 }
 
 export interface MetricBarPoint {
