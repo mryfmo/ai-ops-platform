@@ -156,7 +156,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(payload.ids.messageId).toBe("m-1");
   });
 
-  it("Graph通知id欠落は400+監査ログでfail-closedし、エンキューしない", async () => {
+  it("Graph通常通知のid欠落は監査ログを残してskipし、バッチ全体は止めない", async () => {
     const { deps, auditLog, inboundEvents } = makeDeps();
     const app = buildApp(deps);
     const res = await app.request("/webhooks/graph", {
@@ -170,12 +170,21 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
             resource: "teams('t-1')/channels('c-1')/messages('m-1')",
             subscriptionId: "sub-1",
           },
+          {
+            id: "graph-notification-valid",
+            clientState: CLIENT_STATE,
+            changeType: "created",
+            resource: "teams('t-1')/channels('c-1')/messages('m-2')",
+            subscriptionId: "sub-1",
+          },
         ],
       }),
     });
 
-    expect(res.status).toBe(400);
-    expect(inboundEvents).toHaveLength(0);
+    expect(res.status).toBe(202);
+    expect(inboundEvents).toHaveLength(1);
+    const payload = inboundEvents[0]!.payload as { ids: { messageId: string } };
+    expect(payload.ids.messageId).toBe("m-2");
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "graph_notification_missing_dedupe_key")).toBe(true);
   });
@@ -212,7 +221,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(inboundEvents[0]!.dedupeKey).toBe("graph:graph-notification-1");
   });
 
-  it("Graph lifecycle通知を分類してhandlerへ渡す", async () => {
+  it("idなしのGraph lifecycle通知を分類してhandlerへ渡す", async () => {
     const { deps, graphLifecycleCalls } = makeDeps();
     const app = buildApp(deps);
     const res = await app.request("/webhooks/graph", {
@@ -220,9 +229,9 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         value: [
-          { id: "l1", clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" },
-          { id: "l2", clientState: CLIENT_STATE, lifecycleEvent: "subscriptionRemoved", subscriptionId: "sub-2" },
-          { id: "l3", clientState: CLIENT_STATE, lifecycleEvent: "missed", subscriptionId: "sub-3" },
+          { clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" },
+          { clientState: CLIENT_STATE, lifecycleEvent: "subscriptionRemoved", subscriptionId: "sub-2" },
+          { clientState: CLIENT_STATE, lifecycleEvent: "missed", subscriptionId: "sub-3" },
         ],
       }),
     });

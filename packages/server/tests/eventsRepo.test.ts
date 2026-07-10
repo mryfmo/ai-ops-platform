@@ -23,6 +23,17 @@ function makeMockDb(rows: Array<Record<string, unknown>> = []) {
   return { db, calls };
 }
 
+function makeSequentialMockDb(results: Array<Array<Record<string, unknown>>>) {
+  const calls: Call[] = [];
+  const db: PgQueryable = {
+    query: async (text: string, params?: unknown[]) => {
+      calls.push({ text, params });
+      return { rows: results.shift() ?? [] };
+    },
+  };
+  return { db, calls };
+}
+
 describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
   it("enqueue: dedupe_key がある場合は ON CONFLICT DO NOTHING で重複投入しない", async () => {
     const { db, calls } = makeMockDb([{ event_id: "evt-1" }]);
@@ -39,35 +50,110 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
   });
 
   it("claimNextQueued: due queued と lease切れ dispatched を再クレーム対象にする", async () => {
-    const { db, calls } = makeMockDb([
-      {
-        event_id: "evt-1",
-        trace_id: "11111111-1111-4111-8111-111111111111",
-        source: "inbound",
-        payload: "{}",
-        status: "dispatched",
-        attempts: 1,
-      },
+    const { db, calls } = makeSequentialMockDb([
+      [
+        {
+          event_id: "evt-1",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "queued",
+          attempts: 1,
+          next_attempt_at: "2026-07-10T00:00:00.000Z",
+          claimed_at: null,
+        },
+      ],
+      [
+        {
+          event_id: "evt-1",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "dispatched",
+          attempts: 1,
+        },
+      ],
     ]);
     const repo = new EventsRepo(db);
 
-    await repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z"), leaseMs: 60_000, maxAttempts: 5 });
+    const event = await repo.claimNextQueued({
+      now: new Date("2026-07-10T00:00:00Z"),
+      leaseMs: 60_000,
+      maxAttempts: 5,
+    });
 
-    expect(calls[0]!.text).toContain("next_attempt_at <= $");
-    expect(calls[0]!.text).toContain("status = 'dispatched'");
-    expect(calls[0]!.text).toContain("claimed_at <");
-    expect(calls[0]!.text).toContain("attempts");
+    expect(event?.eventId).toBe("evt-1");
+    expect(event?.attempts).toBe(1);
+    expect(calls[0]!.text).toContain("FOR UPDATE SKIP LOCKED");
+    expect(calls[1]!.text).toContain("status = 'dispatched'");
   });
 
-  it("claimNextQueued: lease切れdispatchedはattemptsを増やし、上限到達ならdeadへ送る", async () => {
-    const { db, calls } = makeMockDb([]);
+  it("claimNextQueued: lease切れdispatchedは純粋判定を通してattemptsを増やす", async () => {
+    const { db, calls } = makeSequentialMockDb([
+      [
+        {
+          event_id: "evt-lease",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "dispatched",
+          attempts: 2,
+          next_attempt_at: null,
+          claimed_at: "2026-07-09T23:58:59.999Z",
+        },
+      ],
+      [
+        {
+          event_id: "evt-lease",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "dispatched",
+          attempts: 3,
+        },
+      ],
+    ]);
     const repo = new EventsRepo(db);
 
-    await repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z"), leaseMs: 60_000, maxAttempts: 5 });
+    const event = await repo.claimNextQueued({
+      now: new Date("2026-07-10T00:00:00Z"),
+      leaseMs: 60_000,
+      maxAttempts: 5,
+    });
 
-    expect(calls[0]!.text).toContain("attempts = CASE WHEN candidate.status = 'dispatched'");
-    expect(calls[0]!.text).toContain("candidate.attempts + 1 >= $3");
-    expect(calls[0]!.text).toContain("THEN 'dead'");
+    expect(event?.attempts).toBe(3);
+    expect(calls[0]!.text).toContain("FOR UPDATE SKIP LOCKED");
+    expect(calls[1]!.text).toContain("attempts = $2");
+    expect(calls[1]!.params).toContain(3);
+  });
+
+  it("claimNextQueued: lease切れdispatchedがmaxAttempts到達ならdeadにし、dispatch対象を返さない", async () => {
+    const { db, calls } = makeSequentialMockDb([
+      [
+        {
+          event_id: "evt-poison",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "dispatched",
+          attempts: 4,
+          next_attempt_at: null,
+          claimed_at: "2026-07-09T23:58:59.999Z",
+        },
+      ],
+      [],
+    ]);
+    const repo = new EventsRepo(db);
+
+    const event = await repo.claimNextQueued({
+      now: new Date("2026-07-10T00:00:00Z"),
+      leaseMs: 60_000,
+      maxAttempts: 5,
+    });
+
+    expect(event).toBeNull();
+    expect(calls[1]!.text).toContain("status = 'dead'");
+    expect(calls[1]!.params).toContain(5);
   });
 
   it("markFailed: 上限未満は attempts を増やして queued に戻す", async () => {

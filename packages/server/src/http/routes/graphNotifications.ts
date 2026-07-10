@@ -75,19 +75,6 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
 
     // (3) 受理分をエンキュー（本文はfetch-on-notifyで後段が取得するため、通知メタデータのみ保存）
     for (const { notification, ids } of accepted) {
-      const notificationId = notification.id?.trim() ?? "";
-      if (!notificationId) {
-        await deps.auditLog.append({
-          trace_id: traceId,
-          actor: "SERVER",
-          action: "graph_notification_missing_dedupe_key",
-          basis: "SPEC-INT-001",
-          detail: { subscriptionId: notification.subscriptionId ?? null, changeType: notification.changeType ?? null },
-          at: new Date().toISOString(),
-        });
-        return c.json({ error: "missing notification id" }, 400);
-      }
-
       const lifecycleEvent = toLifecycleEvent(notification);
       if (lifecycleEvent) {
         if (deps.handleLifecycleEvent) {
@@ -102,6 +89,19 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
             at: new Date().toISOString(),
           });
         }
+        continue;
+      }
+
+      const notificationId = notification.id?.trim() ?? "";
+      if (!notificationId) {
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "SERVER",
+          action: "graph_notification_missing_dedupe_key",
+          basis: "SPEC-INT-001",
+          detail: { subscriptionId: notification.subscriptionId ?? null, changeType: notification.changeType ?? null },
+          at: new Date().toISOString(),
+        });
         continue;
       }
 
