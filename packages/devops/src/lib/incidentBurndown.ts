@@ -98,20 +98,6 @@ export function computeIncidentBurndown(
   return weeks;
 }
 
-/** 期間内の全incidents件数（総チケット数の定義。上記ヘッダコメント参照） */
-export function countTotalIncidentsInPeriod(
-  incidents: IncidentBurndownInput[],
-  periodStart: string,
-  periodEnd: string,
-): number {
-  const startMs = toEpochMs(periodStart);
-  const endMs = toEpochMs(periodEnd);
-  return incidents.filter((i) => {
-    const ms = toEpochMs(i.detectedAt);
-    return ms >= startMs && ms < endMs;
-  }).length;
-}
-
 /** 期間終端時点で未解決の件数。periodEnd省略時は現在未解決件数を返す。 */
 export function countRemainingIncidents(incidents: IncidentBurndownInput[], periodEnd?: string): number {
   if (!periodEnd) return incidents.filter((i) => i.resolvedAt === null).length;

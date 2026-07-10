@@ -9,7 +9,6 @@ import { describe, it, expect } from "vitest";
 import {
   computeIssueActionBurndown,
   countRemainingItems,
-  countTotalItemsInPeriod,
   type IssueActionBurndownInput,
 } from "../src/lib/issueActionBurndown.js";
 
@@ -48,21 +47,6 @@ describe("computeIssueActionBurndown [ADR-0005: 週次バーンダウン集計]"
     const items: IssueActionBurndownInput[] = [{ createdAt: "2025-12-20T00:00:00Z", closedAt: "2026-01-03T00:00:00Z" }];
     const result = computeIssueActionBurndown(items, "2026-01-01", "2026-01-08");
     expect(result[0]).toEqual({ weekLabel: "2026-01-01", opened: 0, resolved: 1, remaining: 0 });
-  });
-});
-
-describe("countTotalItemsInPeriod [ADR-0005: 総チケット数=期間内に作成された件数]", () => {
-  it("期間内のcreatedAtのみをカウントする", () => {
-    const items: IssueActionBurndownInput[] = [
-      { createdAt: "2026-01-02T00:00:00Z", closedAt: null },
-      { createdAt: "2025-12-01T00:00:00Z", closedAt: null },
-    ];
-    expect(countTotalItemsInPeriod(items, "2026-01-01", "2026-01-08")).toBe(1);
-  });
-
-  it("periodEnd自体は含まない（半開区間）", () => {
-    const items: IssueActionBurndownInput[] = [{ createdAt: "2026-01-08T00:00:00Z", closedAt: null }];
-    expect(countTotalItemsInPeriod(items, "2026-01-01", "2026-01-08")).toBe(0);
   });
 });
 

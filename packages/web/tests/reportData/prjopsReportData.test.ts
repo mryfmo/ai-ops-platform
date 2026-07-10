@@ -156,7 +156,23 @@ describe("buildInvestorSummary（investor: 出資対象のみ）", () => {
       [],
       [],
       {},
-      { targets: { revenue: 80 }, history: [{ revenue: 60 }, { revenue: 90 }] },
+      {
+        targets: { revenue: 80 },
+        history: [
+          {
+            companies: [
+              { projectId: "PRJ-0001", revenue: 120, ownershipPct: 50 },
+              { projectId: "PRJ-0002", revenue: 80, ownershipPct: 25 },
+            ],
+          },
+          {
+            companies: [
+              { projectId: "PRJ-0001", revenue: 200, ownershipPct: 50 },
+              { projectId: "PRJ-0002", revenue: 160, ownershipPct: 25 },
+            ],
+          },
+        ],
+      },
     );
     const result = await buildInvestorSummary(provider, {
       recipientStakeholderId: "STK-INV",
@@ -169,7 +185,7 @@ describe("buildInvestorSummary（investor: 出資対象のみ）", () => {
       value: 100,
       target: 80,
       variance: 20,
-      trend: [60, 90],
+      trend: [80, 140],
     });
   });
 });

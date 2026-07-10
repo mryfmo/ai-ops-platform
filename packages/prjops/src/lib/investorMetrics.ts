@@ -50,7 +50,11 @@ export type InvestorFinancialInputs = Record<string, number | undefined>;
 
 export interface InvestorBoardPackInputs {
   targets?: Record<string, number | undefined>;
-  history?: InvestorFinancialInputs[];
+  history?: InvestorPortfolioCompanyHistorySnapshot[]; // raw per-company snapshots; not precomputed KPI echoes
+}
+
+export interface InvestorPortfolioCompanyHistorySnapshot {
+  companies: Array<Pick<InvestorPortfolioCompanyInput, "projectId" | "ownershipPct" | "revenue" | "ebitda">>;
 }
 
 export interface InvestorPortfolioCompanyInput {
@@ -110,7 +114,20 @@ export function buildInvestorReport(
         variance: value === null || target === null ? null : value - target,
         trend:
           boardPack.history
-            ?.map((snapshot) => definition.compute(companies, snapshot))
+            ?.map((snapshot) =>
+              definition.compute(
+                snapshot.companies.map((company) => ({
+                  projectId: company.projectId,
+                  name: company.projectId,
+                  ownershipPct: company.ownershipPct,
+                  revenue: company.revenue,
+                  ebitda: company.ebitda,
+                  milestoneDelayDays: null,
+                  highSeverityOpenIssueCount: 0,
+                })),
+                {},
+              ),
+            )
             .filter((snapshotValue): snapshotValue is number => snapshotValue !== null) ?? [],
         source: definition.kind,
       };

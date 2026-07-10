@@ -281,6 +281,42 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
     expect(result.dora.failedDeploymentRecoveryTimeHours).toBeNull();
   });
 
+  it("期間開始直前24h内のrollbackはincident因果判定に使うがCFR分母には混ぜない", async () => {
+    const db = fakeDb(
+      ["PRJ-0001"],
+      [
+        {
+          detected_at: "2026-01-01T06:00:00Z",
+          resolved_at: "2026-01-01T08:00:00Z",
+          affected_projects: ["PRJ-0001"],
+        },
+      ],
+      [
+        {
+          project_id: "PRJ-0001",
+          created_at: "2025-12-31T00:00:00Z",
+          updated_at: "2025-12-31T18:00:00Z",
+          state: "rolled_back",
+        },
+        {
+          project_id: "PRJ-0001",
+          created_at: "2026-01-02T00:00:00Z",
+          updated_at: "2026-01-02T12:00:00Z",
+          state: "stable",
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
+    expect(result.dora.failedDeploymentRecoveryTimeHours).toBe(2);
+    expect(result.dora.changeFailureRatePct).toBe(0);
+  });
+
   it("期間外検知incidentをfailed deployment recovery timeへ混入しない", async () => {
     const db = fakeDb(
       ["PRJ-0001"],
@@ -334,6 +370,59 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
       "2026-01-08",
     );
     expect(result.dora.changeFailureRatePct).toBeCloseTo((2 / 101) * 100);
+  });
+
+  it("multi-project incidentはプールrecovery中央値へincident単位で1回だけ寄与する", async () => {
+    const db = fakeDb(
+      ["A", "B", "C"],
+      [
+        {
+          detected_at: "2026-01-01T02:00:00Z",
+          resolved_at: "2026-01-01T04:00:00Z",
+          affected_projects: ["A", "B", "C"],
+        },
+        {
+          detected_at: "2026-01-02T02:00:00Z",
+          resolved_at: "2026-01-06T06:00:00Z",
+          affected_projects: ["A"],
+        },
+      ],
+      [
+        {
+          project_id: "A",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T01:00:00Z",
+          state: "rolled_back",
+        },
+        {
+          project_id: "B",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T01:00:00Z",
+          state: "rolled_back",
+        },
+        {
+          project_id: "C",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T01:00:00Z",
+          state: "rolled_back",
+        },
+        {
+          project_id: "A",
+          created_at: "2026-01-02T00:00:00Z",
+          updated_at: "2026-01-02T01:00:00Z",
+          state: "rolled_back",
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
+    expect(result.dora.failedDeploymentRecoveryTimeHours).toBe(51);
+    expect(result.doraByProject.find((row) => row.projectId === "B")?.dora.failedDeploymentRecoveryTimeHours).toBe(2);
   });
 });
 

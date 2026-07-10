@@ -50,13 +50,29 @@ describe("investorMetrics [REQ-039, SPEC-INT-066, AC-039-1]", () => {
         },
       ],
       {},
-      { targets: { revenue: 80 }, history: [{ revenue: 70 }, { revenue: 90 }, { revenue: 100 }] },
+      {
+        targets: { revenue: 80 },
+        history: [
+          {
+            companies: [
+              { projectId: "PRJ-0001", revenue: 100, ownershipPct: 50 },
+              { projectId: "PRJ-0002", revenue: 200, ownershipPct: 25 },
+            ],
+          },
+          {
+            companies: [
+              { projectId: "PRJ-0001", revenue: 160, ownershipPct: 50 },
+              { projectId: "PRJ-0002", revenue: 240, ownershipPct: 25 },
+            ],
+          },
+        ],
+      },
     );
     expect(report.kpis.find((metric) => metric.metricId === "revenue")).toMatchObject({
       value: 100,
       target: 80,
       variance: 20,
-      trend: [70, 90, 100],
+      trend: [100, 140],
     });
   });
 });

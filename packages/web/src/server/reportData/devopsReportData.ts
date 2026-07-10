@@ -97,6 +97,10 @@ function toIsoString(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
+function addHours(iso: string, hours: number): string {
+  return new Date(Date.parse(iso) + hours * 60 * 60 * 1000).toISOString();
+}
+
 export interface DevOpsManagerSummaryResult {
   totalProjectCount: number;
   projectIds: string[];
@@ -169,6 +173,11 @@ export async function buildDevOpsManagerSummary(
 
   const allIncidents = await fetchIncidents(db);
   const allDeployments = await fetchDeployments(db, periodStart, periodEnd);
+  const causalityDeployments = await fetchDeployments(
+    db,
+    addHours(periodStart, -DEPLOYMENT_INCIDENT_CAUSALITY_WINDOW_HOURS),
+    periodEnd,
+  );
   const pmEvents = await fetchPmEvents(db, periodStart, periodEnd);
   const scopedIncidents = allIncidents.filter((i) => (i.affected_projects ?? []).some((pid) => scopedSet.has(pid)));
   const doraScopedIncidents = scopedIncidents.filter((incident) => {
@@ -176,6 +185,7 @@ export async function buildDevOpsManagerSummary(
     return detectedAt >= Date.parse(periodStart) && detectedAt < Date.parse(periodEnd);
   });
   const scopedDeployments = allDeployments.filter((deployment) => scopedSet.has(deployment.project_id));
+  const scopedCausalityDeployments = causalityDeployments.filter((deployment) => scopedSet.has(deployment.project_id));
 
   const burndownInputs: IncidentBurndownInput[] = scopedIncidents.map((i) => ({
     detectedAt: toIsoString(i.detected_at),
@@ -187,6 +197,23 @@ export async function buildDevOpsManagerSummary(
     deployedAt: toIsoString(deployment.updated_at),
     causedFailure: deployment.state === "rolling_back" || deployment.state === "rolled_back",
   }));
+  const causalityInputs: DeploymentRecord[] = scopedCausalityDeployments.map((deployment) => ({
+    projectId: deployment.project_id,
+    commitAt: toIsoString(deployment.created_at),
+    deployedAt: toIsoString(deployment.updated_at),
+    causedFailure: deployment.state === "rolling_back" || deployment.state === "rolled_back",
+  }));
+  const isCausedByDeployment = (projectId: string, incident: IncidentRow) =>
+    causalityInputs.some((deployment) => {
+      const detectedAt = Date.parse(toIsoString(incident.detected_at));
+      const deployedAt = Date.parse(deployment.deployedAt);
+      return (
+        deployment.projectId === projectId &&
+        deployment.causedFailure &&
+        deployedAt <= detectedAt &&
+        detectedAt - deployedAt <= DEPLOYMENT_INCIDENT_CAUSALITY_WINDOW_HOURS * 60 * 60 * 1000
+      );
+    });
   const doraIncidentInputs: IncidentRecord[] = doraScopedIncidents.flatMap((incident) =>
     (incident.affected_projects ?? [])
       .filter((projectId) => scopedSet.has(projectId))
@@ -194,18 +221,18 @@ export async function buildDevOpsManagerSummary(
         projectId,
         detectedAt: toIsoString(incident.detected_at),
         resolvedAt: incident.resolved_at === null ? null : toIsoString(incident.resolved_at),
-        causedByDeployment: doraInputs.some((deployment) => {
-          const detectedAt = Date.parse(toIsoString(incident.detected_at));
-          const deployedAt = Date.parse(deployment.deployedAt);
-          return (
-            deployment.projectId === projectId &&
-            deployment.causedFailure &&
-            deployedAt <= detectedAt &&
-            detectedAt - deployedAt <= DEPLOYMENT_INCIDENT_CAUSALITY_WINDOW_HOURS * 60 * 60 * 1000
-          );
-        }),
+        causedByDeployment: isCausedByDeployment(projectId, incident),
       })),
   );
+  const pooledDoraIncidentInputs: IncidentRecord[] = doraScopedIncidents.map((incident) => {
+    const projectIdsForIncident = (incident.affected_projects ?? []).filter((projectId) => scopedSet.has(projectId));
+    return {
+      projectId: projectIdsForIncident[0] ?? "unknown",
+      detectedAt: toIsoString(incident.detected_at),
+      resolvedAt: incident.resolved_at === null ? null : toIsoString(incident.resolved_at),
+      causedByDeployment: projectIdsForIncident.some((projectId) => isCausedByDeployment(projectId, incident)),
+    };
+  });
   const periodDays = Math.max(1, (Date.parse(periodEnd) - Date.parse(periodStart)) / (24 * 60 * 60 * 1000));
   const doraByProject = projectIds.map((projectId) => ({
     projectId,
@@ -225,7 +252,7 @@ export async function buildDevOpsManagerSummary(
     burndown: computeIncidentBurndown(burndownInputs, periodStart, periodEnd),
     velocity: throughput,
     coveragePct: null,
-    dora: calculateDoraSummary(doraInputs, doraIncidentInputs, periodDays),
+    dora: calculateDoraSummary(doraInputs, pooledDoraIncidentInputs, periodDays),
     doraByProject,
   };
 }

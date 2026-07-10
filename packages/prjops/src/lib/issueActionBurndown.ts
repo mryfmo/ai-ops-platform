@@ -95,20 +95,6 @@ export function computeIssueActionBurndown(
   return weeks;
 }
 
-/** 期間内に作成された件数（総チケット数の定義。上記ヘッダコメント参照） */
-export function countTotalItemsInPeriod(
-  items: IssueActionBurndownInput[],
-  periodStart: string,
-  periodEnd: string,
-): number {
-  const startMs = toEpochMs(periodStart);
-  const endMs = toEpochMs(periodEnd);
-  return items.filter((i) => {
-    const ms = toEpochMs(i.createdAt);
-    return ms >= startMs && ms < endMs;
-  }).length;
-}
-
 /** 期間終端時点で未完了の件数。periodEnd省略時は現在未完了件数を返す。 */
 export function countRemainingItems(items: IssueActionBurndownInput[], periodEnd?: string): number {
   if (!periodEnd) return items.filter((i) => i.closedAt === null).length;

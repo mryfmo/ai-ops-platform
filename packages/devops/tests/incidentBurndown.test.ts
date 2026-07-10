@@ -8,7 +8,6 @@ import { describe, it, expect } from "vitest";
 import {
   computeIncidentBurndown,
   countRemainingIncidents,
-  countTotalIncidentsInPeriod,
   type IncidentBurndownInput,
 } from "../src/lib/incidentBurndown.js";
 
@@ -55,21 +54,6 @@ describe("computeIncidentBurndown [ADR-0005: 週次バーンダウン集計]", (
     ];
     const result = computeIncidentBurndown(incidents, "2026-01-01", "2026-01-08");
     expect(result[0]!.remaining).toBe(0);
-  });
-});
-
-describe("countTotalIncidentsInPeriod [ADR-0005: 総チケット数=期間内の全incidents件数]", () => {
-  it("期間内のdetected_atのみをカウントする", () => {
-    const incidents: IncidentBurndownInput[] = [
-      { detectedAt: "2026-01-02T00:00:00Z", resolvedAt: null },
-      { detectedAt: "2025-12-01T00:00:00Z", resolvedAt: null },
-    ];
-    expect(countTotalIncidentsInPeriod(incidents, "2026-01-01", "2026-01-08")).toBe(1);
-  });
-
-  it("periodEnd自体は含まない（半開区間）", () => {
-    const incidents: IncidentBurndownInput[] = [{ detectedAt: "2026-01-08T00:00:00Z", resolvedAt: null }];
-    expect(countTotalIncidentsInPeriod(incidents, "2026-01-01", "2026-01-08")).toBe(0);
   });
 });
 
