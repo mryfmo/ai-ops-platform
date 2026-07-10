@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared";
+import { MetricsRegistry } from "../src/observability/metrics.js";
 import { createEventsPollingTask } from "../src/scheduler/tasks/eventsPollingTask.js";
 import type { EventsRepo, QueuedEvent } from "../src/db/eventsRepo.js";
 
@@ -38,6 +39,7 @@ function makeRepoStub(queue: QueuedEvent[]) {
       return { status: id.includes("dead") ? ("dead" as const) : ("queued" as const), attempts: 1 };
     },
     enqueue: async () => {},
+    getQueueMetrics: async () => [{ status: "queued", depth: queue.length, oldestAgeSeconds: 3 }],
     done,
     failed,
   };
@@ -200,5 +202,13 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     });
     await task.run(new Date());
     expect(repo.done).toEqual(["e1", "e2"]);
+  });
+
+  it("events queue metricsを記録する", async () => {
+    const repo = makeRepoStub([]);
+    const metrics = new MetricsRegistry();
+    const task = createEventsPollingTask({ ...makeTaskDeps(repo), metrics });
+    await task.run(new Date());
+    expect(metrics.renderPrometheus()).toContain('aiops_events_queue_depth{status="queued"} 0');
   });
 });

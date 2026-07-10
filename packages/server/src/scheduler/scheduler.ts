@@ -12,7 +12,9 @@
  *   - SIGTERM時は stop() で実行中タスクの完了を待ってから解決（graceful shutdown）
  */
 import type { AuditLogWriter } from "@aiops/shared";
+import { performance } from "node:perf_hooks";
 import { decideTick, nextCheckDelayMs, type TickState } from "../lib/schedulerPolicy.js";
+import type { MetricsRegistry } from "../observability/metrics.js";
 
 export interface ScheduledTask {
   /** 監査ログ・テレメトリで使う識別名（例: "healthcheck-30s", "jit-revocation-1m"） */
@@ -45,6 +47,25 @@ export function guardFailsafeTask(
         detail: { taskName: task.name },
         at: now.toISOString(),
       });
+    },
+  };
+}
+
+export function instrumentScheduledTask(task: ScheduledTask, metrics: MetricsRegistry): ScheduledTask {
+  return {
+    ...task,
+    async run(now: Date): Promise<void> {
+      const started = performance.now();
+      let status: "success" | "failure" = "success";
+      try {
+        await task.run(now);
+      } catch (error) {
+        status = "failure";
+        metrics.recordTaskFailure(task.name);
+        throw error;
+      } finally {
+        metrics.observeTaskDuration(task.name, status, (performance.now() - started) / 1000);
+      }
     },
   };
 }

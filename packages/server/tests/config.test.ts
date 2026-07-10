@@ -28,6 +28,8 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.DB_POOL_CONNECTION_TIMEOUT_MS).toBe(5000);
     expect(config.DB_STATEMENT_TIMEOUT_MS).toBe(30000);
     expect(config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS).toBe(30000);
+    expect(config.LOG_LEVEL).toBe("info");
+    expect(config.OTEL_SERVICE_NAME).toBe("ai-ops-platform-server");
     expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
   });
 
@@ -48,6 +50,20 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.DB_POOL_CONNECTION_TIMEOUT_MS).toBe(7000);
     expect(config.DB_STATEMENT_TIMEOUT_MS).toBe(45000);
     expect(config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS).toBe(15000);
+  });
+
+  it("observability設定を上書きできる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      LOG_LEVEL: "debug",
+      OTEL_SERVICE_NAME: "aiops-test",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example.com",
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://otel.example.com/v1/traces",
+    });
+    expect(config.LOG_LEVEL).toBe("debug");
+    expect(config.OTEL_SERVICE_NAME).toBe("aiops-test");
+    expect(config.OTEL_EXPORTER_OTLP_ENDPOINT).toBe("https://otel.example.com");
+    expect(config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).toBe("https://otel.example.com/v1/traces");
   });
 
   it("DATABASE_URL欠落でE-CFG01", () => {

@@ -5,6 +5,7 @@
  *   重い処理（Graph本文取得・LLM解釈・GitHub操作）はディスパッチャが非同期に行う。
  */
 import type { PgQueryable } from "@aiops/shared";
+import type { EventQueueMetric } from "../observability/metrics.js";
 
 export type EventSource = "github" | "monitor" | "inbound";
 
@@ -226,5 +227,22 @@ export class EventsRepo {
     );
     const row = res.rows[0] ?? { status: "dead", attempts: options.maxAttempts };
     return { status: row.status as MarkFailedResult["status"], attempts: Number(row.attempts) };
+  }
+
+  async getQueueMetrics(now: Date = new Date()): Promise<EventQueueMetric[]> {
+    const res = await this.db.query(
+      `SELECT status,
+              count(*)::int AS depth,
+              COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - MIN(received_at))), 0) AS oldest_age_seconds
+       FROM events
+       WHERE status IN ('queued', 'delayed', 'dispatched')
+       GROUP BY status`,
+      [now.toISOString()],
+    );
+    return res.rows.map((row) => ({
+      status: String(row.status),
+      depth: Number(row.depth ?? 0),
+      oldestAgeSeconds: Math.max(0, Number(row.oldest_age_seconds ?? 0)),
+    }));
   }
 }

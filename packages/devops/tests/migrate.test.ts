@@ -11,20 +11,23 @@ interface Call {
   params: unknown[] | undefined;
 }
 
-function fakeDb(appliedVersions: string[] = [], failSql?: string) {
+function fakeDb(appliedVersions: string[] = [], failSql?: string, failRollback = false) {
   const clientCalls: Call[] = [];
   const poolCalls: Call[] = [];
   let released = false;
+  let releaseError: Error | undefined;
   const client = {
     query: async (text: string, params?: unknown[]) => {
       clientCalls.push({ text, params });
+      if (failRollback && text === "ROLLBACK") throw new Error("rollback failed");
       if (failSql && text === failSql) throw new Error("migration failed");
       if (text === "SELECT version FROM schema_migrations") {
         return { rows: appliedVersions.map((version) => ({ version })) };
       }
       return { rows: [] };
     },
-    release: () => {
+    release: (err?: Error) => {
+      releaseError = err;
       released = true;
     },
   };
@@ -35,7 +38,7 @@ function fakeDb(appliedVersions: string[] = [], failSql?: string) {
     },
     connect: async () => client,
   };
-  return { pool, clientCalls, poolCalls, wasReleased: () => released };
+  return { pool, clientCalls, poolCalls, wasReleased: () => released, releaseError: () => releaseError };
 }
 
 const migrations: SqlMigration[] = [
@@ -87,5 +90,13 @@ describe("applyMigrations (A-11)", () => {
 
     expect(clientCalls.at(-1)?.text).toBe("ROLLBACK");
     expect(wasReleased()).toBe(true);
+  });
+
+  it("ROLLBACK失敗時はpoison接続としてrelease(err)する", async () => {
+    const { pool, releaseError } = fakeDb([], "ALTER TABLE one;", true);
+
+    await expect(applyMigrations(pool, migrations)).rejects.toThrow("rollback failed");
+
+    expect(releaseError()?.message).toBe("rollback failed");
   });
 });

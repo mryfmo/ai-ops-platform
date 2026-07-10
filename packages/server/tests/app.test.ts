@@ -10,6 +10,8 @@ import type { PgQueryable } from "@aiops/shared";
 import { InMemoryAuditLog } from "@aiops/shared";
 import { buildApp, type AppDependencies } from "../src/http/app.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
+import { createReadinessCheck } from "../src/http/routes/health.js";
+import { MetricsRegistry } from "../src/observability/metrics.js";
 
 const CLIENT_STATE = "expected-client-state-16chars";
 const WEBHOOK_SECRET = "test-webhook-secret";
@@ -119,6 +121,34 @@ describe("health endpoints (ADR-0005)", () => {
     ready = true;
     const recovered = await app.request("/readyz");
     expect(recovered.status).toBe(200);
+  });
+
+  it("GET /readyz はshutdown中なら503", async () => {
+    const { deps } = makeDeps();
+    let shuttingDown = true;
+    deps.readiness = createReadinessCheck({
+      checkDependencies: async () => {},
+      isFailsafeActive: () => false,
+      isShuttingDown: () => shuttingDown,
+    });
+    const app = buildApp(deps);
+    const res = await app.request("/readyz");
+    expect(res.status).toBe(503);
+    shuttingDown = false;
+    const recovered = await app.request("/readyz");
+    expect(recovered.status).toBe(200);
+  });
+
+  it("GET /metrics はPrometheus textを返す", async () => {
+    const { deps } = makeDeps();
+    const metrics = new MetricsRegistry();
+    metrics.recordDelivery("sent", 2);
+    deps.metrics = metrics;
+    const app = buildApp(deps);
+    const res = await app.request("/metrics");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(await res.text()).toContain('aiops_report_delivery_total{result="sent"} 2');
   });
 });
 

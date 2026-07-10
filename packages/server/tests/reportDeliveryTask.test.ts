@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAuditLog, buildHolidayCalendar } from "@aiops/shared";
 import { InMemoryDeliveryLogStore } from "@aiops/prjops";
+import { MetricsRegistry } from "../src/observability/metrics.js";
 import {
   createReportDeliveryTask,
   deliverStandardReportToRecipients,
@@ -86,6 +87,29 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     await deliverStandardReportToRecipients(report, deps, "trace-2");
     await deliverStandardReportToRecipients(report, deps, "trace-2");
     expect(mails.map((m) => m.toEmail)).toEqual(["manager@example.com"]);
+  });
+
+  it("delivery outcome metricsを記録する", async () => {
+    const metrics = new MetricsRegistry();
+    const mails: Array<{ toEmail: string }> = [];
+    await deliverStandardReportToRecipients(
+      report,
+      {
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: { listForDelivery: async () => [recipient()] },
+        graphClient: {
+          sendMail: async (m: { toEmail: string }) => void mails.push(m),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => "trace-metrics",
+        metrics,
+      },
+      "trace-metrics",
+    );
+    expect(metrics.renderPrometheus()).toContain('aiops_report_delivery_total{result="sent"} 1');
   });
 
   it("investor向け本文では内部詳細が漏れない", () => {

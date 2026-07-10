@@ -30,6 +30,7 @@ pnpm --filter @aiops/devops db:migrate
 ```
 
 Each migration runs in a transaction and records its version in `schema_migrations`. Re-running skips already applied versions.
+Because a migration run is one transaction, do not use transaction-incompatible DDL such as `CREATE INDEX CONCURRENTLY`; use a separate reviewed operation when that is required.
 
 ## Constraint Validation
 

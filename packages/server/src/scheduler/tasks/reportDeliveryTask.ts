@@ -22,6 +22,8 @@ import {
 } from "@aiops/shared";
 import type { DeliveryRecipient } from "../../db/recipientsRepo.js";
 import type { StandardReportRecord } from "../../db/standardReportsRepo.js";
+import type { Logger } from "../../observability/logger.js";
+import type { MetricsRegistry } from "../../observability/metrics.js";
 import { buildDashboardDeepLink } from "../../lib/dashboardDeepLink.js";
 import type { ScheduledTask } from "../scheduler.js";
 
@@ -38,6 +40,8 @@ export interface ReportDeliveryTaskDeps {
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
   intervalMs?: number;
+  logger?: Logger;
+  metrics?: MetricsRegistry;
 }
 
 function jstDayOfWeek(now: Date): number {
@@ -134,6 +138,8 @@ export async function deliverStandardReportToRecipients(
   },
   traceId: string,
 ): Promise<{ sent: number; skipped: number; failed: number; activeRecipients: number }> {
+  const logger = deps.logger?.child({ trace_id: traceId, report_id: record.reportId });
+  logger?.info("report delivery started");
   const recipients = await deps.recipientsRepo.listForDelivery();
   const activeRecords = devopsActiveRecords(recipients);
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
@@ -179,6 +185,13 @@ export async function deliverStandardReportToRecipients(
     traceId,
     fromMailbox: deps.fromMailbox,
   });
+  deps.metrics?.recordDelivery("sent", result.sent.length);
+  deps.metrics?.recordDelivery("skipped", result.skipped.length);
+  deps.metrics?.recordDelivery("failed", result.failed.length);
+  logger?.info(
+    { sent: result.sent.length, skipped: result.skipped.length, failed: result.failed.length },
+    "report delivery completed",
+  );
   return {
     sent: result.sent.length,
     skipped: result.skipped.length,

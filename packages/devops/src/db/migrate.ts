@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl });
   try {
     const result = await applyMigrations(pool, loadSqlMigrations());
-    console.log(`migrations applied=${result.applied.length} skipped=${result.skipped.length}`);
+    process.stdout.write(`migrations applied=${result.applied.length} skipped=${result.skipped.length}\n`);
   } finally {
     await pool.end();
   }

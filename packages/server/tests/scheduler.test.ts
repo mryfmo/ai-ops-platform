@@ -6,7 +6,13 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared";
-import { guardFailsafeTask, startScheduler, type ScheduledTask } from "../src/scheduler/scheduler.js";
+import { MetricsRegistry } from "../src/observability/metrics.js";
+import {
+  guardFailsafeTask,
+  instrumentScheduledTask,
+  startScheduler,
+  type ScheduledTask,
+} from "../src/scheduler/scheduler.js";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -116,5 +122,26 @@ describe("guardFailsafeTask (REQ-029)", () => {
     expect(runs).toBe(1);
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "failsafe_task_skipped" && l.basis === "REQ-029")).toBe(true);
+  });
+});
+
+describe("instrumentScheduledTask (A-2)", () => {
+  it("task durationと失敗counterを記録する", async () => {
+    const metrics = new MetricsRegistry();
+    const task = instrumentScheduledTask(
+      {
+        name: "observed",
+        intervalMs: 1000,
+        run: async () => {
+          throw new Error("boom");
+        },
+      },
+      metrics,
+    );
+
+    await expect(task.run(new Date())).rejects.toThrow("boom");
+    const text = metrics.renderPrometheus();
+    expect(text).toContain('aiops_task_failures_total{task="observed"} 1');
+    expect(text).toContain('aiops_task_run_duration_seconds_count{task="observed",status="failure"} 1');
   });
 });

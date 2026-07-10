@@ -56,12 +56,12 @@ async function main(): Promise<void> {
     new GraphClient(tokenProvider),
     config.GRAPH_CLIENT_STATE,
   );
-  console.log(JSON.stringify(result));
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("createGraphSubscription.js")) {
   main().catch((err) => {
-    console.error(err instanceof Error ? err.message : String(err));
+    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
   });
 }

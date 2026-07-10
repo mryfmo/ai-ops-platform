@@ -16,6 +16,7 @@
 - [Configuration Reference](reference/configuration.md)
 - [Page Agent Tools](reference/page-agent-tools.md)
 - [Manual Ops Runbook](../runbooks/manual-ops.md)
+- [Observability and SLO Runbook](../runbooks/observability-slo.md)
 - [Real Environment E2E Runbook](../runbooks/e2e-real-environment.md)
 
 ## 利用者向け

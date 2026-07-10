@@ -10,6 +10,8 @@
  *   未対応payloadは無限リトライを避けるため監査ログを残してdoneにする。
  */
 import type { AuditLogWriter } from "@aiops/shared";
+import type { Logger } from "../../observability/logger.js";
+import type { MetricsRegistry } from "../../observability/metrics.js";
 import type { ScheduledTask } from "../scheduler.js";
 import type { EventsRepo, QueuedEvent } from "../../db/eventsRepo.js";
 import { isQueuedGithubWebhookEvent, type QueuedGithubWebhookEvent } from "../../lib/githubEventRouter.js";
@@ -37,6 +39,8 @@ export interface EventsPollingTaskDeps {
   /** deadへ送る最大試行回数（既定5） */
   maxAttempts?: number;
   retryBackoffMs?(attemptsSoFar: number): number;
+  logger?: Logger;
+  metrics?: MetricsRegistry;
 }
 
 function isInboundNotificationPayload(payload: unknown): payload is InboundNotificationPayload {
@@ -48,7 +52,9 @@ function isInboundNotificationPayload(payload: unknown): payload is InboundNotif
 }
 
 async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now: Date): Promise<void> {
+  const logger = deps.logger?.child({ trace_id: event.traceId, event_id: event.eventId, source: event.source });
   try {
+    logger?.info("event dispatch started");
     if (event.source === "inbound" && isInboundNotificationPayload(event.payload)) {
       await deps.dispatchInboundNotification(event.payload, event.traceId);
     } else if (event.source === "github" && isQueuedGithubWebhookEvent(event.payload)) {
@@ -66,6 +72,7 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
       });
     }
     await deps.eventsRepo.markDone(event.eventId);
+    logger?.info("event dispatch completed");
   } catch (err) {
     const maxAttempts = deps.maxAttempts ?? 5;
     const backoffMs =
@@ -89,6 +96,7 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
       },
       at: now.toISOString(),
     });
+    logger?.error({ err: err instanceof Error ? err.message : String(err) }, "event dispatch failed");
   }
 }
 
@@ -99,10 +107,17 @@ export function createEventsPollingTask(deps: EventsPollingTaskDeps): ScheduledT
     name: "events-polling-5s",
     intervalMs: 5_000,
     async run(now: Date): Promise<void> {
-      for (let i = 0; i < maxBatchSize; i++) {
-        const event = await deps.eventsRepo.claimNextQueued({ maxAttempts: deps.maxAttempts ?? 5 });
-        if (!event) return;
-        await processEvent(event, deps, now);
+      try {
+        for (let i = 0; i < maxBatchSize; i++) {
+          const event = await deps.eventsRepo.claimNextQueued({ maxAttempts: deps.maxAttempts ?? 5 });
+          if (!event) return;
+          await processEvent(event, deps, now);
+        }
+      } finally {
+        const metrics = deps.metrics;
+        if (metrics && "getQueueMetrics" in deps.eventsRepo) {
+          metrics.setEventQueue(await deps.eventsRepo.getQueueMetrics(now));
+        }
       }
     },
   };

@@ -26,6 +26,14 @@ const configSchema = z.object({
   DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   /** PostgreSQL idle-in-transaction timeout. */
   DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  /** pino structured log level. */
+  LOG_LEVEL: z.string().default("info"),
+  /** OpenTelemetry service name. */
+  OTEL_SERVICE_NAME: z.string().default("ai-ops-platform-server"),
+  /** OTLP base endpoint. 未設定時はtelemetry disabledを明示ログしてno-op。 */
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  /** OTLP traces endpoint. 指定時はOTEL_EXPORTER_OTLP_ENDPOINTより優先。 */
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z.string().url().optional(),
   /**
    * Graph change notificationのclientState（ADR-0005）。security-reviewer指摘によりmin(16)
    * から引き上げ。ランダム生成必須（例: `openssl rand -hex 32`）。

@@ -42,7 +42,12 @@ import { RecipientsRepo } from "./db/recipientsRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { buildApp } from "./http/app.js";
-import { guardFailsafeTask, startScheduler, type ScheduledTask } from "./scheduler/scheduler.js";
+import {
+  guardFailsafeTask,
+  instrumentScheduledTask,
+  startScheduler,
+  type ScheduledTask,
+} from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
 import { createJitRevocationTask } from "./scheduler/tasks/jitRevocationTask.js";
 import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRenewalTask.js";
@@ -60,6 +65,11 @@ import {
 } from "./lib/githubEventRouter.js";
 import { resolveCallerProfileFromStakeholders } from "./lib/stakeholderProfileResolver.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
+import { createLogger } from "./observability/logger.js";
+import { MetricsRegistry } from "./observability/metrics.js";
+import { startTelemetry } from "./observability/telemetry.js";
+import { createReadinessCheck } from "./http/routes/health.js";
+import { gracefulShutdown } from "./serverLifecycle.js";
 
 export * from "./config.js";
 export * from "./http/app.js";
@@ -79,6 +89,10 @@ export * from "./scheduler/tasks/eventsPollingTask.js";
 export * from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 export * from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 export * from "./scheduler/tasks/reportDeliveryTask.js";
+export * from "./observability/logger.js";
+export * from "./observability/metrics.js";
+export * from "./observability/telemetry.js";
+export * from "./serverLifecycle.js";
 export * from "./lib/schedulerPolicy.js";
 export * from "./lib/dashboardDeepLink.js";
 export * from "./lib/graphNotificationValidator.js";
@@ -127,6 +141,16 @@ function loadJpHolidayCalendar() {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const logger = createLogger(config.LOG_LEVEL);
+  const metrics = new MetricsRegistry();
+  const telemetry = await startTelemetry(
+    {
+      serviceName: config.OTEL_SERVICE_NAME,
+      otlpEndpoint: config.OTEL_EXPORTER_OTLP_ENDPOINT,
+      otlpTracesEndpoint: config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+    },
+    logger,
+  );
   const pool = createPool(config.DATABASE_URL, {
     max: config.DB_POOL_MAX,
     connectionTimeoutMillis: config.DB_POOL_CONNECTION_TIMEOUT_MS,
@@ -216,139 +240,164 @@ async function main(): Promise<void> {
   });
 
   let failsafeActive = false;
+  let shuttingDown = false;
   const guardTask = (task: ScheduledTask): ScheduledTask =>
     guardFailsafeTask(task, {
       isFailsafeActive: () => failsafeActive,
       auditLog,
       traceIdProvider: () => randomUUID(),
     });
+  const observedTask = (task: ScheduledTask): ScheduledTask => instrumentScheduledTask(task, metrics);
 
   const scheduler = startScheduler(
     [
-      createHealthcheckTask({
-        checkTargets: async () => {
-          await pool.query("SELECT 1");
-          return true;
-        },
-        activateFailsafe: async () => {},
-        isFailsafeActive: () => failsafeActive,
-        setFailsafeActive: (v) => {
-          failsafeActive = v;
-        },
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
-      createJitRevocationTask({
-        grantsRepo,
-        secDeps: { githubClient, auditLog },
-        traceIdProvider: () => randomUUID(),
-      }),
-      createSubscriptionRenewalTask({
-        graphSubscriptionsRepo,
-        graphClient,
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
-      createChannelPollingTask({
-        graphSubscriptionsRepo,
-        projectChannelsRepo,
-        channelMessagesRepo,
-        graphClient,
-        auditLog,
-        traceIdProvider: () => randomUUID(),
-      }),
-      guardTask(
-        createEventsPollingTask({
-          eventsRepo,
-          auditLog,
-          dispatchInboundNotification: (payload, traceId) =>
-            teamsConversationAgent.handleNotification(payload, traceId),
-          dispatchGithubEvent: (payload, traceId) =>
-            dispatchGithubWebhookEvent(payload, traceId, {
-              auditLog,
-              handlers: devopsEventHandlers,
-              pmRepo: pmTimeseriesRepo,
-            }),
-          dispatchMonitorEvent: async (payload, traceId) => {
-            await auditLog.append({
-              trace_id: traceId,
-              actor: "AGT-DEP",
-              action: "monitor_event_received",
-              basis: "SPEC-INT-020",
-              detail: { hasPayload: payload !== null && payload !== undefined },
-              at: new Date().toISOString(),
-            });
+      observedTask(
+        createHealthcheckTask({
+          checkTargets: async () => {
+            await pool.query("SELECT 1");
+            metrics.setDbPool({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount });
+            return true;
           },
-          traceIdProvider: () => randomUUID(),
-        }),
-      ),
-      guardTask(
-        createPmSnapshotReconcileTask({
-          repo: pmTimeseriesRepo,
-          client: config.GITHUB_PROJECT_NODE_ID
-            ? {
-                listCurrentSnapshots: (cursor) =>
-                  githubClient.listCurrentProjectV2Snapshots({
-                    projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
-                    cursor,
-                  }),
-              }
-            : {
-                listCurrentSnapshots: async () => {
-                  await auditLog.append({
-                    trace_id: randomUUID(),
-                    actor: "SERVER",
-                    action: "pm_snapshot_reconcile_disabled",
-                    basis: "SPEC-INT-081",
-                    detail: { reason: "GITHUB_PROJECT_NODE_ID is not configured" },
-                    at: new Date().toISOString(),
-                  });
-                  return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
-                },
-              },
+          activateFailsafe: async () => {},
+          isFailsafeActive: () => failsafeActive,
+          setFailsafeActive: (v) => {
+            failsafeActive = v;
+          },
           auditLog,
           traceIdProvider: () => randomUUID(),
         }),
       ),
-      guardTask(
-        createSevenKeysMonthlySnapshotTask({
-          repo: sevenKeysSnapshotsRepo,
-          disabledReason: "PrjOps report data provider is not configured",
-          auditLog,
-          calendar: loadJpHolidayCalendar(),
+      observedTask(
+        createJitRevocationTask({
+          grantsRepo,
+          secDeps: { githubClient, auditLog },
           traceIdProvider: () => randomUUID(),
         }),
       ),
-      guardTask(
-        createReportDeliveryTask({
-          enabled: config.REPORT_DELIVERY_ENABLED,
-          fromMailbox: config.FROM_MAILBOX,
-          defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
-          publicBaseUrl: config.PUBLIC_BASE_URL,
-          calendar: loadJpHolidayCalendar(),
-          recipientsRepo,
-          standardReportsRepo,
+      observedTask(
+        createSubscriptionRenewalTask({
+          graphSubscriptionsRepo,
           graphClient,
-          deliveryLogStore: reportDeliveryLogRepo,
           auditLog,
           traceIdProvider: () => randomUUID(),
         }),
+      ),
+      observedTask(
+        createChannelPollingTask({
+          graphSubscriptionsRepo,
+          projectChannelsRepo,
+          channelMessagesRepo,
+          graphClient,
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
+      observedTask(
+        guardTask(
+          createEventsPollingTask({
+            eventsRepo,
+            auditLog,
+            dispatchInboundNotification: (payload, traceId) =>
+              teamsConversationAgent.handleNotification(payload, traceId),
+            dispatchGithubEvent: (payload, traceId) =>
+              dispatchGithubWebhookEvent(payload, traceId, {
+                auditLog,
+                handlers: devopsEventHandlers,
+                pmRepo: pmTimeseriesRepo,
+              }),
+            dispatchMonitorEvent: async (payload, traceId) => {
+              await auditLog.append({
+                trace_id: traceId,
+                actor: "AGT-DEP",
+                action: "monitor_event_received",
+                basis: "SPEC-INT-020",
+                detail: { hasPayload: payload !== null && payload !== undefined },
+                at: new Date().toISOString(),
+              });
+            },
+            traceIdProvider: () => randomUUID(),
+            logger,
+            metrics,
+          }),
+        ),
+      ),
+      observedTask(
+        guardTask(
+          createPmSnapshotReconcileTask({
+            repo: pmTimeseriesRepo,
+            client: config.GITHUB_PROJECT_NODE_ID
+              ? {
+                  listCurrentSnapshots: (cursor) =>
+                    githubClient.listCurrentProjectV2Snapshots({
+                      projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
+                      cursor,
+                    }),
+                }
+              : {
+                  listCurrentSnapshots: async () => {
+                    await auditLog.append({
+                      trace_id: randomUUID(),
+                      actor: "SERVER",
+                      action: "pm_snapshot_reconcile_disabled",
+                      basis: "SPEC-INT-081",
+                      detail: { reason: "GITHUB_PROJECT_NODE_ID is not configured" },
+                      at: new Date().toISOString(),
+                    });
+                    return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
+                  },
+                },
+            auditLog,
+            traceIdProvider: () => randomUUID(),
+          }),
+        ),
+      ),
+      observedTask(
+        guardTask(
+          createSevenKeysMonthlySnapshotTask({
+            repo: sevenKeysSnapshotsRepo,
+            disabledReason: "PrjOps report data provider is not configured",
+            auditLog,
+            calendar: loadJpHolidayCalendar(),
+            traceIdProvider: () => randomUUID(),
+          }),
+        ),
+      ),
+      observedTask(
+        guardTask(
+          createReportDeliveryTask({
+            enabled: config.REPORT_DELIVERY_ENABLED,
+            fromMailbox: config.FROM_MAILBOX,
+            defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
+            publicBaseUrl: config.PUBLIC_BASE_URL,
+            calendar: loadJpHolidayCalendar(),
+            recipientsRepo,
+            standardReportsRepo,
+            graphClient,
+            deliveryLogStore: reportDeliveryLogRepo,
+            auditLog,
+            traceIdProvider: () => randomUUID(),
+            logger,
+            metrics,
+          }),
+        ),
       ),
     ],
     (taskName, err) => {
       // 1タスクの失敗を隔離し、秘密情報を含まない形でstderrへ
-      console.error(`[scheduler] task ${taskName} failed:`, err instanceof Error ? err.message : String(err));
+      logger.error({ taskName, err: err instanceof Error ? err.message : String(err) }, "scheduler task failed");
     },
   );
 
   const app = buildApp({
     auditLog,
-    readiness: {
-      isReady: async () => {
+    readiness: createReadinessCheck({
+      checkDependencies: async () => {
         await pool.query("SELECT 1");
-        return !failsafeActive;
       },
-    },
+      isFailsafeActive: () => failsafeActive,
+      isShuttingDown: () => shuttingDown,
+    }),
+    metrics,
     graph: {
       clientState: config.GRAPH_CLIENT_STATE,
       auditLog,
@@ -438,6 +487,8 @@ async function main(): Promise<void> {
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog,
             traceIdProvider: () => randomUUID(),
+            logger,
+            metrics,
           },
           traceId,
         );
@@ -447,14 +498,26 @@ async function main(): Promise<void> {
   });
 
   const server = serve({ fetch: app.fetch, port: config.PORT });
-  console.log(`[server] listening on :${config.PORT} (ADR-0005)`);
+  logger.info({ port: config.PORT }, "server listening");
 
   const shutdown = async (): Promise<void> => {
-    console.log("[server] SIGTERM received, shutting down gracefully");
-    await scheduler.stop();
-    server.close();
-    await pool.end();
-    process.exit(0);
+    logger.info("shutdown signal received");
+    try {
+      await gracefulShutdown({
+        server,
+        scheduler,
+        pool,
+        telemetry,
+        setShuttingDown: (value) => {
+          shuttingDown = value;
+        },
+        logger,
+      });
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, "graceful shutdown failed");
+      process.exit(1);
+    }
   };
   process.on("SIGTERM", () => void shutdown());
   process.on("SIGINT", () => void shutdown());
@@ -464,7 +527,10 @@ async function main(): Promise<void> {
 const isDirectRun = process.argv[1]?.replace(/\\/g, "/").endsWith("dist/index.js") ?? false;
 if (isDirectRun) {
   main().catch((err) => {
-    console.error("[server] fatal startup error:", err instanceof Error ? err.message : String(err));
+    createLogger(process.env.LOG_LEVEL ?? "info").error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "fatal startup error",
+    );
     process.exit(1);
   });
 }
