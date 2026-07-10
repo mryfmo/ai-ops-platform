@@ -1,7 +1,8 @@
 /**
  * packages/web/src/server/chat/tools.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   ペルソナに応じて「LLMのコンテキストに見せるtoolそのもの」を絞り込む。権限外のtoolは
  *   ToolSetに含めないため、LLMはそもそも権限外の表示を要求できない
  *   （CLAUDE.md設計原則6: 権限フィルタはデータ取得側で強制、表示層での後付けマスキングは禁止、
@@ -30,9 +31,14 @@ const showManagerSummaryInputSchema = z.object({
   periodDays: z.union([z.literal(7), z.literal(14), z.literal(28)]).optional(),
 });
 
+const showTimeseriesInputSchema = z.object({
+  period: z.enum(["week", "month", "quarter", "half", "year"]).optional(),
+});
+
 const listProjectsInputSchema = z.object({});
 
 const showAgentActivityInputSchema = z.object({});
+const showInvestorSummaryInputSchema = z.object({});
 
 /** PRF-04（PrjOps経営陣）専用: セブンキーの表示要求 */
 function buildShowExecutiveSummaryTool() {
@@ -71,6 +77,29 @@ function buildShowAgentActivityTool() {
   });
 }
 
+function buildShowInvestorSummaryTool() {
+  return tool({
+    description:
+      "投資家向けKPIパッケージ（ハイライト、KPI、マイルストーン、リスク）の表示に切り替える。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
+    inputSchema: showInvestorSummaryInputSchema,
+    execute: async (): Promise<ViewSpec> => {
+      return { kind: "investorSummary" };
+    },
+  });
+}
+
+function buildShowTimeseriesTool() {
+  return tool({
+    description:
+      "現在ページの選択ペルソナ範囲で時系列スナップショットを表示する。periodでweek/month/quarter/half/yearを指定できる。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
+    inputSchema: showTimeseriesInputSchema,
+    execute: async (input): Promise<ViewSpec> => {
+      const parsed = showTimeseriesInputSchema.parse(input);
+      return { kind: "timeseries", period: parsed.period };
+    },
+  });
+}
+
 /** 全ペルソナ共通: スコープ内プロジェクト一覧の表示要求 */
 function buildListProjectsTool() {
   return tool({
@@ -97,6 +126,10 @@ function isDevopsManager(persona: ResolvedPersona): boolean {
   return persona.domain === "devops" && persona.profile === "PRF-G";
 }
 
+function isInvestor(persona: ResolvedPersona): boolean {
+  return persona.domain === "investor" && persona.profile === "investor";
+}
+
 /**
  * ペルソナ（ダッシュボードページ本体と同じ「先頭ペルソナ採用」方針。dashboard/page.tsxの
  * 残課題コメント参照）に応じて公開するtool集合を組み立てる。該当しないtoolはToolSetに
@@ -105,16 +138,25 @@ function isDevopsManager(persona: ResolvedPersona): boolean {
 export function buildToolsForPersona(persona: ResolvedPersona): ToolSet {
   const toolSet: ToolSet = {
     listProjects: buildListProjectsTool(),
+    show_projects_table: buildListProjectsTool(),
+    show_timeseries: buildShowTimeseriesTool(),
   };
 
   if (isPrjopsExecutive(persona)) {
     toolSet["showExecutiveSummary"] = buildShowExecutiveSummaryTool();
+    toolSet["show_seven_keys"] = buildShowExecutiveSummaryTool();
   }
   if (isManager(persona)) {
     toolSet["showManagerSummary"] = buildShowManagerSummaryTool();
+    toolSet["show_burndown"] = buildShowManagerSummaryTool();
+    toolSet["show_dora"] = buildShowManagerSummaryTool();
   }
   if (isDevopsManager(persona)) {
     toolSet["showAgentActivity"] = buildShowAgentActivityTool();
+  }
+  if (isInvestor(persona)) {
+    toolSet["showInvestorSummary"] = buildShowInvestorSummaryTool();
+    toolSet["show_investor_kpis"] = buildShowInvestorSummaryTool();
   }
 
   return toolSet;

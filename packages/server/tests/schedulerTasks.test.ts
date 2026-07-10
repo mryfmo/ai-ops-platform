@@ -132,6 +132,46 @@ describe("jitRevocationTask (TH-007 / SPEC-INT-032)", () => {
     expect(logs.some((l) => l.action === "auto_revoke" && l.basis === "TH-007")).toBe(true);
   });
 
+  it("JIT失効revokeはfailsafe guardの対象外として実行される", async () => {
+    const removed: string[] = [];
+    const marked: string[][] = [];
+    const grantsRepo = {
+      loadActiveGrants: async () =>
+        [
+          {
+            grantId: "g-expired",
+            subject: "ext-user",
+            targetOwner: "acme",
+            targetRepo: "repo",
+            level: "push",
+            expiresAt: "2026-07-06T00:00:00Z",
+            revokedAt: null,
+          },
+        ] as GrantRecord[],
+      markRevoked: async (ids: string[]) => {
+        marked.push(ids);
+      },
+    } as unknown as GrantsRepo;
+
+    const task = createJitRevocationTask({
+      grantsRepo,
+      secDeps: {
+        githubClient: {
+          putCollaboratorPermission: async () => {},
+          removeCollaborator: async (_o: string, _r: string, username: string) => {
+            removed.push(username);
+          },
+        },
+        auditLog: new InMemoryAuditLog(),
+      },
+      traceIdProvider: () => "trace-jit",
+    });
+
+    await task.run(new Date("2026-07-07T00:00:00Z"));
+    expect(removed).toEqual(["ext-user"]);
+    expect(marked).toEqual([["g-expired"]]);
+  });
+
   it("期限未到来のみなら何もしない", async () => {
     const marked: string[][] = [];
     const grantsRepo = {

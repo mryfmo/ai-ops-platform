@@ -14,9 +14,10 @@
  *   ISS/TOBE/ASM（現状課題・将来プロセス・仮定）は文書間トレーサビリティの記録用IDであり、
  *   実装コードへの直接参照を必須としない（警告のみ）。
  */
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { format as formatMarkdown } from "prettier";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..", "..");
@@ -102,33 +103,73 @@ function pct(n: number, total: number): string {
   return ((n / total) * 100).toFixed(0);
 }
 
+function markdownTable(headers: string[], rows: string[][]): string[] {
+  const widths = headers.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i]?.length ?? 0)));
+  const formatRow = (cells: string[]) => `| ${cells.map((c, i) => c.padEnd(widths[i]!)).join(" | ")} |`;
+  return [
+    formatRow(headers),
+    `| ${widths.map((w) => "-".repeat(w)).join(" | ")} |`,
+    ...rows.map((row) => formatRow(row)),
+  ];
+}
+
 function formatResults(systemName: string, results: CategoryResult[]): string {
+  const rows = results.map((r) => [
+    r.category,
+    String(r.total),
+    `${r.inSrc} (${pct(r.inSrc, r.total)}%)`,
+    `${r.inTest} (${pct(r.inTest, r.total)}%)`,
+    r.missingFromSrc.join(", ") || "—",
+  ]);
   const lines: string[] = [
     `## ${systemName}`,
     "",
-    "| カテゴリ | 総数 | 実装参照あり | テスト参照あり | 実装参照なし |",
-    "|---|---|---|---|---|",
+    ...markdownTable(["カテゴリ", "総数", "実装参照あり", "テスト参照あり", "実装参照なし"], rows),
   ];
-  for (const r of results) {
-    lines.push(
-      `| ${r.category} | ${r.total} | ${r.inSrc} (${pct(r.inSrc, r.total)}%) | ${r.inTest} (${pct(r.inTest, r.total)}%) | ${
-        r.missingFromSrc.join(", ") || "—"
-      } |`,
-    );
-  }
   return lines.join("\n");
 }
 
-function main(): void {
+function basisHeaderFailures(): string[] {
+  const reportingDir = join(REPO_ROOT, "packages", "shared", "src", "reporting");
+  const serverDir = join(REPO_ROOT, "packages", "server", "src");
+  return [...listFiles(reportingDir, [".ts"]), ...listFiles(serverDir, [".ts"])]
+    .filter(
+      (file) =>
+        !readFileSync(file, "utf8")
+          .slice(0, 500)
+          .match(/根拠:[\s\S]*(REQ|SPEC-INT|AC|ADR)-\d{3,4}/),
+    )
+    .map((file) => file.replace(`${REPO_ROOT}/`, ""));
+}
+
+function adrReferenceFailures(): string[] {
+  const adrDir = join(REPO_ROOT, "docs", "adr");
+  const files = [
+    ...listFiles(join(REPO_ROOT, "packages"), [".ts", ".md"]),
+    ...listFiles(join(REPO_ROOT, "docs"), [".md"]),
+  ];
+  const refs = new Set<string>();
+  for (const file of files) {
+    for (const match of readFileSync(file, "utf8").matchAll(/ADR-(\d{4})/g)) refs.add(match[1]!);
+  }
+  return [...refs]
+    .sort()
+    .filter((id) => !readdirSync(adrDir).some((entry) => entry.startsWith(`${id}-`) && entry.endsWith(".md")))
+    .map((id) => `ADR-${id}`);
+}
+
+async function main(): Promise<void> {
   const prjopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "prjops.json"));
   const devopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "devops.json"));
 
   const sharedDir = join(REPO_ROOT, "packages", "shared");
   const prjopsDir = join(REPO_ROOT, "packages", "prjops");
   const devopsDir = join(REPO_ROOT, "packages", "devops");
+  const serverDir = join(REPO_ROOT, "packages", "server");
+  const webDir = join(REPO_ROOT, "packages", "web");
 
-  const prjopsCorpus = buildCorpus([sharedDir, prjopsDir]);
-  const devopsCorpus = buildCorpus([sharedDir, devopsDir]);
+  const prjopsCorpus = buildCorpus([sharedDir, prjopsDir, serverDir, webDir]);
+  const devopsCorpus = buildCorpus([sharedDir, devopsDir, serverDir, webDir]);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsCorpus),
@@ -149,20 +190,28 @@ function main(): void {
     checkCategory(devopsIndex.ISS, "ISS(参考)", devopsCorpus),
   ];
 
-  const report = [
-    "# トレーサビリティ検証結果",
-    "",
-    `生成日時: ${new Date().toISOString()}`,
-    "",
-    "凡例: 「実装参照あり」= packages/*/src 配下のコード（コメント含む）にIDが1回以上出現。",
-    "「テスト参照あり」= packages/*/tests 配下のテストコードにIDが1回以上出現。",
-    "ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装コードへの直接参照を必須としない（参考値）。",
-    "",
-    formatResults("PrjOps", prjopsResults),
-    "",
-    formatResults("DevOps", devopsResults),
-    "",
-  ].join("\n");
+  const report = await formatMarkdown(
+    [
+      "# トレーサビリティ検証結果",
+      "",
+      `生成日時: ${new Date().toISOString()}`,
+      "",
+      "凡例: 「実装参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。",
+      "「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。",
+      "ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装コードへの直接参照を必須としない（参考値）。",
+      "",
+      formatResults("PrjOps", prjopsResults),
+      "",
+      formatResults("DevOps", devopsResults),
+      "",
+      "## Traceability Guards",
+      "",
+      `- 根拠ヘッダ不足: ${basisHeaderFailures().join(", ") || "—"}`,
+      `- 存在しないADR参照: ${adrReferenceFailures().join(", ") || "—"}`,
+      "",
+    ].join("\n"),
+    { parser: "markdown" },
+  );
 
   const outDir = join(__dirname, "..", "output");
   mkdirSync(outDir, { recursive: true });
@@ -173,15 +222,17 @@ function main(): void {
     ["REQ", "SPEC-INT", "TH"].includes(r.category),
   );
   const hardFailures = mandatoryCategories.flatMap((r) => r.missingFromSrc);
+  const guardFailures = [
+    ...basisHeaderFailures().map((file) => `basis header missing: ${file}`),
+    ...adrReferenceFailures().map((id) => `ADR reference missing file: ${id}`),
+  ];
 
-  if (hardFailures.length > 0) {
-    console.error(
-      `\nE-TRACE01: 以下のID(REQ/SPEC-INT/TH)が実装コードに一切参照されていません: ${hardFailures.join(", ")}`,
-    );
+  if (hardFailures.length > 0 || guardFailures.length > 0) {
+    console.error(`\nE-TRACE01: トレーサビリティ検証に失敗しました: ${[...hardFailures, ...guardFailures].join(", ")}`);
     process.exitCode = 1;
   } else {
     console.log("\nOK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。");
   }
 }
 
-main();
+await main();

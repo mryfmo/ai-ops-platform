@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/agents/AGT05_distributor.ts
  *
- * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信
+ * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信 / ADR-0014 REQ-042 SPEC-INT-069 AC-042-1
  *   承認済み（PRF-04/05）または検証済み（PRF-01〜03）レポートを、Outlookメール（HTML添付）で
  *   各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。
  *   AC-018-1: 1配信サイクル最大2,000通が2時間以内に完了する。
@@ -19,6 +19,7 @@ export interface DeliveryTarget {
   html: string;
   postTeamsSummaryCard: boolean; // PRF-02/03向けのみtrue
   teamsChannelId?: string;
+  dashboardUrl?: string;
 }
 
 export interface DistributorDependencies {
@@ -35,6 +36,8 @@ export interface DistributionResult {
   failed: Array<{ recipientId: string; error: string }>;
 }
 
+const cardRecipientId = (recipientId: string): string => `${recipientId}#teams-card`;
+
 /** REQ-018 + SPEC-INT-052: 1件の配信対象に対する冪等配信処理（SPEC-EXT-037 レポート配信/遅延通知） */
 export async function distributeOne(
   target: DeliveryTarget,
@@ -42,30 +45,80 @@ export async function distributeOne(
   isRetryAttempt = false,
 ): Promise<"sent" | "skipped" | "failed"> {
   const decision = await decideDelivery(deps.deliveryLogStore, target.reportId, target.recipientId, isRetryAttempt);
-  if (!decision.shouldSend) return "skipped";
+  let sentSomething = false;
 
   const subject = target.subject + (decision.subjectSuffix ? ` ${decision.subjectSuffix}` : "");
   try {
-    await deps.graphClient.sendMail({
-      toEmail: target.recipientEmail,
-      subject,
-      htmlBody: target.html,
-      fromMailbox: deps.fromMailbox,
-    });
-    await deps.deliveryLogStore.record({
-      reportId: target.reportId,
-      recipientId: target.recipientId,
-      deliveredAt: new Date().toISOString(),
-    });
+    if (decision.shouldSend) {
+      const deliveredAt = new Date().toISOString();
+      await deps.deliveryLogStore.record({
+        reportId: target.reportId,
+        recipientId: target.recipientId,
+        deliveredAt,
+        status: "pending",
+      });
+      await deps.graphClient.sendMail({
+        toEmail: target.recipientEmail,
+        subject,
+        htmlBody: target.html,
+        fromMailbox: deps.fromMailbox,
+      });
+      if (deps.deliveryLogStore.markSent) {
+        await deps.deliveryLogStore.markSent(target.reportId, target.recipientId, deliveredAt);
+      } else {
+        await deps.deliveryLogStore.record({
+          reportId: target.reportId,
+          recipientId: target.recipientId,
+          deliveredAt,
+          status: "sent",
+        });
+      }
+      sentSomething = true;
+    }
 
     if (target.postTeamsSummaryCard && target.teamsChannelId) {
-      await deps.graphClient.sendAdaptiveCard({
-        channelOrChatId: target.teamsChannelId,
-        card: {
-          body: [{ type: "TextBlock", text: `レポート ${target.reportId} を配信しました`, wrap: true }],
-          actions: [],
-        },
-      });
+      const cardId = cardRecipientId(target.recipientId);
+      const cardDecision = await decideDelivery(deps.deliveryLogStore, target.reportId, cardId, isRetryAttempt);
+      if (cardDecision.shouldSend) {
+        const cardDeliveredAt = new Date().toISOString();
+        await deps.deliveryLogStore.record({
+          reportId: target.reportId,
+          recipientId: cardId,
+          deliveredAt: cardDeliveredAt,
+          status: "pending",
+        });
+        try {
+          await deps.graphClient.sendAdaptiveCard({
+            channelOrChatId: target.teamsChannelId,
+            card: {
+              body: [{ type: "TextBlock", text: `レポート ${target.reportId} を配信しました`, wrap: true }],
+              actions: [],
+              openUrlActions: target.dashboardUrl ? [{ title: "Dashboard", url: target.dashboardUrl }] : [],
+            },
+          });
+          if (deps.deliveryLogStore.markSent) {
+            await deps.deliveryLogStore.markSent(target.reportId, cardId, cardDeliveredAt);
+          } else {
+            await deps.deliveryLogStore.record({
+              reportId: target.reportId,
+              recipientId: cardId,
+              deliveredAt: cardDeliveredAt,
+              status: "sent",
+            });
+          }
+          sentSomething = true;
+        } catch (err) {
+          await deps.auditLog.append({
+            trace_id: deps.traceId,
+            actor: "AGT-05",
+            action: "deliver_card_failed",
+            basis: "REQ-031",
+            detail: { reportId: target.reportId, recipientId: target.recipientId, error: String(err) },
+            at: new Date().toISOString(),
+          });
+          if (!sentSomething) throw err;
+        }
+      }
     }
 
     await deps.auditLog.append({
@@ -76,7 +129,7 @@ export async function distributeOne(
       detail: { reportId: target.reportId, recipientId: target.recipientId },
       at: new Date().toISOString(),
     });
-    return "sent";
+    return sentSomething ? "sent" : "skipped";
   } catch (err) {
     await deps.auditLog.append({
       trace_id: deps.traceId,

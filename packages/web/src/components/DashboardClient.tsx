@@ -1,7 +1,8 @@
 /**
  * packages/web/src/components/DashboardClient.tsx
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   サーバーコンポーネント（dashboard/page.tsx）が取得した初期ViewSpec/初期データを表示しつつ、
  *   ChatPanelを併設し、ChatPanelがtool結果（ViewSpec）を受け取ったら対応する /api/data/* を
  *   fetchしてビューを再レンダリングする。
@@ -19,25 +20,31 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { ChatPanel } from "./chat/ChatPanel";
+import type { PeriodKind, TimeseriesAggregate } from "@aiops/shared";
+import { PageAgentPanel } from "./chat/ChatPanel";
 import { Card } from "./ui/Card";
 import { Skeleton } from "./ui/Skeleton";
 import { DataTable, type DataTableColumn } from "./ui/DataTable";
+import { toTimeseriesChartData } from "./charts/chartData";
+import { TimeseriesAreaChart } from "./charts/RechartsPanels";
 import { ExecutiveSevenKeysView, type ExecutiveSevenKeysData } from "./views/ExecutiveSevenKeysView";
 import { ManagerSummaryView, type ManagerSummaryData } from "./views/ManagerSummaryView";
 import { AgentActivityView, type AgentActivityData } from "./views/AgentActivityView";
+import { InvestorReportView, type InvestorReportData } from "./views/InvestorReportView";
 import type { ViewSpec } from "../server/viewSpec";
 
 const API_BASE = "/app/api/data";
+const PERIODS: PeriodKind[] = ["week", "month", "quarter", "half", "year"];
 
 interface ProjectListData {
-  domain: "prjops" | "devops";
+  domain: "prjops" | "devops" | "investor";
   projects: Array<{ id: string; name: string }>;
 }
 
 type DashboardData =
   | { kind: "executiveSummary"; data: ExecutiveSevenKeysData }
   | { kind: "managerSummary"; domain: "prjops" | "devops"; data: ManagerSummaryData }
+  | { kind: "investorSummary"; data: InvestorReportData }
   | { kind: "projectList"; data: ProjectListData }
   | { kind: "agentActivity"; data: AgentActivityData };
 
@@ -49,19 +56,63 @@ export interface DashboardClientProps {
 async function fetchExecutiveSummary(): Promise<ExecutiveSevenKeysData> {
   const res = await fetch(`${API_BASE}/executive-summary`);
   if (!res.ok) throw new Error(`E-FETCH01: executive-summary fetch failed (${res.status})`);
-  const numeric = (await res.json()) as Omit<ExecutiveSevenKeysData, "monthOverMonthDiffText" | "topTopics">;
+  return (await res.json()) as ExecutiveSevenKeysData;
+}
+
+interface PeriodSelection {
+  period: PeriodKind;
+  baseDate: string;
+}
+
+function clientPeriodRange(selection: PeriodSelection): { start: string; end: string } {
+  const base = new Date(`${selection.baseDate}T00:00:00+09:00`);
+  const jst = new Date(base.getTime() + 9 * 60 * 60 * 1000);
+  const year = jst.getUTCFullYear();
+  const month = jst.getUTCMonth();
+  if (selection.period === "week") {
+    const dayNum = (jst.getUTCDay() + 6) % 7;
+    const start = new Date(base.getTime() - dayNum * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }
+  const startMonth =
+    selection.period === "month"
+      ? month
+      : selection.period === "quarter"
+        ? Math.floor(month / 3) * 3
+        : selection.period === "half"
+          ? Math.floor(month / 6) * 6
+          : 0;
+  const length =
+    selection.period === "month" ? 1 : selection.period === "quarter" ? 3 : selection.period === "half" ? 6 : 12;
   return {
-    ...numeric,
-    monthOverMonthDiffText: "前月比データは準備中です（スタブ表示）。",
-    topTopics: [],
+    start: new Date(Date.UTC(year, startMonth, 1) - 9 * 60 * 60 * 1000).toISOString(),
+    end: new Date(Date.UTC(year, startMonth + length, 1) - 9 * 60 * 60 * 1000).toISOString(),
   };
+}
+
+function periodParams(selection: PeriodSelection, persona?: "executive" | "manager" | "investor"): string {
+  const range = clientPeriodRange(selection);
+  const params = new URLSearchParams({
+    period: selection.period,
+    baseDate: selection.baseDate,
+    periodStart: range.start,
+    periodEnd: range.end,
+  });
+  if (persona) params.set("persona", persona);
+  return params.toString();
 }
 
 async function fetchManagerSummary(
   periodDays?: 7 | 14 | 28,
+  selection?: PeriodSelection,
 ): Promise<{ domain: "prjops" | "devops"; data: ManagerSummaryData }> {
   const params = new URLSearchParams();
-  if (periodDays) {
+  if (selection) {
+    const range = clientPeriodRange(selection);
+    params.set("periodStart", range.start);
+    params.set("periodEnd", range.end);
+  } else if (periodDays) {
     const periodEnd = new Date();
     const periodStart = new Date(periodEnd.getTime() - periodDays * 24 * 60 * 60 * 1000);
     params.set("periodStart", periodStart.toISOString());
@@ -87,6 +138,21 @@ async function fetchAgentActivity(): Promise<AgentActivityData> {
   return (await res.json()) as AgentActivityData;
 }
 
+async function fetchInvestorSummary(): Promise<InvestorReportData> {
+  const res = await fetch(`${API_BASE}/investor-summary`);
+  if (!res.ok) throw new Error(`E-FETCH01: investor-summary fetch failed (${res.status})`);
+  return (await res.json()) as InvestorReportData;
+}
+
+async function fetchTimeseries(
+  selection: PeriodSelection,
+  persona: "executive" | "manager" | "investor",
+): Promise<TimeseriesAggregate> {
+  const res = await fetch(`${API_BASE}/timeseries?${periodParams(selection, persona)}`);
+  if (!res.ok) throw new Error(`E-FETCH01: timeseries fetch failed (${res.status})`);
+  return (await res.json()) as TimeseriesAggregate;
+}
+
 function ProjectListView({ data }: { data: ProjectListData }) {
   const columns: DataTableColumn<{ id: string; name: string }>[] = [
     { key: "id", header: "ID", render: (r) => r.id },
@@ -95,7 +161,11 @@ function ProjectListView({ data }: { data: ProjectListData }) {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">プロジェクト一覧</h1>
-      <Card title={`スコープ内プロジェクト（${data.domain === "prjops" ? "PrjOps" : "DevOps"}）`}>
+      <Card
+        title={`スコープ内プロジェクト（${
+          data.domain === "prjops" ? "PrjOps" : data.domain === "devops" ? "DevOps" : "Investor"
+        }）`}
+      >
         <DataTable columns={columns} rows={data.projects} rowKey={(r) => r.id} />
       </Card>
     </div>
@@ -112,7 +182,44 @@ function renderView(view: DashboardData) {
   if (view.kind === "agentActivity") {
     return <AgentActivityView data={view.data} />;
   }
+  if (view.kind === "investorSummary") {
+    return <InvestorReportView data={view.data} />;
+  }
   return <ProjectListView data={view.data} />;
+}
+
+function personaForView(view: DashboardData): "executive" | "manager" | "investor" {
+  if (view.kind === "investorSummary") return "investor";
+  if (view.kind === "managerSummary") return "manager";
+  return "executive";
+}
+
+function TimeseriesPanel({ data }: { data: TimeseriesAggregate }) {
+  return (
+    <Card title={`時系列スナップショット（${data.range.label}）`} eyebrow="Change over time">
+      <div className="space-y-3">
+        <TimeseriesAreaChart data={toTimeseriesChartData(data)} />
+        <div className="tabular grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+          <span>Open {data.totals.opened}</span>
+          <span>Close {data.totals.closed}</span>
+          <span>遷移 {data.totals.statusTransitions}</span>
+          <span>Milestone {data.totals.milestoneCompleted}</span>
+          <span>Deploy {data.totals.deployments}</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function shiftBaseDate(selection: PeriodSelection, direction: -1 | 1): PeriodSelection {
+  const current = new Date(`${selection.baseDate}T00:00:00Z`);
+  const next = new Date(current);
+  if (selection.period === "week") next.setUTCDate(current.getUTCDate() + direction * 7);
+  else if (selection.period === "month") next.setUTCMonth(current.getUTCMonth() + direction);
+  else if (selection.period === "quarter") next.setUTCMonth(current.getUTCMonth() + direction * 3);
+  else if (selection.period === "half") next.setUTCMonth(current.getUTCMonth() + direction * 6);
+  else next.setUTCFullYear(current.getUTCFullYear() + direction);
+  return { ...selection, baseDate: next.toISOString().slice(0, 10) };
 }
 
 export function DashboardClient({ initialViewSpec, initialData }: DashboardClientProps) {
@@ -125,38 +232,103 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
     }
     return initialData;
   });
+  const [currentSpec, setCurrentSpec] = useState<ViewSpec>(initialViewSpec);
+  const [periodSelection, setPeriodSelection] = useState<PeriodSelection>(() => ({
+    period: "month",
+    baseDate: new Date().toISOString().slice(0, 10),
+  }));
+  const [timeseries, setTimeseries] = useState<TimeseriesAggregate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleViewSpecReceived = useCallback((spec: ViewSpec) => {
-    setIsLoading(true);
-    setError(null);
-    (async () => {
-      try {
-        if (spec.kind === "executiveSummary") {
-          const data = await fetchExecutiveSummary();
-          setView({ kind: "executiveSummary", data });
-        } else if (spec.kind === "managerSummary") {
-          const { domain, data } = await fetchManagerSummary(spec.periodDays);
-          setView({ kind: "managerSummary", domain, data });
-        } else if (spec.kind === "agentActivity") {
-          const data = await fetchAgentActivity();
-          setView({ kind: "agentActivity", data });
-        } else {
-          const data = await fetchProjectList();
-          setView({ kind: "projectList", data });
+  const loadView = useCallback(
+    (spec: ViewSpec, selection: PeriodSelection, includeTimeseries: boolean) => {
+      setIsLoading(true);
+      setError(null);
+      (async () => {
+        try {
+          if (spec.kind === "timeseries") {
+            const nextSelection = spec.period ? { ...selection, period: spec.period } : selection;
+            if (spec.period) setPeriodSelection(nextSelection);
+            setTimeseries(await fetchTimeseries(nextSelection, personaForView(view)));
+            return;
+          }
+          let nextView: DashboardData;
+          if (spec.kind === "executiveSummary") {
+            const data = await fetchExecutiveSummary();
+            nextView = { kind: "executiveSummary", data };
+          } else if (spec.kind === "managerSummary") {
+            const { domain, data } = await fetchManagerSummary(spec.periodDays, selection);
+            nextView = { kind: "managerSummary", domain, data };
+          } else if (spec.kind === "agentActivity") {
+            const data = await fetchAgentActivity();
+            nextView = { kind: "agentActivity", data };
+          } else if (spec.kind === "investorSummary") {
+            const data = await fetchInvestorSummary();
+            nextView = { kind: "investorSummary", data };
+          } else {
+            const data = await fetchProjectList();
+            nextView = { kind: "projectList", data };
+          }
+          setView(nextView);
+          setCurrentSpec(spec);
+          if (includeTimeseries) {
+            setTimeseries(await fetchTimeseries(selection, personaForView(nextView)));
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "表示の切り替えに失敗しました");
+        } finally {
+          setIsLoading(false);
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "表示の切り替えに失敗しました");
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, []);
+      })();
+    },
+    [view],
+  );
+
+  const handleViewSpecReceived = useCallback(
+    (spec: ViewSpec) => loadView(spec, periodSelection, false),
+    [loadView, periodSelection],
+  );
+
+  const updatePeriod = useCallback(
+    (next: PeriodSelection) => {
+      setPeriodSelection(next);
+      loadView(currentSpec, next, true);
+    },
+    [currentSpec, loadView],
+  );
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
+        <Card title="表示期間" eyebrow="Period">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded border px-3 py-1 text-sm"
+              type="button"
+              onClick={() => updatePeriod(shiftBaseDate(periodSelection, -1))}
+            >
+              前へ
+            </button>
+            {PERIODS.map((period) => (
+              <button
+                key={period}
+                className={`rounded border px-3 py-1 text-sm ${periodSelection.period === period ? "bg-dashboard-ink text-dashboard-panel" : ""}`}
+                type="button"
+                onClick={() => updatePeriod({ ...periodSelection, period })}
+              >
+                {period}
+              </button>
+            ))}
+            <button
+              className="rounded border px-3 py-1 text-sm"
+              type="button"
+              onClick={() => updatePeriod(shiftBaseDate(periodSelection, 1))}
+            >
+              次へ
+            </button>
+          </div>
+        </Card>
         {error ? (
           <Card title="エラー" className="border-status-red">
             <p className="text-sm text-status-red">{error}</p>
@@ -171,9 +343,17 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
         ) : (
           renderView(view)
         )}
+        {timeseries ? <TimeseriesPanel data={timeseries} /> : null}
       </div>
       <div className="lg:col-span-1">
-        <ChatPanel onViewSpecReceived={handleViewSpecReceived} />
+        <PageAgentPanel
+          onViewSpecReceived={handleViewSpecReceived}
+          pageContext={{
+            period: periodSelection.period,
+            baseDate: periodSelection.baseDate,
+            view: currentSpec,
+          }}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildHolidayCalendar,
+  buildHolidayCalendarFromYaml,
   isBusinessDay,
   isWeekend,
   dayOfWeek,
@@ -41,6 +42,18 @@ describe("isBusinessDay [SPEC-INT-054]", () => {
   });
   it("土日は営業日ではない", () => {
     expect(isBusinessDay(cal, "2026-07-04")).toBe(false);
+  });
+});
+
+describe("buildHolidayCalendarFromYaml [SPEC-INT-054]", () => {
+  it("jp_holidays.yaml形式から祝日カレンダーを構築する", () => {
+    const parsed = buildHolidayCalendarFromYaml(`
+holidays:
+  - date: "2026-05-06"
+    name_ja: "振替休日"
+    verified: true
+`);
+    expect(isBusinessDay(parsed, "2026-05-06")).toBe(false);
   });
 });
 

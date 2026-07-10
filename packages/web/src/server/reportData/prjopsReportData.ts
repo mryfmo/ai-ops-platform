@@ -19,10 +19,18 @@ import {
   isProjectInScope,
   type Profile,
   type ProjectVisibilityContext,
-  computeExecutiveSevenKeysNumeric,
+  computeExecutiveSevenKeys,
   type ExecutiveProjectInput,
+  type ExecutiveSevenKeysSummary,
+  type SevenKeysMonthlySnapshot,
+  type SevenKeysQuestionnaireInput,
+  type SevenKeysQuestionnaireRecord,
+  applySevenKeysQuestionnaire,
+  buildInvestorReport,
+  type InvestorBoardPackInputs,
+  type InvestorFinancialInputs,
+  type InvestorReport,
   computeIssueActionBurndown,
-  countTotalItemsInPeriod,
   countRemainingItems,
   type IssueActionBurndownInput,
   type BurndownWeek,
@@ -42,6 +50,13 @@ export interface PrjopsProjectRecord {
   periodLabel: string;
   /** 担当者名（表示用。マネージャーサマリの「担当」欄に使用） */
   ownerName: string;
+  scopeChangeCount?: number;
+  averageReviewWaitHours?: number;
+  activeContributorCount?: number;
+  questionnaire?: SevenKeysQuestionnaireInput;
+  ownershipPct?: number;
+  revenue?: number;
+  ebitda?: number;
 }
 
 /** Issue/Action相当のレコード（本リポジトリにはprjops-dataの実データが無いための抽象表現） */
@@ -58,6 +73,10 @@ export interface PrjopsIssueActionRecord {
 export interface PrjopsReportDataProvider {
   listProjects(): Promise<PrjopsProjectRecord[]>;
   listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]>;
+  listSevenKeysMonthlySnapshots?(): Promise<SevenKeysMonthlySnapshot[]>;
+  listSevenKeysQuestionnaires?(): Promise<SevenKeysQuestionnaireRecord[]>;
+  getInvestorFinancialInputs?(): Promise<InvestorFinancialInputs>;
+  getInvestorBoardPackInputs?(): Promise<InvestorBoardPackInputs>;
 }
 
 /**
@@ -68,6 +87,10 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
   constructor(
     private readonly projects: PrjopsProjectRecord[] = [],
     private readonly issuesAndActions: PrjopsIssueActionRecord[] = [],
+    private readonly sevenKeysMonthlySnapshots: SevenKeysMonthlySnapshot[] = [],
+    private readonly sevenKeysQuestionnaires: SevenKeysQuestionnaireRecord[] = [],
+    private readonly investorFinancialInputs: InvestorFinancialInputs = {},
+    private readonly investorBoardPackInputs: InvestorBoardPackInputs = {},
   ) {}
 
   async listProjects(): Promise<PrjopsProjectRecord[]> {
@@ -76,6 +99,22 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
 
   async listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]> {
     return this.issuesAndActions;
+  }
+
+  async listSevenKeysMonthlySnapshots(): Promise<SevenKeysMonthlySnapshot[]> {
+    return this.sevenKeysMonthlySnapshots;
+  }
+
+  async listSevenKeysQuestionnaires(): Promise<SevenKeysQuestionnaireRecord[]> {
+    return this.sevenKeysQuestionnaires;
+  }
+
+  async getInvestorFinancialInputs(): Promise<InvestorFinancialInputs> {
+    return this.investorFinancialInputs;
+  }
+
+  async getInvestorBoardPackInputs(): Promise<InvestorBoardPackInputs> {
+    return this.investorBoardPackInputs;
   }
 }
 
@@ -89,17 +128,13 @@ async function scopedProjects(
   return all.filter((p) => isProjectInScope(profile, p.projectId, ctx));
 }
 
-export interface ExecutiveSummaryResult {
-  colorDistribution: { green: number; yellow: number; red: number };
-  progressAchievementPct: number;
-  highRiskIssueCount: number;
-  budgetConsumptionPct: number | null;
-  scheduleAdherencePct: number;
-}
+export type ExecutiveSummaryResult = ExecutiveSevenKeysSummary & {
+  monthlySnapshots?: SevenKeysMonthlySnapshot[];
+};
 
 /**
- * PRF-04向け経営層セブンキー（数値4項目）を算出する。
- * color/isOverdueはPrjopsProjectRecordに保持済みの判定結果（REQ-007 judgeStatus相当）をそのまま使う。
+ * PRF-04向け経営層セブンキーを算出する。
+ * 定性キーはPrjopsProjectRecord.questionnaireから渡し、GitHub由来キーだけをコードで算出する。
  */
 export async function buildExecutiveSummary(
   provider: PrjopsReportDataProvider,
@@ -107,14 +142,32 @@ export async function buildExecutiveSummary(
   ctx: ProjectVisibilityContext,
 ): Promise<ExecutiveSummaryResult> {
   const projects = await scopedProjects(provider, profile, ctx);
-  const inputs: ExecutiveProjectInput[] = projects.map((p) => ({
-    projectId: p.projectId,
-    color: p.color,
-    progressPct: p.progressPct,
-    highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
-    isOverdue: p.isOverdue,
-  }));
-  return computeExecutiveSevenKeysNumeric(inputs);
+  const questionnaireMonth = new Date().toISOString().slice(0, 7);
+  const questionnaires = provider.listSevenKeysQuestionnaires ? await provider.listSevenKeysQuestionnaires() : [];
+  const inputs: ExecutiveProjectInput[] = projects
+    .map((p) => ({
+      projectId: p.projectId,
+      name: p.name,
+      progressPct: p.progressPct,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      asOfDate: new Date().toISOString(),
+      highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
+      isOverdue: p.isOverdue,
+      scopeChangeCount: p.scopeChangeCount,
+      averageReviewWaitHours: p.averageReviewWaitHours,
+      activeContributorCount: p.activeContributorCount,
+      questionnaire: p.questionnaire,
+    }))
+    .map((input) => applySevenKeysQuestionnaire(input, questionnaires, questionnaireMonth));
+  const summary: ExecutiveSummaryResult = computeExecutiveSevenKeys(inputs);
+  if (provider.listSevenKeysMonthlySnapshots) {
+    const scopedIds = new Set(projects.map((p) => p.projectId));
+    summary.monthlySnapshots = (await provider.listSevenKeysMonthlySnapshots()).filter((s) =>
+      scopedIds.has(s.projectId),
+    );
+  }
+  return summary;
 }
 
 export interface ManagerSummaryResult {
@@ -154,10 +207,20 @@ export async function buildManagerSummary(
       periodLabel: p.periodLabel,
       ownerName: p.ownerName,
     })),
-    totalTicketCount: countTotalItemsInPeriod(burndownInputs, periodStart, periodEnd),
-    remainingTicketCount: countRemainingItems(burndownInputs),
+    totalTicketCount: countItemsActiveInWindow(burndownInputs, periodStart, periodEnd),
+    remainingTicketCount: countRemainingItems(burndownInputs, periodEnd),
     burndown: computeIssueActionBurndown(burndownInputs, periodStart, periodEnd),
   };
+}
+
+function countItemsActiveInWindow(items: IssueActionBurndownInput[], periodStart: string, periodEnd: string): number {
+  const start = Date.parse(periodStart);
+  const end = Date.parse(periodEnd);
+  return items.filter((item) => {
+    const created = Date.parse(item.createdAt);
+    const closed = item.closedAt === null ? Number.POSITIVE_INFINITY : Date.parse(item.closedAt);
+    return created < end && closed >= start;
+  }).length;
 }
 
 /** 全ペルソナ共通: スコープ内プロジェクト一覧（数値なし、id/nameのみ） */
@@ -168,4 +231,24 @@ export async function listScopedProjectSummaries(
 ): Promise<Array<{ id: string; name: string }>> {
   const projects = await scopedProjects(provider, profile, ctx);
   return projects.map((p) => ({ id: p.projectId, name: p.name }));
+}
+
+export async function buildInvestorSummary(
+  provider: PrjopsReportDataProvider,
+  ctx: ProjectVisibilityContext,
+): Promise<InvestorReport> {
+  const projects = await scopedProjects(provider, "PRF-05", ctx);
+  return buildInvestorReport(
+    projects.map((p) => ({
+      projectId: p.projectId,
+      name: p.name,
+      ownershipPct: p.ownershipPct,
+      revenue: p.revenue,
+      ebitda: p.ebitda,
+      milestoneDelayDays: null,
+      highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
+    })),
+    provider.getInvestorFinancialInputs ? await provider.getInvestorFinancialInputs() : {},
+    provider.getInvestorBoardPackInputs ? await provider.getInvestorBoardPackInputs() : {},
+  );
 }

@@ -8,7 +8,8 @@ import {
   calcDeploymentFrequencyPerWeek,
   calcMedianLeadTimeHours,
   calcChangeFailureRatePct,
-  calcMeanTimeToRestoreHours,
+  calcFailedDeploymentRecoveryTimeHours,
+  classifyDoraBands,
   calculateDoraSummary,
 } from "../src/lib/doraMetrics.js";
 
@@ -66,7 +67,12 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
       deployedAt: "2026-07-01T10:00:00Z",
       causedFailure: false,
     },
-    { projectId: "PRJ-001", commitAt: "2026-07-02T00:00:00Z", deployedAt: "2026-07-02T20:00:00Z", causedFailure: true },
+    {
+      projectId: "PRJ-001",
+      commitAt: "2026-07-02T00:00:00Z",
+      deployedAt: "2026-07-02T20:00:00Z",
+      causedFailure: true,
+    },
     {
       projectId: "PRJ-001",
       commitAt: "2026-07-03T00:00:00Z",
@@ -74,7 +80,14 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
       causedFailure: false,
     },
   ];
-  const incidents = [{ projectId: "PRJ-001", detectedAt: "2026-07-02T20:00:00Z", resolvedAt: "2026-07-02T22:00:00Z" }];
+  const incidents = [
+    {
+      projectId: "PRJ-001",
+      detectedAt: "2026-07-02T20:00:00Z",
+      resolvedAt: "2026-07-02T22:00:00Z",
+      causedByDeployment: true,
+    },
+  ];
 
   it("デプロイ頻度: 3件/7日間 → 週あたり3件", () => {
     expect(calcDeploymentFrequencyPerWeek(deployments, 7)).toBe(3);
@@ -89,23 +102,45 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
     expect(Math.round(rate * 100) / 100).toBe(33.33);
   });
 
-  it("MTTR: 1インシデント2時間 → 平均2時間", () => {
-    expect(calcMeanTimeToRestoreHours(incidents)).toBe(2);
+  it("failed deployment recovery time: 変更起因かつ解決済みのみを中央値で返す", () => {
+    expect(
+      calcFailedDeploymentRecoveryTimeHours([
+        ...incidents,
+        {
+          projectId: "PRJ-001",
+          detectedAt: "2026-07-03T00:00:00Z",
+          resolvedAt: "2026-07-07T04:00:00Z",
+          causedByDeployment: false,
+        },
+        {
+          projectId: "PRJ-001",
+          detectedAt: "2026-07-04T00:00:00Z",
+          resolvedAt: null,
+          causedByDeployment: true,
+        },
+      ]),
+    ).toBe(2);
   });
 
-  it("calculateDoraSummaryは4指標すべてを返す（AC-023b）", () => {
+  it("calculateDoraSummaryは現行DBで算出可能なDORA指標を返す（AC-023b）", () => {
     const summary = calculateDoraSummary(deployments, incidents, 7);
     expect(summary.deploymentFrequencyPerWeek).toBe(3);
     expect(summary.medianLeadTimeHours).toBe(10);
-    expect(summary.meanTimeToRestoreHours).toBe(2);
+    expect(summary.failedDeploymentRecoveryTimeHours).toBe(2);
     expect(summary.changeFailureRatePct).toBeGreaterThanOrEqual(33);
   });
 
-  it("空データでもエラーにならず0を返す", () => {
+  it("空データはエリート扱いに見える0ではなくnull/NAを返す", () => {
     const summary = calculateDoraSummary([], [], 7);
-    expect(summary.deploymentFrequencyPerWeek).toBe(0);
-    expect(summary.medianLeadTimeHours).toBe(0);
-    expect(summary.changeFailureRatePct).toBe(0);
-    expect(summary.meanTimeToRestoreHours).toBe(0);
+    expect(summary.deploymentFrequencyPerWeek).toBeNull();
+    expect(summary.medianLeadTimeHours).toBeNull();
+    expect(summary.changeFailureRatePct).toBeNull();
+    expect(summary.failedDeploymentRecoveryTimeHours).toBeNull();
+    expect(classifyDoraBands(summary).failedDeploymentRecoveryTime).toBe("na");
+  });
+
+  it("DF低頻度のlowバンドが到達可能", () => {
+    const summary = calculateDoraSummary([deployments[0]!], [], 90);
+    expect(classifyDoraBands(summary).deploymentFrequency).toBe("low");
   });
 });

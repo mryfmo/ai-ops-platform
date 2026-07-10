@@ -16,7 +16,12 @@ import { verifyGithubWebhookSignature, type AuditLogWriter } from "@aiops/shared
 export interface GithubWebhookDeps {
   webhookSecret: string;
   auditLog: AuditLogWriter;
-  enqueueGithubEvent(eventName: string, payload: unknown, traceId: string): Promise<void>;
+  enqueueGithubEvent(
+    eventName: string,
+    payload: unknown,
+    traceId: string,
+    options?: { dedupeKey?: string | null },
+  ): Promise<boolean>;
   traceIdProvider(): string;
 }
 
@@ -47,7 +52,31 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
     }
 
     const traceId = deps.traceIdProvider();
-    await deps.enqueueGithubEvent(eventName, payload, traceId);
+    const deliveryId = c.req.header("x-github-delivery")?.trim() ?? "";
+    if (!deliveryId) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "github_webhook_missing_delivery_id",
+        basis: "SPEC-INT-061",
+        detail: { event: eventName },
+        at: new Date().toISOString(),
+      });
+      return c.json({ error: "missing delivery id" }, 400);
+    }
+    const inserted = await deps.enqueueGithubEvent(eventName, payload, traceId, {
+      dedupeKey: `github:${deliveryId}`,
+    });
+    if (!inserted) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "github_webhook_duplicate",
+        basis: "SPEC-INT-061",
+        detail: { event: eventName, deliveryId },
+        at: new Date().toISOString(),
+      });
+    }
     return c.body(null, 202);
   });
 }

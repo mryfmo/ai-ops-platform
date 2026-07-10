@@ -64,10 +64,50 @@ describe("distributeOne [REQ-018, SPEC-INT-052]", () => {
     expect(sentMails).toHaveLength(1);
   });
 
+  it("送信済みだがsent確定前のpendingログが残る再試行は件名に再送を明示する", async () => {
+    const { deps, sentMails } = makeDeps();
+    await deps.deliveryLogStore.record({
+      reportId: baseTarget.reportId,
+      recipientId: baseTarget.recipientId,
+      deliveredAt: "2026-07-09T00:00:00.000Z",
+      status: "pending",
+    } as Parameters<typeof deps.deliveryLogStore.record>[0]);
+    const outcome = await distributeOne(baseTarget, deps);
+    expect(outcome).toBe("sent");
+    expect(sentMails[0]?.subject).toContain("(再送)");
+  });
+
   it("PRF-02/03向けはTeamsへの要約カードも投稿される", async () => {
     const { deps, cardCounter } = makeDeps();
     await distributeOne(baseTarget, deps);
     expect(cardCounter.count).toBe(1);
+  });
+
+  it("メール成功後のカード失敗はメール失敗扱いにせず、次回カードだけ再試行する", async () => {
+    const sentMails: Array<{ subject: string }> = [];
+    let cardCalls = 0;
+    const deps: DistributorDependencies = {
+      graphClient: {
+        sendMail: async (input) => {
+          sentMails.push({ subject: input.subject });
+        },
+        sendAdaptiveCard: async () => {
+          cardCalls += 1;
+          if (cardCalls === 1) throw new Error("card down");
+          return { messageId: "card-2" };
+        },
+      },
+      deliveryLogStore: new InMemoryDeliveryLogStore(),
+      auditLog: new InMemoryAuditLog(),
+      traceId: "trace-card",
+      fromMailbox: "prjops-system@example.com",
+    };
+
+    await expect(distributeOne(baseTarget, deps)).resolves.toBe("sent");
+    await expect(distributeOne(baseTarget, deps)).resolves.toBe("sent");
+    expect(sentMails).toHaveLength(1);
+    expect(cardCalls).toBe(2);
+    expect((await deps.auditLog.readAll()).some((record) => record.action === "deliver_card_failed")).toBe(true);
   });
 
   it("postTeamsSummaryCard=falseならカードは投稿されない", async () => {

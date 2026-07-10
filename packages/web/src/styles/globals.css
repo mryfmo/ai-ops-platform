@@ -1,7 +1,8 @@
 /**
  * packages/web/src/styles/globals.css
  *
- * 根拠: ADR-0005（WebUIダッシュボード）/ SPEC-EXT-020（共通仕様: ステータス色）
+ * 根拠: ADR-0005（WebUIダッシュボード）/ SPEC-EXT-020（共通仕様: ステータス色）/
+ *   ADR-0009 / SPEC-INT-064 / AC-010-3（Recharts 3 + dashboard design tokens）。
  *   - ステータス色は既存メールレポート（packages/prjops/src/templates/reportShell.ts の
  *     STATUS_COLOR_HEX）と同一: Green=#2e7d32, Yellow=#f9a825, Red=#c62828。
  *   - 色だけに依存せず文字ラベルを併記する（StatusChip コンポーネント側で担保）。
@@ -13,6 +14,23 @@
   --color-status-green: #2e7d32;
   --color-status-yellow: #f9a825;
   --color-status-red: #c62828;
+  --color-status-grey: #64748b;
+
+  /* カテゴリカル/チャート色。隣接コントラストを優先し、RechartsへCSS変数で渡す。 */
+  --color-chart-1: #2563eb;
+  --color-chart-2: #059669;
+  --color-chart-3: #7c3aed;
+  --color-chart-4: #ea580c;
+  --color-chart-5: #0891b2;
+  --color-chart-grid: #e2e8f0;
+  --color-chart-axis: #64748b;
+
+  /* Surface tokens */
+  --color-dashboard-bg: #f8fafc;
+  --color-dashboard-panel: #ffffff;
+  --color-dashboard-border: #e2e8f0;
+  --color-dashboard-muted: #64748b;
+  --color-dashboard-ink: #0f172a;
 
   /* 基本トークン */
   --font-sans:
@@ -21,4 +39,30 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius-card: 0.5rem;
   --spacing-page: 1.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-chart-1: #93c5fd;
+    --color-chart-2: #6ee7b7;
+    --color-chart-3: #c4b5fd;
+    --color-chart-4: #fdba74;
+    --color-chart-5: #67e8f9;
+    --color-chart-grid: #334155;
+    --color-chart-axis: #94a3b8;
+    --color-dashboard-bg: #020617;
+    --color-dashboard-panel: #0f172a;
+    --color-dashboard-border: #334155;
+    --color-dashboard-muted: #94a3b8;
+    --color-dashboard-ink: #f8fafc;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  background: var(--color-dashboard-bg);
+  color: var(--color-dashboard-ink);
 }

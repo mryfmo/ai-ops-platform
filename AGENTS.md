@@ -54,12 +54,13 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 
 - vitest。テストファイルは `packages/*/tests/*.test.ts`
 - describe/itのタイトルに検証対象の仕様ID（REQ/SPEC-INT/TH/AC）を含める
+- spec IDは `system` + ID文字列で名前空間を持つ。PrjOpsとDevOpsで同じ番号（例: `SPEC-INT-063`）が存在し得るため、レビュー時は `packages/traceability/spec-ids/{prjops,devops}.json` の所属も確認する。
 - lib/の純粋関数は境界値・エラーケースを網羅。agents/はDI注入モックで結線を検証
 - HTTPハンドラ（server）は `app.request()` でポートを開かずにテスト
 
 ## schema.sql 変更手順
 
-1. `packages/devops/src/db/schema.sql` に `CREATE TABLE IF NOT EXISTS` で追記（既存テーブルのALTERは別途DDLコメントで明示）
+1. `packages/devops/src/db/schema.sql` はfresh-DB用の最新形だけを更新する。既存テーブルのALTERは `packages/devops/src/db/migrations/NNN_description.sql` を新規作成し、schema.sqlへinline ALTERを書かない
 2. 対応するリポジトリ層（`packages/server/src/db/*Repo.ts`）とテストを同一PRで追加
 3. audit_logテーブルへのUPDATE/DELETE権限をアプリロールに付与しない（REVOKE維持）
 
@@ -68,11 +69,13 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 - mainへの直接pushは禁止。ブランチを切りPRを作成する
 - AIエージェントが生成するPRは `agent/{task-id}` ブランチ + `ai-generated` ラベル（ADR-0006）
 - 自動マージ禁止。マージは人間レビュアーのみ（CODEOWNERS + ブランチ保護）
+- CODEOWNERS は gh で確認済みの `@mryfmo` を使う。go-live 前にブランチ保護で CODEOWNERS review 必須化を確認する。
+- AI PR 作成には `AIOPS_PR_TOKEN`（GitHub App installation token または専用PAT）を使う。未設定のまま運用しない。
 - PRテンプレート（.github/PULL_REQUEST_TEMPLATE.md）のチェックリストを埋める
 - コミット前に gitleaks 相当の秘密情報混入がないことを確認（CIでも検証される）
 
 ## 主要な参照ドキュメント
 
-- `docs/adr/` — アーキテクチャ決定記録（0001: モノレポ、0002: Claude API使い分け、0003: 実行基盤、0004: mise/pnpm、0005: 常駐サーバ+Teams統合、0006: AIコーディングエージェント統合）
+- `docs/adr/` — アーキテクチャ決定記録（0001: モノレポ、0002: Claude API使い分け、0003: 実行基盤、0004: mise/pnpm、0005: 常駐サーバ+Teams統合、0006: AIコーディングエージェント統合、0007: GitHub時系列スナップショット、0008: Excelインポート、0009: Recharts 3、0010: Seven Keys正典、0011: 投資家ペルソナ、0012: 報告標準化、0013: ページエージェント）
 - `runbooks/manual-ops.md` — エージェント停止時の手動運用
 - `verification/VERIFICATION_REPORT.md` — テスト検証状況

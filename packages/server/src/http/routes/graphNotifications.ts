@@ -12,12 +12,65 @@ import type { Hono } from "hono";
 import type { AuditLogWriter } from "@aiops/shared";
 import { classifyNotifications, type GraphNotification } from "../../lib/graphNotificationValidator.js";
 
+export type GraphLifecycleEventName = "reauthorizationRequired" | "subscriptionRemoved" | "missed";
+
+export interface GraphLifecycleEvent {
+  lifecycleEvent: GraphLifecycleEventName;
+  subscriptionId: string | null;
+  notification: GraphNotification;
+}
+
 export interface GraphNotificationDeps {
   clientState: string;
   auditLog: AuditLogWriter;
   /** eventsテーブルへのエンキュー（source='inbound'） */
-  enqueueInboundEvent(payload: unknown, traceId: string): Promise<void>;
+  enqueueInboundEvent(payload: unknown, traceId: string, options?: { dedupeKey?: string | null }): Promise<boolean>;
+  handleLifecycleEvent?(event: GraphLifecycleEvent, traceId: string): Promise<void>;
   traceIdProvider(): string;
+}
+
+function toLifecycleEvent(notification: GraphNotification): GraphLifecycleEvent | null {
+  if (
+    notification.lifecycleEvent !== "reauthorizationRequired" &&
+    notification.lifecycleEvent !== "subscriptionRemoved" &&
+    notification.lifecycleEvent !== "missed"
+  ) {
+    return null;
+  }
+  return {
+    lifecycleEvent: notification.lifecycleEvent,
+    subscriptionId: notification.subscriptionId ?? null,
+    notification,
+  };
+}
+
+function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycleEvent, traceId: string): void {
+  const work = deps.handleLifecycleEvent
+    ? deps.handleLifecycleEvent(event, traceId)
+    : deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "graph_lifecycle_disabled",
+        basis: "SPEC-INT-001",
+        detail: { lifecycleEvent: event.lifecycleEvent, subscriptionId: event.subscriptionId },
+        at: new Date().toISOString(),
+      });
+  void work
+    .catch((error) =>
+      deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "graph_lifecycle_failed",
+        basis: "SPEC-INT-001",
+        detail: {
+          lifecycleEvent: event.lifecycleEvent,
+          subscriptionId: event.subscriptionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        at: new Date().toISOString(),
+      }),
+    )
+    .catch(() => {});
 }
 
 export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificationDeps): void {
@@ -51,7 +104,26 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
 
     // (3) 受理分をエンキュー（本文はfetch-on-notifyで後段が取得するため、通知メタデータのみ保存）
     for (const { notification, ids } of accepted) {
-      await deps.enqueueInboundEvent(
+      const lifecycleEvent = toLifecycleEvent(notification);
+      if (lifecycleEvent) {
+        runLifecycleAfterAck(deps, lifecycleEvent, traceId);
+        continue;
+      }
+
+      const messageId = ids?.messageId.trim() ?? "";
+      if (!messageId) {
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "SERVER",
+          action: "graph_notification_missing_dedupe_key",
+          basis: "SPEC-INT-001",
+          detail: { subscriptionId: notification.subscriptionId ?? null, changeType: notification.changeType ?? null },
+          at: new Date().toISOString(),
+        });
+        continue;
+      }
+
+      const inserted = await deps.enqueueInboundEvent(
         {
           kind: "graph_channel_message_notification",
           changeType: notification.changeType ?? null,
@@ -60,7 +132,18 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           ids,
         },
         traceId,
+        { dedupeKey: `graph:${messageId}` },
       );
+      if (!inserted) {
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "SERVER",
+          action: "graph_notification_duplicate",
+          basis: "SPEC-INT-001",
+          detail: { messageId, subscriptionId: notification.subscriptionId ?? null },
+          at: new Date().toISOString(),
+        });
+      }
     }
 
     // 不一致のみでも202（攻撃者に検証結果を漏らさない）

@@ -24,11 +24,46 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.PORT).toBe(8080);
     expect(config.WEBUI_INTERNAL_PORT).toBe(3100);
     expect(config.DATABASE_URL).toContain("postgres://");
+    expect(config.DB_POOL_MAX).toBe(10);
+    expect(config.DB_POOL_CONNECTION_TIMEOUT_MS).toBe(5000);
+    expect(config.DB_STATEMENT_TIMEOUT_MS).toBe(30000);
+    expect(config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS).toBe(30000);
+    expect(config.LOG_LEVEL).toBe("info");
+    expect(config.OTEL_SERVICE_NAME).toBe("ai-ops-platform-server");
+    expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
   });
 
   it("PORTを上書きできる", () => {
     const config = loadConfig({ ...validEnv, PORT: "9090" });
     expect(config.PORT).toBe(9090);
+  });
+
+  it("DB pool設定を上書きできる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      DB_POOL_MAX: "20",
+      DB_POOL_CONNECTION_TIMEOUT_MS: "7000",
+      DB_STATEMENT_TIMEOUT_MS: "45000",
+      DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS: "15000",
+    });
+    expect(config.DB_POOL_MAX).toBe(20);
+    expect(config.DB_POOL_CONNECTION_TIMEOUT_MS).toBe(7000);
+    expect(config.DB_STATEMENT_TIMEOUT_MS).toBe(45000);
+    expect(config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS).toBe(15000);
+  });
+
+  it("observability設定を上書きできる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      LOG_LEVEL: "debug",
+      OTEL_SERVICE_NAME: "aiops-test",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example.com",
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://otel.example.com/v1/traces",
+    });
+    expect(config.LOG_LEVEL).toBe("debug");
+    expect(config.OTEL_SERVICE_NAME).toBe("aiops-test");
+    expect(config.OTEL_EXPORTER_OTLP_ENDPOINT).toBe("https://otel.example.com");
+    expect(config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).toBe("https://otel.example.com/v1/traces");
   });
 
   it("DATABASE_URL欠落でE-CFG01", () => {
@@ -51,5 +86,19 @@ describe("loadConfig (ADR-0005)", () => {
   it("CODING_TASK_CALLBACK_SECRET欠落でE-CFG01", () => {
     const { CODING_TASK_CALLBACK_SECRET: _drop, ...rest } = validEnv;
     expect(() => loadConfig(rest)).toThrow("E-CFG01");
+  });
+
+  it("ADR-0014の配信設定をパースできる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      REPORT_DELIVERY_ENABLED: "true",
+      FROM_MAILBOX: "reports@example.com",
+      REPORT_INGEST_SECRET: "report-ingest-secret-of-at-least-32-chars",
+      DEFAULT_TEAMS_TEAM_ID: "team-1",
+      DEFAULT_TEAMS_CHANNEL_ID: "channel-1",
+    });
+    expect(config.REPORT_DELIVERY_ENABLED).toBe(true);
+    expect(config.FROM_MAILBOX).toBe("reports@example.com");
+    expect(config.DEFAULT_TEAMS_CHANNEL_ID).toBe("channel-1");
   });
 });

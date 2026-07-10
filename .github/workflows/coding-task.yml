@@ -18,8 +18,8 @@
 # 必要なsecrets（GitHub Organization/Repository Settings側で登録すること）:
 #   - PUBLIC_BASE_URL: 常駐サーバの公開FQDN（callback送信先。config.tsと同一値）
 #   - CODING_TASK_CALLBACK_SECRET: callback認証用Bearerトークン（config.tsと同一値）
-#   - GITHUB_TOKEN: PR作成用（既定のActionsトークンでも可。ai-generatedラベル付与に
-#     issues:write / pull-requests:write 権限が必要）
+#   - AIOPS_PR_TOKEN: PR作成/branch push用。GitHub App installation token または専用PAT。
+#     contents:write / pull-requests:write / issues:write が必要。未設定なら明示失敗する。
 #   - ANTHROPIC_API_KEY / FACTORY_API_KEY: run-coding-agent実行時にjob envとして渡す（ADR-0006影響節）
 #
 # 注意: 本ワークフローはworkflow_dispatchでのみ起動され、この開発環境では実行できない
@@ -56,8 +56,7 @@ on:
         default: claude-code
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 env:
   BRANCH_NAME: agent/${{ inputs.task_id }}
@@ -67,19 +66,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Require CI-triggering PR token
+        env:
+          AIOPS_PR_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AIOPS_PR_TOKEN:-}" ]; then
+            echo "::error::AIOPS_PR_TOKEN is required so AI-created PRs trigger ci.yml. See runbooks/production-gates.md."
+            exit 1
+          fi
+
       - name: Checkout base_ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ inputs.base_ref }}
           fetch-depth: 0
+          token: ${{ secrets.AIOPS_PR_TOKEN }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: "9.15.4"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "pnpm"
@@ -130,7 +140,7 @@ jobs:
         if: steps.detect.outputs.changed == 'true'
         id: create_pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
           PROJECT_ID: ${{ inputs.project_id }}
           TASK_ID: ${{ inputs.task_id }}
           AGENT_NAME: ${{ inputs.agent }}

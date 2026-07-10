@@ -2,7 +2,8 @@
  * packages/prjops/src/agents/AGT06_tracker.ts
  *
  * 根拠: REQ-009（アクション期限管理）/ SPEC-EXT-034（アクション事前通知/督促）/ SPEC-EXT-035（エスカレーション）
- * 毎営業日09:00 JSTのtrack-dailyジョブから呼ばれる想定（SPEC-INT-040）。
+ * 毎営業日09:00 JSTのtrack-dailyジョブから呼ばれる想定（SPEC-INT-040）だが、T20時点では
+ * packages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。
  *
  * 本モジュールは判定（actionReminder.ts）と配信（GraphClient）・記録（AuditLogWriter）を結線する
  * 薄いオーケストレーション層。判定ロジック自体はlib/actionReminder.tsの純粋関数に委譲する。

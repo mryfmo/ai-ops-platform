@@ -8,26 +8,38 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+      - run: pnpm run governance:check
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -r --if-present run typecheck
       - run: pnpm -r --if-present run build
+      - run: pnpm -r --if-present run typecheck
       - run: pnpm -r --if-present run test:coverage
       - name: トレーサビリティ検証（全SPEC-ID⇔実装⇔テストの対応チェック）
         run: pnpm exec tsx packages/traceability/src/verifyTraceability.ts
 
   gitleaks:
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_LINUX_X64_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - name: gitleaks secret scan (DEV-10, REQ-032)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${asset}"
+          echo "${GITLEAKS_LINUX_X64_SHA256}  ${asset}" | sha256sum -c -
+          tar -xzf "${asset}" gitleaks
+          ./gitleaks detect --source . --redact --verbose

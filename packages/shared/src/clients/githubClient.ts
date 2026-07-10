@@ -43,6 +43,23 @@ export function verifyGithubWebhookSignature(
   return timingSafeEqual(a, b);
 }
 
+function projectV2FieldValue(fieldType: string, value: string): Record<string, string | number> {
+  switch (fieldType.trim().toLowerCase()) {
+    case "single_select":
+    case "single-select":
+    case "single_select_option":
+      return { singleSelectOptionId: value };
+    case "number":
+      return { number: Number(value) };
+    case "date":
+      return { date: value };
+    case "iteration":
+      return { iterationId: value };
+    default:
+      return { text: value };
+  }
+}
+
 export interface CreateIssueCommentInput {
   owner: string;
   repo: string;
@@ -56,6 +73,15 @@ export interface CreateIssueInput {
   title: string;
   body: string;
   labels: string[];
+  milestone?: number;
+}
+
+export interface CreateMilestoneInput {
+  owner: string;
+  repo: string;
+  title: string;
+  dueOn?: string;
+  description?: string;
 }
 
 export interface WorkflowDispatchInput {
@@ -64,6 +90,22 @@ export interface WorkflowDispatchInput {
   workflowIdOrFileName: string; // 例: "deploy-prod.yml"
   ref: string; // ブランチ/タグ
   inputs: Record<string, string>;
+}
+
+export interface ProjectV2SnapshotRecord {
+  projectId: string | null;
+  repository: string | null;
+  sourceType: "issue" | "pull_request" | "milestone" | "project_item" | "project_status";
+  sourceId: string;
+  state: string | null;
+  payload: unknown;
+}
+
+export interface ProjectV2SnapshotPage {
+  rateLimit: { remaining: number; cost?: number; resetAt?: string };
+  snapshots: ProjectV2SnapshotRecord[];
+  hasMore: boolean;
+  nextCursor?: string | null;
 }
 
 export class GitHubClient {
@@ -99,11 +141,132 @@ export class GitHubClient {
     const res = await this.fetchImpl(`${this.baseUrl}/repos/${input.owner}/${input.repo}/issues`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels }),
+      body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels, milestone: input.milestone }),
     });
     if (!res.ok) throw new Error(`E-GEN03: createIssue failed with status ${res.status}`);
     const json = (await res.json()) as { number: number; html_url: string };
     return { number: json.number, htmlUrl: json.html_url };
+  }
+
+  /** REQ-037 / SPEC-INT-063: ExcelインポートからMilestoneを作成する。 */
+  async createMilestone(input: CreateMilestoneInput): Promise<{ number: number; htmlUrl: string; nodeId?: string }> {
+    const headers = await this.headers();
+    const res = await this.fetchImpl(`${this.baseUrl}/repos/${input.owner}/${input.repo}/milestones`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title: input.title, due_on: input.dueOn, description: input.description }),
+    });
+    if (!res.ok) throw new Error(`E-GEN04: createMilestone failed with status ${res.status}`);
+    const json = (await res.json()) as { number: number; html_url: string; node_id?: string };
+    return { number: json.number, htmlUrl: json.html_url, nodeId: json.node_id };
+  }
+
+  async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const headers = await this.headers();
+    const res = await this.fetchImpl(`${this.baseUrl}/graphql`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!res.ok) throw new Error(`E-GQL01: graphql failed with status ${res.status}`);
+    const json = (await res.json()) as { data?: T; errors?: unknown };
+    if (json.errors) throw new Error("E-GQL02: graphql returned errors");
+    return json.data as T;
+  }
+
+  /** rateLimitは実行時に読む。固定ポイント値をコードに置かない（ADR-0008 / deep research）。 */
+  async getGraphqlRateLimit(): Promise<{ remaining: number; resetAt: string }> {
+    const data = await this.graphql<{ rateLimit: { remaining: number; resetAt: string } }>(
+      "query RateLimit { rateLimit { remaining resetAt } }",
+      {},
+    );
+    return { remaining: data.rateLimit.remaining, resetAt: data.rateLimit.resetAt };
+  }
+
+  async listCurrentProjectV2Snapshots(input: {
+    projectNodeId: string;
+    cursor?: string | null;
+  }): Promise<ProjectV2SnapshotPage> {
+    const data = await this.graphql<{
+      rateLimit: { remaining: number; cost?: number; resetAt?: string };
+      node?: {
+        items?: {
+          pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+          nodes: Array<Record<string, unknown>>;
+        };
+      };
+    }>(
+      `query ProjectSnapshots($projectId: ID!, $cursor: String) {
+        node(id: $projectId) {
+          ... on ProjectV2 {
+            items(first: 50, after: $cursor) {
+              pageInfo { hasNextPage endCursor }
+              nodes {
+                id
+                content {
+                  __typename
+                  ... on Issue { id number title state repository { nameWithOwner } }
+                  ... on PullRequest { id number title state repository { nameWithOwner } }
+                  ... on Milestone { id title state dueOn }
+                }
+                fieldValues(first: 20) {
+                  nodes {
+                    __typename
+                    ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
+                    ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        rateLimit { remaining cost resetAt }
+      }`,
+      { projectId: input.projectNodeId, cursor: input.cursor ?? null },
+    );
+    const items = data.node?.items;
+    const snapshots = (items?.nodes ?? []).map((item) => toProjectV2Snapshot(input.projectNodeId, item));
+    return {
+      rateLimit: data.rateLimit,
+      snapshots,
+      hasMore: items?.pageInfo.hasNextPage ?? false,
+      nextCursor: items?.pageInfo.endCursor ?? null,
+    };
+  }
+
+  async addProjectV2ItemById(input: { projectNodeId: string; contentNodeId: string }): Promise<{ itemNodeId: string }> {
+    const data = await this.graphql<{ addProjectV2ItemById: { item: { id: string } } }>(
+      `mutation AddProjectItem($projectId: ID!, $contentId: ID!) {
+        addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) { item { id } }
+      }`,
+      { projectId: input.projectNodeId, contentId: input.contentNodeId },
+    );
+    return { itemNodeId: data.addProjectV2ItemById.item.id };
+  }
+
+  async updateProjectV2ItemFieldValue(input: {
+    projectNodeId: string;
+    itemNodeId: string;
+    fieldNodeId: string;
+    fieldType: string;
+    value: string;
+  }): Promise<void> {
+    await this.graphql(
+      `mutation UpdateProjectItem($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: ProjectV2FieldValue!) {
+        updateProjectV2ItemFieldValue(input: {
+          projectId: $projectId,
+          itemId: $itemId,
+          fieldId: $fieldId,
+          value: $value
+        }) { projectV2Item { id } }
+      }`,
+      {
+        projectId: input.projectNodeId,
+        itemId: input.itemNodeId,
+        fieldId: input.fieldNodeId,
+        value: projectV2FieldValue(input.fieldType, input.value),
+      },
+    );
   }
 
   /**
@@ -273,5 +436,38 @@ function toPullRequestSummary(raw: Record<string, unknown>): PullRequestSummary 
     createdAt: String(raw.created_at ?? ""),
     updatedAt: String(raw.updated_at ?? ""),
     merged: raw.merged === true || raw.merged_at != null,
+  };
+}
+
+function fieldName(field: unknown): string {
+  return String((field as Record<string, unknown> | undefined)?.name ?? "");
+}
+
+function statusFromFieldValues(fieldValues: unknown): string | null {
+  const nodes = (fieldValues as { nodes?: Array<Record<string, unknown>> } | undefined)?.nodes ?? [];
+  const status = nodes.find((node) => fieldName(node.field).toLowerCase() === "status");
+  if (!status) return null;
+  return typeof status.name === "string" ? status.name : typeof status.text === "string" ? status.text : null;
+}
+
+function toProjectV2Snapshot(projectId: string, item: Record<string, unknown>): ProjectV2SnapshotRecord {
+  const content = (item.content as Record<string, unknown> | null | undefined) ?? undefined;
+  const typeName = String(content?.__typename ?? "");
+  const sourceType =
+    typeName === "Issue"
+      ? "issue"
+      : typeName === "PullRequest"
+        ? "pull_request"
+        : typeName === "Milestone"
+          ? "milestone"
+          : "project_item";
+  const repository = (content?.repository as Record<string, unknown> | undefined)?.nameWithOwner;
+  return {
+    projectId,
+    repository: typeof repository === "string" ? repository : null,
+    sourceType,
+    sourceId: String(content?.id ?? item.id),
+    state: statusFromFieldValues(item.fieldValues) ?? (typeof content?.state === "string" ? content.state : null),
+    payload: item,
   };
 }

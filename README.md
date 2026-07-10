@@ -10,6 +10,7 @@
 
 このドキュメントは、成果物の全体像・設計判断の根拠・セットアップ手順・検証状況を1か所にまとめたもの。
 **検証状況の詳細（何を実際にテストし、何が未検証か）は [`verification/VERIFICATION_REPORT.md`](./verification/VERIFICATION_REPORT.md) を必ず参照すること。**
+実装に即した仕様・参照・利用ガイドの入口は [`docs/README.md`](./docs/README.md) にまとめている。
 
 ---
 
@@ -37,7 +38,8 @@ ai-ops-platform/
 │   ├── adr/                 主要な設計判断の記録（Architecture Decision Records）
 │   └── best-practices-research.md   採用したベストプラクティスと出典
 ├── runbooks/
-│   └── manual-ops.md         エージェント停止時の手動運用手順（SPEC-INT-060, REQ-029）
+│   ├── manual-ops.md         エージェント停止時の手動運用手順（SPEC-INT-060, REQ-029）
+│   └── e2e-real-environment.md  実環境E2E検証の前提・手順・チェックリスト
 ├── verification/
 │   ├── VERIFICATION_REPORT.md
 │   └── test-results/
@@ -87,12 +89,18 @@ mise run ci                  # 上記をCIと同順序で一括実行
 
 ## 4. 検証について（要点）
 
-- **359件のユニットテストを実際に実行し、全件合格を確認済み**（決定的ロジック・テンプレート・
+- **750件のユニットテストを実際に実行し、全件合格を確認済み**（決定的ロジック・テンプレート・
   クライアント層・一部エージェント層）。
+- Phase V では Web を `next build` + `next start` で実起動し、`/app/login` と `/app/api/health`
+  の実HTTP 200、未認証時の `/app/dashboard` 307、`/app/api/data/*` と `/app/api/chat` の 401 を確認した。
+  認証済みダッシュボード、実DB、実LLM、GitHub/Teams webhook は実環境必須であり、ローカルのモックや
+  スタブを E2E として扱っていない。
 - LLM呼び出しを直接含むコード（Anthropic SDK依存）は、ネットワーク遮断の著者環境の制約により
   実行はできなかったが、周辺の決定的ガード処理は分離してテスト済み。SDKの使い方自体は
   2026年7月時点の公式ドキュメントに基づく（`docs/best-practices-research.md`）。
 - 仕様ID（REQ/SPEC-INT/TH）は実装コードから機械的に検索可能で、必須カテゴリは100%の参照率。
+- 実環境で完了させる E2E の前提と手順は [`runbooks/e2e-real-environment.md`](./runbooks/e2e-real-environment.md)
+  を参照すること。
 
 **この状況を偽らず、`verification/VERIFICATION_REPORT.md` に完全に開示している。**
 

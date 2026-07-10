@@ -34,6 +34,7 @@ import {
 import {
   InMemoryPrjopsReportDataProvider,
   buildExecutiveSummary,
+  buildInvestorSummary,
   buildManagerSummary,
 } from "../../server/reportData/prjopsReportData";
 import { buildDevOpsManagerSummary } from "../../server/reportData/devopsReportData";
@@ -81,12 +82,19 @@ export default async function DashboardPage() {
         initialViewSpec={{ kind: "executiveSummary" }}
         initialData={{
           kind: "executiveSummary",
-          data: {
-            ...numeric,
-            monthOverMonthDiffText: "前月比データは準備中です（スタブ表示）。",
-            topTopics: [],
-          },
+          data: numeric,
         }}
+      />
+    );
+  }
+
+  if (persona.domain === "investor") {
+    const provider = new InMemoryPrjopsReportDataProvider([], []);
+    const summary = await buildInvestorSummary(provider, persona.visibility);
+    return (
+      <DashboardClient
+        initialViewSpec={{ kind: "investorSummary" }}
+        initialData={{ kind: "investorSummary", data: summary }}
       />
     );
   }
@@ -116,6 +124,10 @@ export default async function DashboardPage() {
             totalTicketCount: summary.totalTicketCount,
             remainingTicketCount: summary.remainingTicketCount,
             burndown: summary.burndown,
+            velocity: summary.velocity,
+            coveragePct: summary.coveragePct,
+            dora: summary.dora,
+            doraByProject: summary.doraByProject,
           },
         }}
       />
@@ -125,7 +137,11 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">ダッシュボード</h1>
-      <Card title={`${persona.domain === "prjops" ? "PrjOps" : "DevOps"} ${persona.profile}`}>
+      <Card
+        title={`${persona.domain === "prjops" ? "PrjOps" : persona.domain === "devops" ? "DevOps" : "Investor"} ${
+          persona.profile
+        }`}
+      >
         <p className="text-sm text-gray-600">対応するビューは準備中です（次フェーズ#14で拡充予定）。</p>
       </Card>
     </div>

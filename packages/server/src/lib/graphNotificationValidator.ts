@@ -47,10 +47,12 @@ export function parseChannelMessageResource(resource: string): GraphResourceIds 
 }
 
 export interface GraphNotification {
+  id?: string;
   clientState?: string;
   changeType?: string;
   resource?: string;
   subscriptionId?: string;
+  lifecycleEvent?: string;
 }
 
 export interface ClassifiedNotifications {

@@ -8,14 +8,18 @@ import type { ReactNode } from "react";
 
 export interface CardProps {
   title?: string;
+  eyebrow?: string;
   className?: string;
   children: ReactNode;
 }
 
-export function Card({ title, className = "", children }: CardProps) {
+export function Card({ title, eyebrow, className = "", children }: CardProps) {
   return (
-    <section className={`rounded-lg border border-gray-200 bg-white p-4 shadow-sm ${className}`.trim()}>
-      {title ? <h2 className="mb-2 text-sm font-semibold text-gray-700">{title}</h2> : null}
+    <section
+      className={`rounded-lg border border-dashboard-border bg-dashboard-panel p-4 shadow-sm ${className}`.trim()}
+    >
+      {title ? <h2 className="mb-2 text-sm font-semibold text-dashboard-ink">{title}</h2> : null}
+      {eyebrow ? <p className="mb-2 text-xs font-medium uppercase text-dashboard-muted">{eyebrow}</p> : null}
       {children}
     </section>
   );

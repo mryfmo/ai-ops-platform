@@ -1,0 +1,112 @@
+# .github/workflows/report-generation.yml
+#
+# 根拠: ADR-0012 / REQ-040 / SPEC-INT-067 / SPEC-INT-082。
+# 標準報告はCIからheadless生成し、共通スキーマで検証する。実LLM呼び出しはworkflow_dispatch/schedule時のみ。
+name: report-generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "report generator (claude-code | droid)"
+        required: true
+        type: choice
+        options:
+          - claude-code
+          - droid
+        default: claude-code
+      period_label:
+        description: "Report period label"
+        required: true
+        type: string
+  schedule:
+    # 雛形: 毎週月曜 07:00 JST
+    - cron: "0 22 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-standard-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: "9.15.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare common schema and prompt
+        run: |
+          set -euo pipefail
+          pnpm exec tsx packages/shared/src/reporting/printReportSchema.ts > standard-report.schema.json
+          pnpm exec tsx packages/shared/src/reporting/printReportSlotsSchema.ts > standard-report-slots.schema.json
+          pnpm exec tsx packages/shared/src/reporting/calculateReportMetrics.ts > standard-report.metrics.json
+          pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts <<'JSON'
+          {"schemaVersion":"standard-report.v1","reportType":"weekly-summary","evidenceIds":["REQ-040"],"period":{"label":"dry-run","generatedAt":"dry-run"},"metrics":{"completed":0},"slots":{"conclusion":"dry-run","riskSummary":"dry-run","nextActions":"dry-run"}}
+          JSON
+
+      - name: Generate report with Claude Code
+        if: ${{ inputs.agent == 'claude-code' || github.event_name == 'schedule' }}
+        env:
+          PERIOD_LABEL: ${{ inputs.period_label || 'scheduled weekly period' }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if claude -p /generate-report --bare --output-format json --json-schema standard-report-slots.schema.json > report-slots.json &&
+               pnpm exec tsx packages/shared/src/reporting/finalizeReportJson.ts report-slots.json standard-report.metrics.json > report.json; then
+              break
+            fi
+            printf '{"action":"report_generation_retry","agent":"claude","attempt":%s}\n' "$attempt" > standard-report.retry.audit.json
+            test "$attempt" = "1"
+          done
+          pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts report.json
+
+      - name: Generate report with Droid
+        if: ${{ inputs.agent == 'droid' }}
+        env:
+          PERIOD_LABEL: ${{ inputs.period_label }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if droid exec -f .factory/droids/report-generator.md -o json > report-slots.json &&
+               pnpm exec tsx packages/shared/src/reporting/finalizeReportJson.ts report-slots.json standard-report.metrics.json > report.json; then
+              break
+            fi
+            printf '{"action":"report_generation_retry","agent":"droid","attempt":%s}\n' "$attempt" > standard-report.retry.audit.json
+            test "$attempt" = "1"
+          done
+          pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts report.json
+
+      - name: Upload standard report artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: standard-report-json
+          path: report.json
+
+      - name: Ingest standard report
+        env:
+          REPORT_INGEST_URL: ${{ vars.REPORT_INGEST_URL }}
+          REPORT_INGEST_SECRET: ${{ secrets.REPORT_INGEST_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${REPORT_INGEST_URL:-}" ] || [ -z "${REPORT_INGEST_SECRET:-}" ]; then
+            echo "report ingest skipped: REPORT_INGEST_URL or REPORT_INGEST_SECRET is not configured"
+            exit 0
+          fi
+          signature="$(node -e "const fs=require('fs'),crypto=require('crypto'); const b=fs.readFileSync('report.json'); console.log('sha256='+crypto.createHmac('sha256', process.env.REPORT_INGEST_SECRET).update(b).digest('hex'))")"
+          curl -fsS -X POST "$REPORT_INGEST_URL/reports/ingest" \
+            -H "content-type: application/json" \
+            -H "x-aiops-signature-256: $signature" \
+            --data-binary @report.json

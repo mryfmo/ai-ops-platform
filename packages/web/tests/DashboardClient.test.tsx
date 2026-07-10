@@ -20,7 +20,7 @@ import { createRoot, type Root } from "react-dom/client";
 let capturedOnViewSpecReceived: ((spec: { kind: string; periodDays?: number }) => void) | null = null;
 
 vi.mock("../src/components/chat/ChatPanel", () => ({
-  ChatPanel: (props: { onViewSpecReceived: (spec: { kind: string; periodDays?: number }) => void }) => {
+  PageAgentPanel: (props: { onViewSpecReceived: (spec: { kind: string; periodDays?: number }) => void }) => {
     capturedOnViewSpecReceived = props.onViewSpecReceived;
     return null;
   },
@@ -38,13 +38,7 @@ function setupContainer(): { container: HTMLDivElement; root: Root } {
 const executiveInitialData = {
   kind: "executiveSummary" as const,
   data: {
-    colorDistribution: { green: 1, yellow: 0, red: 0 },
-    progressAchievementPct: 80,
-    highRiskIssueCount: 0,
-    budgetConsumptionPct: null,
-    scheduleAdherencePct: 100,
-    monthOverMonthDiffText: "スタブ",
-    topTopics: [],
+    projects: [{ projectId: "PRJ-0001", name: "案件A", keys: [] }],
   },
 };
 
@@ -126,6 +120,37 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
     act(() => root.unmount());
   });
 
+  it("kind=timeseriesを受け取るとtimeseriesだけをfetchし時系列パネルを表示する [REQ-041 / SPEC-INT-068 / AC-041-1]", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        period: "week",
+        baseDate: "2026-07-09",
+        range: { start: "2026-07-06T00:00:00+09:00", end: "2026-07-13T00:00:00+09:00", label: "2026-W28" },
+        buckets: [],
+        totals: { opened: 1, closed: 0, statusTransitions: 0, milestoneCompleted: 0, deployments: 0 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container, root } = setupContainer();
+    act(() => {
+      root.render(
+        <DashboardClient initialViewSpec={{ kind: "executiveSummary" }} initialData={executiveInitialData} />,
+      );
+    });
+
+    await act(async () => {
+      capturedOnViewSpecReceived!({ kind: "timeseries" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/timeseries?"));
+    expect(container.textContent).toContain("時系列スナップショット");
+    act(() => root.unmount());
+  });
+
   it("kind=agentActivityを受け取るとagent-activityをfetchしAI稼働状況ビューへ切り替える", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -156,6 +181,31 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
     act(() => root.unmount());
   });
 
+  it("kind=investorSummaryを受け取るとinvestor-summaryをfetchしInvestor Reportへ切り替える", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ highlights: ["1 portfolio companies"], kpis: [], milestones: [], risks: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container, root } = setupContainer();
+    act(() => {
+      root.render(
+        <DashboardClient initialViewSpec={{ kind: "executiveSummary" }} initialData={executiveInitialData} />,
+      );
+    });
+
+    await act(async () => {
+      capturedOnViewSpecReceived!({ kind: "investorSummary" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/investor-summary"));
+    expect(container.textContent).toContain("Investor Report");
+    act(() => root.unmount());
+  });
+
   it("fetchが失敗した場合エラーメッセージを表示する", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 });
     vi.stubGlobal("fetch", fetchMock);
@@ -174,6 +224,61 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
     });
 
     expect(container.textContent).toContain("エラー");
+    act(() => root.unmount());
+  });
+});
+
+describe("DashboardClient（ADR-0007: 動的期間ダッシュボード）", () => {
+  it("期間ボタンを押すと選択期間つきでsummaryとtimeseriesをfetchする", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          domain: "prjops",
+          totalProjectCount: 0,
+          projects: [],
+          totalTicketCount: 0,
+          remainingTicketCount: 0,
+          burndown: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          period: "week",
+          baseDate: "2026-07-09",
+          range: { start: "2026-07-06T00:00:00+09:00", end: "2026-07-13T00:00:00+09:00", label: "2026-W28" },
+          buckets: [],
+          totals: { opened: 1, closed: 0, statusTransitions: 0, milestoneCompleted: 0, deployments: 0 },
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container, root } = setupContainer();
+    act(() => {
+      root.render(
+        <DashboardClient
+          initialViewSpec={{ kind: "managerSummary" }}
+          initialData={{
+            kind: "managerSummary",
+            domain: "prjops",
+            data: { totalProjectCount: 0, projects: [], totalTicketCount: 0, remainingTicketCount: 0, burndown: [] },
+          }}
+        />,
+      );
+    });
+
+    await act(async () => {
+      container.querySelectorAll("button")[1]!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/app/api/data/manager-summary?"));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining("/app/api/data/timeseries?"));
+    expect(container.textContent).toContain("時系列スナップショット");
     act(() => root.unmount());
   });
 });

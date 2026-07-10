@@ -1,5 +1,6 @@
 export * from "./calendar/businessCalendar.js";
 export * from "./ids.js";
+export * from "./periodBuckets.js";
 export * from "./language.js";
 export * from "./secretSanitizer.js";
 export * from "./auditLog.js";
@@ -9,3 +10,10 @@ export * from "./clients/claudeAgentClient.js";
 export * from "./clients/graphClient.js";
 export * from "./clients/githubClient.js";
 export * from "./clients/pgCostGuard.js";
+export * from "./reporting/reportSchema.js";
+export * from "./reporting/reportValidation.js";
+export * from "./reporting/reportPrompt.js";
+export * from "./reporting/reportGenerator.js";
+export * from "./xlsxImport/template.js";
+export * from "./xlsxImport/parser.js";
+export * from "./xlsxImport/engine.js";

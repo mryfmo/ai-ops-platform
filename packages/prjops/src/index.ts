@@ -15,6 +15,7 @@ export * from "./lib/reportPermissionFilter.js";
 export * from "./lib/logicalDelete.js";
 export * from "./lib/narrativeSanitizer.js";
 export * from "./lib/executiveSevenKeys.js";
+export * from "./lib/investorMetrics.js";
 export * from "./lib/issueActionBurndown.js";
 export * from "./templates/index.js";
 export * from "./agents/AGT01_orchestrator.js";

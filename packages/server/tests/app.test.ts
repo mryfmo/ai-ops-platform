@@ -10,6 +10,8 @@ import type { PgQueryable } from "@aiops/shared";
 import { InMemoryAuditLog } from "@aiops/shared";
 import { buildApp, type AppDependencies } from "../src/http/app.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
+import { createReadinessCheck } from "../src/http/routes/health.js";
+import { MetricsRegistry } from "../src/observability/metrics.js";
 
 const CLIENT_STATE = "expected-client-state-16chars";
 const WEBHOOK_SECRET = "test-webhook-secret";
@@ -18,9 +20,11 @@ const CALLBACK_SECRET = "test-callback-secret-16chars";
 
 function makeDeps() {
   const auditLog = new InMemoryAuditLog();
-  const inboundEvents: Array<{ payload: unknown; traceId: string }> = [];
-  const githubEvents: Array<{ eventName: string; payload: unknown }> = [];
+  const inboundEvents: Array<{ payload: unknown; traceId: string; dedupeKey: string | null }> = [];
+  const githubEvents: Array<{ eventName: string; payload: unknown; dedupeKey: string | null }> = [];
+  const graphLifecycleCalls: string[] = [];
   let traceSeq = 0;
+  const seenDedupeKeys = new Set<string>();
 
   const mockDb: PgQueryable = { query: async () => ({ rows: [] }) };
   const codingTasksRepo = new CodingTasksRepo(mockDb);
@@ -31,16 +35,28 @@ function makeDeps() {
     graph: {
       clientState: CLIENT_STATE,
       auditLog,
-      enqueueInboundEvent: async (payload, traceId) => {
-        inboundEvents.push({ payload, traceId });
+      enqueueInboundEvent: async (payload, traceId, options) => {
+        const dedupeKey = options?.dedupeKey ?? null;
+        if (dedupeKey && seenDedupeKeys.has(dedupeKey)) return false;
+        if (dedupeKey) seenDedupeKeys.add(dedupeKey);
+        inboundEvents.push({ payload, traceId, dedupeKey });
+        return true;
+      },
+      handleLifecycleEvent: async (event) => {
+        graphLifecycleCalls.push(event.lifecycleEvent);
       },
       traceIdProvider: () => `trace-${++traceSeq}`,
     },
     github: {
       webhookSecret: WEBHOOK_SECRET,
       auditLog,
-      enqueueGithubEvent: async (eventName, payload) => {
-        githubEvents.push({ eventName, payload });
+      enqueueGithubEvent: async (eventName, payload, traceId, options) => {
+        const dedupeKey = options?.dedupeKey ?? null;
+        if (dedupeKey && seenDedupeKeys.has(dedupeKey)) return false;
+        if (dedupeKey) seenDedupeKeys.add(dedupeKey);
+        githubEvents.push({ eventName, payload, dedupeKey });
+        void traceId;
+        return true;
       },
       traceIdProvider: () => `trace-${++traceSeq}`,
     },
@@ -53,8 +69,25 @@ function makeDeps() {
       resolveRepoForProject: async () => ({ githubOwner: "acme", githubRepo: "widget" }),
       traceIdProvider: () => `trace-${++traceSeq}`,
     },
+    xlsxImport: {
+      ledger: {
+        findBySourceKey: async () => null,
+        insert: async () => {},
+      },
+      githubClient: {
+        createIssue: async () => ({ number: 1, htmlUrl: "https://example.invalid/issues/1" }),
+        createMilestone: async () => ({ number: 1, htmlUrl: "https://example.invalid/milestones/1" }),
+        addProjectV2ItemById: async () => ({ itemNodeId: "PVTI_1" }),
+        updateProjectV2ItemFieldValue: async () => {},
+        getGraphqlRateLimit: async () => ({ remaining: 100, resetAt: "2026-07-09T00:00:00Z" }),
+      },
+      auditLog,
+      traceIdProvider: () => `trace-${++traceSeq}`,
+      importSecret: "xlsx-import-secret-32-bytes-minimum",
+      allowedRepos: ["acme/widget"],
+    },
   };
-  return { deps, auditLog, inboundEvents, githubEvents };
+  return { deps, auditLog, inboundEvents, githubEvents, graphLifecycleCalls };
 }
 
 describe("health endpoints (ADR-0005)", () => {
@@ -75,6 +108,47 @@ describe("health endpoints (ADR-0005)", () => {
     const app = buildApp(deps);
     const res = await app.request("/readyz");
     expect(res.status).toBe(503);
+  });
+
+  it("GET /readyz はreadinessがfalseなら503、回復後200", async () => {
+    const { deps } = makeDeps();
+    let ready = false;
+    deps.readiness = { isReady: async () => ready };
+    const app = buildApp(deps);
+    const res = await app.request("/readyz");
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ ready: false });
+    ready = true;
+    const recovered = await app.request("/readyz");
+    expect(recovered.status).toBe(200);
+  });
+
+  it("GET /readyz はshutdown中なら503", async () => {
+    const { deps } = makeDeps();
+    let shuttingDown = true;
+    deps.readiness = createReadinessCheck({
+      checkDependencies: async () => {},
+      isFailsafeActive: () => false,
+      isShuttingDown: () => shuttingDown,
+    });
+    const app = buildApp(deps);
+    const res = await app.request("/readyz");
+    expect(res.status).toBe(503);
+    shuttingDown = false;
+    const recovered = await app.request("/readyz");
+    expect(recovered.status).toBe(200);
+  });
+
+  it("GET /metrics はPrometheus textを返す", async () => {
+    const { deps } = makeDeps();
+    const metrics = new MetricsRegistry();
+    metrics.recordDelivery("sent", 2);
+    deps.metrics = metrics;
+    const app = buildApp(deps);
+    const res = await app.request("/metrics");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(await res.text()).toContain('aiops_report_delivery_total{result="sent"} 2');
   });
 });
 
@@ -97,6 +171,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
       body: JSON.stringify({
         value: [
           {
+            id: "graph-notification-main",
             clientState: CLIENT_STATE,
             changeType: "created",
             resource: "teams('t-1')/channels('c-1')/messages('m-1')",
@@ -109,6 +184,151 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(inboundEvents).toHaveLength(1);
     const payload = inboundEvents[0]!.payload as { ids: { messageId: string } };
     expect(payload.ids.messageId).toBe("m-1");
+  });
+
+  it("Graph通常通知はtop-level idなしでもresource由来messageIdでdedupeしてエンキューする", async () => {
+    const { deps, auditLog, inboundEvents } = makeDeps();
+    const app = buildApp(deps);
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [
+          {
+            clientState: CLIENT_STATE,
+            changeType: "created",
+            resource: "users('u-1')",
+            subscriptionId: "sub-1",
+          },
+          {
+            clientState: CLIENT_STATE,
+            changeType: "created",
+            resource: "teams('t-1')/channels('c-1')/messages('m-2')",
+            subscriptionId: "sub-1",
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(inboundEvents).toHaveLength(1);
+    const payload = inboundEvents[0]!.payload as { ids: { messageId: string } };
+    expect(payload.ids.messageId).toBe("m-2");
+    expect(inboundEvents[0]!.dedupeKey).toBe("graph:m-2");
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "graph_notification_missing_dedupe_key")).toBe(true);
+  });
+
+  it("同一Graph messageIdの再送はtop-level notification idが違っても1件だけエンキューする", async () => {
+    const { deps, inboundEvents } = makeDeps();
+    const app = buildApp(deps);
+    const firstBody = JSON.stringify({
+      value: [
+        {
+          id: "graph-notification-1",
+          clientState: CLIENT_STATE,
+          changeType: "created",
+          resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+          subscriptionId: "sub-1",
+        },
+      ],
+    });
+    const secondBody = JSON.stringify({
+      value: [
+        {
+          id: "graph-notification-2",
+          clientState: CLIENT_STATE,
+          changeType: "created",
+          resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+          subscriptionId: "sub-1",
+        },
+      ],
+    });
+
+    const first = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: firstBody,
+    });
+    const second = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: secondBody,
+    });
+
+    expect(first.status).toBe(202);
+    expect(second.status).toBe(202);
+    expect(inboundEvents).toHaveLength(1);
+    expect(inboundEvents[0]!.dedupeKey).toBe("graph:m-1");
+  });
+
+  it("idなしのGraph lifecycle通知を分類してhandlerへ渡す", async () => {
+    const { deps, graphLifecycleCalls } = makeDeps();
+    const app = buildApp(deps);
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [
+          { clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" },
+          { clientState: CLIENT_STATE, lifecycleEvent: "subscriptionRemoved", subscriptionId: "sub-2" },
+          { clientState: CLIENT_STATE, lifecycleEvent: "missed", subscriptionId: "sub-3" },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(graphLifecycleCalls).toEqual(["reauthorizationRequired", "subscriptionRemoved", "missed"]);
+  });
+
+  it("Graph lifecycle通知はhandler完了を待たず202を返す", async () => {
+    const { deps, graphLifecycleCalls } = makeDeps();
+    let releaseHandler!: () => void;
+    deps.graph.handleLifecycleEvent = async (event) => {
+      await new Promise<void>((resolve) => {
+        releaseHandler = resolve;
+      });
+      graphLifecycleCalls.push(event.lifecycleEvent);
+    };
+    const app = buildApp(deps);
+
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [{ clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" }],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(graphLifecycleCalls).toEqual([]);
+    releaseHandler();
+    await Promise.resolve();
+    expect(graphLifecycleCalls).toEqual(["reauthorizationRequired"]);
+  });
+
+  it("Graph lifecycle失敗後の監査記録も失敗しても202応答後に未処理rejectを出さない", async () => {
+    const { deps } = makeDeps();
+    deps.graph.handleLifecycleEvent = async () => {
+      throw new Error("lifecycle failed");
+    };
+    deps.graph.auditLog = {
+      append: async () => {
+        throw new Error("audit down");
+      },
+    };
+    const app = buildApp(deps);
+
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [{ clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" }],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    await Promise.resolve();
   });
 
   it("clientState不一致は破棄+監査ログ、それでも202（検証結果を漏らさない）", async () => {
@@ -136,11 +356,45 @@ describe("POST /webhooks/github (SPEC-INT-061)", () => {
     const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
     const res = await app.request("/webhooks/github", {
       method: "POST",
-      headers: { "x-hub-signature-256": sig, "x-github-event": "workflow_run" },
+      headers: { "x-hub-signature-256": sig, "x-github-event": "workflow_run", "x-github-delivery": "delivery-1" },
       body: payload,
     });
     expect(res.status).toBe(202);
     expect(githubEvents[0]!.eventName).toBe("workflow_run");
+    expect(githubEvents[0]!.dedupeKey).toBe("github:delivery-1");
+  });
+
+  it("署名済みGitHub webhookのdelivery id欠落は400+監査ログでfail-closedし、エンキューしない", async () => {
+    const { deps, auditLog, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const res = await app.request("/webhooks/github", {
+      method: "POST",
+      headers: { "x-hub-signature-256": sig, "x-github-event": "push" },
+      body: payload,
+    });
+
+    expect(res.status).toBe(400);
+    expect(githubEvents).toHaveLength(0);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "github_webhook_missing_delivery_id")).toBe(true);
+  });
+
+  it("同一X-GitHub-Deliveryの再送は1件だけエンキューする", async () => {
+    const { deps, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const request = {
+      method: "POST",
+      headers: { "x-hub-signature-256": sig, "x-github-event": "push", "x-github-delivery": "delivery-dup" },
+      body: payload,
+    };
+
+    expect((await app.request("/webhooks/github", request)).status).toBe(202);
+    expect((await app.request("/webhooks/github", request)).status).toBe(202);
+    expect(githubEvents).toHaveLength(1);
   });
 
   it("署名不正は401+監査ログ、エンキューされない", async () => {

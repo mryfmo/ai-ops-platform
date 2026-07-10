@@ -38,16 +38,20 @@ AC-029a「エージェント停止状態で手動デプロイ手順が実行可�
 全プロジェクトチャネルへ「自動運用を一時停止中。手動運用手順に切り替えてください」通知
 （SPEC-EXT-042）が届いたら、上記表に従い対応する。
 
-## 3. PrjOps: 週次サイクルが失敗した場合
+## 3. PrjOps: report generation / delivery が失敗した場合
 
-`prjops-weekly-cycle.yml`の各ジョブ（analyze/report/verify/deliver）は最大2回の自動リトライ
-（10分間隔）を行い、3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知が届く
-（DOC-02 §5, `AGT01_orchestrator.decideOnJobFailure`）。
+ADR-0014 以降、PrjOps のアウトバウンド配信は package-local workflow ではなく resident server scheduler が担う。
+標準 report の生成は `.github/workflows/report-generation.yml`、受領と配信は `POST /reports/ingest` と
+`reportDeliveryTask` が担う。
 
-1. 通知を受けたPMO運用担当は、GitHub Actionsのログで失敗原因を確認する。
-2. 一時的な障害（API一時停止等）であれば、該当ジョブを「Re-run job」で再実行する。
-3. データ不整合等、コードの修正が必要な場合は、`prjops-system`リポジトリでPRを作成し、
-   レビュー後にマージしてから再実行する（テンプレート変更等はPROC-10置換のPR運用に従う）。
+1. `report-generation.yml` が失敗した場合は、GitHub Actions のログと `standard-report.retry.audit.json`
+   を確認し、必要に応じて workflow を再実行する。
+2. `REPORT_INGEST_URL` または `REPORT_INGEST_SECRET` が未設定の場合、workflow は artifact upload のみで
+   正常 skip する。配信失敗として扱う前に設定状態を確認する。
+3. server 側で `report_ingest_disabled` または `report_delivery_disabled` の監査ログが出ている場合は、
+   [report delivery runbook](report-delivery.md) に従って `REPORT_INGEST_SECRET`、`REPORT_DELIVERY_ENABLED`、
+   `FROM_MAILBOX`、recipients を確認する。
+4. データ不整合等、コードの修正が必要な場合は、通常のPRを作成し、レビュー後にマージしてから再実行する。
 
 ## 4. 監査ログへのアクセス
 

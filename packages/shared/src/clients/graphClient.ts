@@ -39,6 +39,7 @@ export interface AdaptiveCardPayload {
   schemaVersion?: string;
   body: unknown[]; // Adaptive Card body elements（TextBlock, FactSet等）
   actions: AdaptiveCardAction[];
+  openUrlActions?: Array<{ title: string; url: string }>;
 }
 
 export interface SendTeamsMessageInput {
@@ -173,11 +174,14 @@ export class GraphClient {
             $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
             version: input.card.schemaVersion ?? "1.5",
             body: input.card.body,
-            actions: input.card.actions.map((a) => ({
-              type: "Action.Submit",
-              title: a.title,
-              data: { actionId: a.id },
-            })),
+            actions: [
+              ...input.card.actions.map((a) => ({
+                type: "Action.Submit",
+                title: a.title,
+                data: { actionId: a.id },
+              })),
+              ...(input.card.openUrlActions ?? []).map((a) => ({ type: "Action.OpenUrl", title: a.title, url: a.url })),
+            ],
           }),
         },
       ],
@@ -346,7 +350,7 @@ export class GraphClient {
     ref: ChannelRef,
     parentMessageId: string,
     body: { contentType: "html" | "text"; content: string },
-    card?: AdaptiveCardPayload & { openUrlActions?: Array<{ title: string; url: string }> },
+    card?: AdaptiveCardPayload,
   ): Promise<{ messageId: string }> {
     const headers = await this.authHeaders();
     const payload: Record<string, unknown> = {

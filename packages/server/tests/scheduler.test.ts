@@ -5,7 +5,14 @@
  *   / SPEC-INT-040（30秒）/ SPEC-INT-032（毎分）の呼び出しループ
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { startScheduler, type ScheduledTask } from "../src/scheduler/scheduler.js";
+import { InMemoryAuditLog } from "@aiops/shared";
+import { MetricsRegistry } from "../src/observability/metrics.js";
+import {
+  guardFailsafeTask,
+  instrumentScheduledTask,
+  startScheduler,
+  type ScheduledTask,
+} from "../src/scheduler/scheduler.js";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -85,5 +92,56 @@ describe("startScheduler (ADR-0005)", () => {
     await vi.advanceTimersByTimeAsync(600); // run内のsetTimeoutを消化
     await stopPromise;
     expect(completed).toBe(true);
+  });
+});
+
+describe("guardFailsafeTask (REQ-029)", () => {
+  it("フェイルセーフ中は変更系taskを止め、解除後に再開する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    let failsafe = true;
+    let runs = 0;
+    const task = guardFailsafeTask(
+      {
+        name: "side-effect",
+        intervalMs: 1000,
+        run: async () => {
+          runs += 1;
+        },
+      },
+      {
+        isFailsafeActive: () => failsafe,
+        auditLog,
+        traceIdProvider: () => "trace-fs",
+      },
+    );
+
+    await task.run(new Date("2026-07-10T00:00:00Z"));
+    expect(runs).toBe(0);
+    failsafe = false;
+    await task.run(new Date("2026-07-10T00:01:00Z"));
+    expect(runs).toBe(1);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "failsafe_task_skipped" && l.basis === "REQ-029")).toBe(true);
+  });
+});
+
+describe("instrumentScheduledTask (A-2)", () => {
+  it("task durationと失敗counterを記録する", async () => {
+    const metrics = new MetricsRegistry();
+    const task = instrumentScheduledTask(
+      {
+        name: "observed",
+        intervalMs: 1000,
+        run: async () => {
+          throw new Error("boom");
+        },
+      },
+      metrics,
+    );
+
+    await expect(task.run(new Date())).rejects.toThrow("boom");
+    const text = metrics.renderPrometheus();
+    expect(text).toContain('aiops_task_failures_total{task="observed"} 1');
+    expect(text).toContain('aiops_task_run_duration_seconds_count{task="observed",status="failure"} 1');
   });
 });

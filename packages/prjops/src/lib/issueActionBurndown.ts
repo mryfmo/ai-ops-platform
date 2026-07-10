@@ -66,8 +66,12 @@ export function computeIssueActionBurndown(
 
   const openedCounts = new Array<number>(weekCount).fill(0);
   const resolvedCounts = new Array<number>(weekCount).fill(0);
+  let openingBacklog = 0;
 
   for (const item of items) {
+    const createdMs = toEpochMs(item.createdAt);
+    const closedMs = item.closedAt === null ? null : toEpochMs(item.closedAt);
+    if (createdMs < startMs && (closedMs === null || closedMs >= startMs)) openingBacklog += 1;
     const openedIdx = bucketIndex(item.createdAt, startMs, weekMs, weekCount);
     if (openedIdx !== null) openedCounts[openedIdx] = openedCounts[openedIdx]! + 1;
 
@@ -76,7 +80,7 @@ export function computeIssueActionBurndown(
   }
 
   const weeks: BurndownWeek[] = [];
-  let cumulativeOpened = 0;
+  let cumulativeOpened = openingBacklog;
   let cumulativeResolved = 0;
   for (let i = 0; i < weekCount; i++) {
     cumulativeOpened += openedCounts[i]!;
@@ -91,21 +95,10 @@ export function computeIssueActionBurndown(
   return weeks;
 }
 
-/** 期間内に作成された件数（総チケット数の定義。上記ヘッダコメント参照） */
-export function countTotalItemsInPeriod(
-  items: IssueActionBurndownInput[],
-  periodStart: string,
-  periodEnd: string,
-): number {
-  const startMs = toEpochMs(periodStart);
+/** 期間終端時点で未完了の件数。periodEnd省略時は現在未完了件数を返す。 */
+export function countRemainingItems(items: IssueActionBurndownInput[], periodEnd?: string): number {
+  if (!periodEnd) return items.filter((i) => i.closedAt === null).length;
   const endMs = toEpochMs(periodEnd);
-  return items.filter((i) => {
-    const ms = toEpochMs(i.createdAt);
-    return ms >= startMs && ms < endMs;
-  }).length;
-}
-
-/** closedAt IS NULL の件数（残チケット数の定義。期間フィルタなしで現在の未完了件数を返す） */
-export function countRemainingItems(items: IssueActionBurndownInput[]): number {
-  return items.filter((i) => i.closedAt === null).length;
+  return items.filter((i) => toEpochMs(i.createdAt) < endMs && (i.closedAt === null || toEpochMs(i.closedAt) >= endMs))
+    .length;
 }

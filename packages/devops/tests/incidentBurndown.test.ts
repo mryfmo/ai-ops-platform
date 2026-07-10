@@ -8,7 +8,6 @@ import { describe, it, expect } from "vitest";
 import {
   computeIncidentBurndown,
   countRemainingIncidents,
-  countTotalIncidentsInPeriod,
   type IncidentBurndownInput,
 } from "../src/lib/incidentBurndown.js";
 
@@ -49,28 +48,12 @@ describe("computeIncidentBurndown [ADR-0005: 週次バーンダウン集計]", (
     expect(result[0]).toEqual({ weekLabel: "2026-01-01", opened: 0, resolved: 0, remaining: 0 });
   });
 
-  it("remainingは0を下回らない（resolvedの計上がopenedを超えるケースの防御）", () => {
+  it("窓前にopenしたbacklogが窓内でresolveされてもremainingは正しく減る", () => {
     const incidents: IncidentBurndownInput[] = [
-      { detectedAt: "2026-01-02T00:00:00Z", resolvedAt: "2026-01-03T00:00:00Z" },
-      { detectedAt: "2026-01-02T00:00:00Z", resolvedAt: "2026-01-03T00:00:00Z" },
+      { detectedAt: "2025-12-20T00:00:00Z", resolvedAt: "2026-01-03T00:00:00Z" },
     ];
     const result = computeIncidentBurndown(incidents, "2026-01-01", "2026-01-08");
     expect(result[0]!.remaining).toBe(0);
-  });
-});
-
-describe("countTotalIncidentsInPeriod [ADR-0005: 総チケット数=期間内の全incidents件数]", () => {
-  it("期間内のdetected_atのみをカウントする", () => {
-    const incidents: IncidentBurndownInput[] = [
-      { detectedAt: "2026-01-02T00:00:00Z", resolvedAt: null },
-      { detectedAt: "2025-12-01T00:00:00Z", resolvedAt: null },
-    ];
-    expect(countTotalIncidentsInPeriod(incidents, "2026-01-01", "2026-01-08")).toBe(1);
-  });
-
-  it("periodEnd自体は含まない（半開区間）", () => {
-    const incidents: IncidentBurndownInput[] = [{ detectedAt: "2026-01-08T00:00:00Z", resolvedAt: null }];
-    expect(countTotalIncidentsInPeriod(incidents, "2026-01-01", "2026-01-08")).toBe(0);
   });
 });
 
@@ -85,5 +68,17 @@ describe("countRemainingIncidents [ADR-0005: 残チケット数=resolved_at IS N
 
   it("0件のときは0", () => {
     expect(countRemainingIncidents([])).toBe(0);
+  });
+
+  it("periodEnd指定時は期間終端時点の未解決件数を返す", () => {
+    expect(
+      countRemainingIncidents(
+        [
+          { detectedAt: "2025-12-20T00:00:00Z", resolvedAt: "2026-01-03T00:00:00Z" },
+          { detectedAt: "2026-01-02T00:00:00Z", resolvedAt: null },
+        ],
+        "2026-01-08",
+      ),
+    ).toBe(1);
   });
 });

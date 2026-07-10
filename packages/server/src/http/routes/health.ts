@@ -10,6 +10,20 @@ export interface ReadinessCheck {
   isReady(): Promise<boolean>;
 }
 
+export function createReadinessCheck(deps: {
+  checkDependencies(): Promise<void>;
+  isFailsafeActive(): boolean;
+  isShuttingDown(): boolean;
+}): ReadinessCheck {
+  return {
+    async isReady(): Promise<boolean> {
+      if (deps.isShuttingDown() || deps.isFailsafeActive()) return false;
+      await deps.checkDependencies();
+      return true;
+    },
+  };
+}
+
 export function registerHealthRoutes(app: Hono, readiness: ReadinessCheck): void {
   app.get("/healthz", (c) => c.json({ ok: true }));
 

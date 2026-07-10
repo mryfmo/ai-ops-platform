@@ -1,7 +1,8 @@
 /**
  * packages/web/src/server/viewSpec.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   チャットのtool call結果として返す「どのビューを表示するか」の宣言的な仕様（ViewSpec）を定義する。
  *   CLAUDE.md設計原則2（数値・色・表はコード算出、LLMは表示パラメータのみ）に従い、
  *   LLMが決定してよいのはViewSpec（=表示するビューの種類・表示パラメータ）のみであり、
@@ -16,11 +17,15 @@
  *   （DevOpsマネージャー）専用（server/chat/tools.tsのbuildToolsForPersona参照）。
  */
 
+import type { PeriodKind } from "@aiops/shared";
+
 /** マネージャーサマリのバーンダウン集計期間（日数）。未指定時は呼び出し側の既定値（28日）を用いる。 */
 export type ManagerSummaryPeriodDays = 7 | 14 | 28;
 
 export type ViewSpec =
   | { kind: "executiveSummary" }
+  | { kind: "investorSummary" }
   | { kind: "managerSummary"; periodDays?: ManagerSummaryPeriodDays }
+  | { kind: "timeseries"; period?: PeriodKind }
   | { kind: "projectList" }
   | { kind: "agentActivity" };

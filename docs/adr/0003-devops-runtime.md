@@ -1,8 +1,10 @@
-# ADR-0003: DevOpsは常駐サービス、PrjOpsはGitHub Actionsのみで完結させる
+# ADR-0003: DevOpsは常駐サービス、PrjOpsは原則スケジュール実行とし配信はserver schedulerで行う
 
 ## ステータス
 
 採用
+
+2026-07-09 追記: ADR-0014 はアウトバウンド配信用途に限り、PrjOps を GitHub Actions cron のみで動かす決定を更新する。配信は recipients、冪等配信ログ、監査ログ、Graph token provider を同じランタイムで使う必要があるため、常駐 server scheduler で実行する。
 
 ## コンテキスト
 
@@ -17,9 +19,13 @@
 
 ## 決定
 
-- **PrjOps**は元資料の指示（ASM-006）どおり、GitHub Actionsのスケジュール実行のみで構築する。
-  常駐サーバ・常駐コンテナは持たない。本リポジトリの`packages/prjops/src/workflows/*.yml`が
-  その実装である。
+- **PrjOps**は元資料の指示（ASM-006）どおり、分析・追跡・督促などの定期処理を独立した常駐PrjOps
+  サービスとしては持たない。ただし本リポジトリは`packages/prjops/src/workflows/*.yml`を出荷しておらず、
+  `packages/prjops/src/agents/*.ts`は判定・生成・配信の純粋ロジックを提供する実装単位である。
+  ADR-0014で追加された標準レポート配信は、recipients、冪等配信ログ、監査ログ、Graph token providerを
+  同じランタイムで扱う必要があるため、常駐`packages/server`のschedulerタスクで実行する。
+  SPEC-INT-040のanalyze/track/remind系ジョブは、このADR時点のコードベースではpackage-local workflowとして
+  スケジュールされていない未解決範囲であり、実装済みと扱わない。
 - **DevOps**は、30秒間隔のヘルスチェックと毎分のJIT失効判定という、GitHub Actionsのcron機構では
   原理的に実現できない要件があるため、常駐コンテナ（DOC-INT-04 §1のとおり）が必要である。
   本番デプロイの実行トリガー（`deploy-prod.yml`）と日次/週次/月次レポート生成のみは

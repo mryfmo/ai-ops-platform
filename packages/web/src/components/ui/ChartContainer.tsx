@@ -15,10 +15,12 @@ export interface ChartContainerProps {
 
 export function ChartContainer({ title, description, className = "", children }: ChartContainerProps) {
   return (
-    <figure className={`rounded-lg border border-gray-200 bg-white p-4 shadow-sm ${className}`.trim()}>
+    <figure
+      className={`rounded-lg border border-dashboard-border bg-dashboard-panel p-4 shadow-sm ${className}`.trim()}
+    >
       <figcaption className="mb-3">
-        <div className="text-sm font-semibold text-gray-800">{title}</div>
-        {description ? <p className="mt-0.5 text-xs text-gray-500">{description}</p> : null}
+        <div className="text-sm font-semibold text-dashboard-ink">{title}</div>
+        {description ? <p className="mt-0.5 text-xs text-dashboard-muted">{description}</p> : null}
       </figcaption>
       {children}
     </figure>

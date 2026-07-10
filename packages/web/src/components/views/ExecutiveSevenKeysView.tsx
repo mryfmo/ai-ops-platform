@@ -1,101 +1,127 @@
 /**
  * packages/web/src/components/views/ExecutiveSevenKeysView.tsx
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。経営層（PRF-04）ダッシュボードの主指標
- *   「セブンキー」を表示するビューコンポーネント。
- *   1〜5（ポートフォリオ健康度・進捗達成率・高リスク課題件数・予算消化率・スケジュール遵守率）は
- *   決定的にコード算出済みの数値（packages/prjops/src/lib/executiveSevenKeys.ts）をそのまま表示する。
- *   6（前月比変動）・7（トップリスクトピックス）は既存ExecutiveReportData同様、LLM生成文字列
- *   （本タスクでは固定文字列のスタブ）をそのまま表示する付随情報。
- *
- * 予算消化率（指標4）はpackages/prjopsに予算フィールドが存在しないためnullを許容し、
- * null時は「データ未整備」バッジを表示する（CLAUDE.md方針: 数値はコード算出、無い場合は
- * 隠さずデータ未整備であることを明示する）。
+ * 根拠: REQ-038 / SPEC-INT-065 / AC-038-1 / ADR-0010 / AC-010-3。
+ * Seven Keys正典のプロジェクト x キーRAGマトリクスを表示する。
  */
+import { Badge, type BadgeVariant } from "../ui/Badge";
 import { Card } from "../ui/Card";
-import { Badge } from "../ui/Badge";
-import { StatusChip } from "../ui/StatusChip";
+import { DataTable, type DataTableColumn } from "../ui/DataTable";
+
+export type SevenKeysRag = "green" | "yellow" | "red" | "grey";
+
+export interface ExecutiveSevenKeyAssessment {
+  keyId: string;
+  title: string;
+  rag: SevenKeysRag;
+  basis: string;
+}
+
+export interface ExecutiveSevenKeysProject {
+  projectId: string;
+  name: string;
+  keys: ExecutiveSevenKeyAssessment[];
+}
+
+export interface ExecutiveSevenKeysMonthlySnapshot extends ExecutiveSevenKeysProject {
+  month: string;
+  improvedKeys: string[];
+  worsenedKeys: string[];
+}
 
 export interface ExecutiveSevenKeysData {
-  colorDistribution: { green: number; yellow: number; red: number };
-  progressAchievementPct: number;
-  highRiskIssueCount: number;
-  budgetConsumptionPct: number | null;
-  scheduleAdherencePct: number;
-  /** 6. 前月比変動（LLM生成文字列。本タスクでは固定文字列のスタブ） */
-  monthOverMonthDiffText: string;
-  /** 7. トップリスクトピックス（LLM生成文字列。本タスクでは固定文字列のスタブ） */
-  topTopics: Array<{ title: string; lines: [string, string] }>;
+  projects: ExecutiveSevenKeysProject[];
+  monthlySnapshots?: ExecutiveSevenKeysMonthlySnapshot[];
 }
 
 export interface ExecutiveSevenKeysViewProps {
   data: ExecutiveSevenKeysData;
 }
 
-function pctLabel(pct: number): string {
-  return `${pct.toFixed(1)}%`;
+const RAG_LABEL: Record<SevenKeysRag, string> = {
+  green: "順調",
+  yellow: "注意",
+  red: "危険",
+  grey: "未評価",
+};
+
+const RAG_SHAPE: Record<SevenKeysRag, string> = {
+  green: "●",
+  yellow: "▲",
+  red: "■",
+  grey: "◇",
+};
+
+function ragBadge(rag: SevenKeysRag) {
+  const variant: BadgeVariant = rag === "grey" ? "grey" : rag;
+  return (
+    <Badge variant={variant}>
+      <span aria-hidden="true" className="mr-1">
+        {RAG_SHAPE[rag]}
+      </span>
+      {RAG_LABEL[rag]}
+    </Badge>
+  );
 }
 
 export function ExecutiveSevenKeysView({ data }: ExecutiveSevenKeysViewProps) {
-  const total = data.colorDistribution.green + data.colorDistribution.yellow + data.colorDistribution.red;
+  const latestMonth = data.monthlySnapshots
+    ?.map((snapshot) => snapshot.month)
+    .sort()
+    .at(-1);
+  const latestSnapshots = latestMonth
+    ? data.monthlySnapshots?.filter((snapshot) => snapshot.month === latestMonth)
+    : [];
+  const columns: DataTableColumn<ExecutiveSevenKeysProject>[] = [
+    { key: "project", header: "プロジェクト", render: (row) => `${row.projectId} ${row.name}` },
+    ...(["K1", "K2", "K3", "K4", "K5", "K6", "K7"] as const).map((keyId) => ({
+      key: keyId,
+      header: keyId,
+      render: (row: ExecutiveSevenKeysProject) => {
+        const key = row.keys.find((item) => item.keyId === keyId);
+        return key ? (
+          <span className="inline-flex items-center gap-2">
+            {ragBadge(key.rag)}
+            <details className="text-xs text-dashboard-muted">
+              <summary className="cursor-pointer">根拠</summary>
+              <span>{key.basis}</span>
+            </details>
+          </span>
+        ) : (
+          "-"
+        );
+      },
+    })),
+  ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">経営ダッシュボード（セブンキー）</h1>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card title="1. ポートフォリオ健康度" className="lg:col-span-1">
-          <div className="flex items-center gap-3">
-            <StatusChip status="green" />
-            <span className="text-sm text-gray-700">{data.colorDistribution.green}</span>
-            <StatusChip status="yellow" />
-            <span className="text-sm text-gray-700">{data.colorDistribution.yellow}</span>
-            <StatusChip status="red" />
-            <span className="text-sm text-gray-700">{data.colorDistribution.red}</span>
-          </div>
-          <p className="mt-2 text-xs text-gray-500">全{total}件</p>
-        </Card>
-
-        <Card title="2. 進捗達成率">
-          <p className="text-3xl font-bold text-gray-800">{pctLabel(data.progressAchievementPct)}</p>
-        </Card>
-
-        <Card title="3. 高リスク課題件数">
-          <p className="text-3xl font-bold text-gray-800">{data.highRiskIssueCount}件</p>
-        </Card>
-
-        <Card title="4. 予算消化率">
-          {data.budgetConsumptionPct === null ? (
-            <Badge variant="default">データ未整備</Badge>
-          ) : (
-            <p className="text-3xl font-bold text-gray-800">{pctLabel(data.budgetConsumptionPct)}</p>
-          )}
-        </Card>
-
-        <Card title="5. スケジュール遵守率">
-          <p className="text-3xl font-bold text-gray-800">{pctLabel(data.scheduleAdherencePct)}</p>
-        </Card>
-
-        <Card title="6. 前月比変動">
-          <p className="text-sm text-gray-700">{data.monthOverMonthDiffText}</p>
-        </Card>
+      <div>
+        <p className="text-sm font-medium text-dashboard-muted">Executive</p>
+        <h1 className="text-2xl font-bold tracking-normal text-dashboard-ink">経営ダッシュボード（Seven Keys）</h1>
       </div>
-
-      <Card title="7. トップリスクトピックス">
-        {data.topTopics.length === 0 ? (
-          <p className="text-sm text-gray-500">該当するトピックはありません</p>
-        ) : (
-          <ul className="space-y-3">
-            {data.topTopics.map((topic) => (
-              <li key={topic.title}>
-                <p className="font-semibold text-gray-800">{topic.title}</p>
-                <p className="text-sm text-gray-600">{topic.lines[0]}</p>
-                <p className="text-sm text-gray-600">{topic.lines[1]}</p>
-              </li>
-            ))}
-          </ul>
-        )}
+      <Card title="Seven Keys RAGマトリクス" eyebrow="Portfolio health">
+        <DataTable columns={columns} rows={data.projects} rowKey={(row) => row.projectId} />
       </Card>
+      {latestSnapshots && latestSnapshots.length > 0 ? (
+        <Card title="前月比" eyebrow={latestMonth}>
+          <div className="grid gap-3 md:grid-cols-2">
+            {latestSnapshots.map((snapshot) => (
+              <div key={snapshot.projectId} className="rounded-md border border-dashboard-border p-3">
+                <p className="text-sm font-semibold text-dashboard-ink">
+                  {snapshot.projectId} {snapshot.name}
+                </p>
+                <p className="mt-2 text-sm text-dashboard-muted">
+                  改善 {snapshot.improvedKeys.length}件 / 悪化 {snapshot.worsenedKeys.length}件
+                </p>
+                {snapshot.worsenedKeys.length > 0 ? (
+                  <p className="mt-1 text-xs text-status-red">悪化: {snapshot.worsenedKeys.join(", ")}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

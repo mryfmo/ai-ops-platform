@@ -39,7 +39,7 @@ function makeRowFor(overrides: Partial<Record<string, unknown>> = {}): Record<st
   };
 }
 
-function makeHarness(opts: { row?: Record<string, unknown> | null } = {}) {
+function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: boolean } = {}) {
   const row = opts.row === undefined ? makeRowFor() : opts.row;
   const updateCalls: Array<{ text: string; params: unknown[] | undefined }> = [];
   const mockDb: PgQueryable = {
@@ -77,6 +77,7 @@ function makeHarness(opts: { row?: Record<string, unknown> | null } = {}) {
     callbackSecret: CALLBACK_SECRET,
     resolveRepoForProject: async () => ({ githubOwner: "acme", githubRepo: "widget" }),
     traceIdProvider: () => "req-trace-1",
+    isFailsafeActive: () => opts.failsafe ?? false,
   };
 
   const app = new Hono();
@@ -174,6 +175,21 @@ describe("POST /coding-tasks/:taskId/confirm (ADR-0006: 人間の明示クリッ
     });
     expect(res.status).toBe(200);
     expect(dispatchCalls).toHaveLength(0);
+  });
+
+  it("REQ-029: フェイルセーフ中はworkflow_dispatchを起動しない", async () => {
+    const { app, dispatchCalls, updateCalls, auditLog } = makeHarness({ failsafe: true });
+    const token = generateConfirmToken(TASK_ID, CONFIRM_SECRET);
+    const res = await app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }).toString(),
+    });
+    expect(res.status).toBe(503);
+    expect(dispatchCalls).toHaveLength(0);
+    expect(updateCalls).toHaveLength(0);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "coding_task_blocked_by_failsafe" && l.basis === "REQ-029")).toBe(true);
   });
 });
 

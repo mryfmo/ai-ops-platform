@@ -47,6 +47,10 @@
 7. **LLMコスト台帳をPostgreSQL化**（PgCostGuard / llm_usage表）: 日次$20上限（SPEC-INT-060）を
    バッチエージェントとWebUIチャットでシステム全体共有し、agent別サブ上限を設定可能にする。
    日次リセットはJST基準（ASM-003）。
+8. **フェイルセーフ時の停止範囲はREQ-029の危険操作に限定する**。GitHub Actions dispatch、
+   xlsx import executeのGitHub書込、標準レポート配信、Teams会話由来の実行系dispatchなどは停止する。
+   一方でGraph subscription renewal、channel pollingのread+enqueue、JIT revoke、運用CLIの
+   `createGraphSubscription` は復旧・keepaliveに必要なため継続する。
 
 ## 根拠
 

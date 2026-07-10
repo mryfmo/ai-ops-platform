@@ -24,11 +24,12 @@
  */
 import { randomUUID } from "node:crypto";
 import { sanitizeSecrets, type AuditLogWriter, type AnthropicStructuredClient } from "@aiops/shared";
-import { parseCommand, checkCommandPermission, type ParsedCommand } from "@aiops/prjops";
+import { parseCommand, checkCommandPermission, type ParsedCommand, type Profile } from "@aiops/prjops";
 import { parseChannelMessageResource, type GraphResourceIds } from "../lib/graphNotificationValidator.js";
 import { decideChannelIngestion } from "../lib/channelAuthorization.js";
 import { interpretFreeTextIntent, type FreeTextIntent } from "../lib/freeTextIntent.js";
 import { generateConfirmToken, hashConfirmToken } from "../lib/confirmToken.js";
+import { buildDashboardDeepLink } from "../lib/dashboardDeepLink.js";
 import type { ProjectChannelsRepo } from "../db/projectChannelsRepo.js";
 import type { ChannelMessagesRepo } from "../db/channelMessagesRepo.js";
 import type { InboundNotificationPayload } from "../scheduler/tasks/eventsPollingTask.js";
@@ -53,6 +54,11 @@ export interface TeamsConversationGraphClient {
     ref: { teamId: string; channelId: string },
     parentMessageId: string,
     body: { contentType: "html" | "text"; content: string },
+    card?: {
+      body: unknown[];
+      actions: Array<{ title: string; id: string }>;
+      openUrlActions?: Array<{ title: string; url: string }>;
+    },
   ): Promise<{ messageId: string }>;
 }
 
@@ -99,12 +105,10 @@ export interface TeamsConversationAgentDeps {
   /** 自由文意図解釈用。ANTHROPIC_API_KEY未設定時などはundefinedを渡すとフォールバックを無効化する */
   llmClient?: AnthropicStructuredClient;
   /**
-   * コマンド実行者のプロファイル解決。
-   * TODO: 本来はstakeholderマスタ/recipientsテーブルからauthorAadIdを突合して解決すべき（ADR-0005残課題）。
-   * 本実装では暫定的に固定プロファイルを返す関数を注入する形とし、呼び出し元(index.ts)で
-   * 未実装であることを明示する。
+   * コマンド実行者のプロファイル解決。関係者マスタのteams_user_idとproject assignmentから解決する。
+   * 未解決時はnullを返し、本エージェントが拒否返信+監査ログを行う。
    */
-  resolveCallerProfile(authorAadId: string | null): "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05";
+  resolveCallerProfile(authorAadId: string | null, projectId: string): Profile | null | Promise<Profile | null>;
   /** ADR-0006: code_task用のcoding_tasks台帳。insertのみでdispatchWorkflowは呼ばない（確認クリック後にHTTPルート側が呼ぶ） */
   codingTasksRepo: TeamsConversationCodingTasksRepo;
   /** ADR-0006: confirmToken.tsのHMAC-SHA256鍵。config.tsのCODING_TASK_CALLBACK_SECRETを注入する */
@@ -228,7 +232,19 @@ export class TeamsConversationAgent {
 
     // 4. コマンド判定（定型 → 自由文フォールバックの順）
     const trimmed = sanitized.trim();
-    const callerProfile = this.deps.resolveCallerProfile(raw.authorAadId);
+    const callerProfile = await this.deps.resolveCallerProfile(raw.authorAadId, channel.projectId);
+    if (!callerProfile) {
+      await this.deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "teams_caller_profile_unresolved",
+        basis: "ADR-0005",
+        detail: { projectId: channel.projectId, hasAuthorAadId: raw.authorAadId !== null },
+        at: new Date().toISOString(),
+      });
+      await this.reply(ids, "このユーザーは関係者マスタで確認できないため、コマンドを実行できません");
+      return;
+    }
 
     if (trimmed.startsWith("/")) {
       await this.handleSlashCommand(trimmed, channel, ids, callerProfile, traceId);
@@ -257,9 +273,14 @@ export class TeamsConversationAgent {
     text: string,
     channel: { projectId: string; githubOwner: string | null; githubRepo: string | null },
     ids: GraphResourceIds,
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
     traceId: string,
   ): Promise<void> {
+    if (text === "/dashboard" || text.startsWith("/dashboard ")) {
+      await this.replyDashboard(ids, channel.projectId, callerProfile, traceId);
+      return;
+    }
+
     const parsed = parseCommand(text);
     if (!parsed.ok || !parsed.command) {
       if (parsed.usageHint) {
@@ -295,7 +316,7 @@ export class TeamsConversationAgent {
     text: string,
     channel: { projectId: string; githubOwner: string | null; githubRepo: string | null },
     ids: GraphResourceIds,
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
     traceId: string,
   ): Promise<void> {
     if (!this.deps.llmClient) {
@@ -342,7 +363,7 @@ export class TeamsConversationAgent {
     ids: GraphResourceIds,
     traceId: string,
     origin: "command" | "free_text",
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
   ): Promise<void> {
     if (intent.kind === "code_task") {
       await this.executeCodeTask(intent, ids, traceId, origin, callerProfile);
@@ -396,7 +417,7 @@ export class TeamsConversationAgent {
     ids: GraphResourceIds,
     traceId: string,
     origin: "command" | "free_text",
-    callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",
+    callerProfile: Profile,
   ): Promise<void> {
     const taskId = randomUUID();
     const confirmToken = generateConfirmToken(taskId, this.deps.confirmTokenSecret);
@@ -442,7 +463,44 @@ export class TeamsConversationAgent {
     });
   }
 
-  private async reply(ids: GraphResourceIds, content: string): Promise<void> {
+  private async replyDashboard(
+    ids: GraphResourceIds,
+    projectId: string,
+    callerProfile: Profile,
+    traceId: string,
+  ): Promise<void> {
+    const url = buildDashboardDeepLink({
+      publicBaseUrl: this.deps.publicBaseUrl,
+      persona: callerProfile,
+      periodLabel: "current",
+    });
+    await this.reply(ids, "ダッシュボードを開けます", {
+      body: [
+        { type: "TextBlock", text: "AI Ops Dashboard", weight: "Bolder", wrap: true },
+        { type: "TextBlock", text: projectId, isSubtle: true, wrap: true },
+      ],
+      actions: [],
+      openUrlActions: [{ title: "Dashboard", url }],
+    });
+    await this.deps.auditLog.append({
+      trace_id: traceId,
+      actor: `USER:${callerProfile}`,
+      action: "teams_dashboard_link_sent",
+      basis: "REQ-042 SPEC-INT-069 AC-042-1",
+      detail: { projectId, persona: callerProfile },
+      at: new Date().toISOString(),
+    });
+  }
+
+  private async reply(
+    ids: GraphResourceIds,
+    content: string,
+    card?: {
+      body: unknown[];
+      actions: Array<{ title: string; id: string }>;
+      openUrlActions?: Array<{ title: string; url: string }>;
+    },
+  ): Promise<void> {
     // security-reviewer指摘(低): gh_pr_list/gh_issue_listはGitHub側のtitle等をそのまま整形して
     // 返信しており送信元での適用漏れがあり得るため、ここで一律sanitizeSecrets()を通す
     // （CLAUDE.md多層防御(c): ログ・PRコメント・Teams返信への出力前サニタイズの最終防波堤）。
@@ -451,6 +509,7 @@ export class TeamsConversationAgent {
       { teamId: ids.teamId, channelId: ids.channelId },
       ids.replyOfMessageId ?? ids.messageId,
       { contentType: "text", content: sanitized },
+      card,
     );
   }
 }

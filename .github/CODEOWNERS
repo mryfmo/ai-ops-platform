@@ -1,15 +1,15 @@
 # CODEOWNERS — agent/*ブランチPRを含む全PRの必須レビュアー（ADR-0006: 自動マージ禁止の実効化）
-# 注意: @OWNER は実際のGitHubユーザー名/チームに置き換えること（組織導入時の残課題）
+# Owner verified with `gh repo view` / `gh api users/mryfmo` for this repository.
 #       ブランチ保護で "Require review from Code Owners" を有効にすること
 
 # 既定: 全ファイル
-* @OWNER
+* @mryfmo
 
 # ガバナンス上とくに重要な領域（セキュリティ・権限・監査）
-/packages/shared/src/secretSanitizer.ts @OWNER
-/packages/shared/src/auditLog.ts @OWNER
-/packages/devops/src/db/schema.sql @OWNER
-/packages/devops/src/lib/jitExpiry.ts @OWNER
-/.github/ @OWNER
-/CLAUDE.md @OWNER
-/AGENTS.md @OWNER
+/packages/shared/src/secretSanitizer.ts @mryfmo
+/packages/shared/src/auditLog.ts @mryfmo
+/packages/devops/src/db/schema.sql @mryfmo
+/packages/devops/src/lib/jitExpiry.ts @mryfmo
+/.github/ @mryfmo
+/CLAUDE.md @mryfmo
+/AGENTS.md @mryfmo

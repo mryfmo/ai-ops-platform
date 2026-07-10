@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/agents/AGT_RPT.ts
  *
- * 根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033
+ * 根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033 / ADR-0014 REQ-042 SPEC-INT-083 AC-042-1
  *   数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。
  *   配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。
  *   配信名簿はAGT-SEC管理の名簿を唯一のソースとし、配信直前に毎回読み直す（REQ-024）。
@@ -77,7 +77,7 @@ export async function deliverLeaderReport(
   });
 }
 
-/** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA4指標すべて表示） */
+/** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA指標表示） */
 export async function buildAndDeliverManagerReport(
   common: DevOpsComposeCommon,
   deployments: DeploymentRecord[],
@@ -102,8 +102,13 @@ export async function buildAndDeliverManagerReport(
         deploymentFrequencyPerWeek: doraSummary.deploymentFrequencyPerWeek,
         medianLeadTimeHours: doraSummary.medianLeadTimeHours,
         changeFailureRatePct: doraSummary.changeFailureRatePct,
-        meanTimeToRestoreHours: doraSummary.meanTimeToRestoreHours,
-        deltaVsPrevWeek: { deploymentFrequency: 0, leadTime: 0, changeFailureRate: 0, mttr: 0 },
+        failedDeploymentRecoveryTimeHours: doraSummary.failedDeploymentRecoveryTimeHours,
+        deltaVsPrevWeek: {
+          deploymentFrequency: 0,
+          leadTime: 0,
+          changeFailureRate: 0,
+          mttr: 0,
+        },
       },
       sev1And2,
       topRiskProjects: selectTopRiskProjects(projectRiskInputs),

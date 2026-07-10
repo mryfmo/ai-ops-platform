@@ -34,6 +34,10 @@ export async function handleProjects(deps: ProjectsHandlerDeps): Promise<Respons
       const projects = await listScopedProjectSummaries(deps.prjopsProvider, persona.profile, persona.visibility);
       return Response.json({ domain: "prjops", projects });
     }
+    if (persona.domain === "investor") {
+      const projects = await listScopedProjectSummaries(deps.prjopsProvider, "PRF-05", persona.visibility);
+      return Response.json({ domain: "investor", projects });
+    }
 
     const projects = await listDevOpsScopedProjectSummaries(deps.devopsDb, persona.profile, persona.visibility);
     return Response.json({ domain: "devops", projects });

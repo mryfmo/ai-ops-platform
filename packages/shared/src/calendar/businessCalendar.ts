@@ -13,6 +13,7 @@
  *   - 日付は "YYYY-MM-DD" のJSTカレンダー日として扱う。ホストのタイムゾーンに依存しないよう、
  *     日付演算はすべて Date.UTC を「タイムゾーン中立な日数カウンタ」として使う。
  */
+import { parse as parseYaml } from "yaml";
 
 export interface HolidayEntry {
   date: string; // YYYY-MM-DD (JST)
@@ -31,6 +32,11 @@ export function buildHolidayCalendar(entries: HolidayEntry[]): HolidayCalendar {
     holidays: new Set(entries.map((e) => e.date)),
     entries: [...entries],
   };
+}
+
+export function buildHolidayCalendarFromYaml(yamlText: string): HolidayCalendar {
+  const parsed = parseYaml(yamlText) as { holidays?: HolidayEntry[] };
+  return buildHolidayCalendar(parsed.holidays ?? []);
 }
 
 function assertValidDateStr(dateStr: string): void {

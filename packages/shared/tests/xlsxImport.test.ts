@@ -1,0 +1,445 @@
+import { describe, it, expect, vi } from "vitest";
+import ExcelJS from "exceljs";
+import {
+  appendImportMarker,
+  buildXlsxImportTemplateBuffer,
+  executeXlsxImport,
+  parseXlsxImport,
+  type ImportLedger,
+  type ImportLedgerEntry,
+  type XlsxImportGithubClient,
+} from "../src/index.js";
+
+async function workbookBuffer(setup: (workbook: ExcelJS.Workbook) => void): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  for (const name of ["issues", "project_items", "milestones"]) workbook.addWorksheet(name);
+  setup(workbook);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+function addHeaders(sheet: ExcelJS.Worksheet, headers: string[]): void {
+  sheet.addRow(headers);
+}
+
+class MemoryLedger implements ImportLedger {
+  entries = new Map<string, ImportLedgerEntry>();
+
+  async findBySourceKey(sourceKey: string): Promise<ImportLedgerEntry | null> {
+    return this.entries.get(sourceKey) ?? null;
+  }
+
+  async insert(entry: ImportLedgerEntry): Promise<void> {
+    this.entries.set(entry.sourceKey, entry);
+  }
+}
+
+function githubStub(): XlsxImportGithubClient {
+  return {
+    createIssue: vi.fn(async () => ({ number: 1, htmlUrl: "https://example.invalid/issues/1", nodeId: "I_1" })),
+    createMilestone: vi.fn(async () => ({ number: 2, htmlUrl: "https://example.invalid/milestones/2", nodeId: "M_2" })),
+    addProjectV2ItemById: vi.fn(async () => ({ itemNodeId: "PVTI_1" })),
+    updateProjectV2ItemFieldValue: vi.fn(async () => {}),
+    getGraphqlRateLimit: vi.fn(async () => ({ remaining: 1000, resetAt: "2026-07-09T00:00:00Z" })),
+  };
+}
+
+describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
+  it("AC-037-1: テンプレートxlsxを生成してパースできる", async () => {
+    const parsed = await parseXlsxImport(await buildXlsxImportTemplateBuffer());
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows.map((row) => row.kind)).toEqual(["issue", "project_item", "milestone"]);
+  });
+
+  it("AC-037-1: 未知列・必須欠落・source_key重複を全件レポートし、行を返さない", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      const issues = workbook.getWorksheet("issues")!;
+      addHeaders(issues, ["source_key", "title", "body", "unknown"]);
+      issues.addRow(["DUP-1", "", "body", "x"]);
+      const projectItems = workbook.getWorksheet("project_items")!;
+      addHeaders(projectItems, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      projectItems.addRow(["DUP-1", "P", "I", "F", "text", "Ready"]);
+      const milestones = workbook.getWorksheet("milestones")!;
+      addHeaders(milestones, ["source_key", "title", "due_on", "description"]);
+    });
+
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.errors.map((error) => error.message)).toEqual(
+      expect.arrayContaining(["unknown column", "required value missing"]),
+    );
+    expect(parsed.errors.some((error) => error.message.includes("duplicate source_key"))).toBe(true);
+  });
+
+  it("AC-037-1: 入力テキストの既知シークレットをサニタイズする", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      const issues = workbook.getWorksheet("issues")!;
+      addHeaders(issues, ["source_key", "title", "body", "labels", "milestone"]);
+      issues.addRow(["ISS-1", "token", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz", "", ""]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      addHeaders(workbook.getWorksheet("milestones")!, ["source_key", "title", "due_on", "description"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows[0]?.kind).toBe("issue");
+    expect(JSON.stringify(parsed.rows[0])).toContain("***REDACTED:authorization_header***");
+  });
+
+  it("AC-037-1: 未知列名の既知シークレットをサニタイズする", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      const issues = workbook.getWorksheet("issues")!;
+      addHeaders(issues, ["source_key", "title", "body", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"]);
+      issues.addRow(["ISS-1", "title", "body", "x"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      addHeaders(workbook.getWorksheet("milestones")!, ["source_key", "title", "due_on", "description"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.errors.find((error) => error.message === "unknown column")?.column).toBe(
+      "***REDACTED:authorization_header***",
+    );
+  });
+
+  it("AC-037-1: due_onはTZ付き文字列でも日付部分を保つ", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title", "body", "labels", "milestone"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      const milestones = workbook.getWorksheet("milestones")!;
+      addHeaders(milestones, ["source_key", "title", "due_on", "description"]);
+      milestones.addRow(["MS-1", "v1", "2026-07-09T00:00:00+09:00", "desc"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows[0]).toMatchObject({ kind: "milestone", dueOn: "2026-07-09" });
+  });
+
+  it("AC-037-1: due_onのDateセルはサーバTZに依存せずUTC日付を保つ", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title", "body", "labels", "milestone"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      const milestones = workbook.getWorksheet("milestones")!;
+      addHeaders(milestones, ["source_key", "title", "due_on", "description"]);
+      milestones.addRow(["MS-1", "v1", new Date("2026-07-09T00:00:00.000Z"), "desc"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows[0]).toMatchObject({ kind: "milestone", dueOn: "2026-07-09" });
+  });
+
+  it("AC-037-1: due_onの非ISO日付文字列はTZ依存で解釈せず行エラーにする", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title", "body", "labels", "milestone"]);
+      addHeaders(workbook.getWorksheet("project_items")!, [
+        "source_key",
+        "project_node_id",
+        "content_node_id",
+        "field_node_id",
+        "field_type",
+        "value",
+      ]);
+      const milestones = workbook.getWorksheet("milestones")!;
+      addHeaders(milestones, ["source_key", "title", "due_on", "description"]);
+      milestones.addRow(["MS-1", "v1", "07/09/2026", "desc"]);
+    });
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.errors).toContainEqual({
+      sheet: "milestones",
+      row: 2,
+      column: "due_on",
+      message: "invalid date format",
+    });
+  });
+});
+
+describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
+  it("AC-037-1: 既存source_keyをスキップし、issue bodyへimport markerを付ける", async () => {
+    const ledger = new MemoryLedger();
+    await ledger.insert({
+      sourceKey: "SKIP-1",
+      targetKind: "milestone",
+      githubId: "M_0",
+      importRunId: "run-0",
+      status: "imported",
+    });
+    const github = githubStub();
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "SKIP-1", title: "v0", description: "" },
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] },
+      ],
+    });
+    expect(result).toMatchObject({ imported: 1, skipped: 1, failed: 0 });
+    expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].body).toContain("<!-- import:ISS-1 -->");
+  });
+
+  it("SPEC-INT-063: Project v2はadd→updateの2段GraphQL相当を直列スロットリングする", async () => {
+    const github = githubStub();
+    const sleep = vi.fn(async () => {});
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 1000,
+      sleep,
+      rows: [
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] },
+        {
+          kind: "project_item",
+          sourceKey: "PVI-1",
+          projectNodeId: "P",
+          contentNodeId: "I",
+          fieldNodeId: "F",
+          fieldType: "text",
+          value: "Ready",
+        },
+      ],
+    });
+    expect(sleep).toHaveBeenCalledWith(1000);
+    expect(vi.mocked(github.addProjectV2ItemById).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(github.updateProjectV2ItemFieldValue).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("SPEC-INT-063: issueのmilestoneタイトルは作成済みmilestone番号へ解決してからGitHubへ渡す", async () => {
+    const github = githubStub();
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [], milestone: "v1" },
+        { kind: "milestone", sourceKey: "MS-1", title: "v1", description: "" },
+      ],
+    });
+
+    expect(vi.mocked(github.createMilestone).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(github.createIssue).mock.invocationCallOrder[0]!,
+    );
+    expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].milestone).toBe(2);
+  });
+
+  it("SPEC-INT-063: 増分インポートは既存milestoneをledgerからseedして新規issueへ付与する", async () => {
+    const ledger = new MemoryLedger();
+    const github = githubStub();
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "MS-1", title: "v1", description: "" },
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue 1", body: "Body", labels: [], milestone: "v1" },
+      ],
+    });
+
+    const second = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-2",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "MS-1", title: "v1", description: "" },
+        { kind: "issue", sourceKey: "ISS-2", title: "Issue 2", body: "Body", labels: [], milestone: "v1" },
+      ],
+    });
+
+    expect(second).toMatchObject({ imported: 1, skipped: 1, failed: 0 });
+    expect(vi.mocked(github.createMilestone)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(github.createIssue).mock.calls[1]?.[0].milestone).toBe(2);
+  });
+
+  it("SPEC-INT-063: 数値milestone titleもリテラル番号でなく作成済み番号へ解決する", async () => {
+    const github = githubStub();
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "MS-2026", title: "2026", description: "" },
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [], milestone: "2026" },
+      ],
+    });
+
+    expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].milestone).toBe(2);
+  });
+
+  it("SPEC-INT-063: 未解決milestoneタイトルはGitHub createIssueへ送らず行エラーにする", async () => {
+    const github = githubStub();
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [], milestone: "v9" }],
+    });
+
+    expect(result.failed).toBe(1);
+    expect(vi.mocked(github.createIssue)).not.toHaveBeenCalled();
+    expect(result.progress[0]?.error).toContain("milestone title not resolved");
+  });
+
+  it("SPEC-INT-063: pending/failed ledger行はskipせず再試行する", async () => {
+    const ledger = new MemoryLedger();
+    await ledger.insert({
+      sourceKey: "ISS-1",
+      targetKind: "issue",
+      githubId: "pending",
+      importRunId: "run-0",
+      status: "failed",
+    });
+    const github = githubStub();
+
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+
+    expect(result).toMatchObject({ imported: 1, skipped: 0, failed: 0 });
+    expect(vi.mocked(github.createIssue)).toHaveBeenCalledTimes(1);
+  });
+
+  it("SPEC-INT-063: GraphQL rateLimit remainingが低ければresetAtまで待つ", async () => {
+    const github = githubStub();
+    vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
+      remaining: 1,
+      resetAt: "2026-07-09T00:00:01.000Z",
+    });
+    const sleep = vi.fn(async () => {});
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      minGraphqlRemaining: 50,
+      now: () => new Date("2026-07-09T00:00:00.000Z"),
+      sleep,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+    expect(sleep).toHaveBeenCalledWith(1000);
+  });
+
+  it("SPEC-INT-063: rateLimit remainingがfloorちょうどなら待たない", async () => {
+    const github = githubStub();
+    vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
+      remaining: 50,
+      resetAt: "2026-07-09T00:00:01.000Z",
+    });
+    const sleep = vi.fn(async () => {});
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      minGraphqlRemaining: 50,
+      now: () => new Date("2026-07-09T00:00:00.000Z"),
+      sleep,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("SPEC-INT-063: rateLimit resetAtが過去ならGitHubへ書き込まず失敗理由を残す", async () => {
+    const github = githubStub();
+    vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
+      remaining: 1,
+      resetAt: "2026-07-08T00:00:00.000Z",
+    });
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      minGraphqlRemaining: 50,
+      now: () => new Date("2026-07-09T00:00:00.000Z"),
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+    expect(result.failed).toBe(1);
+    expect(vi.mocked(github.createIssue)).not.toHaveBeenCalled();
+    expect(result.progress[0]?.error).toContain("rateLimit");
+  });
+
+  it("SPEC-INT-063: 台帳pending記録に失敗した行はGitHubへ書き込まず、失敗理由を残す", async () => {
+    const ledger = new MemoryLedger();
+    const github = githubStub();
+    vi.spyOn(ledger, "insert").mockRejectedValueOnce(new Error("ledger unavailable"));
+    const result = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [{ kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [] }],
+    });
+
+    expect(result.failed).toBe(1);
+    expect(vi.mocked(github.createIssue)).not.toHaveBeenCalled();
+    expect((result.progress[0] as { error?: string }).error).toContain("ledger unavailable");
+  });
+
+  it("AC-037-1: appendImportMarkerは同一markerを重複追加しない", () => {
+    expect(appendImportMarker("body\n\n<!-- import:ISS-1 -->", "ISS-1").match(/import:ISS-1/g)).toHaveLength(1);
+  });
+});

@@ -9,5 +9,7 @@ export interface SkeletonProps {
 }
 
 export function Skeleton({ className = "" }: SkeletonProps) {
-  return <div className={`animate-pulse rounded bg-gray-200 ${className}`.trim()} aria-hidden="true" />;
+  return (
+    <div className={`animate-pulse rounded bg-slate-200 dark:bg-slate-700 ${className}`.trim()} aria-hidden="true" />
+  );
 }

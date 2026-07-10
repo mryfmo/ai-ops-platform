@@ -158,6 +158,27 @@ describe("GraphClient.replyToMessage (ADR-0005: RSC ChannelMessage.Send.Group)",
   });
 });
 
+describe("GraphClient.sendAdaptiveCard (SPEC-INT-069)", () => {
+  it("Action.OpenUrlボタン付きカードを投稿できる", async () => {
+    const bodies: string[] = [];
+    const fetchImpl: FetchLike = async (_url, init) => {
+      bodies.push(String(init?.body ?? ""));
+      return jsonResponse({ id: "card-1" });
+    };
+    const client = new GraphClient(tokenProvider, fetchImpl);
+    await client.sendAdaptiveCard({
+      channelOrChatId: "chan-1",
+      card: {
+        body: [{ type: "TextBlock", text: "週次レポート" }],
+        actions: [],
+        openUrlActions: [{ title: "Dashboard", url: "https://example.test/app/dashboard?persona=manager" }],
+      },
+    });
+    expect(bodies[0]).toContain("Action.OpenUrl");
+    expect(bodies[0]).toContain("https://example.test/app/dashboard?persona=manager");
+  });
+});
+
 describe("GraphClient.createSubscription opts (ADR-0005: clientState環境変数化)", () => {
   it("clientStateとchangeTypeを指定できる", async () => {
     const bodies: string[] = [];

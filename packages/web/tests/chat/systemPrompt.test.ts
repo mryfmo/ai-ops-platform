@@ -27,6 +27,18 @@ const devopsManager: ResolvedPersona = {
   visibility: { recipientUserId: "U-G", recipientAssignedProjectIds: [] },
 };
 
+const investor: ResolvedPersona = {
+  domain: "investor",
+  profile: "investor",
+  visibility: {
+    recipientStakeholderId: "STK-INV",
+    recipientManagedProjectIds: [],
+    recipientAssignedProjectIds: [],
+    recipientParticipatingProjectIds: [],
+    investedProjectIds: [],
+  },
+};
+
 describe("buildSystemPrompt（ADR-0005: ペルソナ情報の埋め込み）", () => {
   it("PrjOpsペルソナのドメイン名とprofileを埋め込む", () => {
     const prompt = buildSystemPrompt(prjopsExecutive);
@@ -38,6 +50,10 @@ describe("buildSystemPrompt（ADR-0005: ペルソナ情報の埋め込み）", (
     const prompt = buildSystemPrompt(devopsManager);
     expect(prompt).toContain("DevOps");
     expect(prompt).toContain("PRF-G");
+  });
+
+  it("Investorペルソナのドメイン名を埋め込む [REQ-039]", () => {
+    expect(buildSystemPrompt(investor)).toContain("Investor investor");
   });
 
   it("数値を本文で述べず必ずtoolで表示することを明記する（CLAUDE.md設計原則2）", () => {

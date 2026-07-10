@@ -12,6 +12,7 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
+    "governance:check": "node scripts/check-codeowners.mjs",
     "traceability": "pnpm exec tsx packages/traceability/src/verifyTraceability.ts",
     "verify:all": "bash verification/run_verification.sh"
   },

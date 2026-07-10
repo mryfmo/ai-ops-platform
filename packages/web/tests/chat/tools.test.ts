@@ -1,7 +1,8 @@
 /**
  * packages/web/tests/chat/tools.test.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）。
+ * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）/
+ *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
  *   ペルソナごとに公開されるtool一覧が正しいこと（PRF-04にshowManagerSummaryが露出しない等）と、
  *   execute()のzod境界値（periodDaysが7/14/28以外は拒否）を検証する。
  *   ADR-0006 4b: showAgentActivityがPRF-G（DevOpsマネージャー）以外に露出しないことも検証する。
@@ -58,25 +59,76 @@ const devopsMember: ResolvedPersona = {
   visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: [] },
 };
 
+const investor: ResolvedPersona = {
+  domain: "investor",
+  profile: "investor",
+  visibility: {
+    recipientStakeholderId: "STK-INV",
+    recipientManagedProjectIds: [],
+    recipientAssignedProjectIds: [],
+    recipientParticipatingProjectIds: [],
+    investedProjectIds: ["PRJ-0001"],
+  },
+};
+
 describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", () => {
-  it("PRF-04にはshowExecutiveSummaryとlistProjectsのみを公開する（showManagerSummaryは露出しない）", () => {
+  it("PRF-04には経営向けtoolのみを公開する（showManagerSummaryは露出しない）", () => {
     const tools = buildToolsForPersona(prjopsExecutive);
-    expect(Object.keys(tools).sort()).toEqual(["listProjects", "showExecutiveSummary"]);
+    expect(Object.keys(tools).sort()).toEqual([
+      "listProjects",
+      "showExecutiveSummary",
+      "show_projects_table",
+      "show_seven_keys",
+      "show_timeseries",
+    ]);
   });
 
-  it("PRF-03（PrjOpsマネージャー）にはshowManagerSummaryとlistProjectsを公開する（showExecutiveSummaryは露出しない）", () => {
+  it("PRF-03（PrjOpsマネージャー）にはマネージャー向けtoolを公開する（showExecutiveSummaryは露出しない）", () => {
     const tools = buildToolsForPersona(prjopsManager);
-    expect(Object.keys(tools).sort()).toEqual(["listProjects", "showManagerSummary"]);
+    expect(Object.keys(tools).sort()).toEqual([
+      "listProjects",
+      "showManagerSummary",
+      "show_burndown",
+      "show_dora",
+      "show_projects_table",
+      "show_timeseries",
+    ]);
   });
 
   it("PRF-G（DevOpsマネージャー）にはshowManagerSummary・showAgentActivity・listProjectsを公開する", () => {
     const tools = buildToolsForPersona(devopsManager);
-    expect(Object.keys(tools).sort()).toEqual(["listProjects", "showAgentActivity", "showManagerSummary"]);
+    expect(Object.keys(tools).sort()).toEqual([
+      "listProjects",
+      "showAgentActivity",
+      "showManagerSummary",
+      "show_burndown",
+      "show_dora",
+      "show_projects_table",
+      "show_timeseries",
+    ]);
   });
 
-  it("その他のペルソナ（PRF-01, PRF-M）にはlistProjectsのみを公開する", () => {
-    expect(Object.keys(buildToolsForPersona(prjopsMember))).toEqual(["listProjects"]);
-    expect(Object.keys(buildToolsForPersona(devopsMember))).toEqual(["listProjects"]);
+  it("その他のペルソナ（PRF-01, PRF-M）には共通toolのみを公開する", () => {
+    expect(Object.keys(buildToolsForPersona(prjopsMember)).sort()).toEqual([
+      "listProjects",
+      "show_projects_table",
+      "show_timeseries",
+    ]);
+    expect(Object.keys(buildToolsForPersona(devopsMember)).sort()).toEqual([
+      "listProjects",
+      "show_projects_table",
+      "show_timeseries",
+    ]);
+  });
+
+  it("investorにはshowInvestorSummaryとlistProjectsを公開する [REQ-039]", () => {
+    expect(Object.keys(buildToolsForPersona(investor)).sort()).toEqual([
+      "listProjects",
+      "showInvestorSummary",
+      "show_investor_kpis",
+      "show_projects_table",
+      "show_timeseries",
+    ]);
   });
 
   it("PRF-03（PrjOpsマネージャー）にはshowAgentActivityを公開しない（DevOps専用）", () => {
@@ -87,6 +139,36 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
   it("PRF-04（PrjOps経営陣）にはshowAgentActivityを公開しない", () => {
     const tools = buildToolsForPersona(prjopsExecutive);
     expect(Object.keys(tools)).not.toContain("showAgentActivity");
+  });
+});
+
+describe("showInvestorSummary tool（ADR-0011: investor専用）", () => {
+  it("実行するとkind: investorSummaryのViewSpecを返す", async () => {
+    const tools = buildToolsForPersona(investor);
+    const result = await tools["showInvestorSummary"]!.execute!({}, { toolCallId: "t7", messages: [] });
+    expect(result).toEqual({ kind: "investorSummary" });
+  });
+});
+
+describe("page agent tools（ADR-0013: Reasoning UI + Generative UI）", () => {
+  it("show_timeseriesはtimeseries ViewSpecを返す [REQ-041 / SPEC-INT-068 / AC-041-1]", async () => {
+    const tools = buildToolsForPersona(prjopsExecutive);
+    const result = await tools["show_timeseries"]!.execute!({ period: "week" }, { toolCallId: "t8", messages: [] });
+    expect(result).toEqual({ kind: "timeseries", period: "week" });
+  });
+
+  it("show_doraとshow_burndownはマネージャーViewSpecを返す [AC-041-1]", async () => {
+    const tools = buildToolsForPersona(devopsManager);
+    await expect(tools["show_dora"]!.execute!({}, { toolCallId: "t9", messages: [] })).resolves.toEqual({
+      kind: "managerSummary",
+      periodDays: undefined,
+    });
+    await expect(
+      tools["show_burndown"]!.execute!({ periodDays: 14 }, { toolCallId: "t10", messages: [] }),
+    ).resolves.toEqual({
+      kind: "managerSummary",
+      periodDays: 14,
+    });
   });
 });
 

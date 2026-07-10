@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared";
+import { MetricsRegistry } from "../src/observability/metrics.js";
 import { createEventsPollingTask } from "../src/scheduler/tasks/eventsPollingTask.js";
 import type { EventsRepo, QueuedEvent } from "../src/db/eventsRepo.js";
 
@@ -21,24 +22,39 @@ function makeEvent(overrides: Partial<QueuedEvent> = {}): QueuedEvent {
       ids: {},
     },
     status: "dispatched",
+    attempts: 0,
+    claimedAt: "2026-07-10T00:00:00.000Z",
     ...overrides,
   };
 }
 
 function makeRepoStub(queue: QueuedEvent[]) {
   const done: string[] = [];
-  const delayed: string[] = [];
+  const failed: string[] = [];
   return {
     claimNextQueued: async () => queue.shift() ?? null,
     markDone: async (id: string) => {
       done.push(id);
     },
-    markDelayed: async (id: string) => {
-      delayed.push(id);
+    markFailed: async (id: string) => {
+      failed.push(id);
+      return { status: id.includes("dead") ? ("dead" as const) : ("queued" as const), attempts: 1 };
     },
     enqueue: async () => {},
+    getQueueMetrics: async () => [{ status: "queued", depth: queue.length, oldestAgeSeconds: 3 }],
     done,
-    delayed,
+    failed,
+  };
+}
+
+function makeTaskDeps(repo: ReturnType<typeof makeRepoStub>, auditLog = new InMemoryAuditLog()) {
+  return {
+    eventsRepo: repo as unknown as EventsRepo,
+    auditLog,
+    dispatchInboundNotification: async () => {},
+    dispatchGithubEvent: async () => {},
+    dispatchMonitorEvent: async () => {},
+    traceIdProvider: () => "t",
   };
 }
 
@@ -52,16 +68,18 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
       dispatchInboundNotification: async (payload, traceId) => {
         dispatched.push({ payload, traceId });
       },
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
       traceIdProvider: () => "t",
     });
 
     await task.run(new Date());
     expect(dispatched).toHaveLength(1);
     expect(repo.done).toEqual(["evt-1"]);
-    expect(repo.delayed).toEqual([]);
+    expect(repo.failed).toEqual([]);
   });
 
-  it("ディスパッチ失敗は他イベント処理に波及させず、delayedへ遷移+監査ログ", async () => {
+  it("ディスパッチ失敗は他イベント処理に波及させず、再試行可能にする", async () => {
     const repo = makeRepoStub([makeEvent({ eventId: "evt-fail" }), makeEvent({ eventId: "evt-ok" })]);
     const auditLog = new InMemoryAuditLog();
     let call = 0;
@@ -72,14 +90,36 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
         call += 1;
         if (call === 1) throw new Error("boom");
       },
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
       traceIdProvider: () => "t",
     });
 
     await task.run(new Date());
-    expect(repo.delayed).toEqual(["evt-fail"]);
+    expect(repo.failed).toEqual(["evt-fail"]);
     expect(repo.done).toEqual(["evt-ok"]);
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "SPEC-INT-010")).toBe(true);
+  });
+
+  it("再試行上限到達時はdead遷移を監査する", async () => {
+    const repo = makeRepoStub([makeEvent({ eventId: "evt-dead" })]);
+    const auditLog = new InMemoryAuditLog();
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog,
+      dispatchInboundNotification: async () => {
+        throw new Error("still failing");
+      },
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
+      traceIdProvider: () => "t",
+      maxAttempts: 1,
+    });
+
+    await task.run(new Date("2026-07-10T00:00:00Z"));
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "event_dispatch_dead")).toBe(true);
   });
 
   it("キューが空ならdispatchを呼ばない", async () => {
@@ -91,26 +131,60 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
       dispatchInboundNotification: async () => {
         called = true;
       },
-      traceIdProvider: () => "t",
-    });
-    await task.run(new Date());
-    expect(called).toBe(false);
-  });
-
-  it("source=github/monitorはディスパッチせずdone扱い（TODO: 別タスクで接続）", async () => {
-    const repo = makeRepoStub([makeEvent({ source: "github", payload: { eventName: "push" } })]);
-    let called = false;
-    const task = createEventsPollingTask({
-      eventsRepo: repo as unknown as EventsRepo,
-      auditLog: new InMemoryAuditLog(),
-      dispatchInboundNotification: async () => {
+      dispatchGithubEvent: async () => {
+        called = true;
+      },
+      dispatchMonitorEvent: async () => {
         called = true;
       },
       traceIdProvider: () => "t",
     });
     await task.run(new Date());
     expect(called).toBe(false);
+  });
+
+  it("source=githubはDevOps dispatcherへ渡してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+    const repo = makeRepoStub([
+      makeEvent({ source: "github", payload: { eventName: "push", payload: { ref: "main" } } }),
+    ]);
+    const dispatched: unknown[] = [];
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog: new InMemoryAuditLog(),
+      dispatchInboundNotification: async () => {},
+      dispatchGithubEvent: async (payload) => {
+        dispatched.push(payload);
+      },
+      dispatchMonitorEvent: async () => {},
+      traceIdProvider: () => "t",
+    });
+    await task.run(new Date());
+    expect(dispatched).toEqual([{ eventName: "push", payload: { ref: "main" } }]);
     expect(repo.done).toEqual(["evt-1"]);
+  });
+
+  it("source=monitorはDevOps monitor dispatcherへ渡してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+    const repo = makeRepoStub([makeEvent({ source: "monitor", payload: { kind: "deploy_metrics" } })]);
+    const dispatched: unknown[] = [];
+    const task = createEventsPollingTask({
+      ...makeTaskDeps(repo),
+      dispatchMonitorEvent: async (payload) => {
+        dispatched.push(payload);
+      },
+    });
+    await task.run(new Date());
+    expect(dispatched).toEqual([{ kind: "deploy_metrics" }]);
+    expect(repo.done).toEqual(["evt-1"]);
+  });
+
+  it("未対応payloadは監査ログを残してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+    const repo = makeRepoStub([makeEvent({ source: "github", payload: { bad: true } })]);
+    const auditLog = new InMemoryAuditLog();
+    const task = createEventsPollingTask(makeTaskDeps(repo, auditLog));
+    await task.run(new Date());
+    expect(repo.done).toEqual(["evt-1"]);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "event_dispatch_ignored")).toBe(true);
   });
 
   it("maxBatchSizeで1tickの処理件数を制限する", async () => {
@@ -123,10 +197,20 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
       eventsRepo: repo as unknown as EventsRepo,
       auditLog: new InMemoryAuditLog(),
       dispatchInboundNotification: async () => {},
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
       traceIdProvider: () => "t",
       maxBatchSize: 2,
     });
     await task.run(new Date());
     expect(repo.done).toEqual(["e1", "e2"]);
+  });
+
+  it("events queue metricsを記録する", async () => {
+    const repo = makeRepoStub([]);
+    const metrics = new MetricsRegistry();
+    const task = createEventsPollingTask({ ...makeTaskDeps(repo), metrics });
+    await task.run(new Date());
+    expect(metrics.renderPrometheus()).toContain('aiops_events_queue_depth{status="queued"} 0');
   });
 });

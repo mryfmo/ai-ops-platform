@@ -82,6 +82,106 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
     expect(result.number).toBe(7);
   });
 
+  it("createMilestone はMilestone APIをPOSTで呼ぶ（REQ-037/SPEC-INT-063）", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      { status: 201, body: { number: 3, html_url: "https://github.com/acme/x/milestone/3", node_id: "M_3" } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const result = await client.createMilestone({
+      owner: "acme",
+      repo: "prjops-system",
+      title: "v1",
+      dueOn: "2026-08-31",
+      description: "初回リリース",
+    });
+    expect(result.nodeId).toBe("M_3");
+    expect(calls[0]!.url).toContain("/repos/acme/prjops-system/milestones");
+    expect(calls[0]!.init?.body).toContain("due_on");
+  });
+
+  it("Project v2 itemはadd→updateをGraphQLで呼べる（REQ-037/SPEC-INT-063）", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      { status: 200, body: { data: { addProjectV2ItemById: { item: { id: "PVTI_1" } } } } },
+      { status: 200, body: { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: "PVTI_1" } } } } },
+      { status: 200, body: { data: { rateLimit: { remaining: 123, resetAt: "2026-07-09T00:00:00Z" } } } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const added = await client.addProjectV2ItemById({ projectNodeId: "P", contentNodeId: "I" });
+    await client.updateProjectV2ItemFieldValue({
+      projectNodeId: "P",
+      itemNodeId: added.itemNodeId,
+      fieldNodeId: "F",
+      fieldType: "text",
+      value: "Ready",
+    });
+    const limit = await client.getGraphqlRateLimit();
+    expect(limit.remaining).toBe(123);
+    expect(calls.every((call) => call.url.endsWith("/graphql"))).toBe(true);
+    expect(JSON.parse(String(calls[1]!.init?.body)).variables.value).toEqual({ text: "Ready" });
+  });
+
+  it("Project v2 single select fieldはfield_typeに合わせたGraphQL valueで更新する", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      { status: 200, body: { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: "PVTI_1" } } } } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    await client.updateProjectV2ItemFieldValue({
+      projectNodeId: "P",
+      itemNodeId: "PVTI_1",
+      fieldNodeId: "F",
+      fieldType: "single_select",
+      value: "OPT_1",
+    });
+
+    const body = JSON.parse(String(calls[0]!.init?.body));
+    expect(body.query).toContain("$value: ProjectV2FieldValue!");
+    expect(body.variables.value).toEqual({ singleSelectOptionId: "OPT_1" });
+  });
+
+  it("SPEC-INT-081: Projects v2 current snapshotをGraphQLで読む", async () => {
+    const { fetch: fetchImpl } = makeFakeFetch([
+      {
+        status: 200,
+        body: {
+          data: {
+            rateLimit: { remaining: 999, resetAt: "2026-07-09T00:00:00Z" },
+            node: {
+              items: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: [
+                  {
+                    id: "PVTI_1",
+                    content: {
+                      __typename: "Issue",
+                      id: "I_1",
+                      number: 1,
+                      title: "Issue",
+                      state: "OPEN",
+                      repository: { nameWithOwner: "acme/widget" },
+                    },
+                    fieldValues: {
+                      nodes: [{ name: "Todo", field: { name: "Status" } }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const page = await client.listCurrentProjectV2Snapshots({ projectNodeId: "PVT_1" });
+    expect(page.snapshots[0]).toMatchObject({
+      projectId: "PVT_1",
+      repository: "acme/widget",
+      sourceType: "issue",
+      sourceId: "I_1",
+      state: "Todo",
+    });
+  });
+
   it("dispatchWorkflow は失敗時にE-DEP01を投げる", async () => {
     const { fetch: fetchImpl } = makeFakeFetch([{ status: 403 }]);
     const client = new GitHubClient(tokenProvider, fetchImpl);
