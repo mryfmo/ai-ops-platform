@@ -52,9 +52,20 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
     }
 
     const traceId = deps.traceIdProvider();
-    const deliveryId = c.req.header("x-github-delivery") ?? null;
+    const deliveryId = c.req.header("x-github-delivery")?.trim() ?? "";
+    if (!deliveryId) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "github_webhook_missing_delivery_id",
+        basis: "SPEC-INT-061",
+        detail: { event: eventName },
+        at: new Date().toISOString(),
+      });
+      return c.json({ error: "missing delivery id" }, 400);
+    }
     const inserted = await deps.enqueueGithubEvent(eventName, payload, traceId, {
-      dedupeKey: deliveryId ? `github:${deliveryId}` : null,
+      dedupeKey: `github:${deliveryId}`,
     });
     if (!inserted) {
       await deps.auditLog.append({

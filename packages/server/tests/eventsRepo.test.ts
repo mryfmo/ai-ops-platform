@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { PgQueryable } from "@aiops/shared";
-import { EventsRepo } from "../src/db/eventsRepo.js";
+import { decideEventDisposition, EventsRepo } from "../src/db/eventsRepo.js";
 
 interface Call {
   text: string;
@@ -51,12 +51,23 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
     ]);
     const repo = new EventsRepo(db);
 
-    await repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z"), leaseMs: 60_000 });
+    await repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z"), leaseMs: 60_000, maxAttempts: 5 });
 
     expect(calls[0]!.text).toContain("next_attempt_at <= $");
     expect(calls[0]!.text).toContain("status = 'dispatched'");
     expect(calls[0]!.text).toContain("claimed_at <");
     expect(calls[0]!.text).toContain("attempts");
+  });
+
+  it("claimNextQueued: lease切れdispatchedはattemptsを増やし、上限到達ならdeadへ送る", async () => {
+    const { db, calls } = makeMockDb([]);
+    const repo = new EventsRepo(db);
+
+    await repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z"), leaseMs: 60_000, maxAttempts: 5 });
+
+    expect(calls[0]!.text).toContain("attempts = CASE WHEN candidate.status = 'dispatched'");
+    expect(calls[0]!.text).toContain("candidate.attempts + 1 >= $3");
+    expect(calls[0]!.text).toContain("THEN 'dead'");
   });
 
   it("markFailed: 上限未満は attempts を増やして queued に戻す", async () => {
@@ -84,5 +95,59 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
         nextAttemptAt: new Date("2026-07-10T00:01:00Z"),
       }),
     ).resolves.toEqual({ status: "dead", attempts: 5 });
+  });
+});
+
+describe("decideEventDisposition (SPEC-INT-010)", () => {
+  const now = new Date("2026-07-10T00:00:00Z");
+
+  it("queued/delayed は next_attempt_at 到来後だけclaimする", () => {
+    expect(
+      decideEventDisposition(
+        { status: "queued", attempts: 0, nextAttemptAt: "2026-07-10T00:00:00.000Z", claimedAt: null },
+        { now, leaseMs: 60_000, maxAttempts: 5 },
+      ),
+    ).toEqual({ action: "claim", attempts: 0 });
+    expect(
+      decideEventDisposition(
+        { status: "delayed", attempts: 1, nextAttemptAt: "2026-07-10T00:00:01.000Z", claimedAt: null },
+        { now, leaseMs: 60_000, maxAttempts: 5 },
+      ),
+    ).toEqual({ action: "skip", attempts: 1 });
+  });
+
+  it("lease内dispatchedはskip、lease切れdispatchedはattemptsを増やしてclaimする", () => {
+    expect(
+      decideEventDisposition(
+        { status: "dispatched", attempts: 2, nextAttemptAt: null, claimedAt: "2026-07-09T23:59:30.000Z" },
+        { now, leaseMs: 60_000, maxAttempts: 5 },
+      ),
+    ).toEqual({ action: "skip", attempts: 2 });
+    expect(
+      decideEventDisposition(
+        { status: "dispatched", attempts: 2, nextAttemptAt: null, claimedAt: "2026-07-09T23:58:59.999Z" },
+        { now, leaseMs: 60_000, maxAttempts: 5 },
+      ),
+    ).toEqual({ action: "claim", attempts: 3 });
+  });
+
+  it("lease切れdispatchedがmaxAttempts到達ならdeadにする", () => {
+    expect(
+      decideEventDisposition(
+        { status: "dispatched", attempts: 4, nextAttemptAt: null, claimedAt: "2026-07-09T23:58:59.999Z" },
+        { now, leaseMs: 60_000, maxAttempts: 5 },
+      ),
+    ).toEqual({ action: "dead", attempts: 5 });
+  });
+
+  it("done/deadはclaimしない", () => {
+    for (const status of ["done", "dead"] as const) {
+      expect(
+        decideEventDisposition(
+          { status, attempts: 5, nextAttemptAt: null, claimedAt: null },
+          { now, leaseMs: 60_000, maxAttempts: 5 },
+        ),
+      ).toEqual({ action: "skip", attempts: 5 });
+    }
   });
 });

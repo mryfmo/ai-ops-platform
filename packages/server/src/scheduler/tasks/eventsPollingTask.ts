@@ -100,7 +100,7 @@ export function createEventsPollingTask(deps: EventsPollingTaskDeps): ScheduledT
     intervalMs: 5_000,
     async run(now: Date): Promise<void> {
       for (let i = 0; i < maxBatchSize; i++) {
-        const event = await deps.eventsRepo.claimNextQueued();
+        const event = await deps.eventsRepo.claimNextQueued({ maxAttempts: deps.maxAttempts ?? 5 });
         if (!event) return;
         await processEvent(event, deps, now);
       }

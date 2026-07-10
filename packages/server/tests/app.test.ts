@@ -141,6 +141,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
       body: JSON.stringify({
         value: [
           {
+            id: "graph-notification-main",
             clientState: CLIENT_STATE,
             changeType: "created",
             resource: "teams('t-1')/channels('c-1')/messages('m-1')",
@@ -153,6 +154,30 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(inboundEvents).toHaveLength(1);
     const payload = inboundEvents[0]!.payload as { ids: { messageId: string } };
     expect(payload.ids.messageId).toBe("m-1");
+  });
+
+  it("Graph通知id欠落は400+監査ログでfail-closedし、エンキューしない", async () => {
+    const { deps, auditLog, inboundEvents } = makeDeps();
+    const app = buildApp(deps);
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [
+          {
+            clientState: CLIENT_STATE,
+            changeType: "created",
+            resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+            subscriptionId: "sub-1",
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(inboundEvents).toHaveLength(0);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "graph_notification_missing_dedupe_key")).toBe(true);
   });
 
   it("同一Graph通知idの再送は1件だけエンキューする", async () => {
@@ -237,6 +262,23 @@ describe("POST /webhooks/github (SPEC-INT-061)", () => {
     expect(res.status).toBe(202);
     expect(githubEvents[0]!.eventName).toBe("workflow_run");
     expect(githubEvents[0]!.dedupeKey).toBe("github:delivery-1");
+  });
+
+  it("署名済みGitHub webhookのdelivery id欠落は400+監査ログでfail-closedし、エンキューしない", async () => {
+    const { deps, auditLog, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const res = await app.request("/webhooks/github", {
+      method: "POST",
+      headers: { "x-hub-signature-256": sig, "x-github-event": "push" },
+      body: payload,
+    });
+
+    expect(res.status).toBe(400);
+    expect(githubEvents).toHaveLength(0);
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "github_webhook_missing_delivery_id")).toBe(true);
   });
 
   it("同一X-GitHub-Deliveryの再送は1件だけエンキューする", async () => {
