@@ -6,7 +6,7 @@ title = "ai-ops-platform gitleaks config"
 [extend]
 useDefault = true
 
-[[allowlist]]
+[allowlist]
 description = "Intentional fake tokens in secret-redaction test fixtures"
 paths = [
   '''packages/shared/tests/secretSanitizer\.test\.ts''',
