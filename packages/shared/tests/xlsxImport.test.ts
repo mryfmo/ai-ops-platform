@@ -260,6 +260,58 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].milestone).toBe(2);
   });
 
+  it("SPEC-INT-063: 増分インポートは既存milestoneをledgerからseedして新規issueへ付与する", async () => {
+    const ledger = new MemoryLedger();
+    const github = githubStub();
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "MS-1", title: "v1", description: "" },
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue 1", body: "Body", labels: [], milestone: "v1" },
+      ],
+    });
+
+    const second = await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-2",
+      ledger,
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "MS-1", title: "v1", description: "" },
+        { kind: "issue", sourceKey: "ISS-2", title: "Issue 2", body: "Body", labels: [], milestone: "v1" },
+      ],
+    });
+
+    expect(second).toMatchObject({ imported: 1, skipped: 1, failed: 0 });
+    expect(vi.mocked(github.createMilestone)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(github.createIssue).mock.calls[1]?.[0].milestone).toBe(2);
+  });
+
+  it("SPEC-INT-063: 数値milestone titleもリテラル番号でなく作成済み番号へ解決する", async () => {
+    const github = githubStub();
+    await executeXlsxImport({
+      owner: "acme",
+      repo: "widget",
+      importRunId: "run-1",
+      ledger: new MemoryLedger(),
+      github,
+      throttleMs: 0,
+      rows: [
+        { kind: "milestone", sourceKey: "MS-2026", title: "2026", description: "" },
+        { kind: "issue", sourceKey: "ISS-1", title: "Issue", body: "Body", labels: [], milestone: "2026" },
+      ],
+    });
+
+    expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].milestone).toBe(2);
+  });
+
   it("SPEC-INT-063: 未解決milestoneタイトルはGitHub createIssueへ送らず行エラーにする", async () => {
     const github = githubStub();
     const result = await executeXlsxImport({

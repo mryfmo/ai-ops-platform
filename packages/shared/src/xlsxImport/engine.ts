@@ -109,11 +109,15 @@ function orderedRows(rows: XlsxImportRow[]): XlsxImportRow[] {
 
 function milestoneNumber(titleOrNumber: string | undefined, knownMilestones: Map<string, number>): number | undefined {
   if (!titleOrNumber) return undefined;
-  const numeric = Number(titleOrNumber);
-  if (Number.isInteger(numeric) && numeric > 0) return numeric;
   const resolved = knownMilestones.get(titleOrNumber);
   if (!resolved) throw new Error(`milestone title not resolved: ${titleOrNumber}`);
   return resolved;
+}
+
+function seedKnownMilestone(row: XlsxImportRow, entry: ImportLedgerEntry, knownMilestones: Map<string, number>): void {
+  if (row.kind !== "milestone") return;
+  const number = Number(entry.githubId);
+  if (Number.isInteger(number) && number > 0) knownMilestones.set(row.title, number);
 }
 
 async function markImported(
@@ -154,6 +158,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
   for (const row of orderedRows(opts.rows)) {
     const existing = await opts.ledger.findBySourceKey(row.sourceKey);
     if (existing?.status === "imported") {
+      seedKnownMilestone(row, existing, knownMilestones);
       skipped += 1;
       progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "skipped" });
       continue;
@@ -198,7 +203,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
           description: row.description,
         });
         knownMilestones.set(row.title, created.number);
-        githubId = created.nodeId ?? String(created.number);
+        githubId = String(created.number);
       } else {
         const added = await opts.github.addProjectV2ItemById({
           projectNodeId: row.projectNodeId,

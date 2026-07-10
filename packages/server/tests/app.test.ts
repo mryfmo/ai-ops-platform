@@ -307,6 +307,30 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(graphLifecycleCalls).toEqual(["reauthorizationRequired"]);
   });
 
+  it("Graph lifecycle失敗後の監査記録も失敗しても202応答後に未処理rejectを出さない", async () => {
+    const { deps } = makeDeps();
+    deps.graph.handleLifecycleEvent = async () => {
+      throw new Error("lifecycle failed");
+    };
+    deps.graph.auditLog = {
+      append: async () => {
+        throw new Error("audit down");
+      },
+    };
+    const app = buildApp(deps);
+
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [{ clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" }],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    await Promise.resolve();
+  });
+
   it("clientState不一致は破棄+監査ログ、それでも202（検証結果を漏らさない）", async () => {
     const { deps, auditLog, inboundEvents } = makeDeps();
     const app = buildApp(deps);

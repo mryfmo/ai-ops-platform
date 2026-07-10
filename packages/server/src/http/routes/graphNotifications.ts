@@ -55,20 +55,22 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
         detail: { lifecycleEvent: event.lifecycleEvent, subscriptionId: event.subscriptionId },
         at: new Date().toISOString(),
       });
-  void work.catch((error) =>
-    deps.auditLog.append({
-      trace_id: traceId,
-      actor: "SERVER",
-      action: "graph_lifecycle_failed",
-      basis: "SPEC-INT-001",
-      detail: {
-        lifecycleEvent: event.lifecycleEvent,
-        subscriptionId: event.subscriptionId,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      at: new Date().toISOString(),
-    }),
-  );
+  void work
+    .catch((error) =>
+      deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "graph_lifecycle_failed",
+        basis: "SPEC-INT-001",
+        detail: {
+          lifecycleEvent: event.lifecycleEvent,
+          subscriptionId: event.subscriptionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        at: new Date().toISOString(),
+      }),
+    )
+    .catch(() => {});
 }
 
 export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificationDeps): void {

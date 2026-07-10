@@ -188,6 +188,36 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
     expect(result.velocity).toEqual({ issueThroughput: 1, prThroughput: 1 });
   });
 
+  it("同一repositoryを複数projectが共有する場合もproject_id無しGitHubイベントを全projectへ帰属する", async () => {
+    const db = fakeDb(
+      [
+        { project_id: "PRJ-0001", github_owner: "octo", github_repo: "repo" },
+        { project_id: "PRJ-0002", github_owner: "octo", github_repo: "repo" },
+      ],
+      [],
+      [],
+      [
+        {
+          project_id: null,
+          subject_type: "issue",
+          subject_id: "I-1",
+          action: "closed",
+          occurred_at: "2026-01-06T00:00:00Z",
+          normalized: { repository: "octo/repo" },
+          repository: "octo/repo",
+        },
+      ],
+    );
+    const result = await buildDevOpsManagerSummary(
+      db,
+      "PRF-G",
+      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      "2026-01-01",
+      "2026-01-08",
+    );
+    expect(result.velocity.issueThroughput).toBe(2);
+  });
+
   it("throughputはsubject_idで二重closeを排除しnot_planned issueを除外する", async () => {
     const db = fakeDb(
       ["PRJ-0001"],

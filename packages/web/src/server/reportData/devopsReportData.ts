@@ -124,28 +124,35 @@ export interface DevOpsManagerSummaryResult {
 function countThroughput(
   events: PmEventRow[],
   scopedSet: Set<string>,
-  repositoryProjectIds: Map<string, string>,
+  repositoryProjectIds: Map<string, string[]>,
 ): { issueThroughput: number; prThroughput: number } {
   const closedIssues = new Set<string>();
   const mergedPullRequests = new Set<string>();
   for (const event of events) {
-    const projectId = event.project_id ?? (event.repository ? repositoryProjectIds.get(event.repository) : undefined);
-    if (!projectId || !scopedSet.has(projectId)) continue;
-    const key = `${projectId}:${event.subject_type}:${event.subject_id ?? ""}`;
     if (event.subject_id === null) continue;
-    if (
-      event.subject_type === "issue" &&
-      event.action === "closed" &&
-      !isNotPlannedIssue(event.normalized, event.raw_payload)
-    ) {
-      closedIssues.add(key);
-    }
-    if (
-      event.subject_type === "pull_request" &&
-      event.action === "closed" &&
-      isMergedPullRequest(event.normalized, event.raw_payload)
-    ) {
-      mergedPullRequests.add(key);
+    const projectIds =
+      event.project_id !== null
+        ? [event.project_id]
+        : event.repository
+          ? (repositoryProjectIds.get(event.repository) ?? [])
+          : [];
+    for (const projectId of projectIds) {
+      if (!scopedSet.has(projectId)) continue;
+      const key = `${projectId}:${event.subject_type}:${event.subject_id}`;
+      if (
+        event.subject_type === "issue" &&
+        event.action === "closed" &&
+        !isNotPlannedIssue(event.normalized, event.raw_payload)
+      ) {
+        closedIssues.add(key);
+      }
+      if (
+        event.subject_type === "pull_request" &&
+        event.action === "closed" &&
+        isMergedPullRequest(event.normalized, event.raw_payload)
+      ) {
+        mergedPullRequests.add(key);
+      }
     }
   }
   return { issueThroughput: closedIssues.size, prThroughput: mergedPullRequests.size };
@@ -206,11 +213,12 @@ export async function buildDevOpsManagerSummary(
   const scopedChannels = await scopedProjectChannels(db, profile, ctx);
   const projectIds = scopedChannels.map((row) => row.project_id);
   const scopedSet = new Set(projectIds);
-  const repositoryProjectIds = new Map(
-    scopedChannels
-      .filter((row) => row.github_owner && row.github_repo)
-      .map((row) => [`${row.github_owner}/${row.github_repo}`, row.project_id]),
-  );
+  const repositoryProjectIds = new Map<string, string[]>();
+  for (const row of scopedChannels) {
+    if (!row.github_owner || !row.github_repo) continue;
+    const key = `${row.github_owner}/${row.github_repo}`;
+    repositoryProjectIds.set(key, [...(repositoryProjectIds.get(key) ?? []), row.project_id]);
+  }
 
   const allIncidents = await fetchIncidents(db);
   const allDeployments = await fetchDeployments(db, periodStart, periodEnd);
