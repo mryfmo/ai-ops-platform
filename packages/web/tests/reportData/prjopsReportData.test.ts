@@ -83,17 +83,20 @@ describe("buildExecutiveSummary（PRF-04）", () => {
 
   it("AC-038-1: 構造化質問票をSeven Keysの定性キーへ渡す", async () => {
     const provider = new InMemoryPrjopsReportDataProvider(
+      [projects[0]!],
+      issuesAndActions,
+      [],
       [
         {
-          ...projects[0]!,
-          questionnaire: {
+          projectId: "PRJ-0001",
+          month: new Date().toISOString().slice(0, 7),
+          answers: {
             stakeholdersCommitted: "green",
             businessBenefits: "yellow",
             deliveryOrgBenefits: "red",
           },
         },
       ],
-      issuesAndActions,
     );
     const emptyCtx: ProjectVisibilityContext = {
       recipientStakeholderId: "STK-EXEC",
@@ -138,6 +141,36 @@ describe("buildInvestorSummary（investor: 出資対象のみ）", () => {
     });
     expect(result.highlights[0]).toBe("1 portfolio companies");
     expect(result.risks[0]?.projectId).toBe("PRJ-0002");
+  });
+
+  it("board-pack targetを配線し、trendは履歴入力から算出する", async () => {
+    const provider = new InMemoryPrjopsReportDataProvider(
+      [
+        {
+          ...projects[0]!,
+          ownershipPct: 50,
+          revenue: 200,
+        },
+      ],
+      issuesAndActions,
+      [],
+      [],
+      {},
+      { targets: { revenue: 80 }, history: [{ revenue: 60 }, { revenue: 90 }] },
+    );
+    const result = await buildInvestorSummary(provider, {
+      recipientStakeholderId: "STK-INV",
+      recipientManagedProjectIds: [],
+      recipientAssignedProjectIds: [],
+      recipientParticipatingProjectIds: [],
+      investedProjectIds: ["PRJ-0001"],
+    });
+    expect(result.kpis.find((kpi) => kpi.metricId === "revenue")).toMatchObject({
+      value: 100,
+      target: 80,
+      variance: 20,
+      trend: [60, 90],
+    });
   });
 });
 

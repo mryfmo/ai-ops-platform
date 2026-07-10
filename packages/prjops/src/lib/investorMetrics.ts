@@ -48,9 +48,9 @@ export const INVESTOR_METRIC_DEFINITIONS: InvestorMetricDefinition[] = [
 
 export type InvestorFinancialInputs = Record<string, number | undefined>;
 
-export interface InvestorMetricTargetInputs {
+export interface InvestorBoardPackInputs {
   targets?: Record<string, number | undefined>;
-  trends?: Record<string, number[] | undefined>;
+  history?: InvestorFinancialInputs[];
 }
 
 export interface InvestorPortfolioCompanyInput {
@@ -59,7 +59,7 @@ export interface InvestorPortfolioCompanyInput {
   ownershipPct?: number;
   revenue?: number;
   ebitda?: number;
-  milestoneDelayDays: number;
+  milestoneDelayDays?: number | null;
   highSeverityOpenIssueCount: number;
 }
 
@@ -77,7 +77,7 @@ export interface InvestorMetricValue {
 export interface InvestorReport {
   highlights: string[];
   kpis: InvestorMetricValue[];
-  milestones: Array<{ projectId: string; name: string; delayDays: number }>;
+  milestones: Array<{ projectId: string; name: string; delayDays: number | null }>;
   risks: Array<{ projectId: string; name: string; highSeverityOpenIssueCount: number }>;
 }
 
@@ -91,7 +91,7 @@ function weightedSum(values: Array<[number | undefined, number | undefined]>): n
 export function buildInvestorReport(
   companies: InvestorPortfolioCompanyInput[],
   financialInputs: InvestorFinancialInputs = {},
-  boardPack: InvestorMetricTargetInputs = {},
+  boardPack: InvestorBoardPackInputs = {},
 ): InvestorReport {
   return {
     highlights: [
@@ -108,14 +108,17 @@ export function buildInvestorReport(
         value,
         target,
         variance: value === null || target === null ? null : value - target,
-        trend: boardPack.trends?.[definition.id] ?? [],
+        trend:
+          boardPack.history
+            ?.map((snapshot) => definition.compute(companies, snapshot))
+            .filter((snapshotValue): snapshotValue is number => snapshotValue !== null) ?? [],
         source: definition.kind,
       };
     }),
     milestones: companies.map((company) => ({
       projectId: company.projectId,
       name: company.name,
-      delayDays: company.milestoneDelayDays,
+      delayDays: company.milestoneDelayDays ?? null,
     })),
     risks: companies
       .filter((company) => company.highSeverityOpenIssueCount > 0)

@@ -77,7 +77,7 @@ export async function deliverLeaderReport(
   });
 }
 
-/** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA5指標すべて表示） */
+/** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA指標表示） */
 export async function buildAndDeliverManagerReport(
   common: DevOpsComposeCommon,
   deployments: DeploymentRecord[],
@@ -102,13 +102,11 @@ export async function buildAndDeliverManagerReport(
         deploymentFrequencyPerWeek: doraSummary.deploymentFrequencyPerWeek,
         medianLeadTimeHours: doraSummary.medianLeadTimeHours,
         changeFailureRatePct: doraSummary.changeFailureRatePct,
-        deploymentReworkRatePct: doraSummary.deploymentReworkRatePct,
         failedDeploymentRecoveryTimeHours: doraSummary.failedDeploymentRecoveryTimeHours,
         deltaVsPrevWeek: {
           deploymentFrequency: 0,
           leadTime: 0,
           changeFailureRate: 0,
-          deploymentReworkRate: 0,
           mttr: 0,
         },
       },

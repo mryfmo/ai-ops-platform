@@ -25,36 +25,48 @@ export interface InvestorMetricValue {
 export interface InvestorReportData {
   highlights: string[];
   kpis: InvestorMetricValue[];
-  milestones: Array<{ projectId: string; name: string; delayDays: number }>;
+  milestones: Array<{ projectId: string; name: string; delayDays: number | null }>;
   risks: Array<{ projectId: string; name: string; highSeverityOpenIssueCount: number }>;
 }
 
 export function InvestorReportView({ data }: { data: InvestorReportData }) {
+  const formatMetric = (value: number | null, unit: string) => {
+    if (value === null) return "未入力";
+    return unit === "currency" ? `$${value.toLocaleString("en-US")}` : value.toLocaleString("en-US");
+  };
   const kpiColumns: DataTableColumn<InvestorMetricValue>[] = [
     { key: "label", header: "KPI", render: (row) => row.label },
     {
       key: "value",
       header: "値",
-      render: (row) => <span className="tabular">{row.value === null ? "未入力" : row.value}</span>,
+      render: (row) => <span className="tabular">{formatMetric(row.value, row.unit)}</span>,
     },
     {
       key: "target",
       header: "Target",
-      render: (row) => <span className="tabular">{row.target === null ? "未入力" : row.target}</span>,
+      render: (row) => <span className="tabular">{formatMetric(row.target, row.unit)}</span>,
     },
     {
       key: "variance",
       header: "Variance",
-      render: (row) => <span className="tabular">{row.variance === null ? "未入力" : row.variance}</span>,
+      render: (row) => <span className="tabular">{formatMetric(row.variance, row.unit)}</span>,
     },
-    { key: "trend", header: "Trend", render: (row) => row.trend.join(" → ") || "未入力" },
+    {
+      key: "trend",
+      header: "Trend",
+      render: (row) => row.trend.map((value) => formatMetric(value, row.unit)).join(" → ") || "未入力",
+    },
     { key: "unit", header: "単位", render: (row) => row.unit },
     { key: "source", header: "ソース", render: (row) => row.source },
   ];
   const milestoneColumns: DataTableColumn<InvestorReportData["milestones"][number]>[] = [
     { key: "projectId", header: "ID", render: (row) => row.projectId },
     { key: "name", header: "会社/案件", render: (row) => row.name },
-    { key: "delayDays", header: "遅延日数", render: (row) => <span className="tabular">{row.delayDays}</span> },
+    {
+      key: "delayDays",
+      header: "遅延日数",
+      render: (row) => <span className="tabular">{row.delayDays === null ? "未取得" : row.delayDays}</span>,
+    },
   ];
   const riskColumns: DataTableColumn<InvestorReportData["risks"][number]>[] = [
     { key: "projectId", header: "ID", render: (row) => row.projectId },

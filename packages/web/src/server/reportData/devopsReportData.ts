@@ -21,7 +21,6 @@ import {
   type Profile,
   type DevOpsVisibilityContext,
   computeIncidentBurndown,
-  countTotalIncidentsInPeriod,
   countRemainingIncidents,
   type IncidentBurndownInput,
   type BurndownWeek,
@@ -30,6 +29,8 @@ import {
   type DeploymentRecord,
   type IncidentRecord,
 } from "@aiops/devops";
+
+const DEPLOYMENT_INCIDENT_CAUSALITY_WINDOW_HOURS = 24;
 
 interface ProjectChannelRow {
   project_id: string;
@@ -51,6 +52,7 @@ interface DeploymentRow {
 interface PmEventRow {
   project_id: string | null;
   subject_type: string;
+  subject_id: string | null;
   action: string | null;
   occurred_at: string | Date;
   normalized: unknown;
@@ -68,17 +70,21 @@ async function fetchIncidents(db: PgQueryable): Promise<IncidentRow[]> {
   return res.rows as unknown as IncidentRow[];
 }
 
-async function fetchDeployments(db: PgQueryable): Promise<DeploymentRow[]> {
+async function fetchDeployments(db: PgQueryable, periodStart: string, periodEnd: string): Promise<DeploymentRow[]> {
   const res = await db.query(
-    "SELECT project_id, created_at, updated_at, state FROM deployments WHERE env = 'prod'",
-    [],
+    `SELECT project_id, created_at, updated_at, state
+       FROM deployments
+      WHERE env = 'prod'
+        AND COALESCE(updated_at, created_at) >= $1
+        AND COALESCE(updated_at, created_at) < $2`,
+    [periodStart, periodEnd],
   );
   return res.rows as unknown as DeploymentRow[];
 }
 
 async function fetchPmEvents(db: PgQueryable, periodStart: string, periodEnd: string): Promise<PmEventRow[]> {
   const res = await db.query(
-    `SELECT project_id, subject_type, action, occurred_at, normalized
+    `SELECT project_id, subject_type, subject_id, action, occurred_at, normalized
        FROM pm_events
       WHERE occurred_at >= $1 AND occurred_at < $2
         AND subject_type IN ('issue', 'pull_request')`,
@@ -97,33 +103,36 @@ export interface DevOpsManagerSummaryResult {
   totalTicketCount: number;
   remainingTicketCount: number;
   burndown: BurndownWeek[];
-  velocity: { issueThroughput: number; prThroughput: number; cycleTimeMedianHours: number | null; wipCount: number };
+  velocity: { issueThroughput: number; prThroughput: number };
   coveragePct: number | null;
   dora: DoraSummary;
   doraByProject: Array<{ projectId: string; dora: DoraSummary }>;
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
 }
 
 function countThroughput(
   events: PmEventRow[],
   scopedSet: Set<string>,
 ): { issueThroughput: number; prThroughput: number } {
-  let issueThroughput = 0;
-  let prThroughput = 0;
+  const closedIssues = new Set<string>();
+  const mergedPullRequests = new Set<string>();
   for (const event of events) {
     if (!event.project_id || !scopedSet.has(event.project_id)) continue;
-    if (event.subject_type === "issue" && event.action === "closed") issueThroughput += 1;
+    const key = `${event.project_id}:${event.subject_type}:${event.subject_id ?? ""}`;
+    if (event.subject_id === null) continue;
+    if (event.subject_type === "issue" && event.action === "closed" && !isNotPlannedIssue(event.normalized)) {
+      closedIssues.add(key);
+    }
     if (event.subject_type === "pull_request" && event.action === "closed" && isMergedPullRequest(event.normalized)) {
-      prThroughput += 1;
+      mergedPullRequests.add(key);
     }
   }
-  return { issueThroughput, prThroughput };
+  return { issueThroughput: closedIssues.size, prThroughput: mergedPullRequests.size };
+}
+
+function isNotPlannedIssue(normalized: unknown): boolean {
+  if (typeof normalized !== "object" || normalized === null) return false;
+  const value = normalized as Record<string, unknown>;
+  return value["not_planned"] === true || value["state_reason"] === "not_planned";
 }
 
 function isMergedPullRequest(normalized: unknown): boolean {
@@ -132,31 +141,14 @@ function isMergedPullRequest(normalized: unknown): boolean {
   return value["merged"] === true || value["state"] === "merged";
 }
 
-function cycleTimeMedianHours(items: IncidentBurndownInput[]): number | null {
-  return median(
-    items.flatMap((item) =>
-      item.resolvedAt === null ? [] : [(Date.parse(item.resolvedAt) - Date.parse(item.detectedAt)) / (60 * 60 * 1000)],
-    ),
-  );
-}
-
-function aggregateDoraByProject(rows: Array<{ dora: DoraSummary }>): DoraSummary {
-  const values = (field: keyof DoraSummary) =>
-    rows.flatMap((row) => {
-      const value = row.dora[field];
-      return value === null ? [] : [value];
-    });
-  const sumOrNull = (field: keyof DoraSummary) => {
-    const nums = values(field);
-    return nums.length === 0 ? null : nums.reduce((acc, value) => acc + value, 0);
-  };
-  return {
-    deploymentFrequencyPerWeek: sumOrNull("deploymentFrequencyPerWeek"),
-    medianLeadTimeHours: median(values("medianLeadTimeHours")),
-    changeFailureRatePct: median(values("changeFailureRatePct")),
-    deploymentReworkRatePct: median(values("deploymentReworkRatePct")),
-    failedDeploymentRecoveryTimeHours: median(values("failedDeploymentRecoveryTimeHours")),
-  };
+function countIncidentsActiveInWindow(items: IncidentBurndownInput[], periodStart: string, periodEnd: string): number {
+  const start = Date.parse(periodStart);
+  const end = Date.parse(periodEnd);
+  return items.filter((item) => {
+    const detected = Date.parse(item.detectedAt);
+    const resolved = item.resolvedAt === null ? Number.POSITIVE_INFINITY : Date.parse(item.resolvedAt);
+    return detected < end && resolved >= start;
+  }).length;
 }
 
 /**
@@ -176,9 +168,13 @@ export async function buildDevOpsManagerSummary(
   const scopedSet = new Set(projectIds);
 
   const allIncidents = await fetchIncidents(db);
-  const allDeployments = await fetchDeployments(db);
+  const allDeployments = await fetchDeployments(db, periodStart, periodEnd);
   const pmEvents = await fetchPmEvents(db, periodStart, periodEnd);
   const scopedIncidents = allIncidents.filter((i) => (i.affected_projects ?? []).some((pid) => scopedSet.has(pid)));
+  const doraScopedIncidents = scopedIncidents.filter((incident) => {
+    const detectedAt = Date.parse(toIsoString(incident.detected_at));
+    return detectedAt >= Date.parse(periodStart) && detectedAt < Date.parse(periodEnd);
+  });
   const scopedDeployments = allDeployments.filter((deployment) => scopedSet.has(deployment.project_id));
 
   const burndownInputs: IncidentBurndownInput[] = scopedIncidents.map((i) => ({
@@ -190,21 +186,24 @@ export async function buildDevOpsManagerSummary(
     commitAt: toIsoString(deployment.created_at),
     deployedAt: toIsoString(deployment.updated_at),
     causedFailure: deployment.state === "rolling_back" || deployment.state === "rolled_back",
-    unplannedRework: false,
   }));
-  const doraIncidentInputs: IncidentRecord[] = scopedIncidents.flatMap((incident) =>
+  const doraIncidentInputs: IncidentRecord[] = doraScopedIncidents.flatMap((incident) =>
     (incident.affected_projects ?? [])
       .filter((projectId) => scopedSet.has(projectId))
       .map((projectId) => ({
         projectId,
         detectedAt: toIsoString(incident.detected_at),
         resolvedAt: incident.resolved_at === null ? null : toIsoString(incident.resolved_at),
-        causedByDeployment: doraInputs.some(
-          (deployment) =>
+        causedByDeployment: doraInputs.some((deployment) => {
+          const detectedAt = Date.parse(toIsoString(incident.detected_at));
+          const deployedAt = Date.parse(deployment.deployedAt);
+          return (
             deployment.projectId === projectId &&
             deployment.causedFailure &&
-            Date.parse(toIsoString(incident.detected_at)) >= Date.parse(deployment.deployedAt),
-        ),
+            deployedAt <= detectedAt &&
+            detectedAt - deployedAt <= DEPLOYMENT_INCIDENT_CAUSALITY_WINDOW_HOURS * 60 * 60 * 1000
+          );
+        }),
       })),
   );
   const periodDays = Math.max(1, (Date.parse(periodEnd) - Date.parse(periodStart)) / (24 * 60 * 60 * 1000));
@@ -221,16 +220,12 @@ export async function buildDevOpsManagerSummary(
   return {
     totalProjectCount: projectIds.length,
     projectIds,
-    totalTicketCount: countTotalIncidentsInPeriod(burndownInputs, periodStart, periodEnd),
+    totalTicketCount: countIncidentsActiveInWindow(burndownInputs, periodStart, periodEnd),
     remainingTicketCount: countRemainingIncidents(burndownInputs, periodEnd),
     burndown: computeIncidentBurndown(burndownInputs, periodStart, periodEnd),
-    velocity: {
-      ...throughput,
-      cycleTimeMedianHours: cycleTimeMedianHours(burndownInputs),
-      wipCount: countRemainingIncidents(burndownInputs, periodEnd),
-    },
+    velocity: throughput,
     coveragePct: null,
-    dora: aggregateDoraByProject(doraByProject),
+    dora: calculateDoraSummary(doraInputs, doraIncidentInputs, periodDays),
     doraByProject,
   };
 }

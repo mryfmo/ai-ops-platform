@@ -43,14 +43,11 @@ describe("chartData (ADR-0009 / SPEC-INT-064 / AC-010-3)", () => {
             deploymentFrequencyPerWeek: 2,
             medianLeadTimeHours: 4,
             changeFailureRatePct: 5,
-            deploymentReworkRatePct: 6,
             failedDeploymentRecoveryTimeHours: 7,
           },
         },
       ]),
-    ).toEqual([
-      { projectId: "svc-a", deploymentFrequencyPerWeek: 2, changeFailureRatePct: 5, deploymentReworkRatePct: 6 },
-    ]);
+    ).toEqual([{ projectId: "svc-a", deploymentFrequencyPerWeek: 2, changeFailureRatePct: 5 }]);
   });
 
   it("AC-010-3: KPI横棒は未入力値を除外する", () => {

@@ -26,7 +26,6 @@ const COLORS = {
   closed: "var(--color-chart-2)",
   remaining: "var(--color-chart-3)",
   deployments: "var(--color-chart-4)",
-  rework: "var(--color-status-red)",
   grid: "var(--color-chart-grid)",
   axis: "var(--color-chart-axis)",
 };
@@ -117,13 +116,6 @@ export function DoraTrendChart({ data }: { data: DoraChartPoint[] }) {
             dataKey="changeFailureRatePct"
             name="失敗率%"
             stroke={COLORS.opened}
-            strokeWidth={2.5}
-          />
-          <Line
-            type="monotone"
-            dataKey="deploymentReworkRatePct"
-            name="手戻り率%"
-            stroke={COLORS.rework}
             strokeWidth={2.5}
           />
         </LineChart>

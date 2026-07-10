@@ -92,7 +92,7 @@ export function computeIncidentBurndown(
       weekLabel: formatWeekLabel(startMs, i, weekMs),
       opened: openedCounts[i]!,
       resolved: resolvedCounts[i]!,
-      remaining: cumulativeOpened - cumulativeResolved,
+      remaining: Math.max(0, cumulativeOpened - cumulativeResolved),
     });
   }
   return weeks;

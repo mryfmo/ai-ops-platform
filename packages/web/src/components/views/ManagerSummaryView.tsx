@@ -38,13 +38,12 @@ export interface ManagerSummaryData {
   totalTicketCount: number;
   remainingTicketCount: number;
   burndown: ManagerSummaryBurndownWeek[];
-  velocity?: { issueThroughput: number; prThroughput: number; cycleTimeMedianHours?: number | null; wipCount?: number };
+  velocity?: { issueThroughput: number; prThroughput: number };
   coveragePct?: number | null;
   dora?: {
     deploymentFrequencyPerWeek: number | null;
     medianLeadTimeHours: number | null;
     changeFailureRatePct: number | null;
-    deploymentReworkRatePct: number | null;
     failedDeploymentRecoveryTimeHours: number | null;
   };
   doraByProject?: Array<{ projectId: string; dora: NonNullable<ManagerSummaryData["dora"]> }>;
@@ -88,7 +87,6 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
     { key: "deployFreq", header: "デプロイ頻度/週", render: (r) => metric(r.dora.deploymentFrequencyPerWeek) },
     { key: "leadTime", header: "変更LT(h)", render: (r) => metric(r.dora.medianLeadTimeHours) },
     { key: "failRate", header: "失敗率(%)", render: (r) => metric(r.dora.changeFailureRatePct) },
-    { key: "reworkRate", header: "手戻り率(%)", render: (r) => metric(r.dora.deploymentReworkRatePct) },
     { key: "restore", header: "復旧時間(h)", render: (r) => metric(r.dora.failedDeploymentRecoveryTimeHours) },
   ];
 
@@ -123,9 +121,6 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
             <p className="tabular text-sm text-dashboard-ink">
               Issue {data.velocity?.issueThroughput ?? 0} / PR {data.velocity?.prThroughput ?? 0}
             </p>
-            <p className="mt-1 text-xs text-dashboard-muted">
-              Cycle {metric(data.velocity?.cycleTimeMedianHours, "h")} / WIP {data.velocity?.wipCount ?? 0}
-            </p>
           </Card>
           <Card title="テストカバレッジ">
             <p className="tabular text-sm text-dashboard-ink">
@@ -136,8 +131,7 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
           </Card>
           <Card title="DORA 5">
             <p className="tabular text-sm text-dashboard-ink">
-              DF {metric(data.dora?.deploymentFrequencyPerWeek)} / Rework{" "}
-              {metric(data.dora?.deploymentReworkRatePct, "%")}
+              DF {metric(data.dora?.deploymentFrequencyPerWeek)} / CFR {metric(data.dora?.changeFailureRatePct, "%")}
             </p>
           </Card>
         </div>

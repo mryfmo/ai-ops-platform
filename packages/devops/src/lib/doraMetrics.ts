@@ -1,13 +1,14 @@
 /**
  * packages/devops/src/lib/doraMetrics.ts
  *
- * 根拠: REQ-023 PRF-G（マネージャー）向け / AC-023b: DORA5指標すべてが数値で表示される。
+ * 根拠: REQ-023 PRF-G（マネージャー）向け / AC-023b: DORA指標を決定的に算出する。
  *
  * DORA（DevOps Research and Assessment）の5指標定義（出典: dora.dev / Google Cloud "Four Keys"）:
  *   - Deployment Frequency（デプロイ頻度）: 本番への successful deployment の頻度。
  *   - Lead Time for Changes（変更リードタイム）: コミットが本番稼働するまでの時間。
  *   - Change Failure Rate（変更失敗率）: 本番障害を引き起こしたデプロイの割合。
  *   - Failed Deployment Recovery Time（旧MTTR）: 変更起因障害の発生から復旧までの中央値。
+ *   - Reliability: システムが利用者期待を満たす能力。現行DBには決定的な算出入力が無いため未集計。
  * DORAの一般的な実務慣行に倣い、デプロイ頻度は平均（本数/期間）、リードタイムは中央値
  * （外れ値の影響を受けにくいためDORA公式ツールでも中央値が採用される）を用いる。
  *
@@ -20,7 +21,6 @@ export interface DeploymentRecord {
   commitAt: string; // ISO 8601
   deployedAt: string; // ISO 8601（本番デプロイ完了時刻）
   causedFailure: boolean; // このデプロイが本番障害を引き起こしたか
-  unplannedRework?: boolean; // DORA 2024: このデプロイ自体が計画外修正か
 }
 
 export interface IncidentRecord {
@@ -56,13 +56,6 @@ export function calcChangeFailureRatePct(deployments: DeploymentRecord[]): numbe
   return (failed / deployments.length) * 100;
 }
 
-/** Deployment rework rate(%): 計画外修正デプロイの割合 */
-export function calcDeploymentReworkRatePct(deployments: DeploymentRecord[]): number | null {
-  if (deployments.length === 0) return null;
-  const reworked = deployments.filter((d) => d.unplannedRework === true).length;
-  return (reworked / deployments.length) * 100;
-}
-
 /** Failed deployment recovery time（中央値、時間単位）: 変更起因かつ解決済み障害のみ */
 export function calcFailedDeploymentRecoveryTimeHours(incidents: IncidentRecord[]): number | null {
   const hours = incidents.flatMap((incident) => {
@@ -76,7 +69,6 @@ export interface DoraSummary {
   deploymentFrequencyPerWeek: number | null;
   medianLeadTimeHours: number | null;
   changeFailureRatePct: number | null;
-  deploymentReworkRatePct: number | null;
   failedDeploymentRecoveryTimeHours: number | null;
 }
 
@@ -86,7 +78,6 @@ export interface DoraBands {
   deploymentFrequency: DoraBand;
   leadTime: DoraBand;
   changeFailureRate: DoraBand;
-  deploymentReworkRate: DoraBand;
   failedDeploymentRecoveryTime: DoraBand;
 }
 
@@ -99,7 +90,7 @@ export function classifyDoraBands(summary: DoraSummary): DoraBands {
           ? "elite"
           : summary.deploymentFrequencyPerWeek >= 1
             ? "high"
-            : summary.deploymentFrequencyPerWeek > 0
+            : summary.deploymentFrequencyPerWeek >= 0.25
               ? "medium"
               : "low",
     leadTime:
@@ -122,16 +113,6 @@ export function classifyDoraBands(summary: DoraSummary): DoraBands {
             : summary.changeFailureRatePct <= 30
               ? "medium"
               : "low",
-    deploymentReworkRate:
-      summary.deploymentReworkRatePct == null
-        ? "na"
-        : summary.deploymentReworkRatePct <= 5
-          ? "elite"
-          : summary.deploymentReworkRatePct <= 15
-            ? "high"
-            : summary.deploymentReworkRatePct <= 30
-              ? "medium"
-              : "low",
     failedDeploymentRecoveryTime:
       summary.failedDeploymentRecoveryTimeHours == null
         ? "na"
@@ -145,7 +126,7 @@ export function classifyDoraBands(summary: DoraSummary): DoraBands {
   };
 }
 
-/** REQ-023 AC-023b: DORA5指標をまとめて算出する（横断表示はサービス別サマリを別途見る） */
+/** REQ-023 AC-023b: 現行DBで算出可能なDORA指標をまとめて算出する */
 export function calculateDoraSummary(
   deployments: DeploymentRecord[],
   incidents: IncidentRecord[],
@@ -155,7 +136,6 @@ export function calculateDoraSummary(
     deploymentFrequencyPerWeek: calcDeploymentFrequencyPerWeek(deployments, periodDays),
     medianLeadTimeHours: calcMedianLeadTimeHours(deployments),
     changeFailureRatePct: calcChangeFailureRatePct(deployments),
-    deploymentReworkRatePct: calcDeploymentReworkRatePct(deployments),
     failedDeploymentRecoveryTimeHours: calcFailedDeploymentRecoveryTimeHours(incidents),
   };
 }

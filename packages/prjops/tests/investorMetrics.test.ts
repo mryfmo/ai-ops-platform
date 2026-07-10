@@ -22,7 +22,7 @@ describe("investorMetrics [REQ-039, SPEC-INT-066, AC-039-1]", () => {
         {
           projectId: "PRJ-0002",
           name: "会社B",
-          revenue: 100,
+          revenue: 200,
           ebitda: 20,
           ownershipPct: 50,
           milestoneDelayDays: 9,
@@ -31,13 +31,13 @@ describe("investorMetrics [REQ-039, SPEC-INT-066, AC-039-1]", () => {
       ],
       {},
     );
-    expect(report.kpis.find((metric) => metric.metricId === "revenue")?.value).toBe(100);
+    expect(report.kpis.find((metric) => metric.metricId === "revenue")?.value).toBe(150);
     expect(report.kpis.find((metric) => metric.metricId === "high_severity_open_issues")).toBeUndefined();
     expect(report.milestones.map((row) => row.delayDays)).toEqual([2, 9]);
     expect(report.risks).toHaveLength(1);
   });
 
-  it("target/variance/trendを決定的に算出する", () => {
+  it("target/variance/trendを履歴入力から決定的に算出する", () => {
     const report = buildInvestorReport(
       [
         {
@@ -50,7 +50,7 @@ describe("investorMetrics [REQ-039, SPEC-INT-066, AC-039-1]", () => {
         },
       ],
       {},
-      { targets: { revenue: 80 }, trends: { revenue: [70, 90, 100] } },
+      { targets: { revenue: 80 }, history: [{ revenue: 70 }, { revenue: 90 }, { revenue: 100 }] },
     );
     expect(report.kpis.find((metric) => metric.metricId === "revenue")).toMatchObject({
       value: 100,

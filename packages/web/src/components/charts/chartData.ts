@@ -26,7 +26,6 @@ export interface DoraChartPoint {
   projectId: string;
   deploymentFrequencyPerWeek: number | null;
   changeFailureRatePct: number | null;
-  deploymentReworkRatePct: number | null;
 }
 
 export interface MetricBarPoint {
@@ -58,7 +57,6 @@ export function toDoraChartData(rows: NonNullable<ManagerSummaryData["doraByProj
     projectId: row.projectId,
     deploymentFrequencyPerWeek: row.dora.deploymentFrequencyPerWeek,
     changeFailureRatePct: row.dora.changeFailureRatePct,
-    deploymentReworkRatePct: row.dora.deploymentReworkRatePct,
   }));
 }
 

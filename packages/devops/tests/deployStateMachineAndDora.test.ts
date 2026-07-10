@@ -8,7 +8,6 @@ import {
   calcDeploymentFrequencyPerWeek,
   calcMedianLeadTimeHours,
   calcChangeFailureRatePct,
-  calcDeploymentReworkRatePct,
   calcFailedDeploymentRecoveryTimeHours,
   classifyDoraBands,
   calculateDoraSummary,
@@ -73,14 +72,12 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
       commitAt: "2026-07-02T00:00:00Z",
       deployedAt: "2026-07-02T20:00:00Z",
       causedFailure: true,
-      unplannedRework: false,
     },
     {
       projectId: "PRJ-001",
       commitAt: "2026-07-03T00:00:00Z",
       deployedAt: "2026-07-03T05:00:00Z",
       causedFailure: false,
-      unplannedRework: true,
     },
   ];
   const incidents = [
@@ -125,18 +122,12 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
     ).toBe(2);
   });
 
-  it("deployment rework rate: 計画外修正デプロイのみを数える [AC-023b]", () => {
-    const rate = calcDeploymentReworkRatePct(deployments);
-    expect(Math.round(rate * 100) / 100).toBe(33.33);
-  });
-
-  it("calculateDoraSummaryはDORA5指標すべてを返す（AC-023b）", () => {
+  it("calculateDoraSummaryは現行DBで算出可能なDORA指標を返す（AC-023b）", () => {
     const summary = calculateDoraSummary(deployments, incidents, 7);
     expect(summary.deploymentFrequencyPerWeek).toBe(3);
     expect(summary.medianLeadTimeHours).toBe(10);
     expect(summary.failedDeploymentRecoveryTimeHours).toBe(2);
     expect(summary.changeFailureRatePct).toBeGreaterThanOrEqual(33);
-    expect(summary.deploymentReworkRatePct).toBeGreaterThanOrEqual(33);
   });
 
   it("空データはエリート扱いに見える0ではなくnull/NAを返す", () => {
@@ -144,8 +135,12 @@ describe("doraMetrics [REQ-023 AC-023b]", () => {
     expect(summary.deploymentFrequencyPerWeek).toBeNull();
     expect(summary.medianLeadTimeHours).toBeNull();
     expect(summary.changeFailureRatePct).toBeNull();
-    expect(summary.deploymentReworkRatePct).toBeNull();
     expect(summary.failedDeploymentRecoveryTimeHours).toBeNull();
     expect(classifyDoraBands(summary).failedDeploymentRecoveryTime).toBe("na");
+  });
+
+  it("DF低頻度のlowバンドが到達可能", () => {
+    const summary = calculateDoraSummary([deployments[0]!], [], 90);
+    expect(classifyDoraBands(summary).deploymentFrequency).toBe("low");
   });
 });

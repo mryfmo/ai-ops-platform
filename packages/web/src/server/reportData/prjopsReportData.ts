@@ -24,11 +24,13 @@ import {
   type ExecutiveSevenKeysSummary,
   type SevenKeysMonthlySnapshot,
   type SevenKeysQuestionnaireInput,
+  type SevenKeysQuestionnaireRecord,
+  applySevenKeysQuestionnaire,
   buildInvestorReport,
+  type InvestorBoardPackInputs,
   type InvestorFinancialInputs,
   type InvestorReport,
   computeIssueActionBurndown,
-  countTotalItemsInPeriod,
   countRemainingItems,
   type IssueActionBurndownInput,
   type BurndownWeek,
@@ -72,7 +74,9 @@ export interface PrjopsReportDataProvider {
   listProjects(): Promise<PrjopsProjectRecord[]>;
   listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]>;
   listSevenKeysMonthlySnapshots?(): Promise<SevenKeysMonthlySnapshot[]>;
+  listSevenKeysQuestionnaires?(): Promise<SevenKeysQuestionnaireRecord[]>;
   getInvestorFinancialInputs?(): Promise<InvestorFinancialInputs>;
+  getInvestorBoardPackInputs?(): Promise<InvestorBoardPackInputs>;
 }
 
 /**
@@ -84,6 +88,9 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
     private readonly projects: PrjopsProjectRecord[] = [],
     private readonly issuesAndActions: PrjopsIssueActionRecord[] = [],
     private readonly sevenKeysMonthlySnapshots: SevenKeysMonthlySnapshot[] = [],
+    private readonly sevenKeysQuestionnaires: SevenKeysQuestionnaireRecord[] = [],
+    private readonly investorFinancialInputs: InvestorFinancialInputs = {},
+    private readonly investorBoardPackInputs: InvestorBoardPackInputs = {},
   ) {}
 
   async listProjects(): Promise<PrjopsProjectRecord[]> {
@@ -96,6 +103,18 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
 
   async listSevenKeysMonthlySnapshots(): Promise<SevenKeysMonthlySnapshot[]> {
     return this.sevenKeysMonthlySnapshots;
+  }
+
+  async listSevenKeysQuestionnaires(): Promise<SevenKeysQuestionnaireRecord[]> {
+    return this.sevenKeysQuestionnaires;
+  }
+
+  async getInvestorFinancialInputs(): Promise<InvestorFinancialInputs> {
+    return this.investorFinancialInputs;
+  }
+
+  async getInvestorBoardPackInputs(): Promise<InvestorBoardPackInputs> {
+    return this.investorBoardPackInputs;
   }
 }
 
@@ -123,20 +142,24 @@ export async function buildExecutiveSummary(
   ctx: ProjectVisibilityContext,
 ): Promise<ExecutiveSummaryResult> {
   const projects = await scopedProjects(provider, profile, ctx);
-  const inputs: ExecutiveProjectInput[] = projects.map((p) => ({
-    projectId: p.projectId,
-    name: p.name,
-    progressPct: p.progressPct,
-    startDate: p.startDate,
-    endDate: p.endDate,
-    asOfDate: new Date().toISOString(),
-    highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
-    isOverdue: p.isOverdue,
-    scopeChangeCount: p.scopeChangeCount,
-    averageReviewWaitHours: p.averageReviewWaitHours,
-    activeContributorCount: p.activeContributorCount,
-    questionnaire: p.questionnaire,
-  }));
+  const questionnaireMonth = new Date().toISOString().slice(0, 7);
+  const questionnaires = provider.listSevenKeysQuestionnaires ? await provider.listSevenKeysQuestionnaires() : [];
+  const inputs: ExecutiveProjectInput[] = projects
+    .map((p) => ({
+      projectId: p.projectId,
+      name: p.name,
+      progressPct: p.progressPct,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      asOfDate: new Date().toISOString(),
+      highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
+      isOverdue: p.isOverdue,
+      scopeChangeCount: p.scopeChangeCount,
+      averageReviewWaitHours: p.averageReviewWaitHours,
+      activeContributorCount: p.activeContributorCount,
+      questionnaire: p.questionnaire,
+    }))
+    .map((input) => applySevenKeysQuestionnaire(input, questionnaires, questionnaireMonth));
   const summary: ExecutiveSummaryResult = computeExecutiveSevenKeys(inputs);
   if (provider.listSevenKeysMonthlySnapshots) {
     const scopedIds = new Set(projects.map((p) => p.projectId));
@@ -184,10 +207,20 @@ export async function buildManagerSummary(
       periodLabel: p.periodLabel,
       ownerName: p.ownerName,
     })),
-    totalTicketCount: countTotalItemsInPeriod(burndownInputs, periodStart, periodEnd),
+    totalTicketCount: countItemsActiveInWindow(burndownInputs, periodStart, periodEnd),
     remainingTicketCount: countRemainingItems(burndownInputs, periodEnd),
     burndown: computeIssueActionBurndown(burndownInputs, periodStart, periodEnd),
   };
+}
+
+function countItemsActiveInWindow(items: IssueActionBurndownInput[], periodStart: string, periodEnd: string): number {
+  const start = Date.parse(periodStart);
+  const end = Date.parse(periodEnd);
+  return items.filter((item) => {
+    const created = Date.parse(item.createdAt);
+    const closed = item.closedAt === null ? Number.POSITIVE_INFINITY : Date.parse(item.closedAt);
+    return created < end && closed >= start;
+  }).length;
 }
 
 /** 全ペルソナ共通: スコープ内プロジェクト一覧（数値なし、id/nameのみ） */
@@ -212,9 +245,10 @@ export async function buildInvestorSummary(
       ownershipPct: p.ownershipPct,
       revenue: p.revenue,
       ebitda: p.ebitda,
-      milestoneDelayDays: p.isOverdue ? 1 : 0,
+      milestoneDelayDays: null,
       highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
     })),
     provider.getInvestorFinancialInputs ? await provider.getInvestorFinancialInputs() : {},
+    provider.getInvestorBoardPackInputs ? await provider.getInvestorBoardPackInputs() : {},
   );
 }
