@@ -16,7 +16,12 @@ import { verifyGithubWebhookSignature, type AuditLogWriter } from "@aiops/shared
 export interface GithubWebhookDeps {
   webhookSecret: string;
   auditLog: AuditLogWriter;
-  enqueueGithubEvent(eventName: string, payload: unknown, traceId: string): Promise<void>;
+  enqueueGithubEvent(
+    eventName: string,
+    payload: unknown,
+    traceId: string,
+    options?: { dedupeKey?: string | null },
+  ): Promise<boolean>;
   traceIdProvider(): string;
 }
 
@@ -47,7 +52,20 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
     }
 
     const traceId = deps.traceIdProvider();
-    await deps.enqueueGithubEvent(eventName, payload, traceId);
+    const deliveryId = c.req.header("x-github-delivery") ?? null;
+    const inserted = await deps.enqueueGithubEvent(eventName, payload, traceId, {
+      dedupeKey: deliveryId ? `github:${deliveryId}` : null,
+    });
+    if (!inserted) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "github_webhook_duplicate",
+        basis: "SPEC-INT-061",
+        detail: { event: eventName, deliveryId },
+        at: new Date().toISOString(),
+      });
+    }
     return c.body(null, 202);
   });
 }

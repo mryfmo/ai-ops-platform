@@ -34,6 +34,9 @@ export interface EventsPollingTaskDeps {
   traceIdProvider(): string;
   /** 1tickあたりの最大処理件数（既定10。無限ループ防止） */
   maxBatchSize?: number;
+  /** deadへ送る最大試行回数（既定5） */
+  maxAttempts?: number;
+  retryBackoffMs?(attemptsSoFar: number): number;
 }
 
 function isInboundNotificationPayload(payload: unknown): payload is InboundNotificationPayload {
@@ -64,14 +67,26 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
     }
     await deps.eventsRepo.markDone(event.eventId);
   } catch (err) {
-    // 1件の失敗を他イベント処理に波及させない（隔離）。delayedへ遷移させ、次tickでの再クレーム対象にする。
-    await deps.eventsRepo.markDelayed(event.eventId);
+    const maxAttempts = deps.maxAttempts ?? 5;
+    const backoffMs =
+      deps.retryBackoffMs?.(event.attempts) ??
+      Math.min(30_000 * 2 ** event.attempts, 15 * 60_000) + Math.random() * 1000;
+    const result = await deps.eventsRepo.markFailed(event.eventId, {
+      maxAttempts,
+      nextAttemptAt: new Date(now.getTime() + backoffMs),
+    });
     await deps.auditLog.append({
       trace_id: event.traceId,
       actor: "SERVER",
-      action: "event_dispatch_failed",
+      action: result.status === "dead" ? "event_dispatch_dead" : "event_dispatch_failed",
       basis: "SPEC-INT-010",
-      detail: { eventId: event.eventId, source: event.source, error: err instanceof Error ? err.message : String(err) },
+      detail: {
+        eventId: event.eventId,
+        source: event.source,
+        attempts: result.attempts,
+        maxAttempts,
+        error: err instanceof Error ? err.message : String(err),
+      },
       at: now.toISOString(),
     });
   }

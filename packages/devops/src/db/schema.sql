@@ -9,11 +9,24 @@ CREATE TABLE IF NOT EXISTS events (
   trace_id    UUID NOT NULL,
   source      TEXT NOT NULL CHECK (source IN ('github', 'monitor', 'inbound')),
   payload     JSONB NOT NULL,
-  status      TEXT NOT NULL CHECK (status IN ('queued', 'dispatched', 'delayed', 'done')) DEFAULT 'queued',
+  status      TEXT NOT NULL CHECK (status IN ('queued', 'dispatched', 'delayed', 'done', 'dead')) DEFAULT 'queued',
+  attempts    INT NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ,
+  claimed_at  TIMESTAMPTZ,
+  dedupe_key  TEXT,
   received_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_events_trace_id ON events (trace_id);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events (status);
+ALTER TABLE events ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
+ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check;
+ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('queued', 'dispatched', 'delayed', 'done', 'dead')) NOT VALID;
+CREATE INDEX IF NOT EXISTS idx_events_next_attempt ON events (status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_events_claimed_at ON events (claimed_at) WHERE status = 'dispatched';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_dedupe_key ON events (dedupe_key) WHERE dedupe_key IS NOT NULL;
 
 -- ADR-0007 / PrjOps SPEC-INT-062 / DevOps SPEC-INT-081: GitHub PM時系列イベント。
 -- projects_v2_item / projects_v2_status_update / issues / pull_request / milestone / deployment webhookを正規化し、

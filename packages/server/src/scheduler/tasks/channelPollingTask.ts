@@ -10,7 +10,7 @@
  */
 import { sanitizeSecrets, type AuditLogWriter } from "@aiops/shared";
 import type { ScheduledTask } from "../scheduler.js";
-import type { GraphSubscriptionsRepo } from "../../db/graphSubscriptionsRepo.js";
+import type { GraphSubscription, GraphSubscriptionsRepo } from "../../db/graphSubscriptionsRepo.js";
 import type { ProjectChannelsRepo } from "../../db/projectChannelsRepo.js";
 import { ChannelMessagesRepo, type ChannelMessageRecord } from "../../db/channelMessagesRepo.js";
 import { decideChannelIngestion } from "../../lib/channelAuthorization.js";
@@ -71,34 +71,42 @@ export function createChannelPollingTask(deps: ChannelPollingTaskDeps): Schedule
     async run(now: Date): Promise<void> {
       const pollingSubs = await deps.graphSubscriptionsRepo.listByMode("polling");
       for (const sub of pollingSubs) {
-        if (!sub.teamId || !sub.channelId) continue;
-
-        const channel = await deps.projectChannelsRepo.findByChannel(sub.teamId, sub.channelId);
-        const decision = decideChannelIngestion(channel);
-        if (!decision.accepted) {
-          await deps.auditLog.append({
-            trace_id: deps.traceIdProvider(),
-            actor: "SERVER",
-            action: "channel_polling_rejected",
-            basis: "ADR-0005",
-            detail: { teamId: sub.teamId, channelId: sub.channelId, reason: decision.reason },
-            at: now.toISOString(),
-          });
-          continue;
-        }
-
-        const { messages, deltaLink } = await deps.graphClient.getChannelMessagesDelta(
-          { teamId: sub.teamId, channelId: sub.channelId },
-          { deltaLink: sub.deltaLink ?? undefined },
-        );
-
-        for (const msg of messages) {
-          const { sanitized } = sanitizeSecrets(msg.content);
-          await deps.channelMessagesRepo.upsert(toChannelMessageRecord(sub.teamId, sub.channelId, msg, sanitized));
-        }
-
-        await deps.graphSubscriptionsRepo.updateDeltaLink(sub.subscriptionId, deltaLink);
+        await backfillGraphSubscription(sub, deps, now);
       }
     },
   };
+}
+
+export async function backfillGraphSubscription(
+  sub: GraphSubscription,
+  deps: ChannelPollingTaskDeps,
+  now: Date,
+): Promise<void> {
+  if (!sub.teamId || !sub.channelId) return;
+
+  const channel = await deps.projectChannelsRepo.findByChannel(sub.teamId, sub.channelId);
+  const decision = decideChannelIngestion(channel);
+  if (!decision.accepted) {
+    await deps.auditLog.append({
+      trace_id: deps.traceIdProvider(),
+      actor: "SERVER",
+      action: "channel_polling_rejected",
+      basis: "ADR-0005",
+      detail: { teamId: sub.teamId, channelId: sub.channelId, reason: decision.reason },
+      at: now.toISOString(),
+    });
+    return;
+  }
+
+  const { messages, deltaLink } = await deps.graphClient.getChannelMessagesDelta(
+    { teamId: sub.teamId, channelId: sub.channelId },
+    { deltaLink: sub.deltaLink ?? undefined },
+  );
+
+  for (const msg of messages) {
+    const { sanitized } = sanitizeSecrets(msg.content);
+    await deps.channelMessagesRepo.upsert(toChannelMessageRecord(sub.teamId, sub.channelId, msg, sanitized));
+  }
+
+  await deps.graphSubscriptionsRepo.updateDeltaLink(sub.subscriptionId, deltaLink);
 }

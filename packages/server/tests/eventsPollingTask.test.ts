@@ -27,18 +27,19 @@ function makeEvent(overrides: Partial<QueuedEvent> = {}): QueuedEvent {
 
 function makeRepoStub(queue: QueuedEvent[]) {
   const done: string[] = [];
-  const delayed: string[] = [];
+  const failed: string[] = [];
   return {
     claimNextQueued: async () => queue.shift() ?? null,
     markDone: async (id: string) => {
       done.push(id);
     },
-    markDelayed: async (id: string) => {
-      delayed.push(id);
+    markFailed: async (id: string) => {
+      failed.push(id);
+      return { status: id.includes("dead") ? ("dead" as const) : ("queued" as const), attempts: 1 };
     },
     enqueue: async () => {},
     done,
-    delayed,
+    failed,
   };
 }
 
@@ -71,10 +72,10 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     await task.run(new Date());
     expect(dispatched).toHaveLength(1);
     expect(repo.done).toEqual(["evt-1"]);
-    expect(repo.delayed).toEqual([]);
+    expect(repo.failed).toEqual([]);
   });
 
-  it("ディスパッチ失敗は他イベント処理に波及させず、delayedへ遷移+監査ログ", async () => {
+  it("ディスパッチ失敗は他イベント処理に波及させず、再試行可能にする", async () => {
     const repo = makeRepoStub([makeEvent({ eventId: "evt-fail" }), makeEvent({ eventId: "evt-ok" })]);
     const auditLog = new InMemoryAuditLog();
     let call = 0;
@@ -91,10 +92,30 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     });
 
     await task.run(new Date());
-    expect(repo.delayed).toEqual(["evt-fail"]);
+    expect(repo.failed).toEqual(["evt-fail"]);
     expect(repo.done).toEqual(["evt-ok"]);
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "SPEC-INT-010")).toBe(true);
+  });
+
+  it("再試行上限到達時はdead遷移を監査する", async () => {
+    const repo = makeRepoStub([makeEvent({ eventId: "evt-dead" })]);
+    const auditLog = new InMemoryAuditLog();
+    const task = createEventsPollingTask({
+      eventsRepo: repo as unknown as EventsRepo,
+      auditLog,
+      dispatchInboundNotification: async () => {
+        throw new Error("still failing");
+      },
+      dispatchGithubEvent: async () => {},
+      dispatchMonitorEvent: async () => {},
+      traceIdProvider: () => "t",
+      maxAttempts: 1,
+    });
+
+    await task.run(new Date("2026-07-10T00:00:00Z"));
+    const logs = await auditLog.readAll();
+    expect(logs.some((l) => l.action === "event_dispatch_dead")).toBe(true);
   });
 
   it("キューが空ならdispatchを呼ばない", async () => {

@@ -18,9 +18,11 @@ const CALLBACK_SECRET = "test-callback-secret-16chars";
 
 function makeDeps() {
   const auditLog = new InMemoryAuditLog();
-  const inboundEvents: Array<{ payload: unknown; traceId: string }> = [];
-  const githubEvents: Array<{ eventName: string; payload: unknown }> = [];
+  const inboundEvents: Array<{ payload: unknown; traceId: string; dedupeKey: string | null }> = [];
+  const githubEvents: Array<{ eventName: string; payload: unknown; dedupeKey: string | null }> = [];
+  const graphLifecycleCalls: string[] = [];
   let traceSeq = 0;
+  const seenDedupeKeys = new Set<string>();
 
   const mockDb: PgQueryable = { query: async () => ({ rows: [] }) };
   const codingTasksRepo = new CodingTasksRepo(mockDb);
@@ -31,16 +33,28 @@ function makeDeps() {
     graph: {
       clientState: CLIENT_STATE,
       auditLog,
-      enqueueInboundEvent: async (payload, traceId) => {
-        inboundEvents.push({ payload, traceId });
+      enqueueInboundEvent: async (payload, traceId, options) => {
+        const dedupeKey = options?.dedupeKey ?? null;
+        if (dedupeKey && seenDedupeKeys.has(dedupeKey)) return false;
+        if (dedupeKey) seenDedupeKeys.add(dedupeKey);
+        inboundEvents.push({ payload, traceId, dedupeKey });
+        return true;
+      },
+      handleLifecycleEvent: async (event) => {
+        graphLifecycleCalls.push(event.lifecycleEvent);
       },
       traceIdProvider: () => `trace-${++traceSeq}`,
     },
     github: {
       webhookSecret: WEBHOOK_SECRET,
       auditLog,
-      enqueueGithubEvent: async (eventName, payload) => {
-        githubEvents.push({ eventName, payload });
+      enqueueGithubEvent: async (eventName, payload, traceId, options) => {
+        const dedupeKey = options?.dedupeKey ?? null;
+        if (dedupeKey && seenDedupeKeys.has(dedupeKey)) return false;
+        if (dedupeKey) seenDedupeKeys.add(dedupeKey);
+        githubEvents.push({ eventName, payload, dedupeKey });
+        void traceId;
+        return true;
       },
       traceIdProvider: () => `trace-${++traceSeq}`,
     },
@@ -71,7 +85,7 @@ function makeDeps() {
       allowedRepos: ["acme/widget"],
     },
   };
-  return { deps, auditLog, inboundEvents, githubEvents };
+  return { deps, auditLog, inboundEvents, githubEvents, graphLifecycleCalls };
 }
 
 describe("health endpoints (ADR-0005)", () => {
@@ -141,6 +155,57 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(payload.ids.messageId).toBe("m-1");
   });
 
+  it("同一Graph通知idの再送は1件だけエンキューする", async () => {
+    const { deps, inboundEvents } = makeDeps();
+    const app = buildApp(deps);
+    const body = JSON.stringify({
+      value: [
+        {
+          id: "graph-notification-1",
+          clientState: CLIENT_STATE,
+          changeType: "created",
+          resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+          subscriptionId: "sub-1",
+        },
+      ],
+    });
+
+    const first = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    const second = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+
+    expect(first.status).toBe(202);
+    expect(second.status).toBe(202);
+    expect(inboundEvents).toHaveLength(1);
+    expect(inboundEvents[0]!.dedupeKey).toBe("graph:graph-notification-1");
+  });
+
+  it("Graph lifecycle通知を分類してhandlerへ渡す", async () => {
+    const { deps, graphLifecycleCalls } = makeDeps();
+    const app = buildApp(deps);
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [
+          { id: "l1", clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" },
+          { id: "l2", clientState: CLIENT_STATE, lifecycleEvent: "subscriptionRemoved", subscriptionId: "sub-2" },
+          { id: "l3", clientState: CLIENT_STATE, lifecycleEvent: "missed", subscriptionId: "sub-3" },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(graphLifecycleCalls).toEqual(["reauthorizationRequired", "subscriptionRemoved", "missed"]);
+  });
+
   it("clientState不一致は破棄+監査ログ、それでも202（検証結果を漏らさない）", async () => {
     const { deps, auditLog, inboundEvents } = makeDeps();
     const app = buildApp(deps);
@@ -166,11 +231,28 @@ describe("POST /webhooks/github (SPEC-INT-061)", () => {
     const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
     const res = await app.request("/webhooks/github", {
       method: "POST",
-      headers: { "x-hub-signature-256": sig, "x-github-event": "workflow_run" },
+      headers: { "x-hub-signature-256": sig, "x-github-event": "workflow_run", "x-github-delivery": "delivery-1" },
       body: payload,
     });
     expect(res.status).toBe(202);
     expect(githubEvents[0]!.eventName).toBe("workflow_run");
+    expect(githubEvents[0]!.dedupeKey).toBe("github:delivery-1");
+  });
+
+  it("同一X-GitHub-Deliveryの再送は1件だけエンキューする", async () => {
+    const { deps, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const request = {
+      method: "POST",
+      headers: { "x-hub-signature-256": sig, "x-github-event": "push", "x-github-delivery": "delivery-dup" },
+      body: payload,
+    };
+
+    expect((await app.request("/webhooks/github", request)).status).toBe(202);
+    expect((await app.request("/webhooks/github", request)).status).toBe(202);
+    expect(githubEvents).toHaveLength(1);
   });
 
   it("署名不正は401+監査ログ、エンキューされない", async () => {

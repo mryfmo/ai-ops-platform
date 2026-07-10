@@ -46,7 +46,7 @@ import { guardFailsafeTask, startScheduler, type ScheduledTask } from "./schedul
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
 import { createJitRevocationTask } from "./scheduler/tasks/jitRevocationTask.js";
 import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRenewalTask.js";
-import { createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
+import { backfillGraphSubscription, createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
@@ -59,6 +59,7 @@ import {
   type DevopsEventHandlerInput,
 } from "./lib/githubEventRouter.js";
 import { resolveCallerProfileFromStakeholders } from "./lib/stakeholderProfileResolver.js";
+import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 
 export * from "./config.js";
 export * from "./http/app.js";
@@ -86,6 +87,7 @@ export * from "./lib/freeTextIntent.js";
 export * from "./lib/confirmToken.js";
 export * from "./lib/githubEventRouter.js";
 export * from "./lib/stakeholderProfileResolver.js";
+export * from "./lib/graphLifecycleHandler.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
 export * from "./db/grantsRepo.js";
@@ -345,14 +347,34 @@ async function main(): Promise<void> {
     graph: {
       clientState: config.GRAPH_CLIENT_STATE,
       auditLog,
-      enqueueInboundEvent: (payload, traceId) => eventsRepo.enqueue("inbound", payload, traceId),
+      enqueueInboundEvent: (payload, traceId, options) => eventsRepo.enqueue("inbound", payload, traceId, options),
+      handleLifecycleEvent: (event, traceId) =>
+        handleGraphLifecycleEvent(event, traceId, {
+          graphSubscriptionsRepo,
+          graphClient,
+          backfillSubscription: (sub, now) =>
+            backfillGraphSubscription(
+              sub,
+              {
+                graphSubscriptionsRepo,
+                projectChannelsRepo,
+                channelMessagesRepo,
+                graphClient,
+                auditLog,
+                traceIdProvider: () => randomUUID(),
+              },
+              now,
+            ),
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
       traceIdProvider: () => randomUUID(),
     },
     github: {
       webhookSecret: config.GITHUB_WEBHOOK_SECRET,
       auditLog,
-      enqueueGithubEvent: (eventName, payload, traceId) =>
-        eventsRepo.enqueue("github", { eventName, payload }, traceId),
+      enqueueGithubEvent: (eventName, payload, traceId, options) =>
+        eventsRepo.enqueue("github", { eventName, payload }, traceId, options),
       traceIdProvider: () => randomUUID(),
     },
     codingTasks: {

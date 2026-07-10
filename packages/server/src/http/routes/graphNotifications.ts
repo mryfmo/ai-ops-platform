@@ -12,12 +12,36 @@ import type { Hono } from "hono";
 import type { AuditLogWriter } from "@aiops/shared";
 import { classifyNotifications, type GraphNotification } from "../../lib/graphNotificationValidator.js";
 
+export type GraphLifecycleEventName = "reauthorizationRequired" | "subscriptionRemoved" | "missed";
+
+export interface GraphLifecycleEvent {
+  lifecycleEvent: GraphLifecycleEventName;
+  subscriptionId: string | null;
+  notification: GraphNotification;
+}
+
 export interface GraphNotificationDeps {
   clientState: string;
   auditLog: AuditLogWriter;
   /** eventsテーブルへのエンキュー（source='inbound'） */
-  enqueueInboundEvent(payload: unknown, traceId: string): Promise<void>;
+  enqueueInboundEvent(payload: unknown, traceId: string, options?: { dedupeKey?: string | null }): Promise<boolean>;
+  handleLifecycleEvent?(event: GraphLifecycleEvent, traceId: string): Promise<void>;
   traceIdProvider(): string;
+}
+
+function toLifecycleEvent(notification: GraphNotification): GraphLifecycleEvent | null {
+  if (
+    notification.lifecycleEvent !== "reauthorizationRequired" &&
+    notification.lifecycleEvent !== "subscriptionRemoved" &&
+    notification.lifecycleEvent !== "missed"
+  ) {
+    return null;
+  }
+  return {
+    lifecycleEvent: notification.lifecycleEvent,
+    subscriptionId: notification.subscriptionId ?? null,
+    notification,
+  };
 }
 
 export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificationDeps): void {
@@ -51,7 +75,24 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
 
     // (3) 受理分をエンキュー（本文はfetch-on-notifyで後段が取得するため、通知メタデータのみ保存）
     for (const { notification, ids } of accepted) {
-      await deps.enqueueInboundEvent(
+      const lifecycleEvent = toLifecycleEvent(notification);
+      if (lifecycleEvent) {
+        if (deps.handleLifecycleEvent) {
+          await deps.handleLifecycleEvent(lifecycleEvent, traceId);
+        } else {
+          await deps.auditLog.append({
+            trace_id: traceId,
+            actor: "SERVER",
+            action: "graph_lifecycle_disabled",
+            basis: "SPEC-INT-001",
+            detail: { lifecycleEvent: lifecycleEvent.lifecycleEvent, subscriptionId: lifecycleEvent.subscriptionId },
+            at: new Date().toISOString(),
+          });
+        }
+        continue;
+      }
+
+      const inserted = await deps.enqueueInboundEvent(
         {
           kind: "graph_channel_message_notification",
           changeType: notification.changeType ?? null,
@@ -60,7 +101,18 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           ids,
         },
         traceId,
+        { dedupeKey: notification.id ? `graph:${notification.id}` : null },
       );
+      if (!inserted) {
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "SERVER",
+          action: "graph_notification_duplicate",
+          basis: "SPEC-INT-001",
+          detail: { notificationId: notification.id ?? null, subscriptionId: notification.subscriptionId ?? null },
+          at: new Date().toISOString(),
+        });
+      }
     }
 
     // 不一致のみでも202（攻撃者に検証結果を漏らさない）
