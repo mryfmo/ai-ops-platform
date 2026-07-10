@@ -38,6 +38,14 @@ export interface MarkFailedResult {
   attempts: number;
 }
 
+interface PgTransactionClient extends PgQueryable {
+  release(): void;
+}
+
+interface PgConnectable extends PgQueryable {
+  connect(): Promise<PgTransactionClient>;
+}
+
 export type EventDispositionAction = "claim" | "dead" | "skip";
 
 export interface EventDispositionInput {
@@ -74,6 +82,10 @@ export function decideEventDisposition(
   return attempts >= options.maxAttempts ? { action: "dead", attempts } : { action: "claim", attempts };
 }
 
+function hasConnect(db: PgQueryable): db is PgConnectable {
+  return typeof (db as { connect?: unknown }).connect === "function";
+}
+
 export class EventsRepo {
   constructor(private readonly db: PgQueryable) {}
 
@@ -108,60 +120,79 @@ export class EventsRepo {
     const now = options.now ?? new Date();
     const leaseMs = options.leaseMs ?? 5 * 60_000;
     const maxAttempts = options.maxAttempts ?? 5;
-    const params: unknown[] = [];
+    const leaseCutoff = new Date(now.getTime() - leaseMs);
+    const params: unknown[] = [now.toISOString(), leaseCutoff.toISOString()];
     const sourceParam = options.source ? `$${params.push(options.source)}` : null;
     const filter = sourceParam ? `AND source = ${sourceParam}` : "";
-    const candidates = await this.db.query(
-      `SELECT event_id, trace_id, source, payload, status, attempts, next_attempt_at, claimed_at
-       FROM events
-       WHERE status IN ('queued', 'delayed', 'dispatched') ${filter}
-       ORDER BY received_at LIMIT 10 FOR UPDATE SKIP LOCKED`,
-      params,
-    );
 
-    for (const row of candidates.rows) {
-      const disposition = decideEventDisposition(
-        {
-          status: row.status as QueuedEvent["status"],
-          attempts: Number(row.attempts ?? 0),
-          nextAttemptAt: row.next_attempt_at ? new Date(String(row.next_attempt_at)).toISOString() : null,
-          claimedAt: row.claimed_at ? new Date(String(row.claimed_at)).toISOString() : null,
-        },
-        { now, leaseMs, maxAttempts },
+    const client = hasConnect(this.db) ? await this.db.connect() : null;
+    const tx = client ?? this.db;
+    try {
+      await tx.query("BEGIN");
+      const candidates = await tx.query(
+        `SELECT event_id, trace_id, source, payload, status, attempts, next_attempt_at, claimed_at
+         FROM events
+         WHERE (
+           (status IN ('queued', 'delayed') AND (next_attempt_at IS NULL OR next_attempt_at <= $1::timestamptz))
+           OR (status = 'dispatched' AND claimed_at IS NOT NULL AND claimed_at < $2::timestamptz)
+         )
+         ${filter}
+         ORDER BY received_at LIMIT 10 FOR UPDATE SKIP LOCKED`,
+        params,
       );
 
-      if (disposition.action === "skip") continue;
-
-      if (disposition.action === "dead") {
-        await this.db.query(
-          `UPDATE events
-           SET status = 'dead', attempts = $2, next_attempt_at = NULL, claimed_at = NULL
-           WHERE event_id = $1`,
-          [row.event_id, disposition.attempts],
+      let claimedEvent: QueuedEvent | null = null;
+      for (const row of candidates.rows) {
+        const disposition = decideEventDisposition(
+          {
+            status: row.status as QueuedEvent["status"],
+            attempts: Number(row.attempts ?? 0),
+            nextAttemptAt: row.next_attempt_at ? new Date(String(row.next_attempt_at)).toISOString() : null,
+            claimedAt: row.claimed_at ? new Date(String(row.claimed_at)).toISOString() : null,
+          },
+          { now, leaseMs, maxAttempts },
         );
-        continue;
+
+        if (disposition.action === "skip") continue;
+
+        if (disposition.action === "dead") {
+          await tx.query(
+            `UPDATE events
+             SET status = 'dead', attempts = $2, next_attempt_at = NULL, claimed_at = NULL
+             WHERE event_id = $1`,
+            [row.event_id, disposition.attempts],
+          );
+          continue;
+        }
+
+        const claimed = await tx.query(
+          `UPDATE events
+           SET status = 'dispatched', attempts = $2, claimed_at = $3::timestamptz
+           WHERE event_id = $1
+           RETURNING event_id, trace_id, source, payload, status, attempts`,
+          [row.event_id, disposition.attempts, now.toISOString()],
+        );
+        const claimedRow = claimed.rows[0];
+        if (!claimedRow) continue;
+        claimedEvent = {
+          eventId: String(claimedRow.event_id),
+          traceId: String(claimedRow.trace_id),
+          source: claimedRow.source as EventSource,
+          payload: typeof claimedRow.payload === "string" ? JSON.parse(claimedRow.payload) : claimedRow.payload,
+          status: claimedRow.status as QueuedEvent["status"],
+          attempts: Number(claimedRow.attempts ?? 0),
+        };
+        break;
       }
 
-      const claimed = await this.db.query(
-        `UPDATE events
-         SET status = 'dispatched', attempts = $2, claimed_at = $3::timestamptz
-         WHERE event_id = $1
-         RETURNING event_id, trace_id, source, payload, status, attempts`,
-        [row.event_id, disposition.attempts, now.toISOString()],
-      );
-      const claimedRow = claimed.rows[0];
-      if (!claimedRow) continue;
-      return {
-        eventId: String(claimedRow.event_id),
-        traceId: String(claimedRow.trace_id),
-        source: claimedRow.source as EventSource,
-        payload: typeof claimedRow.payload === "string" ? JSON.parse(claimedRow.payload) : claimedRow.payload,
-        status: claimedRow.status as QueuedEvent["status"],
-        attempts: Number(claimedRow.attempts ?? 0),
-      };
+      await tx.query("COMMIT");
+      return claimedEvent;
+    } catch (error) {
+      await tx.query("ROLLBACK");
+      throw error;
+    } finally {
+      client?.release();
     }
-
-    return null;
   }
 
   async markDone(eventId: string): Promise<void> {

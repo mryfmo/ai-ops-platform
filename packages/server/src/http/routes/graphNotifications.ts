@@ -92,8 +92,8 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
         continue;
       }
 
-      const notificationId = notification.id?.trim() ?? "";
-      if (!notificationId) {
+      const messageId = ids?.messageId.trim() ?? "";
+      if (!messageId) {
         await deps.auditLog.append({
           trace_id: traceId,
           actor: "SERVER",
@@ -114,7 +114,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           ids,
         },
         traceId,
-        { dedupeKey: `graph:${notificationId}` },
+        { dedupeKey: `graph:${messageId}` },
       );
       if (!inserted) {
         await deps.auditLog.append({
@@ -122,7 +122,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           actor: "SERVER",
           action: "graph_notification_duplicate",
           basis: "SPEC-INT-001",
-          detail: { notificationId: notification.id ?? null, subscriptionId: notification.subscriptionId ?? null },
+          detail: { messageId, subscriptionId: notification.subscriptionId ?? null },
           at: new Date().toISOString(),
         });
       }

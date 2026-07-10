@@ -156,7 +156,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(payload.ids.messageId).toBe("m-1");
   });
 
-  it("Graph通常通知のid欠落は監査ログを残してskipし、バッチ全体は止めない", async () => {
+  it("Graph通常通知はtop-level idなしでもresource由来messageIdでdedupeしてエンキューする", async () => {
     const { deps, auditLog, inboundEvents } = makeDeps();
     const app = buildApp(deps);
     const res = await app.request("/webhooks/graph", {
@@ -167,11 +167,10 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
           {
             clientState: CLIENT_STATE,
             changeType: "created",
-            resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+            resource: "users('u-1')",
             subscriptionId: "sub-1",
           },
           {
-            id: "graph-notification-valid",
             clientState: CLIENT_STATE,
             changeType: "created",
             resource: "teams('t-1')/channels('c-1')/messages('m-2')",
@@ -185,17 +184,29 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(inboundEvents).toHaveLength(1);
     const payload = inboundEvents[0]!.payload as { ids: { messageId: string } };
     expect(payload.ids.messageId).toBe("m-2");
+    expect(inboundEvents[0]!.dedupeKey).toBe("graph:m-2");
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "graph_notification_missing_dedupe_key")).toBe(true);
   });
 
-  it("同一Graph通知idの再送は1件だけエンキューする", async () => {
+  it("同一Graph messageIdの再送はtop-level notification idが違っても1件だけエンキューする", async () => {
     const { deps, inboundEvents } = makeDeps();
     const app = buildApp(deps);
-    const body = JSON.stringify({
+    const firstBody = JSON.stringify({
       value: [
         {
           id: "graph-notification-1",
+          clientState: CLIENT_STATE,
+          changeType: "created",
+          resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+          subscriptionId: "sub-1",
+        },
+      ],
+    });
+    const secondBody = JSON.stringify({
+      value: [
+        {
+          id: "graph-notification-2",
           clientState: CLIENT_STATE,
           changeType: "created",
           resource: "teams('t-1')/channels('c-1')/messages('m-1')",
@@ -207,18 +218,18 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     const first = await app.request("/webhooks/graph", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body,
+      body: firstBody,
     });
     const second = await app.request("/webhooks/graph", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body,
+      body: secondBody,
     });
 
     expect(first.status).toBe(202);
     expect(second.status).toBe(202);
     expect(inboundEvents).toHaveLength(1);
-    expect(inboundEvents[0]!.dedupeKey).toBe("graph:graph-notification-1");
+    expect(inboundEvents[0]!.dedupeKey).toBe("graph:m-1");
   });
 
   it("idなしのGraph lifecycle通知を分類してhandlerへ渡す", async () => {

@@ -23,15 +23,28 @@ function makeMockDb(rows: Array<Record<string, unknown>> = []) {
   return { db, calls };
 }
 
-function makeSequentialMockDb(results: Array<Array<Record<string, unknown>>>) {
+function makeTransactionalMockDb(results: Array<Array<Record<string, unknown>>>) {
   const calls: Call[] = [];
-  const db: PgQueryable = {
+  let released = false;
+  const client = {
     query: async (text: string, params?: unknown[]) => {
       calls.push({ text, params });
+      const command = text.trim();
+      if (command === "BEGIN" || command === "COMMIT" || command === "ROLLBACK") return { rows: [] };
       return { rows: results.shift() ?? [] };
     },
+    release: () => {
+      released = true;
+    },
   };
-  return { db, calls };
+  const db: PgQueryable & { connect(): Promise<typeof client> } = {
+    query: async (text: string, params?: unknown[]) => {
+      calls.push({ text, params });
+      return { rows: [] };
+    },
+    connect: async () => client,
+  };
+  return { db, calls, wasReleased: () => released };
 }
 
 describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
@@ -50,7 +63,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
   });
 
   it("claimNextQueued: due queued と lease切れ dispatched を再クレーム対象にする", async () => {
-    const { db, calls } = makeSequentialMockDb([
+    const { db, calls, wasReleased } = makeTransactionalMockDb([
       [
         {
           event_id: "evt-1",
@@ -84,12 +97,17 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
 
     expect(event?.eventId).toBe("evt-1");
     expect(event?.attempts).toBe(1);
-    expect(calls[0]!.text).toContain("FOR UPDATE SKIP LOCKED");
-    expect(calls[1]!.text).toContain("status = 'dispatched'");
+    expect(calls.map((c) => c.text.trim())).toEqual([
+      "BEGIN",
+      expect.stringContaining("FOR UPDATE SKIP LOCKED"),
+      expect.stringContaining("status = 'dispatched'"),
+      "COMMIT",
+    ]);
+    expect(wasReleased()).toBe(true);
   });
 
   it("claimNextQueued: lease切れdispatchedは純粋判定を通してattemptsを増やす", async () => {
-    const { db, calls } = makeSequentialMockDb([
+    const { db, calls } = makeTransactionalMockDb([
       [
         {
           event_id: "evt-lease",
@@ -122,13 +140,13 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
     });
 
     expect(event?.attempts).toBe(3);
-    expect(calls[0]!.text).toContain("FOR UPDATE SKIP LOCKED");
-    expect(calls[1]!.text).toContain("attempts = $2");
-    expect(calls[1]!.params).toContain(3);
+    expect(calls[1]!.text).toContain("FOR UPDATE SKIP LOCKED");
+    expect(calls[2]!.text).toContain("attempts = $2");
+    expect(calls[2]!.params).toContain(3);
   });
 
   it("claimNextQueued: lease切れdispatchedがmaxAttempts到達ならdeadにし、dispatch対象を返さない", async () => {
-    const { db, calls } = makeSequentialMockDb([
+    const { db, calls } = makeTransactionalMockDb([
       [
         {
           event_id: "evt-poison",
@@ -152,8 +170,45 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
     });
 
     expect(event).toBeNull();
-    expect(calls[1]!.text).toContain("status = 'dead'");
-    expect(calls[1]!.params).toContain(5);
+    expect(calls[2]!.text).toContain("status = 'dead'");
+    expect(calls[2]!.params).toContain(5);
+    expect(calls.at(-1)!.text.trim()).toBe("COMMIT");
+  });
+
+  it("claimNextQueued: SELECTでclaimable行だけに絞り、古い非claimable行による飢餓を避ける", async () => {
+    const { db, calls } = makeTransactionalMockDb([
+      [
+        {
+          event_id: "evt-due",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "queued",
+          attempts: 0,
+          next_attempt_at: "2026-07-10T00:00:00.000Z",
+          claimed_at: null,
+        },
+      ],
+      [
+        {
+          event_id: "evt-due",
+          trace_id: "11111111-1111-4111-8111-111111111111",
+          source: "inbound",
+          payload: "{}",
+          status: "dispatched",
+          attempts: 0,
+        },
+      ],
+    ]);
+    const repo = new EventsRepo(db);
+
+    await repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z"), leaseMs: 60_000, maxAttempts: 5 });
+
+    const select = calls[1]!;
+    expect(select.text).toContain("next_attempt_at <= $1::timestamptz");
+    expect(select.text).toContain("claimed_at < $2::timestamptz");
+    expect(select.text).toContain("ORDER BY received_at LIMIT 10 FOR UPDATE SKIP LOCKED");
+    expect(select.params).toEqual(["2026-07-10T00:00:00.000Z", "2026-07-09T23:59:00.000Z"]);
   });
 
   it("markFailed: 上限未満は attempts を増やして queued に戻す", async () => {
