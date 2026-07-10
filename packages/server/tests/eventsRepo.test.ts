@@ -23,18 +23,26 @@ function makeMockDb(rows: Array<Record<string, unknown>> = []) {
   return { db, calls };
 }
 
-function makeTransactionalMockDb(results: Array<Array<Record<string, unknown>>>) {
+function makeTransactionalMockDb(
+  results: Array<Array<Record<string, unknown>>>,
+  options: { failOnQueryContaining?: string; failRollback?: boolean } = {},
+) {
   const calls: Call[] = [];
   let released = false;
+  let releaseError: Error | undefined;
   const client = {
     query: async (text: string, params?: unknown[]) => {
       calls.push({ text, params });
       const command = text.trim();
+      if (options.failRollback && command === "ROLLBACK") throw new Error("rollback failed");
+      if (options.failOnQueryContaining && text.includes(options.failOnQueryContaining))
+        throw new Error("update failed");
       if (command === "BEGIN" || command === "COMMIT" || command === "ROLLBACK") return { rows: [] };
       return { rows: results.shift() ?? [] };
     },
-    release: () => {
+    release: (err?: Error) => {
       released = true;
+      releaseError = err;
     },
   };
   const db: PgQueryable & { connect(): Promise<typeof client> } = {
@@ -44,7 +52,7 @@ function makeTransactionalMockDb(results: Array<Array<Record<string, unknown>>>)
     },
     connect: async () => client,
   };
-  return { db, calls, wasReleased: () => released };
+  return { db, calls, wasReleased: () => released, releaseError: () => releaseError };
 }
 
 describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
@@ -209,6 +217,59 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
     expect(select.text).toContain("claimed_at < $2::timestamptz");
     expect(select.text).toContain("ORDER BY received_at LIMIT 10 FOR UPDATE SKIP LOCKED");
     expect(select.params).toEqual(["2026-07-10T00:00:00.000Z", "2026-07-09T23:59:00.000Z"]);
+  });
+
+  it("claimNextQueued: UPDATE失敗時はROLLBACKしてclientをreleaseする", async () => {
+    const { db, calls, wasReleased, releaseError } = makeTransactionalMockDb(
+      [
+        [
+          {
+            event_id: "evt-fail",
+            trace_id: "11111111-1111-4111-8111-111111111111",
+            source: "inbound",
+            payload: "{}",
+            status: "queued",
+            attempts: 0,
+            next_attempt_at: null,
+            claimed_at: null,
+          },
+        ],
+      ],
+      { failOnQueryContaining: "SET status = 'dispatched'" },
+    );
+    const repo = new EventsRepo(db);
+
+    await expect(repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z") })).rejects.toThrow("update failed");
+
+    expect(calls.at(-1)!.text.trim()).toBe("ROLLBACK");
+    expect(wasReleased()).toBe(true);
+    expect(releaseError()).toBeUndefined();
+  });
+
+  it("claimNextQueued: ROLLBACK失敗時はpoison接続としてreleaseする", async () => {
+    const { db, wasReleased, releaseError } = makeTransactionalMockDb(
+      [
+        [
+          {
+            event_id: "evt-rollback-fail",
+            trace_id: "11111111-1111-4111-8111-111111111111",
+            source: "inbound",
+            payload: "{}",
+            status: "queued",
+            attempts: 0,
+            next_attempt_at: null,
+            claimed_at: null,
+          },
+        ],
+      ],
+      { failOnQueryContaining: "SET status = 'dispatched'", failRollback: true },
+    );
+    const repo = new EventsRepo(db);
+
+    await expect(repo.claimNextQueued({ now: new Date("2026-07-10T00:00:00Z") })).rejects.toThrow("rollback failed");
+
+    expect(wasReleased()).toBe(true);
+    expect(releaseError()?.message).toBe("rollback failed");
   });
 
   it("markFailed: 上限未満は attempts を増やして queued に戻す", async () => {

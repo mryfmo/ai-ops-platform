@@ -18,6 +18,14 @@ const configSchema = z.object({
   WEBUI_INTERNAL_PORT: z.coerce.number().int().positive().default(3100),
   /** PostgreSQL接続文字列（DevOps正本DB） */
   DATABASE_URL: z.string().min(1),
+  /** PostgreSQL pool max connections. */
+  DB_POOL_MAX: z.coerce.number().int().positive().default(10),
+  /** PostgreSQL connection acquisition timeout. */
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  /** PostgreSQL per-statement timeout. */
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  /** PostgreSQL idle-in-transaction timeout. */
+  DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   /**
    * Graph change notificationのclientState（ADR-0005）。security-reviewer指摘によりmin(16)
    * から引き上げ。ランダム生成必須（例: `openssl rand -hex 32`）。

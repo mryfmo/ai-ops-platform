@@ -24,12 +24,30 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.PORT).toBe(8080);
     expect(config.WEBUI_INTERNAL_PORT).toBe(3100);
     expect(config.DATABASE_URL).toContain("postgres://");
+    expect(config.DB_POOL_MAX).toBe(10);
+    expect(config.DB_POOL_CONNECTION_TIMEOUT_MS).toBe(5000);
+    expect(config.DB_STATEMENT_TIMEOUT_MS).toBe(30000);
+    expect(config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS).toBe(30000);
     expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
   });
 
   it("PORTを上書きできる", () => {
     const config = loadConfig({ ...validEnv, PORT: "9090" });
     expect(config.PORT).toBe(9090);
+  });
+
+  it("DB pool設定を上書きできる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      DB_POOL_MAX: "20",
+      DB_POOL_CONNECTION_TIMEOUT_MS: "7000",
+      DB_STATEMENT_TIMEOUT_MS: "45000",
+      DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS: "15000",
+    });
+    expect(config.DB_POOL_MAX).toBe(20);
+    expect(config.DB_POOL_CONNECTION_TIMEOUT_MS).toBe(7000);
+    expect(config.DB_STATEMENT_TIMEOUT_MS).toBe(45000);
+    expect(config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS).toBe(15000);
   });
 
   it("DATABASE_URL欠落でE-CFG01", () => {

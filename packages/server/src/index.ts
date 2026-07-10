@@ -127,7 +127,12 @@ function loadJpHolidayCalendar() {
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const pool = createPool(config.DATABASE_URL);
+  const pool = createPool(config.DATABASE_URL, {
+    max: config.DB_POOL_MAX,
+    connectionTimeoutMillis: config.DB_POOL_CONNECTION_TIMEOUT_MS,
+    statementTimeoutMs: config.DB_STATEMENT_TIMEOUT_MS,
+    idleInTransactionSessionTimeoutMs: config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS,
+  });
   const auditLog = new PgAuditLog(pool);
   const eventsRepo = new EventsRepo(pool);
   const grantsRepo = new GrantsRepo(pool);

@@ -4,16 +4,29 @@
 -- データストアはRDB（PostgreSQL想定）。本ファイルは全テーブル定義の正本。
 -- 変更時は通常のPRレビューを経ること。
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version    TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS events (
   event_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trace_id    UUID NOT NULL,
   source      TEXT NOT NULL CHECK (source IN ('github', 'monitor', 'inbound')),
   payload     JSONB NOT NULL,
-  status      TEXT NOT NULL CHECK (status IN ('queued', 'dispatched', 'delayed', 'done')) DEFAULT 'queued',
+  status      TEXT NOT NULL CHECK (status IN ('queued', 'dispatched', 'delayed', 'done', 'dead')) DEFAULT 'queued',
+  attempts    INT NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ,
+  claimed_at  TIMESTAMPTZ,
+  dedupe_key  TEXT,
   received_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_events_trace_id ON events (trace_id);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events (status);
+CREATE INDEX IF NOT EXISTS idx_events_next_attempt ON events (status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_events_claimed_at ON events (claimed_at) WHERE status = 'dispatched';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_dedupe_key ON events (dedupe_key) WHERE dedupe_key IS NOT NULL;
 
 -- ADR-0007 / PrjOps SPEC-INT-062 / DevOps SPEC-INT-081: GitHub PM時系列イベント。
 -- projects_v2_item / projects_v2_status_update / issues / pull_request / milestone / deployment webhookを正規化し、
@@ -37,8 +50,6 @@ CREATE TABLE IF NOT EXISTS pm_events (
 CREATE INDEX IF NOT EXISTS idx_pm_events_time ON pm_events (occurred_at);
 CREATE INDEX IF NOT EXISTS idx_pm_events_project_time ON pm_events (project_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_pm_events_subject ON pm_events (subject_type, subject_id);
-ALTER TABLE pm_events DROP CONSTRAINT IF EXISTS pm_events_subject_type_check;
-ALTER TABLE pm_events ADD CONSTRAINT pm_events_subject_type_check CHECK (subject_type IN ('issue', 'pull_request', 'milestone', 'project_item', 'project_status', 'deployment')) NOT VALID;
 
 -- ADR-0007 / DevOps AC-031a: 定期フルsnapshot。webhook取りこぼしreconcileの正本。
 CREATE TABLE IF NOT EXISTS pm_snapshots (
@@ -140,6 +151,28 @@ CREATE TABLE IF NOT EXISTS recipients (
   teams_channel_id TEXT
 );
 
+-- ADR-0014 / REQ-042 / SPEC-INT-069: 標準report受領。
+CREATE TABLE IF NOT EXISTS standard_reports (
+  report_id      TEXT PRIMARY KEY,
+  schema_version TEXT NOT NULL,
+  report_type    TEXT NOT NULL CHECK (report_type IN ('weekly-summary', 'manager-weekly', 'investor-quarterly')),
+  period_label   TEXT NOT NULL,
+  generated_at   TEXT NOT NULL,
+  payload        JSONB NOT NULL,
+  trace_id       UUID NOT NULL,
+  received_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_standard_reports_received ON standard_reports (received_at);
+
+-- ADR-0014 / REQ-042 / SPEC-INT-069: report配信ログ。
+CREATE TABLE IF NOT EXISTS report_delivery_log (
+  report_id    TEXT NOT NULL,
+  recipient_id TEXT NOT NULL,
+  delivered_at TIMESTAMPTZ NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('pending', 'sent')),
+  PRIMARY KEY (report_id, recipient_id)
+);
+
 -- SPEC-INT-055 report_snapshots
 CREATE TABLE IF NOT EXISTS report_snapshots (
   snapshot_id  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -192,6 +225,8 @@ CREATE TABLE IF NOT EXISTS project_channels (
   team_id     TEXT NOT NULL,
   channel_id  TEXT NOT NULL,
   project_id  TEXT NOT NULL,
+  github_owner TEXT,
+  github_repo  TEXT,
   created_by  TEXT NOT NULL,
   ingestion   TEXT NOT NULL CHECK (ingestion IN ('active', 'paused', 'closed')) DEFAULT 'active',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -261,6 +296,8 @@ CREATE TABLE IF NOT EXISTS coding_tasks (
   workflow_run_id BIGINT,
   pr_url          TEXT,
   branch          TEXT,
+  confirmed_at    TIMESTAMPTZ,
+  confirm_token_hash TEXT,
   trace_id        UUID NOT NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -269,45 +306,7 @@ CREATE INDEX IF NOT EXISTS idx_coding_tasks_status ON coding_tasks (status);
 CREATE INDEX IF NOT EXISTS idx_coding_tasks_project ON coding_tasks (project_id);
 -- rollback: DROP TABLE coding_tasks;
 
--- ============================================================
--- MIGRATIONS（既存テーブルへのALTER。CLAUDE.md「既存テーブルのALTERは別途DDLコメントで明示」）
--- ============================================================
-
--- 2026-07-10 ADR-0005 / SPEC-INT-010: eventsキューのretry/DLQ/lease回収とwebhook冪等キー。
--- attempts/next_attempt_atは失敗イベントの指数backoff再試行、claimed_atはdispatched lease回収、
--- dedupe_keyはGitHub X-GitHub-Delivery / Graph notification id の重複投入防止に使う。
-ALTER TABLE events ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMPTZ;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
-ALTER TABLE events ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
-ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check;
-ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('queued', 'dispatched', 'delayed', 'done', 'dead')) NOT VALID;
-ALTER TABLE events VALIDATE CONSTRAINT events_status_check;
-CREATE INDEX IF NOT EXISTS idx_events_next_attempt ON events (status, next_attempt_at);
-CREATE INDEX IF NOT EXISTS idx_events_claimed_at ON events (claimed_at) WHERE status = 'dispatched';
-CREATE UNIQUE INDEX IF NOT EXISTS idx_events_dedupe_key ON events (dedupe_key) WHERE dedupe_key IS NOT NULL;
--- rollback: DROP INDEX IF EXISTS idx_events_dedupe_key; DROP INDEX IF EXISTS idx_events_claimed_at; DROP INDEX IF EXISTS idx_events_next_attempt; ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check; ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('queued', 'dispatched', 'delayed', 'done')) NOT VALID; ALTER TABLE events DROP COLUMN IF EXISTS dedupe_key; ALTER TABLE events DROP COLUMN IF EXISTS claimed_at; ALTER TABLE events DROP COLUMN IF EXISTS next_attempt_at; ALTER TABLE events DROP COLUMN IF EXISTS attempts;
-
--- 2026-07-07 ADR-0005 / SPEC-INT-033: project_channelsにGitHubリポジトリ紐付け列を追加。
--- Teamsチャネルからの /gh pr list, /gh issue list, /gh issue create 照会コマンド（AGT-teamsConversationAgent）が
--- projectIdからGitHubリポジトリを解決するために使用する。未設定（NULL）の場合、当該プロジェクトのGitHub照会
--- コマンドは「このプロジェクトにはGitHubリポジトリが未登録です」を返して終了する（実行時ガード、DB制約ではない）。
-ALTER TABLE project_channels ADD COLUMN IF NOT EXISTS github_owner TEXT;
-ALTER TABLE project_channels ADD COLUMN IF NOT EXISTS github_repo TEXT;
--- rollback: ALTER TABLE project_channels DROP COLUMN IF EXISTS github_owner; ALTER TABLE project_channels DROP COLUMN IF EXISTS github_repo;
-
--- 2026-07-07 ADR-0006: coding_tasksに確認フロー用の列を追加。
--- 「誤発火防止のため人間の明示クリック必須」（ADR-0006決定3）を満たすため、Teams/WebUIからの
--- code_task指示は即座にworkflow_dispatchせず、まずstatus='queued'でINSERTし、確認リンク
--- （taskId + confirmTokenのHMAC-SHA256、packages/server/src/lib/confirmToken.ts）を発行する。
--- confirm_token_hashは平文トークンではなくハッシュを保存する（DB漏洩時にリンクを再構成されないため）。
--- confirmed_atは人間がGET/POST /coding-tasks/:taskId/confirmを通過した時刻（NULLのまま＝未確認）。
-ALTER TABLE coding_tasks ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
-ALTER TABLE coding_tasks ADD COLUMN IF NOT EXISTS confirm_token_hash TEXT;
--- rollback: ALTER TABLE coding_tasks DROP COLUMN IF EXISTS confirmed_at; ALTER TABLE coding_tasks DROP COLUMN IF EXISTS confirm_token_hash;
-
--- 2026-07-09 ADR-0008 / REQ-037 / SPEC-INT-063: Excelインポート台帳。
--- source_keyはテンプレートの安定キー列。issue body末尾の <!-- import:source_key --> と二重防御にする。
+-- ADR-0008 / REQ-037 / SPEC-INT-063: Excelインポート台帳。
 CREATE TABLE IF NOT EXISTS import_ledger (
   source_key     TEXT PRIMARY KEY,
   target_kind    TEXT NOT NULL CHECK (target_kind IN ('issue', 'project_item', 'milestone')),
@@ -317,38 +316,11 @@ CREATE TABLE IF NOT EXISTS import_ledger (
   error          TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-ALTER TABLE import_ledger DROP CONSTRAINT IF EXISTS import_ledger_status_check;
-ALTER TABLE import_ledger ADD CONSTRAINT import_ledger_status_check CHECK (status IN ('pending', 'imported', 'skipped', 'failed')) NOT VALID;
-ALTER TABLE import_ledger ADD COLUMN IF NOT EXISTS error TEXT;
 CREATE INDEX IF NOT EXISTS idx_import_ledger_run ON import_ledger (import_run_id);
 -- rollback: DROP TABLE import_ledger;
 
--- 2026-07-09 ADR-0014 / REQ-042 / SPEC-INT-069: 統合配信の標準report受領・配信ログ。
--- report_delivery_logはpending→sentの状態遷移で、送信後ログ失敗による無印重複を防ぐ。
-ALTER TABLE recipients DROP CONSTRAINT IF EXISTS recipients_profile_check;
-ALTER TABLE recipients ADD CONSTRAINT recipients_profile_check CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')) NOT VALID;
-ALTER TABLE recipients ADD COLUMN IF NOT EXISTS persona TEXT CHECK (persona IN ('member', 'leader', 'global-manager', 'manager', 'executive', 'investor'));
-ALTER TABLE recipients ADD COLUMN IF NOT EXISTS teams_team_id TEXT;
-ALTER TABLE recipients ADD COLUMN IF NOT EXISTS teams_channel_id TEXT;
-CREATE TABLE IF NOT EXISTS standard_reports (
-  report_id      TEXT PRIMARY KEY,
-  schema_version TEXT NOT NULL,
-  report_type    TEXT NOT NULL CHECK (report_type IN ('weekly-summary', 'manager-weekly', 'investor-quarterly')),
-  period_label   TEXT NOT NULL,
-  generated_at   TEXT NOT NULL,
-  payload        JSONB NOT NULL,
-  trace_id       UUID NOT NULL,
-  received_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_standard_reports_received ON standard_reports (received_at);
-CREATE TABLE IF NOT EXISTS report_delivery_log (
-  report_id    TEXT NOT NULL,
-  recipient_id TEXT NOT NULL,
-  delivered_at TIMESTAMPTZ NOT NULL,
-  status       TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('pending', 'sent')),
-  PRIMARY KEY (report_id, recipient_id)
-);
-ALTER TABLE report_delivery_log ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'sent';
-ALTER TABLE report_delivery_log DROP CONSTRAINT IF EXISTS report_delivery_log_status_check;
-ALTER TABLE report_delivery_log ADD CONSTRAINT report_delivery_log_status_check CHECK (status IN ('pending', 'sent')) NOT VALID;
--- rollback: DROP TABLE report_delivery_log; DROP TABLE standard_reports;
+-- ============================================================
+-- MIGRATIONS
+-- ============================================================
+-- 既存DBへのALTERは packages/devops/src/db/migrations/*.sql を順序適用する。
+-- 新規DBは本schema.sqlで最新形を作成し、その後db:migrateでschema_migrationsを同期する。

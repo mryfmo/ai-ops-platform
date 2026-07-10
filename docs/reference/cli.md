@@ -67,6 +67,16 @@ pnpm --filter @aiops/traceability run verify
 
 The verifier writes `packages/traceability/output/traceability_matrix.md` and fails when required REQ/SPEC-INT/TH IDs are missing from implementation references, reporting headers are missing under `packages/shared/src/reporting`, or ADR references point to nonexistent ADR files.
 
+## Database Migrations
+
+Apply ordered SQL migrations to an existing PostgreSQL database:
+
+```bash
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/aiops pnpm --filter @aiops/devops db:migrate
+```
+
+Applied versions are recorded in `schema_migrations`. See [database migrations runbook](../../runbooks/database-migrations.md).
+
 ## Graph Subscription
 
 Create a Microsoft Graph change notification subscription with the server token provider:

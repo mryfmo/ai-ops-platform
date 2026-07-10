@@ -7,7 +7,7 @@
 ## 前提
 
 - Node.js 20 / pnpm 9.15.4 / mise が利用できること。
-- PostgreSQL サーバが起動しており、`packages/devops/src/db/schema.sql` を適用できること。
+- PostgreSQL サーバが起動しており、`packages/devops/src/db/schema.sql` と `pnpm --filter @aiops/devops db:migrate` を適用できること。
 - GitHub App が対象 organization にインストール済みで、Projects v2 / Issues / Pull requests / Deployments / Webhooks の必要権限を持つこと。
 - organization webhook が常駐 server の `PUBLIC_BASE_URL` に到達できること。
 - Microsoft Teams アプリ manifest をテナントへ登録し、Graph change notifications と RSC 権限を設定済みであること。
@@ -54,10 +54,11 @@ mise run install
 mise run build
 ```
 
-2. PostgreSQL に schema を適用する。
+2. PostgreSQL に schema と migrations を適用する。
 
 ```bash
 psql "$DATABASE_URL" -f packages/devops/src/db/schema.sql
+pnpm --filter @aiops/devops db:migrate
 ```
 
 3. Web を起動し、実 Entra ID セッションで確認する。

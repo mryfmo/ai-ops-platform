@@ -39,7 +39,7 @@ export interface MarkFailedResult {
 }
 
 interface PgTransactionClient extends PgQueryable {
-  release(): void;
+  release(err?: Error): void;
 }
 
 interface PgConnectable extends PgQueryable {
@@ -86,6 +86,10 @@ function hasConnect(db: PgQueryable): db is PgConnectable {
   return typeof (db as { connect?: unknown }).connect === "function";
 }
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 export class EventsRepo {
   constructor(private readonly db: PgQueryable) {}
 
@@ -127,6 +131,7 @@ export class EventsRepo {
 
     const client = hasConnect(this.db) ? await this.db.connect() : null;
     const tx = client ?? this.db;
+    let released = false;
     try {
       await tx.query("BEGIN");
       const candidates = await tx.query(
@@ -137,6 +142,7 @@ export class EventsRepo {
            OR (status = 'dispatched' AND claimed_at IS NOT NULL AND claimed_at < $2::timestamptz)
          )
          ${filter}
+         -- ponytail: LIMIT 10 batches dead-row cleanup; use LIMIT 1 if worker contention shows up.
          ORDER BY received_at LIMIT 10 FOR UPDATE SKIP LOCKED`,
         params,
       );
@@ -188,10 +194,17 @@ export class EventsRepo {
       await tx.query("COMMIT");
       return claimedEvent;
     } catch (error) {
-      await tx.query("ROLLBACK");
+      try {
+        await tx.query("ROLLBACK");
+      } catch (rollbackError) {
+        const releaseError = toError(rollbackError);
+        client?.release(releaseError);
+        released = true;
+        throw releaseError;
+      }
       throw error;
     } finally {
-      client?.release();
+      if (!released) client?.release();
     }
   }
 
