@@ -1,0 +1,15 @@
+# 根拠: REQ-032 / DevOps REQ-030（gitleaks 秘密情報検知, DEV-10）。
+# 秘密情報サニタイザの検証には意図的な偽トークンを fixture として持つ必要があるため、
+# 当該テストファイルのみ allowlist する。実コード・他テストの秘密は既定ルールで検知継続。
+title = "ai-ops-platform gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Intentional fake tokens in secret-redaction test fixtures"
+paths = [
+  '''packages/shared/tests/secretSanitizer\.test\.ts''',
+  '''packages/server/tests/freeTextIntent\.test\.ts''',
+  '''packages/server/tests/pmTimeseriesRepo\.test\.ts''',
+]
