@@ -78,4 +78,33 @@ describe("AnthropicStructuredClient parameter handling [T26]", () => {
       }),
     ).rejects.toBeInstanceOf(AnthropicRefusalError);
   });
+
+  it("failed attempts reconcile their reservation to zero before retrying [T26-R1b]", async () => {
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("transient"))
+      .mockResolvedValueOnce(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
+    const costGuard = new InMemoryCostGuard();
+    const client = new AnthropicStructuredClient({ messages: { create } } as unknown as Anthropic, costGuard);
+
+    await expect(
+      client.call({
+        agent: "AGT-04",
+        purpose: "standard_report_slots",
+        system: "Return a tool.",
+        user: "hello",
+        toolName: "emit",
+        toolDescription: "emit value",
+        inputSchema: schema,
+        parse: (raw) => raw as { value: string },
+        maxAttempts: 2,
+      }),
+    ).resolves.toMatchObject({ value: { value: "ok" } });
+
+    const records = costGuard.getRecords();
+    expect(records).toHaveLength(2);
+    expect(records[0]!.estimated_cost_usd).toBe(0);
+    expect(records[1]!.input_tokens).toBe(10);
+    expect(records[1]!.output_tokens).toBe(5);
+  });
 });

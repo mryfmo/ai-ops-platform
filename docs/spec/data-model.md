@@ -30,7 +30,7 @@ The schema source of truth is [`packages/devops/src/db/schema.sql`](../../packag
 
 - `/app/api/data/timeseries` reads `pm_events` and `pm_snapshots` for the requested period and filters by persona visibility before aggregation.
 - `/app/api/data/agent-activity` reads `coding_tasks`.
-- `PgCostGuard` reads/writes `llm_usage`; LLM calls first reserve an estimated-cost row and reconcile that same row with actual usage on successful completion.
+- `PgCostGuard` reads/writes `llm_usage`; LLM calls first reserve an estimated-cost row inside an advisory-locked transaction and reconcile that same row with actual usage on successful completion.
 - `PmSnapshotReconcileTask` writes `pm_snapshots`; it does not run if `GITHUB_PROJECT_NODE_ID` is unset.
 - `ReportDeliveryTask` reads `standard_reports`, `recipients`, and `report_delivery_log`.
 

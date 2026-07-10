@@ -5,7 +5,7 @@
  *   JST基準の日次リセット ASM-003、agent別サブ上限）
  */
 import { describe, it, expect } from "vitest";
-import { PgCostGuard, jstDayRange, type PgQueryable } from "../src/clients/pgCostGuard.js";
+import { PgCostGuard, jstDayRange, type PgConnectable, type PgQueryable } from "../src/clients/pgCostGuard.js";
 
 function makeFakeDb() {
   const queries: Array<{ text: string; params: unknown[] }> = [];
@@ -17,6 +17,42 @@ function makeFakeDb() {
     },
   };
   return { db, queries, pushRows: (r: Array<Record<string, unknown>>) => rows.push(r) };
+}
+
+function makeFakePool() {
+  const queries: Array<{ text: string; params: unknown[] }> = [];
+  const rows: Array<Record<string, unknown>>[] = [];
+  let releaseCount = 0;
+  const resultFor = (text: string) => {
+    if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK" || text.includes("pg_advisory_xact_lock")) {
+      return { rows: [] };
+    }
+    return { rows: rows.shift() ?? [] };
+  };
+  const client = {
+    async query(text: string, params: unknown[] = []) {
+      queries.push({ text, params });
+      return resultFor(text);
+    },
+    release() {
+      releaseCount += 1;
+    },
+  };
+  const db: PgConnectable = {
+    async query(text, params = []) {
+      queries.push({ text, params });
+      return resultFor(text);
+    },
+    async connect() {
+      return client;
+    },
+  };
+  return {
+    db,
+    queries,
+    pushRows: (r: Array<Record<string, unknown>>) => rows.push(r),
+    releaseCount: () => releaseCount,
+  };
 }
 
 describe("jstDayRange (ASM-003: JST基準)", () => {
@@ -91,8 +127,8 @@ describe("PgCostGuard (SPEC-INT-060)", () => {
     expect(queries).toHaveLength(1);
   });
 
-  it("reserveはadvisory lock付きの単一INSERTで見積コストを予約する [C-3b]", async () => {
-    const { db, queries, pushRows } = makeFakeDb();
+  it("reserveはBEGIN後にadvisory lockを別文で取り、その後に集計+INSERTする [C-3b/T26-R1]", async () => {
+    const { db, queries, pushRows, releaseCount } = makeFakePool();
     pushRows([{ usage_id: "42" }]);
     const guard = new PgCostGuard(db, { dailyLimitUsd: 20, perAgentDailyLimitUsd: { "WEB-CHAT": 10 } });
 
@@ -107,13 +143,18 @@ describe("PgCostGuard (SPEC-INT-060)", () => {
     });
 
     expect(reservationId).toBe("42");
-    expect(queries[0]!.text).toContain("pg_advisory_xact_lock");
-    expect(queries[0]!.text).toContain("INSERT INTO llm_usage");
-    expect(queries[0]!.text).toContain("RETURNING usage_id");
+    expect(queries.map((q) => q.text)).toEqual([
+      "BEGIN",
+      "SELECT pg_advisory_xact_lock(hashtext('aiops_llm_usage_budget'))",
+      expect.stringContaining("INSERT INTO llm_usage"),
+      "COMMIT",
+    ]);
+    expect(queries[2]!.text).toContain("COALESCE(SUM(cost_usd), 0)");
+    expect(releaseCount()).toBe(1);
   });
 
   it("reserveは日次上限を超える予約をINSERTせずE-COST01にする [C-3b]", async () => {
-    const { db, queries, pushRows } = makeFakeDb();
+    const { db, queries, pushRows, releaseCount } = makeFakePool();
     pushRows([]);
     const guard = new PgCostGuard(db, { dailyLimitUsd: 20 });
 
@@ -128,7 +169,13 @@ describe("PgCostGuard (SPEC-INT-060)", () => {
         estimated_cost_usd: 0.006,
       }),
     ).rejects.toThrow("E-COST01");
-    expect(queries).toHaveLength(1);
+    expect(queries.map((q) => q.text)).toEqual([
+      "BEGIN",
+      "SELECT pg_advisory_xact_lock(hashtext('aiops_llm_usage_budget'))",
+      expect.stringContaining("INSERT INTO llm_usage"),
+      "ROLLBACK",
+    ]);
+    expect(releaseCount()).toBe(1);
   });
 
   it("reserveはagent別per-request上限をDBアクセス前に拒否する [C-3b]", async () => {

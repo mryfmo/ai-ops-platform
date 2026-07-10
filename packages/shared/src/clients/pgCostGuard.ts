@@ -22,6 +22,14 @@ export interface PgQueryable {
   query(text: string, params?: unknown[]): Promise<{ rows: Array<Record<string, unknown>>; rowCount?: number | null }>;
 }
 
+export interface PgClient extends PgQueryable {
+  release(err?: Error): void;
+}
+
+export interface PgConnectable extends PgQueryable {
+  connect(): Promise<PgClient>;
+}
+
 export interface PgCostGuardOptions {
   /** 日次上限USD（既定 $20。SPEC-INT-060） */
   dailyLimitUsd?: number;
@@ -98,18 +106,21 @@ export class PgCostGuard implements CostGuard {
 
     const { startIso, endIso } = jstDayRange(this.nowProvider());
     const agentLimit = this.perAgentDailyLimitUsd[usage.agent] ?? null;
-    const res = await this.db.query(
-      `WITH guard_lock AS (
-         SELECT pg_advisory_xact_lock(hashtext('aiops_llm_usage_budget')) AS locked
-       ),
-       total_spend AS (
+    const client = hasConnect(this.db) ? await this.db.connect() : null;
+    const tx = client ?? this.db;
+    let released = false;
+    try {
+      await tx.query("BEGIN");
+      await tx.query("SELECT pg_advisory_xact_lock(hashtext('aiops_llm_usage_budget'))");
+      const res = await tx.query(
+        `WITH total_spend AS (
          SELECT COALESCE(SUM(cost_usd), 0) AS total
-           FROM llm_usage, guard_lock
+           FROM llm_usage
           WHERE at >= $1 AND at < $2
        ),
        agent_spend AS (
          SELECT COALESCE(SUM(cost_usd), 0) AS total
-           FROM llm_usage, guard_lock
+           FROM llm_usage
           WHERE agent = $3 AND at >= $1 AND at < $2
        )
        INSERT INTO llm_usage (agent, purpose, model, cost_usd, at)
@@ -118,23 +129,37 @@ export class PgCostGuard implements CostGuard {
         WHERE (total_spend.total + $6) <= $8
           AND ($9::numeric IS NULL OR (agent_spend.total + $6) <= $9::numeric)
        RETURNING usage_id`,
-      [
-        startIso,
-        endIso,
-        usage.agent,
-        usage.purpose,
-        usage.model,
-        usage.estimated_cost_usd,
-        usage.at,
-        this.dailyLimitUsd,
-        agentLimit,
-      ],
-    );
-    const usageId = res.rows[0]?.usage_id;
-    if (usageId === undefined) {
-      throw new Error(`E-COST01: daily LLM budget exceeded for agent ${usage.agent}`);
+        [
+          startIso,
+          endIso,
+          usage.agent,
+          usage.purpose,
+          usage.model,
+          usage.estimated_cost_usd,
+          usage.at,
+          this.dailyLimitUsd,
+          agentLimit,
+        ],
+      );
+      const usageId = res.rows[0]?.usage_id;
+      if (usageId === undefined) {
+        throw new Error(`E-COST01: daily LLM budget exceeded for agent ${usage.agent}`);
+      }
+      await tx.query("COMMIT");
+      return String(usageId);
+    } catch (error) {
+      try {
+        await tx.query("ROLLBACK");
+      } catch (rollbackError) {
+        const releaseError = toError(rollbackError);
+        client?.release(releaseError);
+        released = true;
+        throw releaseError;
+      }
+      throw error;
+    } finally {
+      if (!released) client?.release();
     }
-    return String(usageId);
   }
 
   async reconcileReservation(reservationId: string, usage: LlmUsageRecord): Promise<void> {
@@ -165,4 +190,12 @@ export class PgCostGuard implements CostGuard {
       }
     }
   }
+}
+
+function hasConnect(db: PgQueryable): db is PgConnectable {
+  return typeof (db as { connect?: unknown }).connect === "function";
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

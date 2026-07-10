@@ -159,6 +159,7 @@ export class AnthropicStructuredClient {
         ? await this.costGuard.reserve(reservedUsage)
         : await legacyReserve(this.costGuard, reservedUsage);
 
+      let reconciledActualUsage = false;
       try {
         const request = {
           model: currentModel,
@@ -188,6 +189,7 @@ export class AnthropicStructuredClient {
         };
         if (this.costGuard.reconcileReservation) {
           await this.costGuard.reconcileReservation(reservationId, actualUsage);
+          reconciledActualUsage = true;
         }
 
         if ((response as { stop_reason?: string }).stop_reason === "refusal") {
@@ -209,6 +211,15 @@ export class AnthropicStructuredClient {
         };
       } catch (err) {
         if (err instanceof AnthropicRefusalError || err instanceof DailyCostLimitExceededError) throw err;
+        if (!reconciledActualUsage) {
+          await this.costGuard.reconcileReservation?.(reservationId, {
+            ...reservedUsage,
+            at: new Date().toISOString(),
+            input_tokens: 0,
+            output_tokens: 0,
+            estimated_cost_usd: 0,
+          });
+        }
         lastError = err;
         // 次のループでリトライ（最終ラウンドなら下でthrow）
       }

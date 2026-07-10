@@ -102,6 +102,37 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     );
   });
 
+  it("桁区切り数値はmetricsと同じ値として扱う [C-1/T26-R2]", () => {
+    const slots = {
+      ...validSlots,
+      conclusion: "処理対象は1,500件です。",
+    };
+    expect(findUngroundedSlotNumbers(slots, { processed: 1500 })).toEqual([]);
+  });
+
+  it("期間ラベル由来の年・四半期数字は捏造数値として扱わない [C-1/T26-R2]", () => {
+    const payload = buildStandardReportPayload(
+      { evidenceIds: ["REQ-040"], periodLabel: "2026-Q3", metrics: { completed: 3 } },
+      { ...validSlots, conclusion: "2026-Q3の進捗は安定しています。" },
+      "2026-07-09T16:00:00+09:00",
+    );
+    expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("長さ超過があっても未根拠数値チェックをマスクしない [C-1/T26-R2]", () => {
+    const payload = buildStandardReportPayload(
+      { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: { processed: 1500 } },
+      {
+        ...validSlots,
+        conclusion: `${"長い説明".repeat(80)}未根拠の9,999件を含みます。`,
+      },
+      "2026-07-09T16:00:00+09:00",
+    );
+    const errors = validateStandardReportPayload(payload).errors;
+    expect(errors).toContain(`slots.conclusion exceeds ${standardReportSlotMaxChars("conclusion")} chars`);
+    expect(errors).toContain("slots.conclusion contains ungrounded numeric value 9,999");
+  });
+
   it("文字数と切詰めは書記素クラスタを割らない [SPEC-INT-067]", () => {
     expect(countChars("🇯🇵👨‍👩‍👧‍👦é")).toBe(3);
     const truncated = truncateReportSlots({
