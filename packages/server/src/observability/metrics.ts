@@ -10,6 +10,7 @@ export interface EventQueueMetric {
 }
 
 type Labels = Record<string, string>;
+const EVENT_QUEUE_STATUSES = ["queued", "delayed", "dispatched", "dead"];
 
 function labelKey(labels: Labels): string {
   return Object.entries(labels)
@@ -70,6 +71,10 @@ export class MetricsRegistry {
   }
 
   setEventQueue(metrics: EventQueueMetric[]): void {
+    for (const status of EVENT_QUEUE_STATUSES) {
+      this.setGauge("aiops_events_queue_depth", { status }, 0);
+      this.setGauge("aiops_events_queue_oldest_age_seconds", { status }, 0);
+    }
     for (const row of metrics) {
       this.setGauge("aiops_events_queue_depth", { status: row.status }, row.depth);
       this.setGauge("aiops_events_queue_oldest_age_seconds", { status: row.status }, row.oldestAgeSeconds);

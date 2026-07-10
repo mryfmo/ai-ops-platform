@@ -12,6 +12,25 @@ export interface CloseableServer {
   close(callback?: (error?: Error) => void): void;
 }
 
+export function createShutdownSignalHandler(deps: {
+  isShuttingDown(): boolean;
+  shutdown(): Promise<void>;
+  logger: Logger;
+  exit(code: number): void;
+}): () => Promise<void> {
+  return async () => {
+    if (deps.isShuttingDown()) return;
+    deps.logger.info("shutdown signal received");
+    try {
+      await deps.shutdown();
+      deps.exit(0);
+    } catch (err) {
+      deps.logger.error({ err: err instanceof Error ? err.message : String(err) }, "graceful shutdown failed");
+      deps.exit(1);
+    }
+  };
+}
+
 export async function closeHttpServer(server: CloseableServer): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error?: Error) => (error ? reject(error) : resolve()));
@@ -34,9 +53,15 @@ export async function gracefulShutdown(deps: {
     await deps.pool.end();
     await deps.telemetry?.shutdown();
   };
+  let timeoutTimer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error("graceful shutdown timed out")), deps.timeoutMs ?? 25_000);
+    timeoutTimer = setTimeout(() => reject(new Error("graceful shutdown timed out")), deps.timeoutMs ?? 25_000);
+    timeoutTimer.unref?.();
   });
-  await Promise.race([shutdown(), timeout]);
-  deps.logger.info("graceful shutdown completed");
+  try {
+    await Promise.race([shutdown(), timeout]);
+    deps.logger.info("graceful shutdown completed");
+  } finally {
+    clearTimeout(timeoutTimer!);
+  }
 }

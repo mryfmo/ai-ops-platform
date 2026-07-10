@@ -69,7 +69,7 @@ import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
 import { startTelemetry } from "./observability/telemetry.js";
 import { createReadinessCheck } from "./http/routes/health.js";
-import { gracefulShutdown } from "./serverLifecycle.js";
+import { createShutdownSignalHandler, gracefulShutdown } from "./serverLifecycle.js";
 
 export * from "./config.js";
 export * from "./http/app.js";
@@ -500,10 +500,11 @@ async function main(): Promise<void> {
   const server = serve({ fetch: app.fetch, port: config.PORT });
   logger.info({ port: config.PORT }, "server listening");
 
-  const shutdown = async (): Promise<void> => {
-    logger.info("shutdown signal received");
-    try {
-      await gracefulShutdown({
+  const runShutdown = createShutdownSignalHandler({
+    isShuttingDown: () => shuttingDown,
+    logger,
+    shutdown: () =>
+      gracefulShutdown({
         server,
         scheduler,
         pool,
@@ -512,12 +513,12 @@ async function main(): Promise<void> {
           shuttingDown = value;
         },
         logger,
-      });
-      process.exit(0);
-    } catch (err) {
-      logger.error({ err: err instanceof Error ? err.message : String(err) }, "graceful shutdown failed");
-      process.exit(1);
-    }
+      }),
+    exit: (code) => process.exit(code),
+  });
+  const shutdown = async (): Promise<void> => {
+    if (shuttingDown) return;
+    await runShutdown();
   };
   process.on("SIGTERM", () => void shutdown());
   process.on("SIGINT", () => void shutdown());
