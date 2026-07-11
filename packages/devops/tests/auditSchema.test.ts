@@ -11,6 +11,10 @@ const migration = readFileSync(
   new URL("../src/db/migrations/202607110000_audit_log_partitions.sql", import.meta.url),
   "utf8",
 );
+const mutationMigration = readFileSync(
+  new URL("../src/db/migrations/202607110001_audit_log_block_mutation.sql", import.meta.url),
+  "utf8",
+);
 const integrationScript = readFileSync(new URL("../../../verification/run_db_integration.sh", import.meta.url), "utf8");
 
 describe("audit schema [REQ-028] [SPEC-INT-056]", () => {
@@ -83,5 +87,15 @@ describe("audit schema [REQ-028] [SPEC-INT-056]", () => {
     expect(schema).toContain("GRANT INSERT, SELECT ON audit_log TO app_role");
     expect(schema).not.toContain("GRANT UPDATE");
     expect(schema).not.toContain("GRANT DELETE");
+  });
+
+  it("所有者を含むUPDATE/DELETEとTRUNCATEを0行でもstatement triggerで拒否する [REQ-028]", () => {
+    for (const sql of [schema, mutationMigration]) {
+      expect(sql).toContain("CREATE OR REPLACE FUNCTION audit_log_block_mutation");
+      expect(sql).toContain("RAISE EXCEPTION 'E-AUD03: audit_log is append-only'");
+      expect(sql).toContain("CREATE OR REPLACE TRIGGER audit_log_block_update_delete BEFORE UPDATE OR DELETE");
+      expect(sql).toContain("FOR EACH STATEMENT EXECUTE FUNCTION audit_log_block_mutation()");
+      expect(sql).toContain("CREATE OR REPLACE TRIGGER audit_log_block_truncate BEFORE TRUNCATE");
+    }
   });
 });
