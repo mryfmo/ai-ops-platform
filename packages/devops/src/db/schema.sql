@@ -185,20 +185,115 @@ CREATE TABLE IF NOT EXISTS report_snapshots (
 
 -- SPEC-INT-056 audit_log（追記専用。REQ-028）
 CREATE TABLE IF NOT EXISTS audit_log (
-  log_id   BIGSERIAL PRIMARY KEY,
-  trace_id UUID NOT NULL,
-  actor    TEXT NOT NULL,
-  action   TEXT NOT NULL,
-  basis    TEXT NOT NULL,
-  detail   JSONB NOT NULL,
-  at       TIMESTAMPTZ NOT NULL DEFAULT now()
-) PARTITION BY RANGE (at);
+  log_id         BIGSERIAL,
+  retention_class TEXT NOT NULL CHECK (retention_class IN ('prjops_5y', 'devops_1y')),
+  trace_id       UUID NOT NULL,
+  actor          TEXT NOT NULL,
+  action         TEXT NOT NULL,
+  basis          TEXT NOT NULL,
+  detail         JSONB NOT NULL,
+  at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (retention_class, at, log_id)
+) PARTITION BY LIST (retention_class);
 CREATE INDEX IF NOT EXISTS idx_audit_log_trace_id ON audit_log (trace_id);
 
--- audit_logへのUPDATE/DELETE権限をアプリロールへ付与しないこと（SPEC-INT-056: 追記専用の担保）。
--- 実運用のロール作成例（DDLはインフラ側のマイグレーションで管理。ここではコメントとして明記）:
---   REVOKE UPDATE, DELETE ON audit_log FROM app_role;
---   GRANT INSERT, SELECT ON audit_log TO app_role;
+CREATE TABLE IF NOT EXISTS audit_log_prjops_5y PARTITION OF audit_log
+  FOR VALUES IN ('prjops_5y') PARTITION BY RANGE (at);
+CREATE TABLE IF NOT EXISTS audit_log_devops_1y PARTITION OF audit_log
+  FOR VALUES IN ('devops_1y') PARTITION BY RANGE (at);
+
+CREATE OR REPLACE FUNCTION ensure_audit_log_partition(p_retention_class TEXT, p_month DATE)
+RETURNS TEXT
+LANGUAGE plpgsql
+SET search_path FROM CURRENT
+AS $$
+DECLARE
+  parent_name TEXT;
+  partition_name TEXT;
+  month_start DATE := date_trunc('month', p_month)::date;
+  month_start_utc TEXT := to_char(month_start, 'YYYY-MM-DD') || 'T00:00:00Z';
+  month_end_utc TEXT := to_char((month_start + INTERVAL '1 month')::date, 'YYYY-MM-DD') || 'T00:00:00Z';
+BEGIN
+  IF p_retention_class NOT IN ('prjops_5y', 'devops_1y') THEN
+    RAISE EXCEPTION 'invalid audit retention class: %', p_retention_class;
+  END IF;
+  IF p_month <> month_start THEN
+    RAISE EXCEPTION 'audit partition month must be the first day: %', p_month;
+  END IF;
+
+  parent_name := 'audit_log_' || p_retention_class;
+  partition_name := parent_name || '_' || to_char(month_start, 'YYYY_MM');
+  IF to_regclass(partition_name) IS NULL THEN
+    EXECUTE format(
+      'CREATE TABLE %I PARTITION OF %I FOR VALUES FROM (%L::timestamptz) TO (%L::timestamptz)',
+      partition_name,
+      parent_name,
+      month_start_utc,
+      month_end_utc
+    );
+  END IF;
+  RETURN partition_name;
+END;
+$$;
+
+SELECT ensure_audit_log_partition('prjops_5y', date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date);
+SELECT ensure_audit_log_partition('prjops_5y', (date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') + INTERVAL '1 month')::date);
+SELECT ensure_audit_log_partition('devops_1y', date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date);
+SELECT ensure_audit_log_partition('devops_1y', (date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') + INTERVAL '1 month')::date);
+
+CREATE TABLE IF NOT EXISTS audit_log_prjops_5y_default PARTITION OF audit_log_prjops_5y DEFAULT;
+CREATE TABLE IF NOT EXISTS audit_log_devops_1y_default PARTITION OF audit_log_devops_1y DEFAULT;
+
+CREATE OR REPLACE FUNCTION audit_retention_candidates(
+  p_as_of DATE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
+)
+RETURNS TABLE (partition_name TEXT, retention_class TEXT, month_start DATE)
+LANGUAGE sql
+STABLE
+SET search_path FROM CURRENT
+AS $$
+  WITH partitions AS (
+    SELECT
+      format('%I.%I', root_schema.nspname, child.relname) AS partition_name,
+      CASE
+        WHEN parent.relname = 'audit_log_prjops_5y' THEN 'prjops_5y'
+        ELSE 'devops_1y'
+      END AS retention_class,
+      to_date(substring(child.relname FROM '(\d{4}_\d{2})$'), 'YYYY_MM') AS month_start
+    FROM pg_inherits
+    JOIN pg_class child ON child.oid = inhrelid
+    JOIN pg_namespace child_schema ON child_schema.oid = child.relnamespace
+    JOIN pg_class parent ON parent.oid = inhparent
+    JOIN pg_namespace parent_schema ON parent_schema.oid = parent.relnamespace
+    JOIN pg_inherits parent_link ON parent_link.inhrelid = parent.oid
+    JOIN pg_class root ON root.oid = parent_link.inhparent
+    JOIN pg_namespace root_schema ON root_schema.oid = root.relnamespace
+    WHERE root.oid = 'audit_log'::regclass
+      AND parent_schema.oid = root_schema.oid
+      AND child_schema.oid = root_schema.oid
+      AND parent.relname IN ('audit_log_prjops_5y', 'audit_log_devops_1y')
+      AND child.relname ~ '\d{4}_\d{2}$'
+  )
+  SELECT p.partition_name, p.retention_class, p.month_start
+  FROM partitions p
+  WHERE p.month_start < date_trunc('month', p_as_of)::date
+    AND p.month_start < date_trunc('month', p_as_of)::date - CASE p.retention_class
+      WHEN 'prjops_5y' THEN INTERVAL '5 years'
+      ELSE INTERVAL '1 year'
+    END
+  ORDER BY p.month_start, p.partition_name;
+$$;
+
+-- app_role is infrastructure-owned; apply least privilege when it already exists.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_role') THEN
+    REVOKE UPDATE, DELETE, TRUNCATE ON audit_log FROM app_role;
+    GRANT INSERT, SELECT ON audit_log TO app_role;
+    GRANT USAGE, SELECT ON SEQUENCE audit_log_log_id_seq TO app_role;
+  END IF;
+END;
+$$;
 
 -- SPEC-INT-057 partner_companies
 CREATE TABLE IF NOT EXISTS partner_companies (
@@ -209,11 +304,6 @@ CREATE TABLE IF NOT EXISTS partner_companies (
   teams_channel_id TEXT,
   notify_emails   TEXT[] NOT NULL DEFAULT '{}'
 );
-
--- 月次パーティション作成例（audit_logの13か月保持ローテーション。REQ-028: 保持1年）
--- CREATE TABLE audit_log_2026_07 PARTITION OF audit_log
---   FOR VALUES FROM ('2026-07-01') TO ('2026-08-01');
--- 13か月経過したパーティションはDROP TABLEで削除する運用スクリプトを別途 /runbooks に用意する。
 
 -- ============================================================
 -- ADR-0005: 常駐サーバ+Teams統合（プロジェクト専用チャネルの会話取込）

@@ -1,0 +1,8 @@
+P001-T01 pre-change fresh-schema reproduction
+Date: 2026-07-11 Asia/Tokyo
+Command: /opt/homebrew/bin/initdb -D /private/tmp/p001-t01-pg --no-locale --encoding=UTF8
+Exit: 1
+Output:
+initdb: error: program "postgres" is needed by initdb but was not found in the same directory as "/opt/homebrew/Cellar/libpq/18.4/bin/initdb"
+
+Result: environment blocked before schema execution. The installed Homebrew libpq package provides client tools but not the PostgreSQL server executable. Docker is also unavailable.

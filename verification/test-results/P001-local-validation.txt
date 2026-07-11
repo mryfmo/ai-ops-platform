@@ -1,0 +1,79 @@
+P001-T01 local validation summary (2026-07-11 Asia/Tokyo)
+
+PASS bash -n verification/run_db_integration.sh
+PASS pnpm --filter @aiops/devops test -- auditSchema migrate (9 tests)
+PASS pnpm --filter @aiops/server test -- pgAuditLog (2 tests)
+PASS mise run test (892 tests)
+PASS mise run typecheck
+PASS mise run build
+PASS mise run lint (as completed within mise run ci)
+PASS mise run traceability (as completed within mise run ci)
+PASS Prettier check for all changed parser-supported files
+PASS git diff --check
+PASS secret-pattern scan of changed Plan 001 files
+
+BLOCKED real PostgreSQL validation: the installed /opt/homebrew/Cellar/libpq/18.4/bin/initdb cannot find a sibling postgres server executable; Docker is unavailable.
+FAIL mise run ci: Prettier reported pre-existing/task-external .codex/hooks.json and gate-before-DONE plans/README.md. Source lint and traceability had already passed. The worker did not edit either file.
+UNAVAILABLE make require-crit-review: repository has no such Make target.
+
+No connection URL, credential, token, or secret value is included in this evidence.
+
+Revision 1 (2026-07-11 Asia/Tokyo)
+PASS test-first regression failed before the migration revision
+PASS pnpm --filter @aiops/devops test -- auditSchema migrate (10 tests)
+PASS pnpm --filter @aiops/server test -- pgAuditLog (2 tests)
+PASS bash -n verification/run_db_integration.sh
+PASS pnpm --filter @aiops/devops typecheck
+PASS pnpm --filter @aiops/server typecheck
+PASS changed parser-supported file Prettier check
+PASS git diff --check
+BLOCKED real PostgreSQL adversarial scenarios remain unexecuted for the previously recorded environment reason
+
+Revision 2 (2026-07-11 Asia/Tokyo)
+PASS bash -n verification/run_db_integration.sh
+PASS pnpm --filter @aiops/devops test -- auditSchema migrate (10 tests)
+PASS pnpm --filter @aiops/server test -- pgAuditLog (2 tests)
+PASS fixture scope check: GRANT USAGE is present only in verification/run_db_integration.sh
+PASS git diff --check
+PENDING orchestrator PostgreSQL 16.14 rerun; no pass claimed
+
+Revision 3 (2026-07-11 Asia/Tokyo)
+PASS test-first UTC/session-timezone regression failed before implementation
+PASS pnpm --filter @aiops/devops test -- auditSchema migrate (11 tests)
+PASS pnpm --filter @aiops/server test -- pgAuditLog (4 tests)
+PASS pnpm --filter @aiops/devops typecheck
+PASS pnpm --filter @aiops/server typecheck
+PASS bash -n verification/run_db_integration.sh
+PASS changed TypeScript Prettier check
+PASS git diff --check
+PASS .codex/hooks.json and plans/README.md unchanged by this revision
+PENDING orchestrator real PostgreSQL and full CI rerun after Revision 3; no pass claimed
+
+Revision 4 (2026-07-11 Asia/Tokyo)
+PASS test-first historical-partition/UTC-cutoff/schema-isolation regressions failed before implementation
+PASS pnpm --filter @aiops/devops test -- auditSchema migrate (13 tests)
+PASS pnpm --filter @aiops/server test -- pgAuditLog (4 tests)
+PASS pnpm --filter @aiops/devops typecheck
+PASS pnpm --filter @aiops/server typecheck
+PASS bash -n verification/run_db_integration.sh
+PASS changed parser-supported file Prettier check
+PASS git diff --check
+PENDING orchestrator real PostgreSQL and full CI rerun after Revision 4; no pass claimed
+
+Revision 5 (2026-07-11 Asia/Tokyo)
+PASS test-first explicit-UTC historical fixture regression failed before correction
+PASS pnpm --filter @aiops/devops test -- auditSchema migrate (14 tests)
+PASS pnpm --filter @aiops/devops typecheck
+PASS bash -n verification/run_db_integration.sh
+PASS changed test Prettier check
+PASS git diff --check
+PENDING orchestrator real PostgreSQL rerun after Revision 5; no pass claimed
+
+Final orchestrator acceptance (2026-07-11 Asia/Tokyo)
+PASS disposable PostgreSQL 16.14 fresh schema and append-only role checks
+PASS classified historical migration routes explicit UTC instants to monthly partitions
+PASS unclassified legacy and intentional content mismatch roll back without data loss
+PASS UTC/non-UTC boundary and cross-schema retention discovery scenarios
+PASS migration reapply is idempotent
+PASS mise run ci after Revision 5
+PASS independent gpt-5.6-sol high review: no discrete correctness issue
