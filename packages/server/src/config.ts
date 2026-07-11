@@ -11,7 +11,21 @@
  */
 import { z } from "zod";
 
-const configSchema = z.object({
+const commaList = (lowercase = false) =>
+  z
+    .string()
+    .transform((value) => [
+      ...new Set(
+        value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((item) => (lowercase ? item.toLowerCase() : item)),
+      ),
+    ])
+    .refine((values) => values.length > 0 && !values.includes("*"), "must be a nonempty comma list without wildcard");
+
+const baseConfigSchema = z.object({
   /** HTTP待受ポート（公開エンドポイント。既定8080） */
   PORT: z.coerce.number().int().positive().default(8080),
   /** Next.js WebUIの内部ポート（webuiProxyの転送先。既定3100） */
@@ -48,6 +62,12 @@ const configSchema = z.object({
   GRAPH_CLIENT_ID: z.string().min(1),
   GRAPH_CLIENT_SECRET: z.string().min(1),
   GRAPH_TENANT_ID: z.string().min(1),
+  /** ADR-0005: Graph team/mailbox external operationのアプリ内最終allowlist。 */
+  GRAPH_ALLOWED_TEAM_IDS: commaList(),
+  GRAPH_ALLOWED_FROM_MAILBOXES: commaList(true).refine(
+    (mailboxes) => mailboxes.every((mailbox) => z.string().email().safeParse(mailbox).success),
+    "must contain only email addresses",
+  ),
   /** 常駐コンテナの公開FQDN（Graph notificationUrl・WebUIディープリンクの生成に使用） */
   PUBLIC_BASE_URL: z.string().url(),
   /** Anthropic APIキー（自由文意図解釈で使用。未設定時はLLMフォールバック無効） */
@@ -55,7 +75,12 @@ const configSchema = z.object({
   /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
   GITHUB_PROJECT_NODE_ID: z.string().optional(),
   /** ADR-0014: Outlook配信元メールボックス。未設定時はreport deliveryをdisabled+監査にする。 */
-  FROM_MAILBOX: z.string().email().optional(),
+  FROM_MAILBOX: z
+    .string()
+    .trim()
+    .email()
+    .transform((mailbox) => mailbox.toLowerCase())
+    .optional(),
   /** ADR-0014: reportDeliveryTaskの明示有効化フラグ。既定false。 */
   REPORT_DELIVERY_ENABLED: z
     .enum(["true", "false", "1", "0"])
@@ -78,8 +103,8 @@ const configSchema = z.object({
         : [],
     ),
   /** ADR-0014: report card投稿先の既定Teams channel。未設定時はメールのみ。 */
-  DEFAULT_TEAMS_TEAM_ID: z.string().optional(),
-  DEFAULT_TEAMS_CHANNEL_ID: z.string().optional(),
+  DEFAULT_TEAMS_TEAM_ID: z.string().trim().min(1).optional(),
+  DEFAULT_TEAMS_CHANNEL_ID: z.string().trim().min(1).optional(),
   /**
    * コーディングタスク関連シークレット（ADR-0006）。二用途で共有する:
    *   (a) confirmToken.ts の HMAC-SHA256鍵（確認リンクtokenの生成・検証）
@@ -87,6 +112,31 @@ const configSchema = z.object({
    *       POST /internal/coding-tasks/:taskId/callback のBearer認証シークレット
    */
   CODING_TASK_CALLBACK_SECRET: z.string().min(32),
+});
+
+const configSchema = baseConfigSchema.superRefine((config, ctx) => {
+  if (!config.REPORT_DELIVERY_ENABLED) return;
+  if (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["FROM_MAILBOX"],
+      message: "must be in Graph mailbox allowlist",
+    });
+  }
+  if (Boolean(config.DEFAULT_TEAMS_TEAM_ID) !== Boolean(config.DEFAULT_TEAMS_CHANNEL_ID)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DEFAULT_TEAMS_TEAM_ID"],
+      message: "team/channel defaults must be configured together",
+    });
+  }
+  if (config.DEFAULT_TEAMS_TEAM_ID && !config.GRAPH_ALLOWED_TEAM_IDS.includes(config.DEFAULT_TEAMS_TEAM_ID)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["DEFAULT_TEAMS_TEAM_ID"],
+      message: "must be in Graph team allowlist",
+    });
+  }
 });
 
 export type ServerConfig = z.infer<typeof configSchema>;

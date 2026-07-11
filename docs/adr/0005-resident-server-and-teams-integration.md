@@ -31,11 +31,13 @@
      または通知遅延（通常数秒、polling時最大5分）が実用に耐えない場合。
      その際はEntra IDアプリ（Bot用）+Azure Botリソース+`/webhooks/bot`エンドポイント+
      マニフェストbotセクション追加が必要（`packages/server/src/bot/` 配下に隔離して実装する）。
-4. **チャネル読取権限はRSC（resource-specific consent）**: `ChannelMessage.Read.Group` /
-   `ChannelMessage.Send.Group` / `Channel.ReadBasic.Group`。テナント全体権限
-   （`ChannelMessage.Read.All`）は付与しない。プロジェクトチーム作成フローでの
-   Teamsアプリ自動インストール（`teamsAppInstallation` API）+ project_channelsテーブル登録が
-   権限付与の唯一の経路であり、アプリ側フィルタ（channelAuthorization）と二重防御を構成する。
+4. **チャネルメッセージ権限はRSC**: `ChannelMessage.Read.Group` / `ChannelMessage.Send.Group` のみ。
+   テナント全体権限（`ChannelMessage.Read.All`）とmigration-onlyの`Teamwork.Migrate.All`は付与しない。
+   RSC permission referenceはapplication send権限を列挙する一方、Graphの通常post/reply method pageは
+   application欄をmigration-onlyとしており、app-only通常root投稿・返信は実tenant未検証である。
+   sandbox 201/403 evidenceまたはMicrosoft support回答を得るまで適合済みと扱わない。
+   Teamsアプリ自動インストールは未実装の将来要件であり、現時点では人間が対象チームへの
+   インストール・同意とproject_channels登録を行う。アプリ側フィルタ（channelAuthorization）は維持する。
 5. **会話写しはchannel_messagesテーブルに保存**（保存前にsanitizeSecrets必須）。
    Teams側の編集・削除はlast_modified_at/deleted_atで追従（物理削除しない）。
    保持期間はプロジェクト終了（project_channels.closed_at）から13か月後にDELETE

@@ -43,7 +43,7 @@ const baseTarget: DeliveryTarget = {
   subject: "【週次レポート】サンプル案件",
   html: "<html></html>",
   postTeamsSummaryCard: true,
-  teamsChannelId: "chan-1",
+  teamsTarget: { teamId: "team-1", channelId: "chan-1" },
 };
 
 describe("distributeOne [REQ-018, SPEC-INT-052]", () => {

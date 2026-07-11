@@ -27,10 +27,14 @@ export GITHUB_WEBHOOK_SECRET="$(openssl rand -hex 32)"
 export GRAPH_CLIENT_ID=...
 export GRAPH_CLIENT_SECRET=...
 export GRAPH_TENANT_ID=...
+export GRAPH_ALLOWED_TEAM_IDS="<exact-team-id>[,<exact-team-id>]"
+export GRAPH_ALLOWED_FROM_MAILBOXES="reports@example.com[,other-sender@example.com]"
 export PUBLIC_BASE_URL=https://aiops.example.com
 export CODING_TASK_CALLBACK_SECRET="$(openssl rand -hex 32)"
 export ANTHROPIC_API_KEY=...
 ```
+
+`GRAPH_ALLOWED_TEAM_IDS` と `GRAPH_ALLOWED_FROM_MAILBOXES` は必須で、空リストと `*` は起動時に拒否される。team ID は各要素をtrim・重複排除した後もcase-sensitive exact match、mailboxはtrim・lowercase・重複排除して照合する。`REPORT_DELIVERY_ENABLED=true` の場合、`FROM_MAILBOX` はmailbox allowlist内、default Teams team/channelはboth-or-neitherでteam allowlist内でなければならない。DBのrecipient/subscription行はallowlistを拡張しない。
 
 web:
 
@@ -120,6 +124,7 @@ curl -i http://127.0.0.1:8080/readyz
 - [ ] GitHub App installation token で対象 organization を読める。
 - [ ] organization webhook が server に到達する。
 - [ ] Teams manifest と Graph subscription が有効。
+- [ ] 全E2E対象teamと送信元mailboxがGraph allowlistに明示され、空値・wildcard・case違いがない。
 - [ ] `ANTHROPIC_API_KEY` で `/app/api/chat` 実 LLM スモークが成功。
 - [ ] Excel import 実装が stack に統合済み。
 - [ ] すべての観測ログを `verification/VERIFICATION_REPORT.md` に追記した。

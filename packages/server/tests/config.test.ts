@@ -14,6 +14,8 @@ const validEnv = {
   GRAPH_CLIENT_ID: "client-id",
   GRAPH_CLIENT_SECRET: "client-secret",
   GRAPH_TENANT_ID: "tenant-id",
+  GRAPH_ALLOWED_TEAM_IDS: "team-1,team-2",
+  GRAPH_ALLOWED_FROM_MAILBOXES: "reports@example.com",
   PUBLIC_BASE_URL: "https://aiops.example.com",
   CODING_TASK_CALLBACK_SECRET: "coding-task-secret-of-at-least-32-chars",
 };
@@ -31,6 +33,8 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.LOG_LEVEL).toBe("info");
     expect(config.OTEL_SERVICE_NAME).toBe("ai-ops-platform-server");
     expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
+    expect(config.GRAPH_ALLOWED_TEAM_IDS).toEqual(["team-1", "team-2"]);
+    expect(config.GRAPH_ALLOWED_FROM_MAILBOXES).toEqual(["reports@example.com"]);
   });
 
   it("PORTを上書きできる", () => {
@@ -99,6 +103,52 @@ describe("loadConfig (ADR-0005)", () => {
     });
     expect(config.REPORT_DELIVERY_ENABLED).toBe(true);
     expect(config.FROM_MAILBOX).toBe("reports@example.com");
+    expect(config.DEFAULT_TEAMS_TEAM_ID).toBe("team-1");
     expect(config.DEFAULT_TEAMS_CHANNEL_ID).toBe("channel-1");
+  });
+
+  it("Graph allowlistをtrim/lowercase/重複排除する", () => {
+    const config = loadConfig({
+      ...validEnv,
+      GRAPH_ALLOWED_TEAM_IDS: " team-1,team-1,Team-1 ",
+      GRAPH_ALLOWED_FROM_MAILBOXES: " Reports@Example.com,reports@example.com ",
+    });
+    expect(config.GRAPH_ALLOWED_TEAM_IDS).toEqual(["team-1", "Team-1"]);
+    expect(config.GRAPH_ALLOWED_FROM_MAILBOXES).toEqual(["reports@example.com"]);
+  });
+
+  it.each([
+    ["missing team list", { GRAPH_ALLOWED_TEAM_IDS: undefined }],
+    ["empty team list", { GRAPH_ALLOWED_TEAM_IDS: " , " }],
+    ["wildcard team list", { GRAPH_ALLOWED_TEAM_IDS: "team-1,*" }],
+    ["missing mailbox list", { GRAPH_ALLOWED_FROM_MAILBOXES: undefined }],
+    ["empty mailbox list", { GRAPH_ALLOWED_FROM_MAILBOXES: " , " }],
+    ["wildcard mailbox list", { GRAPH_ALLOWED_FROM_MAILBOXES: "*" }],
+  ])("不正なGraph allowlistは起動設定を拒否する: %s", (_label, override) => {
+    expect(() => loadConfig({ ...validEnv, ...override })).toThrow("E-CFG01");
+  });
+
+  it.each([
+    ["FROM_MAILBOXなし", { REPORT_DELIVERY_ENABLED: "true", FROM_MAILBOX: undefined }],
+    ["allowlist外FROM_MAILBOX", { REPORT_DELIVERY_ENABLED: "true", FROM_MAILBOX: "other@example.com" }],
+    [
+      "team defaultのみ",
+      { REPORT_DELIVERY_ENABLED: "true", FROM_MAILBOX: "reports@example.com", DEFAULT_TEAMS_TEAM_ID: "team-1" },
+    ],
+    [
+      "channel defaultのみ",
+      { REPORT_DELIVERY_ENABLED: "true", FROM_MAILBOX: "reports@example.com", DEFAULT_TEAMS_CHANNEL_ID: "channel-1" },
+    ],
+    [
+      "allowlist外default team",
+      {
+        REPORT_DELIVERY_ENABLED: "true",
+        FROM_MAILBOX: "reports@example.com",
+        DEFAULT_TEAMS_TEAM_ID: "db-team",
+        DEFAULT_TEAMS_CHANNEL_ID: "channel-1",
+      },
+    ],
+  ])("delivery有効時の不正defaultは起動設定を拒否する: %s", (_label, override) => {
+    expect(() => loadConfig({ ...validEnv, ...override })).toThrow("E-CFG01");
   });
 });

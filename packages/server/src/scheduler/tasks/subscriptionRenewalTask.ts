@@ -8,12 +8,16 @@
  * 設計: healthcheckTask/jitRevocationTaskと同じファクトリ関数パターン
  *   （createSubscriptionRenewalTask(deps): ScheduledTask）。
  */
-import type { AuditLogWriter } from "@aiops/shared";
+import { graphSubscriptionErrorDetail, type AuditLogWriter } from "@aiops/shared";
 import type { ScheduledTask } from "../scheduler.js";
 import type { GraphSubscriptionsRepo, GraphSubscription } from "../../db/graphSubscriptionsRepo.js";
+import {
+  computeGraphSubscriptionExpiration,
+  isGraphSubscriptionRenewalDue,
+} from "../../lib/graphSubscriptionPolicy.js";
 
 export interface SubscriptionRenewalGraphClient {
-  renewSubscription(subscriptionId: string, newExpirationIso: string): Promise<void>;
+  renewSubscription(subscriptionId: string, newExpirationIso: string, teamId: string | null): Promise<void>;
 }
 
 export interface SubscriptionRenewalTaskDeps {
@@ -21,54 +25,58 @@ export interface SubscriptionRenewalTaskDeps {
   graphClient: SubscriptionRenewalGraphClient;
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
-  /** 更新後の新しい有効期限を計算する（既定: 現在時刻+60分。資源種別上限はADR-0005参照） */
-  computeNewExpirationIso?(now: Date): string;
-  /** 期限切れ間近と判定する残り時間の閾値ms（既定10分） */
-  renewBeforeExpiryMs?: number;
-}
-
-const DEFAULT_RENEW_BEFORE_EXPIRY_MS = 10 * 60_000;
-
-function defaultComputeNewExpirationIso(now: Date): string {
-  return new Date(now.getTime() + 60 * 60_000).toISOString();
-}
-
-function isDueForRenewal(sub: GraphSubscription, now: Date, thresholdMs: number): boolean {
-  const expiresAtMs = new Date(sub.expiresAt).getTime();
-  return expiresAtMs - now.getTime() < thresholdMs;
+  backfillSubscription(sub: GraphSubscription, now: Date): Promise<void>;
 }
 
 export function createSubscriptionRenewalTask(deps: SubscriptionRenewalTaskDeps): ScheduledTask {
-  const thresholdMs = deps.renewBeforeExpiryMs ?? DEFAULT_RENEW_BEFORE_EXPIRY_MS;
-  const computeNewExpirationIso = deps.computeNewExpirationIso ?? defaultComputeNewExpirationIso;
-
   return {
     name: "subscription-renewal-30m",
     intervalMs: 30 * 60_000,
+    runOnStart: true,
     async run(now: Date): Promise<void> {
       const notifying = await deps.graphSubscriptionsRepo.listByMode("notification");
-      const due = notifying.filter((s) => isDueForRenewal(s, now, thresholdMs));
+      const due = notifying.filter((s) => isGraphSubscriptionRenewalDue(s.expiresAt, now));
       if (due.length === 0) return;
 
       for (const sub of due) {
-        const newExpirationIso = computeNewExpirationIso(now);
         try {
-          await deps.graphClient.renewSubscription(sub.subscriptionId, newExpirationIso);
-          await deps.graphSubscriptionsRepo.updateExpiresAt(sub.subscriptionId, newExpirationIso);
-        } catch (err) {
-          // E-SUB02: renew失敗 → pollingへフォールバック（SPEC-INT-001）+ 監査ログ
-          await deps.graphSubscriptionsRepo.switchMode(sub.subscriptionId, "polling");
-          await deps.auditLog.append({
-            trace_id: deps.traceIdProvider(),
-            actor: "SERVER",
-            action: "graph_subscription_renewal_failed",
-            basis: "SPEC-INT-001",
-            detail: {
-              subscriptionId: sub.subscriptionId,
-              error: err instanceof Error ? err.message : String(err),
-            },
-            at: now.toISOString(),
-          });
+          const newExpirationIso = computeGraphSubscriptionExpiration(now);
+          try {
+            await deps.graphClient.renewSubscription(sub.subscriptionId, newExpirationIso, sub.teamId);
+            await deps.graphSubscriptionsRepo.updateExpiresAt(sub.subscriptionId, newExpirationIso);
+          } catch (err) {
+            await deps.graphSubscriptionsRepo.switchMode(sub.subscriptionId, "polling");
+            await deps.backfillSubscription(sub, now);
+            await deps.auditLog.append({
+              trace_id: deps.traceIdProvider(),
+              actor: "SERVER",
+              action: "graph_subscription_renewal_failed",
+              basis: "SPEC-INT-001",
+              detail: {
+                subscriptionId: sub.subscriptionId,
+                ...graphSubscriptionErrorDetail(err),
+                recovery: "polling_backfill",
+              },
+              at: now.toISOString(),
+            });
+          }
+        } catch (error) {
+          try {
+            await deps.auditLog.append({
+              trace_id: deps.traceIdProvider(),
+              actor: "SERVER",
+              action: "graph_subscription_renewal_row_failed",
+              basis: "SPEC-INT-001",
+              detail: {
+                subscriptionId: sub.subscriptionId,
+                ...graphSubscriptionErrorDetail(error),
+                recovery: "polling_recovery_pending",
+              },
+              at: now.toISOString(),
+            });
+          } catch {
+            // Continue with later subscriptions even when audit storage also fails.
+          }
         }
       }
     },

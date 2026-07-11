@@ -4,12 +4,18 @@
 
 ## 症状と自動復旧の仕組み
 
-| 症状                             | 自動対応（subscriptionRenewalTask, 30分間隔）                                            |
-| -------------------------------- | ---------------------------------------------------------------------------------------- |
-| renewSubscription失敗（E-SUB02） | graph_subscriptions.mode='polling'へ遷移。channelPollingTask（5分間隔）がdelta取得で継続 |
-| polling中                        | 30分ごとにcreateSubscription再作成を試行し、成功でmode='notification'へ復帰              |
+| 症状                         | 自動対応                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| restart                      | renewalとpollingを起動直後に実行し、その後は通常の30分/5分間隔でnon-overlap実行       |
+| renew失敗                    | pollingへ遷移して即時backfill。404はpolling taskでreplacement、429/5xxはpollingを維持 |
+| lifecycle removed/reauth失敗 | pollingへ遷移してbackfillし、polling taskがrenewまたはreplacementを試行               |
+| polling中                    | 未失効ならrenew→backfill、失効/invalid/404ならcreate→backfill→DB publishを試行        |
 
-**通常は人間の介入不要**。以下は自動復旧が機能しない場合の手動手順。
+同じ購読のrecoveryはPostgreSQL advisory lockを使う本実装の参加worker間で1 workerに絞る。lock取得後に台帳を再読込し、old subscription IDがまだ`polling`の場合だけGraph操作へ進む。lock loserやwinner publish後のstale contenderはGraph createを行わない。この保証は同じlock規約を使わない外部プロセスには及ばない。
+
+Modeはrenew失敗時に`notification`から`polling`へ先に変わり、その後のbackfill/auditが失敗しても安全側の`polling`に残る。polling renewalはbackfill成功後、replacementは条件付きDB publish成功時だけ`notification`へ戻る。DB publishは条件付き単一UPDATEだが、Graph create・delta backfill・DB publishをまたぐ原子性はない。publish前に失敗した場合は作成済みの新購読をbounded DELETEでcleanupする。DELETEも失敗した場合はGraph側に孤立購読が残り得るため、`graph_subscription_recovery_cleanup` の `cleanup_failed` を監視して手動照合する。
+
+以下は自動再試行・cleanupで復旧しない場合の手動手順。
 
 ## 前提条件
 
@@ -36,11 +42,9 @@ curl -s -o /dev/null -w "%{http_code}" "https://<PUBLIC_BASE_URL>/webhooks/graph
 # 200 かつ本文 "ping" が返ること
 ```
 
-4. 固着した購読レコードの削除→次回renewalTask実行時に再作成される:
+4. 固着時はレコードを削除しない。削除した行は自動再作成されない。`graph_subscription_recovery_pending` のstatus、callback到達性、権限を修復し、polling rowを残して次回5分周期の再試行を待つ。
 
-```sql
-DELETE FROM graph_subscriptions WHERE subscription_id = '<対象ID>';
-```
+   `cleanup_failed` がある場合はGraphのsubscriptions一覧と台帳をsubscription IDで照合し、台帳に存在しないreplacementだけを削除する。clientStateやGraph response bodyを監査ログへ転記しない。
 
 5. 監査記録:
 
@@ -53,4 +57,5 @@ VALUES (gen_random_uuid(), '<実施者ID>', 'graph_subscription_manual_recovery'
 ## 確認方法
 
 - graph_subscriptions.mode が 'notification' に戻っていること
+- DB publish成功時もresource/team_id/channel_id/delta_linkが保持され、subscription_idとexpires_atだけがGraph返却値に変わること
 - テストチャネルへの投稿が数秒でchannel_messagesに反映されること

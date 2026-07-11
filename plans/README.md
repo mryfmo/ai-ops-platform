@@ -1,19 +1,20 @@
 # AI Ops Platform 製品化実装計画
 
-2026-07-11、commit `21306d8` の全体監査を基準に作成した。後工程の executor は、各 plan を全文読了し、依存 plan が `DONE` であることを確認してから着手すること。推測で未記載機能を追加せず、STOP 条件に該当したら作業を止めて証拠を報告する。
+2026-07-11、commit `21306d8` の全体監査を基準に作成し、Plan 009でcommit `6a6c1aa`とPlan 005受入済みworking treeへ再同期した。後工程の executor は、各 plan を全文読了し、依存 plan が `DONE` であることを確認してから着手すること。推測で未記載機能を追加せず、STOP 条件に該当したら作業を止めて証拠を報告する。
 
 ## 実行順序と状態
 
-| Plan | Phase | Title                                                               | Priority | Effort | Depends on | Status |
-| ---- | ----- | ------------------------------------------------------------------- | -------- | ------ | ---------- | ------ |
-| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる             | P0       | L      | —          | DONE   |
-| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                 | P0       | L      | 001        | TODO   |
-| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる         | P0       | L      | 002, 005   | TODO   |
-| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する             | P0       | L      | 001, 005   | TODO   |
-| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる   | P0       | L      | 001        | TODO   |
-| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする | P0       | L      | 001, 002   | TODO   |
-| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する             | P1       | L      | 001, 002   | TODO   |
-| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる     | P0       | XL     | 001–007    | TODO   |
+| Plan | Phase | Title                                                               | Priority | Effort | Depends on | Status                                                                |
+| ---- | ----- | ------------------------------------------------------------------- | -------- | ------ | ---------- | --------------------------------------------------------------------- |
+| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる             | P0       | L      | —          | DONE                                                                  |
+| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                 | P0       | L      | 001        | BLOCKED: authoritative data/identity decisions pending                |
+| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる         | P0       | L      | 002, 005   | TODO                                                                  |
+| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する             | P0       | L      | 001, 005   | TODO                                                                  |
+| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる   | P0       | L      | 001        | BLOCKED: core local accepted; sandbox adapter/tenant evidence pending |
+| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする | P0       | L      | 001, 002   | TODO                                                                  |
+| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する             | P1       | L      | 001, 002   | TODO                                                                  |
+| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる     | P0       | XL     | 001–007    | TODO                                                                  |
+| 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる             | P0       | XL     | 001        | TODO                                                                  |
 
 Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
 

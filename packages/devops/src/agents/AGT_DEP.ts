@@ -8,7 +8,7 @@
  * 本エージェントはGitHubClient/Graph/AuditLogとの結線のみを担当する。
  */
 import type { GitHubClient } from "@aiops/shared/clients/githubClient.js";
-import type { GraphClient } from "@aiops/shared/clients/graphClient.js";
+import type { ChannelRef, GraphClient } from "@aiops/shared/clients/graphClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
 import type { HolidayCalendar } from "@aiops/shared/calendar/businessCalendar.js";
 import { evaluateTh001StagingPromotion, type Th001Input } from "../lib/thresholds.js";
@@ -32,7 +32,7 @@ export interface DeployDependencies {
 /** REQ-003: TH-001充足時にステージングへ自動昇格し、Teamsチャネルへ事後通知する（AC-003b: 5分以内） */
 export async function promoteToStagingIfEligible(
   th001Input: Th001Input,
-  projectChannelId: string,
+  channel: ChannelRef,
   commitShaShort: string,
   deps: DeployDependencies,
 ): Promise<boolean> {
@@ -40,7 +40,7 @@ export async function promoteToStagingIfEligible(
   if (!eligible) return false;
 
   await deps.graphClient.sendAdaptiveCard({
-    channelOrChatId: projectChannelId,
+    target: channel,
     card: {
       body: [
         { type: "TextBlock", text: "ステージングへ自動デプロイしました", weight: "bolder" },
@@ -116,7 +116,7 @@ export async function monitorAndRollbackIfNeeded(
   owner: string,
   repo: string,
   projectId: string,
-  channelId: string,
+  channel: ChannelRef,
   deps: DeployDependencies,
 ): Promise<RollbackOutcome> {
   const evaluation = evaluateTh003Rollback(th003Input);
@@ -152,7 +152,7 @@ export async function monitorAndRollbackIfNeeded(
   });
 
   await deps.graphClient.sendAdaptiveCard({
-    channelOrChatId: channelId,
+    target: channel,
     card: {
       body: [
         { type: "TextBlock", text: "自動ロールバックを実行しました", weight: "bolder" },

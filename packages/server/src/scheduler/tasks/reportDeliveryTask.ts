@@ -14,6 +14,7 @@ import {
 import { isActiveRecipient, type RecipientRecord as DevopsRecipientRecord } from "@aiops/devops";
 import {
   isBusinessDay,
+  isValidId,
   todayJstDateString,
   type AuditLogWriter,
   type GraphClient,
@@ -30,6 +31,7 @@ import type { ScheduledTask } from "../scheduler.js";
 export interface ReportDeliveryTaskDeps {
   enabled: boolean;
   fromMailbox?: string;
+  defaultTeamsTeamId?: string;
   defaultTeamsChannelId?: string;
   publicBaseUrl: string;
   calendar: HolidayCalendar;
@@ -55,6 +57,23 @@ function jstDateAtStart(now: Date): Date {
 
 function toJstDateString(date: Date): string {
   return todayJstDateString(date);
+}
+
+const NUMERIC_USER_ID = /^U-\d{3,}$/;
+const UUID = /^[0-9A-F]{8}-[0-9A-F]{4}-[1-8][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i;
+
+function isSafeRecipientId(value: string): boolean {
+  return isValidId("stakeholder", value) || NUMERIC_USER_ID.test(value) || UUID.test(value);
+}
+
+function safeGraphDeliveryError(code: "E-DLV01" | "E-DLV02", error: unknown): Error {
+  const pattern =
+    code === "E-DLV01"
+      ? /^E-DLV01: sendMail failed with status ([1-5]\d{2})$/
+      : /^E-DLV02: Teams card send failed with status ([1-5]\d{2})$/;
+  const match = error instanceof Error ? pattern.exec(error.message) : null;
+  const status = match ? Number(match[1]) : null;
+  return new Error(`${code}: graph_delivery_failed status=${status ?? "unknown"}`);
 }
 
 function isFirstBusinessDayOfWeek(calendar: HolidayCalendar, now: Date): boolean {
@@ -145,24 +164,42 @@ export async function deliverStandardReportToRecipients(
   const activeRecords = devopsActiveRecords(recipients);
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
   const targets: DeliveryTarget[] = [];
+  let invalidRecipientCount = 0;
   for (const recipient of activeRecipients) {
+    if (!isSafeRecipientId(recipient.userId)) {
+      invalidRecipientCount += 1;
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-05",
+        action: "report_delivery_recipient_skipped",
+        basis: "REQ-042 SPEC-INT-069",
+        detail: { reportId: record.reportId, reason: "invalid_recipient_id" },
+        at: new Date().toISOString(),
+      });
+      continue;
+    }
     const persona = recipient.persona ?? recipient.profile;
-    const teamsChannelId = recipient.teamsChannelId ?? deps.defaultTeamsChannelId;
+    const teamsTarget =
+      recipient.teamsTeamId && recipient.teamsChannelId
+        ? { teamId: recipient.teamsTeamId, channelId: recipient.teamsChannelId }
+        : deps.defaultTeamsTeamId && deps.defaultTeamsChannelId
+          ? { teamId: deps.defaultTeamsTeamId, channelId: deps.defaultTeamsChannelId }
+          : undefined;
     let dashboardUrl: string | undefined;
-    if (teamsChannelId) {
+    if (teamsTarget) {
       try {
         dashboardUrl = buildDashboardDeepLink({
           publicBaseUrl: deps.publicBaseUrl,
           persona,
           periodLabel: record.periodLabel,
         });
-      } catch (err) {
+      } catch {
         await deps.auditLog.append({
           trace_id: traceId,
           actor: "AGT-05",
           action: "report_delivery_recipient_skipped",
           basis: "REQ-042 SPEC-INT-069",
-          detail: { recipientId: recipient.userId, reason: String(err) },
+          detail: { recipientId: recipient.userId, reason: "invalid_dashboard_url" },
           at: new Date().toISOString(),
         });
         continue;
@@ -174,28 +211,42 @@ export async function deliverStandardReportToRecipients(
       recipientEmail: recipient.email,
       subject: `[ai-ops] ${record.payload.reportType} ${record.periodLabel}`,
       html: renderStandardReportHtml(record.payload, recipient),
-      postTeamsSummaryCard: Boolean(teamsChannelId),
-      teamsChannelId: teamsChannelId ?? undefined,
+      postTeamsSummaryCard: Boolean(teamsTarget),
+      teamsTarget,
       dashboardUrl,
     });
   }
+  const auditSafeGraphClient: Pick<GraphClient, "sendMail" | "sendAdaptiveCard"> = {
+    async sendMail(input) {
+      try {
+        await deps.graphClient.sendMail(input);
+      } catch (error) {
+        throw safeGraphDeliveryError("E-DLV01", error);
+      }
+    },
+    async sendAdaptiveCard(input) {
+      try {
+        return await deps.graphClient.sendAdaptiveCard(input);
+      } catch (error) {
+        throw safeGraphDeliveryError("E-DLV02", error);
+      }
+    },
+  };
   const result = await runDistributionCycle(targets, {
-    graphClient: deps.graphClient,
+    graphClient: auditSafeGraphClient,
     deliveryLogStore: deps.deliveryLogStore,
     auditLog: deps.auditLog,
     traceId,
     fromMailbox: deps.fromMailbox,
   });
   deps.metrics?.recordDelivery("sent", result.sent.length);
-  deps.metrics?.recordDelivery("skipped", result.skipped.length);
+  const skipped = result.skipped.length + invalidRecipientCount;
+  deps.metrics?.recordDelivery("skipped", skipped);
   deps.metrics?.recordDelivery("failed", result.failed.length);
-  logger?.info(
-    { sent: result.sent.length, skipped: result.skipped.length, failed: result.failed.length },
-    "report delivery completed",
-  );
+  logger?.info({ sent: result.sent.length, skipped, failed: result.failed.length }, "report delivery completed");
   return {
     sent: result.sent.length,
-    skipped: result.skipped.length,
+    skipped,
     failed: result.failed.length,
     activeRecipients: activeRecipients.length,
   };

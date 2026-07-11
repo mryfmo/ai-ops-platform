@@ -4,7 +4,7 @@
  * 根拠: ADR-0005（5分間隔delta取得、pollingフォールバック実行部）/ REQ-030（保存前sanitizeSecrets）
  */
 import { describe, it, expect } from "vitest";
-import { InMemoryAuditLog } from "@aiops/shared";
+import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
 import {
   createChannelPollingTask,
   type ChannelPollingGraphMessage,
@@ -54,6 +54,8 @@ const SAMPLE_MSG: ChannelPollingGraphMessage = {
   deletedDateTime: null,
 };
 
+const NOW = new Date("2026-07-07T00:00:00Z");
+
 describe("channelPollingTask (ADR-0005 / REQ-030)", () => {
   it("取込許可チャネルはdelta取得→sanitize→保存し、deltaLinkを更新する", async () => {
     const upserted: unknown[] = [];
@@ -89,6 +91,7 @@ describe("channelPollingTask (ADR-0005 / REQ-030)", () => {
     expect(saved.content).not.toContain("ghp_");
     expect(saved.content).toContain("***REDACTED:github_pat***");
     expect(deltaLinkUpdates).toEqual([{ id: "sub-1", link: "new-delta" }]);
+    expect(task.runOnStart).toBe(true);
   });
 
   it("未登録チャネルは破棄+監査ログ、delta取得もしない", async () => {
@@ -139,5 +142,309 @@ describe("channelPollingTask (ADR-0005 / REQ-030)", () => {
     });
     await task.run(new Date());
     expect(deltaFetchCount).toBe(0);
+  });
+
+  it.each([
+    ["expired", "2026-07-06T23:59:00Z", null],
+    ["renew-404", "2026-07-07T01:00:00Z", 404],
+  ])("%s polling rowはcreate→backfill→DB publishする", async (_case, expiresAt, renewStatus) => {
+    const events: string[] = [];
+    const replacements: unknown[][] = [];
+    const resources: string[] = [];
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub({ expiresAt, resource: "stale-resource" })],
+        withRecoveryLock: async (_id: string, operation: () => Promise<void>) => {
+          await operation();
+          return true;
+        },
+        findBySubscriptionId: async () => makeSub({ expiresAt, resource: "stale-resource" }),
+        updateDeltaLink: async () => void events.push("backfill"),
+        updateExpiresAt: async () => {},
+        switchMode: async () => {},
+        replacePollingSubscription: async (...args: unknown[]) => {
+          events.push("publish");
+          replacements.push(args);
+          return true;
+        },
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "new-delta" }),
+        renewSubscription: async (_id, _expiresAt, teamId) => {
+          events.push(`renew:${teamId}`);
+          if (renewStatus) throw new GraphSubscriptionError("E-SUB02", renewStatus);
+        },
+        createSubscription: async (resource) => {
+          events.push("create");
+          resources.push(resource);
+          return { id: "new-sub", expirationDateTime: "2026-07-09T23:55:00Z" };
+        },
+        deleteSubscription: async () => void events.push("cleanup"),
+      },
+      recovery: {
+        notificationUrl: "https://example.test/webhooks/graph",
+        clientState: "not-a-real-secret-but-at-least-32-chars",
+      },
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-recover",
+    });
+    await task.run(NOW);
+    expect(events).toEqual(
+      renewStatus ? ["renew:t-1", "create", "backfill", "publish"] : ["create", "backfill", "publish"],
+    );
+    expect(resources).toEqual(["/teams/t-1/channels/c-1/messages"]);
+    expect(replacements).toEqual([["sub-1", "new-sub", "2026-07-09T23:55:00Z"]]);
+  });
+
+  it.each([429, 503])("retry exhausted %sはbackfillしpolling/recoverableのまま保持する", async (status) => {
+    const switched: string[] = [];
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub({ expiresAt: "2026-07-07T01:00:00Z" })],
+        withRecoveryLock: async (_id: string, operation: () => Promise<void>) => {
+          await operation();
+          return true;
+        },
+        findBySubscriptionId: async () => makeSub({ expiresAt: "2026-07-07T01:00:00Z" }),
+        updateDeltaLink: async () => {},
+        updateExpiresAt: async () => {},
+        switchMode: async () => void switched.push("notification"),
+        replacePollingSubscription: async () => true,
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "new-delta" }),
+        renewSubscription: async () => {
+          throw new GraphSubscriptionError("E-SUB02", status);
+        },
+        createSubscription: async () => {
+          throw new Error("must not create after 503");
+        },
+        deleteSubscription: async () => {},
+      },
+      recovery: {
+        notificationUrl: "https://example.test/webhooks/graph",
+        clientState: "not-a-real-secret-but-at-least-32-chars",
+      },
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => `trace-${status}`,
+    });
+    await task.run(NOW);
+    expect(switched).toEqual([]);
+  });
+
+  it.each(["backfill", "publish"] as const)("%s failureはnew subscriptionをcleanupしpollingに残す", async (failure) => {
+    const events: string[] = [];
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub({ expiresAt: "invalid" })],
+        withRecoveryLock: async (_id: string, operation: () => Promise<void>) => {
+          await operation();
+          return true;
+        },
+        findBySubscriptionId: async () => makeSub({ expiresAt: "invalid" }),
+        updateDeltaLink: async () => void events.push("backfill"),
+        replacePollingSubscription: async () => {
+          events.push("publish-lost");
+          return failure !== "publish";
+        },
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => {
+          if (failure === "backfill") {
+            events.push("backfill-failed");
+            throw new Error("secret response body");
+          }
+          return { messages: [], deltaLink: "new-delta" };
+        },
+        renewSubscription: async () => {},
+        createSubscription: async () => {
+          events.push("create");
+          return { id: "orphan", expirationDateTime: "2026-07-09T23:55:00Z" };
+        },
+        deleteSubscription: async (id, teamId) => void events.push(`cleanup:${id}:${teamId}`),
+      },
+      recovery: { notificationUrl: "https://example.test/webhooks/graph", clientState: "x".repeat(32) },
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-cleanup",
+    });
+    await task.run(NOW);
+    expect(events).toEqual(
+      failure === "backfill"
+        ? ["create", "backfill-failed", "cleanup:orphan:t-1"]
+        : ["create", "backfill", "publish-lost", "cleanup:orphan:t-1"],
+    );
+  });
+
+  it("DELETE成功後のcleanup_complete audit失敗をcleanup_failedへ誤変換しない", async () => {
+    const auditActions: string[] = [];
+    let deleted = false;
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub({ expiresAt: "invalid" })],
+        withRecoveryLock: async (_id: string, operation: () => Promise<void>) => {
+          await operation();
+          return true;
+        },
+        findBySubscriptionId: async () => makeSub({ expiresAt: "invalid" }),
+        updateDeltaLink: async () => {},
+        replacePollingSubscription: async () => false,
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "delta" }),
+        renewSubscription: async () => {},
+        createSubscription: async () => ({ id: "new-sub", expirationDateTime: "2026-07-09T23:55:00Z" }),
+        deleteSubscription: async () => void (deleted = true),
+      },
+      recovery: { notificationUrl: "https://example.test/webhooks/graph", clientState: "x".repeat(32) },
+      auditLog: {
+        append: async (entry) => {
+          auditActions.push(entry.action);
+          if (entry.action === "graph_subscription_recovery_cleanup") throw new Error("audit unavailable");
+        },
+      },
+      traceIdProvider: () => "trace-cleanup-audit",
+    });
+    await task.run(NOW);
+    expect(deleted).toBe(true);
+    expect(auditActions.filter((action) => action === "graph_subscription_recovery_cleanup")).toHaveLength(1);
+  });
+
+  it("cross-process lock loserはGraph createしない", async () => {
+    let creates = 0;
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub({ expiresAt: "invalid" })],
+        withRecoveryLock: async () => false,
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "delta" }),
+        renewSubscription: async () => {},
+        createSubscription: async () => {
+          creates += 1;
+          return { id: "new", expirationDateTime: "2026-07-09T23:55:00Z" };
+        },
+        deleteSubscription: async () => {},
+      },
+      recovery: { notificationUrl: "https://example.test/webhooks/graph", clientState: "x".repeat(32) },
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-lock",
+    });
+    await task.run(NOW);
+    expect(creates).toBe(0);
+  });
+
+  it("lock待ち中にwinnerがpublish済みならledger再読込でstale contenderはcreateしない", async () => {
+    let creates = 0;
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub({ expiresAt: "invalid" })],
+        withRecoveryLock: async (_id: string, operation: () => Promise<void>) => {
+          await operation();
+          return true;
+        },
+        findBySubscriptionId: async () => null,
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "delta" }),
+        renewSubscription: async () => {},
+        createSubscription: async () => {
+          creates += 1;
+          return { id: "duplicate", expirationDateTime: "2026-07-09T23:55:00Z" };
+        },
+        deleteSubscription: async () => {},
+      },
+      recovery: { notificationUrl: "https://example.test/webhooks/graph", clientState: "x".repeat(32) },
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-stale",
+    });
+    await task.run(NOW);
+    expect(creates).toBe(0);
+  });
+
+  it("1行のbackfill失敗を監査して後続rowを処理する", async () => {
+    const fetched: string[] = [];
+    const auditLog = new InMemoryAuditLog();
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: {
+        listByMode: async () => [makeSub(), makeSub({ subscriptionId: "sub-2", channelId: "c-2" })],
+        updateDeltaLink: async () => {},
+      } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async ({ channelId }) => {
+          fetched.push(channelId);
+          if (channelId === "c-1") throw new Error("secret response body");
+          return { messages: [], deltaLink: "delta" };
+        },
+      },
+      auditLog,
+      traceIdProvider: () => "trace-row",
+    });
+    await task.run(NOW);
+    expect(fetched).toEqual(["c-1", "c-2"]);
+    expect(JSON.stringify(await auditLog.readAll())).not.toContain("secret response body");
+  });
+
+  it("missing team/channelはcreateせず監査してpollingに残す", async () => {
+    let creates = 0;
+    const auditLog = new InMemoryAuditLog();
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: { listByMode: async () => [makeSub({ teamId: null, expiresAt: "invalid" })] } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "delta" }),
+        createSubscription: async () => {
+          creates += 1;
+          return { id: "new", expirationDateTime: "2026-07-09T23:55:00Z" };
+        },
+      },
+      recovery: { notificationUrl: "https://example.test/webhooks/graph", clientState: "x".repeat(32) },
+      auditLog,
+      traceIdProvider: () => "trace-invalid",
+    });
+    await task.run(NOW);
+    expect(creates).toBe(0);
+    expect((await auditLog.readAll()).some((log) => log.action === "graph_subscription_recovery_invalid_ref")).toBe(
+      true,
+    );
+  });
+
+  it("whitespace ledger IDはtrimせずcreate前に拒否する", async () => {
+    let creates = 0;
+    const auditLog = new InMemoryAuditLog();
+    const task = createChannelPollingTask({
+      graphSubscriptionsRepo: { listByMode: async () => [makeSub({ teamId: " t-1", expiresAt: "invalid" })] } as never,
+      projectChannelsRepo: { findByChannel: async () => makeChannel() } as never,
+      channelMessagesRepo: { upsert: async () => {} } as unknown as ChannelMessagesRepo,
+      graphClient: {
+        getChannelMessagesDelta: async () => ({ messages: [], deltaLink: "delta" }),
+        createSubscription: async () => {
+          creates += 1;
+          return { id: "new", expirationDateTime: "2026-07-09T23:55:00Z" };
+        },
+      },
+      recovery: { notificationUrl: "https://example.test/webhooks/graph", clientState: "x".repeat(32) },
+      auditLog,
+      traceIdProvider: () => "trace-whitespace",
+    });
+    await task.run(NOW);
+    expect(creates).toBe(0);
+    expect((await auditLog.readAll()).some((log) => log.action === "graph_subscription_recovery_invalid_ref")).toBe(
+      true,
+    );
   });
 });

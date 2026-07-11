@@ -9,7 +9,7 @@
  * Sev1は候補提示のみで、人間の宣言操作なしに確定しない（AC-015c）。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
-import type { GraphClient } from "@aiops/shared/clients/graphClient.js";
+import { isAbsoluteHttpsUrl, type ChannelRef, type GraphClient } from "@aiops/shared/clients/graphClient.js";
 import type { GitHubClient } from "@aiops/shared/clients/githubClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
 import { sanitizeForLlmInput } from "@aiops/shared/secretSanitizer.js";
@@ -72,7 +72,7 @@ export async function triageAndNotify(
   classification: IncidentClassification,
   owner: string,
   repo: string,
-  channelId: string,
+  channel: ChannelRef,
   deps: IncDependencies,
 ): Promise<{ issueUrl: string; effectiveSeverity: string }> {
   const effectiveSeverity = classification.severity_candidate === "sev1" ? "sev2" : classification.severity_candidate;
@@ -85,30 +85,29 @@ export async function triageAndNotify(
     body: `重大度候補: ${classification.severity_candidate}\n影響プロジェクト: ${classification.affected_projects.join(", ")}\n根拠: ${classification.rationale}`,
     labels: ["incident", effectiveSeverity, "auto-triaged"],
   });
+  const issueUrl = issue.htmlUrl.trim();
+  if (!isAbsoluteHttpsUrl(issueUrl)) throw new Error("Incident review requires a valid HTTPS issue URL");
 
   if (classification.severity_candidate === "sev1") {
     await deps.graphClient.sendAdaptiveCard({
-      channelOrChatId: channelId,
+      target: channel,
       card: {
         body: [
           { type: "TextBlock", text: "Sev1候補が検出されました", weight: "bolder" },
           { type: "TextBlock", text: classification.rationale },
         ],
-        actions: [
-          { title: "Sev1として宣言", id: "declare_sev1" },
-          { title: "Sev2に降格", id: "downgrade_sev2" },
-          { title: "誤検知", id: "false_positive" },
-        ],
+        actions: [],
+        openUrlActions: [{ title: "GitHub Issueで確認", url: issueUrl }],
       },
     });
   } else {
     await deps.graphClient.sendAdaptiveCard({
-      channelOrChatId: channelId,
+      target: channel,
       card: {
         body: [
           {
             type: "TextBlock",
-            text: `${effectiveSeverity.toUpperCase()} インシデントを起票しました: ${issue.htmlUrl}`,
+            text: `${effectiveSeverity.toUpperCase()} インシデントを起票しました: ${issueUrl}`,
           },
         ],
         actions: [],
@@ -121,11 +120,11 @@ export async function triageAndNotify(
     actor: "AGT-INC",
     action: "triage",
     basis: "REQ-015",
-    detail: { severityCandidate: classification.severity_candidate, effectiveSeverity, issueUrl: issue.htmlUrl },
+    detail: { severityCandidate: classification.severity_candidate, effectiveSeverity, issueUrl },
     at: new Date().toISOString(),
   });
 
-  return { issueUrl: issue.htmlUrl, effectiveSeverity };
+  return { issueUrl, effectiveSeverity };
 }
 
 /** REQ-016: TH-005エスカレーション判定（決定的ロジックへの委譲。SPEC-EXT-016 エスカレーション通知） */

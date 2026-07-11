@@ -12,6 +12,8 @@
 - **Depends on**: Plan 001
 - **Category**: bug / security / integration
 - **Planned at**: commit `21306d8`, 2026-07-11
+- **Core local implementation**: ACCEPTED at working tree based on commit `6a6c1aa`; P005-T08/T09/T11 independent reviews accepted。
+- **Remaining acceptance**: BLOCKED — 実sandbox adapterとRSC/RBAC/public callback/delegated actorを用いたtenant evidence pending。
 
 ## Plan quality self-audit
 
@@ -26,23 +28,22 @@ card送信URLが公式形と異なり、message更新/削除はdedupeで捨て�
 
 ## Current state
 
-- `packages/shared/src/clients/graphClient.ts:163-198` — team IDなしの誤ったsend URL。
-- `packages/shared/src/clients/graphClient.ts:225-249` — lifecycleNotificationUrlなし。
-- `packages/shared/src/clients/graphClient.ts:343-385` — reply URLはteam/channelを持つ。
-- `packages/server/src/http/routes/graphNotifications.ts:126-135` — dedupeがmessage IDのみ。
-- `packages/server/src/scheduler/tasks/subscriptionRenewalTask.ts:24-33` — +60分、30分tick、残10分。
-- `packages/server/src/lib/graphLifecycleHandler.ts:55-86` — lifecycle handlerは存在。
-- `docs/teams-app/manifest.json:30-49` — RSC permissions宣言。
-- `packages/server/src/auth/graphTokenProvider.ts:1` — client credentials provider。
+- [x] team+channelを必須にしたroot/reply URLとsubscription policyを実装済み。
+- [x] created/updated/deletedを区別し、exact redeliveryだけをskipするdedupeを実装済み。
+- [x] lifecycle URL、resource別renew、restart/polling/delta backfillを実装済み。
+- [x] MSAL client credentials、single-flight cache、fixed error、429 retryを実装済み。
+- [x] sandbox allowlist、exact opt-in、DB request correlation、atomic no-overwrite evidence、finally cleanupを持つsmoke APIを実装済み。
+- [ ] `packages/server/src/tools/graphSmoke.ts:318` のCLIは外部tenant adapterが未配線のためE-SMK07で停止する。Plan 009 F03-T02で配線する。
+- [ ] RSC install/consent、Exchange App RBAC、public callback、delegated/UI edit/deleteの実tenant証跡は未取得。
 
 ## Commands you will need
 
-| Purpose       | Command                                                                                     | Expected                                     |
-| ------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Shared tests  | `pnpm --filter @aiops/shared test -- graphClient`                                           | all pass                                     |
-| Server tests  | `pnpm --filter @aiops/server test -- graphNotification subscription channel reportDelivery` | all pass                                     |
-| Full gate     | `mise run ci`                                                                               | exit 0                                       |
-| Sandbox smoke | `pnpm --filter @aiops/server run graph:smoke -- --sandbox`                                  | send/read/edit/delete/mail/subscription pass |
+| Purpose       | Command                                                                                     | Expected                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Shared tests  | `pnpm --filter @aiops/shared test -- graphClient`                                           | all pass                                                                    |
+| Server tests  | `pnpm --filter @aiops/server test -- graphNotification subscription channel reportDelivery` | all pass                                                                    |
+| Full gate     | `mise run ci`                                                                               | exit 0                                                                      |
+| Sandbox smoke | `pnpm --filter @aiops/server run graph:smoke -- --sandbox`                                  | Plan 009 F03-T02完了前はE-SMK07。完了後だけsend/read/mail/subscription pass |
 
 ## Scope
 
@@ -54,41 +55,41 @@ card送信URLが公式形と異なり、message更新/削除はdedupeで捨て�
 
 ### Step 1: team/channel型と送信URLを修正する
 
-- [ ] `sendAdaptiveCard` に `{teamId, channelId}` を必須化し公式URLへ変更。
-- [ ] recipient/config/callerを全更新しchannel単独fallbackを削除。
-- [ ] RSC installation/consentを送信前checkまたはrunbook gateにする。
+- [x] `sendAdaptiveCard` に `{teamId, channelId}` を必須化し公式URLへ変更。
+- [x] recipient/config/callerを全更新しchannel単独fallbackを削除。
+- [x] RSC installation/consentを送信前checkまたはrunbook gateにする。
 
 **Verify**: Positive—mockがexact official URL/body/201を検証。Adversarial—team/channel欠落、別team、403で送信成功扱いしない。
 
 ### Step 2: dedupeをchange単位へ修正する
 
-- [ ] subscription+team+channel+message+changeType+resource version等でevent identityを作る。
-- [ ] exact redeliveryだけskipし、created→updated→deletedは順に処理。
-- [ ] channel_messages upsert/deleteを統合testする。
+- [x] subscription+team+channel+message+changeType+resource version等でevent identityを作る。
+- [x] exact redeliveryだけskipし、created→updated→deletedは順に処理。
+- [x] channel_messages upsert/deleteを統合testする。
 
 **Verify**: Positive—3 changeを全部反映。Adversarial—同一notification再送だけevents rowが増えない。
 
 ### Step 3: subscription lifecycleを閉じる
 
-- [ ] create時にHTTPS lifecycleNotificationUrlを渡しvalidation handshakeを検証。
-- [ ] resource別max lifetimeとrenew marginを設定し、期限前に必ずrenew。
-- [ ] restart時にexpired/near-expiryを即処理し、missedはdelta backfill。
+- [x] create時にHTTPS lifecycleNotificationUrlを渡しvalidation handshakeを検証。
+- [x] resource別max lifetimeとrenew marginを設定し、期限前に必ずrenew。
+- [x] restart時にexpired/near-expiryを即処理し、missedはdelta backfill。
 
 **Verify**: Positive—clock fixtureで全offsetがexpiry前renew。Adversarial—clock jump、process停止45分、PATCH 404/429でpolling/backfillへ遷移。
 
 ### Step 4: token/permission/mail境界を検証する
 
-- [ ] required scopesをread/send/mail/subscription別に文書化。
-- [ ] Mail.Sendを指定mailboxへ制限するExchange application access policyをgate化。
-- [ ] token cache/expiry/429 retryをtestする。
+- [x] required scopesをread/send/mail/subscription別に文書化。
+- [x] Mail.Sendを指定mailboxへ制限するExchange App RBACをrunbook gate化。
+- [x] token cache/expiry/429 retryをtestする。
 
 **Verify**: Positive—sandbox mailbox/channelだけ成功。Adversarial—非allowlist mailbox/teamは403、auditに本文/secretなし。
 
 ### Step 5: 実tenant smokeを自動化する
 
 - [ ] create subscription→post→receive→fetch→reply→edit/delete→delta→mailをsandboxで実行。
-- [ ] resource cleanupをfinallyで行う。
-- [ ] redacted evidenceをPlan 008へ引き渡す。
+- [x] resource cleanupをfinallyで行う。
+- [x] redacted evidence schemaとno-overwrite writerを実装しPlan 008へ引き渡せる形にする。
 
 **Verify**: Positive—全correlation IDとDB rowが一致。Adversarial—clientState不一致notificationは202でもDB未投入、security auditだけ残る。
 
@@ -102,11 +103,13 @@ card送信URLが公式形と異なり、message更新/削除はdedupeで捨て�
 
 ## Done criteria
 
-- [ ] 誤URLとchannel-only inputが消える。
-- [ ] edit/deleteを落とさずexact redeliveryだけskip。
+- [x] 誤URLとchannel-only inputが消える。
+- [x] edit/deleteを落とさずexact redeliveryだけskipするローカルcontract testがgreen。
 - [ ] lifecycle URL、renew、polling/backfillが実tenantで成功。
 - [ ] Mail.Send/RSCがleast privilegeで確認済み。
-- [ ] `mise run ci` green、README 005更新。
+- [x] ローカル `mise run ci` green、独立review accepted。
+- [ ] smoke CLIの実adapterが配線され、tenant smokeがexit 0。
+- [ ] tenant evidence受入後にREADME 005をDONEへ更新。
 
 ## STOP conditions
 

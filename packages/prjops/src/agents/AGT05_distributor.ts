@@ -7,7 +7,7 @@
  *   AC-018-1: 1配信サイクル最大2,000通が2時間以内に完了する。
  *   AC-018-2: 同一レポートIDの重複配信が発生しない（再送時も受信者ごとに1通）。
  */
-import type { GraphClient } from "@aiops/shared/clients/graphClient.js";
+import type { ChannelRef, GraphClient } from "@aiops/shared/clients/graphClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
 import { decideDelivery, type DeliveryLogStore } from "../lib/idempotentDelivery.js";
 
@@ -18,7 +18,7 @@ export interface DeliveryTarget {
   subject: string;
   html: string;
   postTeamsSummaryCard: boolean; // PRF-02/03向けのみtrue
-  teamsChannelId?: string;
+  teamsTarget?: ChannelRef;
   dashboardUrl?: string;
 }
 
@@ -76,7 +76,7 @@ export async function distributeOne(
       sentSomething = true;
     }
 
-    if (target.postTeamsSummaryCard && target.teamsChannelId) {
+    if (target.postTeamsSummaryCard && target.teamsTarget) {
       const cardId = cardRecipientId(target.recipientId);
       const cardDecision = await decideDelivery(deps.deliveryLogStore, target.reportId, cardId, isRetryAttempt);
       if (cardDecision.shouldSend) {
@@ -89,7 +89,7 @@ export async function distributeOne(
         });
         try {
           await deps.graphClient.sendAdaptiveCard({
-            channelOrChatId: target.teamsChannelId,
+            target: target.teamsTarget,
             card: {
               body: [{ type: "TextBlock", text: `レポート ${target.reportId} を配信しました`, wrap: true }],
               actions: [],

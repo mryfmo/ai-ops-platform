@@ -4,34 +4,55 @@
  * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069。
  * Graph change notification購読を既存GraphTokenProvider/GraphClientで作成する管理CLI。
  */
-import { GraphClient } from "@aiops/shared";
-import { loadConfig } from "../config.js";
+import { GraphClient, isAbsoluteHttpsUrl, type FetchLike, type GraphTokenProvider } from "@aiops/shared";
+import { loadConfig, type ServerConfig } from "../config.js";
 import { createPool } from "../db/pool.js";
 import { GraphSubscriptionsRepo } from "../db/graphSubscriptionsRepo.js";
-import { createClientCredentialsTokenProvider } from "../auth/graphTokenProvider.js";
+import { createMsalGraphTokenProvider } from "../auth/graphTokenProvider.js";
+import {
+  buildGraphChatMessageResource,
+  computeGraphSubscriptionExpiration,
+  validateGraphSubscriptionExpiration,
+} from "../lib/graphSubscriptionPolicy.js";
 
 export interface CreateSubscriptionCliArgs {
-  resource: string;
+  teamId: string;
+  channelId: string;
   notificationUrl: string;
-  expiry: string;
+}
+
+export function createGraphSubscriptionClient(
+  tokenProvider: GraphTokenProvider,
+  config: Pick<ServerConfig, "GRAPH_ALLOWED_TEAM_IDS" | "GRAPH_ALLOWED_FROM_MAILBOXES">,
+  fetchImpl: FetchLike = fetch,
+): GraphClient {
+  return new GraphClient(tokenProvider, fetchImpl, undefined, undefined, undefined, {
+    allowedTeamIds: config.GRAPH_ALLOWED_TEAM_IDS,
+    allowedFromMailboxes: config.GRAPH_ALLOWED_FROM_MAILBOXES,
+  });
 }
 
 export function parseCreateSubscriptionArgs(argv: string[]): CreateSubscriptionCliArgs {
+  const usage = "usage: --teamId <id> --channelId <id> --notificationUrl <https-url>";
+  if (argv.length % 2 !== 0) throw new Error(`${usage}; missing or extra arguments`);
+  const allowed = new Set(["teamId", "channelId", "notificationUrl"]);
   const args = new Map<string, string>();
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i];
     const value = argv[i + 1];
-    if (!key?.startsWith("--") || !value)
-      throw new Error("usage: --resource <path> --notificationUrl <url> --expiry <iso>");
-    args.set(key.slice(2), value);
+    if (!key?.startsWith("--") || !value || value.startsWith("--")) throw new Error(usage);
+    const name = key.slice(2);
+    if (!allowed.has(name)) throw new Error(`unknown argument: ${key}`);
+    if (args.has(name)) throw new Error(`duplicate argument: ${key}`);
+    args.set(name, value.trim());
   }
-  const resource = args.get("resource");
+  if (args.size !== 3) throw new Error(`${usage}; missing or extra arguments`);
+  const teamId = args.get("teamId");
+  const channelId = args.get("channelId");
   const notificationUrl = args.get("notificationUrl");
-  const expiry = args.get("expiry");
-  if (!resource || !notificationUrl || !expiry) {
-    throw new Error("usage: --resource <path> --notificationUrl <url> --expiry <iso>");
-  }
-  return { resource, notificationUrl, expiry };
+  if (!teamId || !channelId || !notificationUrl) throw new Error(`${usage}; missing argument`);
+  if (!isAbsoluteHttpsUrl(notificationUrl)) throw new Error("notificationUrl must be an absolute HTTPS URL");
+  return { teamId, channelId, notificationUrl };
 }
 
 export async function createGraphSubscriptionFromCliArgs(
@@ -39,24 +60,33 @@ export async function createGraphSubscriptionFromCliArgs(
   client: Pick<GraphClient, "createSubscription">,
   clientState: string,
   repo?: Pick<GraphSubscriptionsRepo, "upsert">,
-): Promise<{ id: string }> {
-  const result = await client.createSubscription(args.resource, args.notificationUrl, args.expiry, {
+  now: Date = new Date(),
+): Promise<{ id: string; expirationDateTime: string }> {
+  const resource = buildGraphChatMessageResource(args.teamId, args.channelId);
+  if (!isAbsoluteHttpsUrl(args.notificationUrl)) throw new Error("notificationUrl must be an absolute HTTPS URL");
+  if (!clientState?.trim()) throw new Error("clientState must be nonblank");
+  const expiry = computeGraphSubscriptionExpiration(now);
+  const result = await client.createSubscription(resource, args.notificationUrl.trim(), expiry, {
     clientState,
     changeType: "created,updated,deleted",
+    lifecycleNotificationUrl: args.notificationUrl.trim(),
   });
+  validateGraphSubscriptionExpiration(result.expirationDateTime, now);
   await repo?.upsert({
     subscriptionId: result.id,
-    resource: args.resource,
-    expiresAt: args.expiry,
+    resource,
+    teamId: args.teamId.trim(),
+    channelId: args.channelId.trim(),
+    expiresAt: result.expirationDateTime,
     mode: "notification",
   });
   return result;
 }
 
 async function main(): Promise<void> {
-  const config = loadConfig();
   const args = parseCreateSubscriptionArgs(process.argv.slice(2));
-  const tokenProvider = createClientCredentialsTokenProvider({
+  const config = loadConfig();
+  const tokenProvider = createMsalGraphTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
     clientId: config.GRAPH_CLIENT_ID,
     clientSecret: config.GRAPH_CLIENT_SECRET,
@@ -70,7 +100,7 @@ async function main(): Promise<void> {
   try {
     const result = await createGraphSubscriptionFromCliArgs(
       args,
-      new GraphClient(tokenProvider),
+      createGraphSubscriptionClient(tokenProvider, config),
       config.GRAPH_CLIENT_STATE,
       new GraphSubscriptionsRepo(pool),
     );

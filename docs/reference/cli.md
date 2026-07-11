@@ -84,12 +84,15 @@ Create a Microsoft Graph change notification subscription with the server token 
 
 ```bash
 node packages/server/dist/tools/createGraphSubscription.js \
-  --resource "/teams/<team-id>/channels/<channel-id>/messages" \
-  --notificationUrl "https://aiops.example.com/webhooks/graph" \
-  --expiry "2026-07-09T06:00:00Z"
+  --teamId "<team-id>" \
+  --channelId "<channel-id>" \
+  --notificationUrl "https://aiops.example.com/webhooks/graph"
 ```
 
-See [report delivery runbook](../../runbooks/report-delivery.md) for prerequisites and renewal expectations.
+Only the canonical `/teams/{teamId}/channels/{channelId}/messages` resource is supported. The CLI computes a
+buffered expiry within the 4,320-minute limit, uses the HTTPS callback as both notification and lifecycle URL,
+and stores the expiration returned by Graph. Arbitrary resource/expiry and unknown arguments are rejected.
+See [report delivery runbook](../../runbooks/report-delivery.md) for prerequisites and tenant boundaries.
 
 ## Workspace Commands
 

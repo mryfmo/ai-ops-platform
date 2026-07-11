@@ -56,7 +56,7 @@ import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js"
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
-import { createClientCredentialsTokenProvider } from "./auth/graphTokenProvider.js";
+import { createMsalGraphTokenProvider } from "./auth/graphTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
 import {
   dispatchGithubWebhookEvent,
@@ -97,6 +97,7 @@ export * from "./serverLifecycle.js";
 export * from "./lib/schedulerPolicy.js";
 export * from "./lib/dashboardDeepLink.js";
 export * from "./lib/graphNotificationValidator.js";
+export * from "./lib/graphSubscriptionPolicy.js";
 export * from "./lib/channelAuthorization.js";
 export * from "./lib/freeTextIntent.js";
 export * from "./lib/confirmToken.js";
@@ -172,12 +173,15 @@ export async function main(
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
 
-  const graphTokenProvider = createClientCredentialsTokenProvider({
+  const graphTokenProvider = createMsalGraphTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
     clientId: config.GRAPH_CLIENT_ID,
     clientSecret: config.GRAPH_CLIENT_SECRET,
   });
-  const graphClient = new GraphClient(graphTokenProvider);
+  const graphClient = new GraphClient(graphTokenProvider, undefined, undefined, undefined, undefined, {
+    allowedTeamIds: config.GRAPH_ALLOWED_TEAM_IDS,
+    allowedFromMailboxes: config.GRAPH_ALLOWED_FROM_MAILBOXES,
+  });
 
   const githubClient = new GitHubClient({
     // 暫定: 環境変数トークン（本来はGitHub App installation token。ヘッダコメント参照）
@@ -281,6 +285,20 @@ export async function main(
           graphClient,
           auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
+          backfillSubscription: async (sub, now) => {
+            await backfillGraphSubscription(
+              sub,
+              {
+                graphSubscriptionsRepo,
+                projectChannelsRepo,
+                channelMessagesRepo,
+                graphClient,
+                auditLog: prjopsAuditLog,
+                traceIdProvider: () => randomUUID(),
+              },
+              now,
+            );
+          },
         }),
       ),
       observedTask(
@@ -291,6 +309,10 @@ export async function main(
           graphClient,
           auditLog: prjopsAuditLog,
           traceIdProvider: () => randomUUID(),
+          recovery: {
+            notificationUrl: new URL("/webhooks/graph", config.PUBLIC_BASE_URL).toString(),
+            clientState: config.GRAPH_CLIENT_STATE,
+          },
         }),
       ),
       observedTask(
@@ -371,6 +393,7 @@ export async function main(
           createReportDeliveryTask({
             enabled: config.REPORT_DELIVERY_ENABLED,
             fromMailbox: config.FROM_MAILBOX,
+            defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
             defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
             publicBaseUrl: config.PUBLIC_BASE_URL,
             calendar: loadJpHolidayCalendar(),
@@ -411,8 +434,8 @@ export async function main(
         handleGraphLifecycleEvent(event, traceId, {
           graphSubscriptionsRepo,
           graphClient,
-          backfillSubscription: (sub, now) =>
-            backfillGraphSubscription(
+          backfillSubscription: async (sub, now) => {
+            await backfillGraphSubscription(
               sub,
               {
                 graphSubscriptionsRepo,
@@ -423,7 +446,8 @@ export async function main(
                 traceIdProvider: () => randomUUID(),
               },
               now,
-            ),
+            );
+          },
           auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
         }),
@@ -485,6 +509,7 @@ export async function main(
           report,
           {
             fromMailbox: config.FROM_MAILBOX,
+            defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
             defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
             publicBaseUrl: config.PUBLIC_BASE_URL,
             recipientsRepo,

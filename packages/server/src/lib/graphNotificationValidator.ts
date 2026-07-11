@@ -51,8 +51,23 @@ export interface GraphNotification {
   clientState?: string;
   changeType?: string;
   resource?: string;
+  resourceData?: { "@odata.etag"?: string };
   subscriptionId?: string;
   lifecycleEvent?: string;
+}
+
+/** Graphが保証する通知ID、または完全なresource versionがある場合だけexact redelivery keyを返す。 */
+export function graphNotificationDedupeKey(notification: GraphNotification): string | null {
+  const id = notification.id?.trim();
+  if (id) return `graph:notification:${id}`;
+
+  const version = [
+    notification.subscriptionId?.trim(),
+    notification.resource?.trim(),
+    notification.changeType?.trim(),
+    notification.resourceData?.["@odata.etag"]?.trim(),
+  ];
+  return version.every(Boolean) ? `graph:resource-version:${JSON.stringify(version)}` : null;
 }
 
 export interface ClassifiedNotifications {

@@ -113,4 +113,49 @@ describe("GraphSubscriptionsRepo (ADR-0005)", () => {
     expect(calls[0]!.text).toContain("SET expires_at = $2");
     expect(calls[0]!.params).toEqual(["sub-1", "2026-07-07T02:00:00.000Z"]);
   });
+
+  it("replacePollingSubscription: old polling rowをnew ID/actual expiryへ原子的に置換する", async () => {
+    const { db, calls } = makeMockDb();
+    db.query = async (text: string, params?: unknown[]) => {
+      calls.push({ text, params });
+      return { rows: [], rowCount: 1 };
+    };
+    const repo = new GraphSubscriptionsRepo(db);
+    expect(await repo.replacePollingSubscription("old-sub", "new-sub", "2026-07-13T23:55:00Z")).toBe(true);
+    expect(calls[0]!.text).toContain("subscription_id = $2");
+    expect(calls[0]!.text).toContain("mode = 'notification'");
+    expect(calls[0]!.text).toContain("WHERE subscription_id = $1 AND mode = 'polling'");
+    expect(calls[0]!.text).not.toContain("resource =");
+    expect(calls[0]!.text).not.toContain("delta_link =");
+  });
+
+  it("withRecoveryLock: cross-process lock loserはoperationを実行しない", async () => {
+    let operated = false;
+    let released = false;
+    const client = {
+      query: async (text: string) => ({ rows: text.includes("pg_try_advisory_lock") ? [{ locked: false }] : [] }),
+      release: () => {
+        released = true;
+      },
+    };
+    const repo = new GraphSubscriptionsRepo({ query: client.query, connect: async () => client } as never);
+    expect(await repo.withRecoveryLock("sub-1", async () => void (operated = true))).toBe(false);
+    expect(operated).toBe(false);
+    expect(released).toBe(true);
+  });
+
+  it.each(["false", "throw"] as const)("withRecoveryLock: advisory unlock %sはconnectionを破棄する", async (mode) => {
+    const releases: Array<Error | undefined> = [];
+    const client = {
+      query: async (text: string) => {
+        if (text.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+        if (mode === "throw") throw new Error("unlock query failed");
+        return { rows: [{ unlocked: false }] };
+      },
+      release: (error?: Error) => releases.push(error),
+    };
+    const repo = new GraphSubscriptionsRepo({ query: client.query, connect: async () => client } as never);
+    await expect(repo.withRecoveryLock("sub-1", async () => {})).rejects.toThrow(/unlock/i);
+    expect(releases[0]).toBeInstanceOf(Error);
+  });
 });

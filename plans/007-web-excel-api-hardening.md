@@ -48,15 +48,15 @@
 
 ## Scope
 
-**In scope**: shared web Pool、data SQL、auth middleware/headers、request/body limits、rate limits、event sanitize、Excel ledger claim/recovery、persona UI、tests/docs/Docker fail-fast。
+**In scope**: Plan 002で導入済みのshared web Poolの負荷・timeout強化、data SQL、auth middleware/headers、request/body limits、rate limits、event sanitize、Excel ledger claim/recovery、persona UI、tests/docs/Docker fail-fast。新しいPool factoryの導入はPlan 002との重複になるためout of scope。
 
 **Out of scope**: new dashboard design system、async import queue製品、RLS全面導入（必要ならSTOPして別plan）、production CDN/WAF（Plan 008）。
 
 ## Steps
 
-### Step 1: Web DB Poolをprocess共有する
+### Step 1: Plan 002の共有Web DB Poolを負荷・timeout境界まで強化する
 
-- [ ] `packages/web/src/server/db.ts` にlazy singleton Poolを置き全route/pageで再利用。
+- [ ] Plan 002でmerge済みの `packages/web/src/server/db.ts` singletonを全route/pageが再利用していることを確認し、別factoryを追加しない。
 - [ ] max/acquire/statement/idle transaction timeoutをconfig化。
 - [ ] test reset/end hookだけを明示提供。
 
