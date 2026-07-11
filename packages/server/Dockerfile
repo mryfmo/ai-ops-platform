@@ -5,9 +5,9 @@
 #   ビルドコンテキストはリポジトリルート: docker build -f packages/server/Dockerfile .
 
 # ---- build stage ----
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /repo
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN corepack enable && corepack prepare pnpm@10.34.5 --activate
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY tsconfig.base.json ./
 COPY packages ./packages
@@ -17,7 +17,7 @@ RUN pnpm --filter @aiops/shared --filter @aiops/prjops --filter @aiops/devops --
 RUN pnpm --filter @aiops/web run build || echo "WebUI build skipped"
 
 # ---- runtime stage ----
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 

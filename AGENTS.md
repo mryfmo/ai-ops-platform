@@ -5,7 +5,7 @@ PrjOps AI基盤 + DevOps運用基盤の統合モノレポ（14エージェント
 
 ## コマンド体系（mise + pnpm）
 
-ツールバージョンは `.mise.toml` で固定（Node 20 / pnpm 9）。npmコマンドは使用しない。
+ツールバージョンは `.mise.toml` で固定（Node 22 / pnpm 10）。npmコマンドは使用しない。
 
 ```bash
 mise run install        # = pnpm install
