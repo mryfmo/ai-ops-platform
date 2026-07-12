@@ -165,6 +165,7 @@ export async function deliverStandardReportToRecipients(
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
   const targets: DeliveryTarget[] = [];
   let invalidRecipientCount = 0;
+  let defaultTeamsCardAssigned = false;
   for (const recipient of activeRecipients) {
     if (!isSafeRecipientId(recipient.userId)) {
       invalidRecipientCount += 1;
@@ -179,12 +180,15 @@ export async function deliverStandardReportToRecipients(
       continue;
     }
     const persona = recipient.persona ?? recipient.profile;
-    const teamsTarget =
+    const recipientTeamsTarget =
       recipient.teamsTeamId && recipient.teamsChannelId
         ? { teamId: recipient.teamsTeamId, channelId: recipient.teamsChannelId }
-        : deps.defaultTeamsTeamId && deps.defaultTeamsChannelId
-          ? { teamId: deps.defaultTeamsTeamId, channelId: deps.defaultTeamsChannelId }
-          : undefined;
+        : undefined;
+    const defaultTeamsTarget =
+      !recipientTeamsTarget && !defaultTeamsCardAssigned && deps.defaultTeamsTeamId && deps.defaultTeamsChannelId
+        ? { teamId: deps.defaultTeamsTeamId, channelId: deps.defaultTeamsChannelId }
+        : undefined;
+    const teamsTarget = recipientTeamsTarget ?? defaultTeamsTarget;
     let dashboardUrl: string | undefined;
     if (teamsTarget) {
       try {
@@ -215,6 +219,7 @@ export async function deliverStandardReportToRecipients(
       teamsTarget,
       dashboardUrl,
     });
+    if (defaultTeamsTarget) defaultTeamsCardAssigned = true;
   }
   const auditSafeGraphClient: Pick<GraphClient, "sendMail" | "sendAdaptiveCard"> = {
     async sendMail(input) {

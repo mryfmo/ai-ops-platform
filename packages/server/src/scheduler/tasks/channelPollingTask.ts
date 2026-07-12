@@ -151,6 +151,7 @@ async function recoverGraphSubscription(
       return;
     }
     resource = buildGraphChatMessageResource(current.teamId, current.channelId);
+    if (!(await isChannelIngestionAllowed(current.teamId, current.channelId, deps, now))) return;
     await recoverGraphSubscriptionLocked(current, resource, deps, now);
   });
   if (!acquired) await auditRecovery(sub, deps, now, "graph_subscription_recovery_locked", "lock", null);
@@ -183,6 +184,9 @@ async function recoverGraphSubscriptionLocked(
       }
     }
   }
+
+  const { teamId, channelId } = sub;
+  if (!teamId || !channelId || !(await isChannelIngestionAllowed(teamId, channelId, deps, now))) return;
 
   let created: { id: string; expirationDateTime: string } | null = null;
   let published = false;
@@ -255,32 +259,38 @@ export async function backfillGraphSubscription(
   deps: ChannelPollingTaskDeps,
   now: Date,
 ): Promise<boolean> {
-  if (!sub.teamId || !sub.channelId) return false;
-
-  const channel = await deps.projectChannelsRepo.findByChannel(sub.teamId, sub.channelId);
-  const decision = decideChannelIngestion(channel);
-  if (!decision.accepted) {
-    await deps.auditLog.append({
-      trace_id: deps.traceIdProvider(),
-      actor: "SERVER",
-      action: "channel_polling_rejected",
-      basis: "ADR-0005",
-      detail: { teamId: sub.teamId, channelId: sub.channelId, reason: decision.reason },
-      at: now.toISOString(),
-    });
-    return false;
-  }
+  const { teamId, channelId } = sub;
+  if (!teamId || !channelId || !(await isChannelIngestionAllowed(teamId, channelId, deps, now))) return false;
 
   const { messages, deltaLink } = await deps.graphClient.getChannelMessagesDelta(
-    { teamId: sub.teamId, channelId: sub.channelId },
+    { teamId, channelId },
     { deltaLink: sub.deltaLink ?? undefined },
   );
 
   for (const msg of messages) {
     const { sanitized } = sanitizeSecrets(msg.content);
-    await deps.channelMessagesRepo.upsert(toChannelMessageRecord(sub.teamId, sub.channelId, msg, sanitized));
+    await deps.channelMessagesRepo.upsert(toChannelMessageRecord(teamId, channelId, msg, sanitized));
   }
 
   await deps.graphSubscriptionsRepo.updateDeltaLink(sub.subscriptionId, deltaLink);
   return true;
+}
+
+async function isChannelIngestionAllowed(
+  teamId: string,
+  channelId: string,
+  deps: ChannelPollingTaskDeps,
+  now: Date,
+): Promise<boolean> {
+  const decision = decideChannelIngestion(await deps.projectChannelsRepo.findByChannel(teamId, channelId));
+  if (decision.accepted) return true;
+  await deps.auditLog.append({
+    trace_id: deps.traceIdProvider(),
+    actor: "SERVER",
+    action: "channel_polling_rejected",
+    basis: "ADR-0005",
+    detail: { teamId, channelId, reason: decision.reason },
+    at: now.toISOString(),
+  });
+  return false;
 }

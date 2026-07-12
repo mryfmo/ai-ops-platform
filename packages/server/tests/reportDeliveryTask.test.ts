@@ -365,6 +365,38 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(JSON.stringify(cards[0])).toContain("/app/dashboard?persona=manager&period=2026-W28");
   });
 
+  it("default Teams targetへは1枚だけ送り、全受信者へemailを送る", async () => {
+    const mails: string[] = [];
+    const cards: unknown[] = [];
+    await deliverStandardReportToRecipients(
+      report,
+      {
+        fromMailbox: "from@example.com",
+        defaultTeamsTeamId: "team-1",
+        defaultTeamsChannelId: "chan-1",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: {
+          listForDelivery: async () => [recipient(), recipient({ userId: "ST-002", email: "other@example.com" })],
+        },
+        graphClient: {
+          sendMail: async ({ toEmail }) => void mails.push(toEmail),
+          sendAdaptiveCard: async (input) => {
+            cards.push(input);
+            return { messageId: "card-1" };
+          },
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => "trace-default-card",
+      },
+      "trace-default-card",
+    );
+
+    expect(mails).toEqual(["manager@example.com", "other@example.com"]);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ target: { teamId: "team-1", channelId: "chan-1" } });
+  });
+
   it("月曜祝日なら週内の次営業日にキャッチアップ配信する", async () => {
     const mails: unknown[] = [];
     const task = createReportDeliveryTask({
