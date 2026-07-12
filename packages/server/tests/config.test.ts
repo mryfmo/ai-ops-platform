@@ -39,6 +39,14 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.GITHUB_APP_PRIVATE_KEY).toBeUndefined();
     expect(config.GITHUB_APP_INSTALLATION_ID).toBeUndefined();
     expect(config.GITHUB_TOKEN).toBeUndefined();
+    expect(config.STAKEHOLDERS_DIR).toBeUndefined();
+  });
+
+  it("REQ-002: STAKEHOLDERS_DIRは絶対パスだけを許可する", () => {
+    expect(loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "/etc/aiops/stakeholders" }).STAKEHOLDERS_DIR).toBe(
+      "/etc/aiops/stakeholders",
+    );
+    expect(() => loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "./stakeholders" })).toThrow("E-CFG01");
   });
 
   it("SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {

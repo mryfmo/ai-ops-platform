@@ -9,6 +9,7 @@
  *   - ADR-0006: CODING_TASK_CALLBACK_SECRETは.github/workflows/coding-task.ymlが
  *     POST /internal/coding-tasks/:taskId/callback を呼ぶ際のBearer認証シークレット。
  */
+import { isAbsolute } from "node:path";
 import { z } from "zod";
 
 const commaList = (lowercase = false) =>
@@ -72,6 +73,8 @@ const baseConfigSchema = z.object({
   PUBLIC_BASE_URL: z.string().url(),
   /** Anthropic APIキー（自由文意図解釈で使用。未設定時はLLMフォールバック無効） */
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
+  STAKEHOLDERS_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
   /** SPEC-INT-061: GitHub App認証。App系3変数はsuperRefineでall-or-noneを強制する。 */
   GITHUB_APP_ID: z.string().trim().min(1).optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().trim().min(1).optional(),
