@@ -1,3 +1,5 @@
+<!-- 根拠: REQ-032 / ADR-0006 -->
+
 # LLM・外部入力 Threat Model
 
 ## 1. Scope and method
