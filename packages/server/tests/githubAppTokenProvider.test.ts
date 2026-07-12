@@ -75,6 +75,23 @@ describe("GitHub App token provider [SPEC-INT-061]", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("同時呼出しは1回のinstallation token取得を共有する", async () => {
+    let resolveFetch!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => (resolveFetch = resolve));
+    const fetchImpl = vi.fn(() => pending);
+    const provider = createGitHubAppTokenProvider(credentials, fetchImpl, () => nowMs);
+
+    const first = provider.getInstallationToken();
+    const second = provider.getInstallationToken();
+    expect(fetchImpl).toHaveBeenCalledOnce();
+
+    resolveFetch(
+      Response.json({ token: "shared-token", expires_at: "2026-07-12T01:00:00.000Z" }, { status: 201 }),
+    );
+    await expect(Promise.all([first, second])).resolves.toEqual(["shared-token", "shared-token"]);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ["status", new Response(null, { status: 200 })],
     ["malformed json", new Response("not-json", { status: 201 })],
