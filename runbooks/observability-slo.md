@@ -23,6 +23,12 @@ OpenTelemetry auto-instrumentation starts only when `OTEL_EXPORTER_OTLP_ENDPOINT
 | Report delivery success    | 99% of report delivery attempts succeed over 7 days.  | `failed / (sent + failed) > 0.01` for 30 minutes.                                             |
 | Scheduler task success     | 99.5% of scheduler runs succeed over 24 hours.        | Any increase in `aiops_task_failures_total` for critical tasks, or success ratio below 99.5%. |
 
+The machine-readable rule definitions live in `ops/prometheus-rules.yml`. The deployment owner is responsible for loading that file into Prometheus and verifying that Prometheus accepts it. Alertmanager destinations are outside this runbook.
+
+**QUESTION / `TBD(HUMAN)`:** Which `task` label values are critical? Until that selector is approved, `ops/prometheus-rules.yml` does not encode the immediate critical-task-failure branch; it implements only the per-task 24-hour success-ratio condition below 99.5%.
+
+`promtool` was unavailable when this rule file was added, so validation was limited to YAML parsing and structural checks. The deployment owner must run `promtool check rules ops/prometheus-rules.yml` (or the deployed Prometheus equivalent) before loading the rules.
+
 ## Checks
 
 ```sh
