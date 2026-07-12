@@ -114,4 +114,8 @@ describe("loadConfig (ADR-0005)", () => {
     expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
     expect(JSON.stringify(warn.mock.calls)).not.toContain(validEnv.METRICS_TOKEN);
   });
+
+  it("METRICS_TOKENが32文字未満ならfail-fastする", () => {
+    expect(() => loadConfig({ ...validEnv, METRICS_TOKEN: "too-short" })).toThrow("E-CFG01");
+  });
 });

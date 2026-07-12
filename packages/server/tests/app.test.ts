@@ -191,6 +191,18 @@ describe("health endpoints (ADR-0005)", () => {
   });
 });
 
+describe("browser security headers (AUD-SEC-002)", () => {
+  it("Honoの確認ページにもCSP、HSTS、nosniff、frame denialを設定する", async () => {
+    const { deps } = makeDeps();
+    const res = await buildApp(deps).request("/coding-tasks/missing/confirm");
+
+    expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(res.headers.get("strict-transport-security")).toContain("max-age=");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+  });
+});
+
 describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
   it("validationTokenハンドシェイクはtext/plainでトークンをそのまま返す", async () => {
     const { deps } = makeDeps();

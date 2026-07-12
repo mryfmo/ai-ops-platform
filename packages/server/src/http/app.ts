@@ -41,6 +41,16 @@ export interface AppDependencies {
 export function buildApp(deps: AppDependencies): Hono {
   const app = new Hono();
   const metricsToken = deps.metricsToken;
+  app.use("/coding-tasks/:taskId/confirm", async (c, next) => {
+    await next();
+    c.header(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    );
+    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("X-Frame-Options", "DENY");
+  });
   registerHealthRoutes(app, deps.readiness);
   if (metricsToken) {
     app.use("/metrics", async (c, next) => {
