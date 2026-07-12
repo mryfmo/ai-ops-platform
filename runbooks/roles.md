@@ -1,4 +1,4 @@
-<!-- 根拠: AUD-OPM-013 / 統合運用モデル監査 §2.6 -->
+<!-- 根拠: ADR-0005 / ADR-0006 / ADR-0012 / AUD-OPM-013 / 統合運用モデル監査 §2.6 -->
 
 # Operational Roles and RACI
 
