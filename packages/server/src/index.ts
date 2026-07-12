@@ -398,6 +398,7 @@ export async function main(
       isShuttingDown: () => shuttingDown,
     }),
     metrics,
+    metricsToken: config.METRICS_TOKEN,
     graph: {
       clientState: config.GRAPH_CLIENT_STATE,
       auditLog,

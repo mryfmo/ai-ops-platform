@@ -12,11 +12,13 @@ import { buildApp, type AppDependencies } from "../src/http/app.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
 import { createReadinessCheck } from "../src/http/routes/health.js";
 import { MetricsRegistry } from "../src/observability/metrics.js";
+import { loadConfig } from "../src/config.js";
 
 const CLIENT_STATE = "expected-client-state-16chars";
 const WEBHOOK_SECRET = "test-webhook-secret";
 const CONFIRM_TOKEN_SECRET = "test-confirm-token-secret-16+";
 const CALLBACK_SECRET = "test-callback-secret-16chars";
+const METRICS_TOKEN = "test-metrics-token-of-at-least-32-chars";
 
 function makeDeps() {
   const auditLog = new InMemoryAuditLog();
@@ -149,6 +151,43 @@ describe("health endpoints (ADR-0005)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/plain");
     expect(await res.text()).toContain('aiops_report_delivery_total{result="sent"} 2');
+  });
+
+  it("GET /metrics はMETRICS_TOKEN設定時に完全一致するBearerだけを許可する", async () => {
+    const { deps } = makeDeps();
+    deps.metricsToken = loadConfig({
+      DATABASE_URL: "postgres://test:test@localhost/test",
+      GRAPH_CLIENT_STATE: "test-client-state-of-at-least-32-chars",
+      GITHUB_WEBHOOK_SECRET: "test-webhook-secret-of-at-least-32-chars",
+      GRAPH_CLIENT_ID: "test-client",
+      GRAPH_CLIENT_SECRET: "test-client-secret",
+      GRAPH_TENANT_ID: "test-tenant",
+      PUBLIC_BASE_URL: "https://example.invalid",
+      CODING_TASK_CALLBACK_SECRET: "test-callback-secret-of-at-least-32-chars",
+      METRICS_TOKEN,
+    }).METRICS_TOKEN;
+    const app = buildApp(deps);
+
+    for (const authorization of [
+      undefined,
+      `Bearer ${"x".repeat(METRICS_TOKEN.length)}`,
+      `bearer ${METRICS_TOKEN}`,
+      `Bearer  ${METRICS_TOKEN}`,
+      `Bearer ${METRICS_TOKEN}x`,
+    ]) {
+      const res = await app.request("/metrics", {
+        headers: authorization ? { Authorization: authorization } : undefined,
+      });
+      expect(res.status).toBe(401);
+      expect(res.headers.get("www-authenticate")).toBe("Bearer");
+      expect(await res.text()).toBe("Unauthorized");
+    }
+
+    const res = await app.request("/metrics", {
+      headers: { Authorization: `Bearer ${METRICS_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("# HELP aiops_report_delivery_total");
   });
 });
 
