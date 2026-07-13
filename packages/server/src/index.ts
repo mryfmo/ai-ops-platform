@@ -188,6 +188,13 @@ export async function main(
     ? new AnthropicStructuredClient(
         new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }),
         new PgCostGuard(pool, { perAgentDailyLimitUsd: { SERVER: 10 }, perAgentRequestLimitUsd: { SERVER: 1 } }),
+        {
+          defaultModel: config.ANTHROPIC_DEFAULT_MODEL,
+          escalationModel: config.ANTHROPIC_ESCALATION_MODEL,
+          pricingUsdPerMtok: config.ANTHROPIC_PRICING_USD_PER_MTOK,
+          auditLog,
+          traceIdProvider: () => randomUUID(),
+        },
       )
     : undefined;
 

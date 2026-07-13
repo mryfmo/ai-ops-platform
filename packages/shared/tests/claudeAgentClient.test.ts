@@ -24,10 +24,10 @@ async function* sdkMessages(messages: unknown[]) {
   for (const message of messages) yield message;
 }
 
-describe("generateReadOnlyDiffSuggestion [AC-002b]", () => {
+describe("generateReadOnlyDiffSuggestion [AC-002b / SPEC-INT-011]", () => {
   beforeEach(() => queryMock.mockReset());
 
-  it("公開ツールをread-onlyに限定し、それ以外をfail-closedで拒否する", async () => {
+  it("公開ツールをread-onlyに限定し、それ以外をfail-closedで拒否する [AC-002b / SPEC-INT-011]", async () => {
     queryMock.mockReturnValue(sdkMessages([]));
 
     await generateReadOnlyDiffSuggestion(request);
@@ -58,7 +58,7 @@ describe("generateReadOnlyDiffSuggestion [AC-002b]", () => {
     }
   });
 
-  it("fenced unified diffを抽出する", async () => {
+  it("fenced unified diffを抽出する [AC-002b / SPEC-INT-011]", async () => {
     queryMock.mockReturnValue(
       sdkMessages([
         {
@@ -75,14 +75,14 @@ describe("generateReadOnlyDiffSuggestion [AC-002b]", () => {
     expect(result.diffText).toBe("--- a/file.ts\n+++ b/file.ts\n@@ -1 +1 @@\n-old\n+new\n");
   });
 
-  it("resultの---/+++をコードフェンス無しdiffとして採用する", async () => {
+  it("resultの---/+++をコードフェンス無しdiffとして採用する [AC-002b / SPEC-INT-011]", async () => {
     const fallback = "--- a/file.ts\n+++ b/file.ts\n@@ -1 +1 @@\n-old\n+new";
     queryMock.mockReturnValue(sdkMessages([{ type: "result", subtype: "success", result: fallback }]));
 
     await expect(generateReadOnlyDiffSuggestion(request)).resolves.toMatchObject({ diffText: fallback });
   });
 
-  it("transcript summaryを4000文字で切り詰める", async () => {
+  it("transcript summaryを4000文字で切り詰める [AC-002b / SPEC-INT-011]", async () => {
     queryMock.mockReturnValue(
       sdkMessages([{ type: "assistant", message: { content: [{ type: "text", text: "x".repeat(4_001) }] } }]),
     );

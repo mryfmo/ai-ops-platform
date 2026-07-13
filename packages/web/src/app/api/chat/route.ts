@@ -13,7 +13,8 @@
 import pg from "pg";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { UIMessage } from "ai";
-import { PgCostGuard } from "@aiops/shared";
+import { PgAuditLog, PgCostGuard } from "@aiops/shared";
+import { randomUUID } from "node:crypto";
 import { auth } from "../../../auth";
 import { loadWebConfig } from "../../../server/config";
 import {
@@ -26,8 +27,6 @@ import { handleChat } from "../../../server/chat/chatHandler";
 
 export const dynamic = "force-dynamic";
 
-const CHAT_MODEL = "claude-sonnet-4-6";
-
 export async function POST(request: Request): Promise<Response> {
   const config = loadWebConfig();
   const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
@@ -36,8 +35,9 @@ export async function POST(request: Request): Promise<Response> {
     new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
   );
 
+  const chatModel = config.ANTHROPIC_DEFAULT_MODEL;
   const languageModel = config.ANTHROPIC_API_KEY
-    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY })(CHAT_MODEL)
+    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY })(chatModel)
     : undefined;
 
   const costGuard = new PgCostGuard(pool, {
@@ -52,10 +52,13 @@ export async function POST(request: Request): Promise<Response> {
     resolver,
     languageModel,
     costGuard,
+    auditLog: new PgAuditLog(pool),
+    traceIdProvider: () => randomUUID(),
+    pricingUsdPerMtok: config.ANTHROPIC_PRICING_USD_PER_MTOK,
     messages: body.messages,
     pageContext: body.pageContext,
     maxSteps: config.PAGE_AGENT_MAX_STEPS,
     thinkingBudgetTokens: config.PAGE_AGENT_THINKING_BUDGET_TOKENS,
-    modelName: CHAT_MODEL,
+    modelName: chatModel,
   });
 }

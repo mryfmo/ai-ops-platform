@@ -14,6 +14,15 @@
  * ビルド時に評価されうるモジュールのトップレベルでは loadConfig() を呼ばないこと。
  */
 import { z } from "zod";
+import { MAX_MODEL_ID_LENGTH, parseModelPricingUsdPerMtokJson, type ModelPricingUsdPerMtok } from "@aiops/shared";
+
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const modelIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_MODEL_ID_LENGTH)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 
 const webConfigSchema = z.object({
   /** Auth.js v5 セッション暗号化に使用する秘密鍵（必須） */
@@ -28,13 +37,18 @@ const webConfigSchema = z.object({
   DATABASE_URL: z.string().min(1),
   /** Anthropic APIキー（/api/chat用。未設定時はチャット機能を503で無効化する） */
   ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
+  ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
   /** ページエージェントの最大toolステップ数（SPEC-INT-068）。未指定時は5。 */
   PAGE_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(10).optional(),
   /** Anthropic extended thinkingのtoken budget（SPEC-INT-068）。未指定時は12000。 */
   PAGE_AGENT_THINKING_BUDGET_TOKENS: z.coerce.number().int().min(1024).max(64000).optional(),
 });
 
-export type WebConfig = z.infer<typeof webConfigSchema>;
+type ParsedWebConfig = z.infer<typeof webConfigSchema>;
+export type WebConfig = Omit<ParsedWebConfig, "ANTHROPIC_PRICING_USD_PER_MTOK"> & {
+  ANTHROPIC_PRICING_USD_PER_MTOK: ModelPricingUsdPerMtok;
+};
 
 /**
  * 環境変数をパースする。不足・不正があれば起動時に例外を投げ、
@@ -46,5 +60,12 @@ export function loadWebConfig(env: Record<string, string | undefined> = process.
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`E-CFG02: invalid web configuration: ${issues}`);
   }
-  return parsed.data;
+  try {
+    return {
+      ...parsed.data,
+      ANTHROPIC_PRICING_USD_PER_MTOK: parseModelPricingUsdPerMtokJson(parsed.data.ANTHROPIC_PRICING_USD_PER_MTOK),
+    };
+  } catch (error) {
+    throw new Error(`E-CFG02: invalid web configuration: ${String(error)}`);
+  }
 }

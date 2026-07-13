@@ -10,6 +10,16 @@
  *     POST /internal/coding-tasks/:taskId/callback を呼ぶ際のBearer認証シークレット。
  */
 import { z } from "zod";
+import { MAX_MODEL_ID_LENGTH, parseModelPricingUsdPerMtokJson, type ModelPricingUsdPerMtok } from "@aiops/shared";
+
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const DEFAULT_ANTHROPIC_ESCALATION_MODEL = "claude-opus-4-8";
+const modelIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_MODEL_ID_LENGTH)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 
 const configSchema = z.object({
   /** HTTP待受ポート（公開エンドポイント。既定8080） */
@@ -52,6 +62,9 @@ const configSchema = z.object({
   PUBLIC_BASE_URL: z.string().url(),
   /** Anthropic APIキー（自由文意図解釈で使用。未設定時はLLMフォールバック無効） */
   ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
+  ANTHROPIC_ESCALATION_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_ESCALATION_MODEL),
+  ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
   /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
   GITHUB_PROJECT_NODE_ID: z.string().optional(),
   /** ADR-0014: Outlook配信元メールボックス。未設定時はreport deliveryをdisabled+監査にする。 */
@@ -89,7 +102,10 @@ const configSchema = z.object({
   CODING_TASK_CALLBACK_SECRET: z.string().min(32),
 });
 
-export type ServerConfig = z.infer<typeof configSchema>;
+type ParsedServerConfig = z.infer<typeof configSchema>;
+export type ServerConfig = Omit<ParsedServerConfig, "ANTHROPIC_PRICING_USD_PER_MTOK"> & {
+  ANTHROPIC_PRICING_USD_PER_MTOK: ModelPricingUsdPerMtok;
+};
 
 /**
  * 環境変数をパースする。不足・不正があれば起動時に例外を投げ、
@@ -101,5 +117,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`E-CFG01: invalid server configuration: ${issues}`);
   }
-  return parsed.data;
+  try {
+    return {
+      ...parsed.data,
+      ANTHROPIC_PRICING_USD_PER_MTOK: parseModelPricingUsdPerMtokJson(parsed.data.ANTHROPIC_PRICING_USD_PER_MTOK),
+    };
+  } catch (error) {
+    throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`);
+  }
 }

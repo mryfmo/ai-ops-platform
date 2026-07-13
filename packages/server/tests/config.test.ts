@@ -33,9 +33,45 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
   });
 
+  it("Anthropic modelとpricingの現行既定値を維持する [SPEC-INT-001 / SPEC-INT-060]", () => {
+    const config = loadConfig(validEnv);
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-sonnet-4-6");
+    expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("claude-opus-4-8");
+    expect(config.ANTHROPIC_PRICING_USD_PER_MTOK["claude-sonnet-4-6"]).toEqual({ input: 3, output: 15 });
+  });
+
   it("PORTを上書きできる", () => {
     const config = loadConfig({ ...validEnv, PORT: "9090" });
     expect(config.PORT).toBe(9090);
+  });
+
+  it("Anthropic default/escalation modelを環境変数から受け取る [SPEC-INT-001 / SPEC-INT-060]", () => {
+    const config = loadConfig({
+      ...validEnv,
+      ANTHROPIC_DEFAULT_MODEL: "  custom-sonnet  ",
+      ANTHROPIC_ESCALATION_MODEL: "  custom-opus  ",
+      ANTHROPIC_PRICING_USD_PER_MTOK: '{"custom-sonnet":{"input":2,"output":10}}',
+    });
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("custom-sonnet");
+    expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("custom-opus");
+    expect(config.ANTHROPIC_PRICING_USD_PER_MTOK).toEqual({ "custom-sonnet": { input: 2, output: 10 } });
+  });
+
+  it.each(["ANTHROPIC_DEFAULT_MODEL", "ANTHROPIC_ESCALATION_MODEL"] as const)(
+    "%sの空白のみを拒否する [SPEC-INT-001 / SPEC-INT-060]",
+    (key) => {
+      expect(() => loadConfig({ ...validEnv, [key]: "   " })).toThrow("E-CFG01");
+    },
+  );
+
+  it("モデルIDの長さ上限を超える値を拒否する [SPEC-INT-001 / SPEC-INT-060]", () => {
+    expect(() => loadConfig({ ...validEnv, ANTHROPIC_DEFAULT_MODEL: `m${"x".repeat(200)}` })).toThrow("E-CFG01");
+  });
+
+  it("不正なpricing JSONを起動時に拒否する [SPEC-INT-060]", () => {
+    expect(() =>
+      loadConfig({ ...validEnv, ANTHROPIC_PRICING_USD_PER_MTOK: '{"model":{"input":-1,"output":5}}' }),
+    ).toThrow("E-CFG01");
   });
 
   it("DB pool設定を上書きできる", () => {
