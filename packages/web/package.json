@@ -20,7 +20,7 @@
     "@aiops/shared": "workspace:*",
     "ai": "5.0.210",
     "next": "^15.0.0",
-    "next-auth": "5.0.0-beta.25",
+    "next-auth": "5.0.0-beta.30",
     "pg": "^8.13.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -31,5 +31,10 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss@8.4.31": "8.5.10"
+    }
   }
 }
