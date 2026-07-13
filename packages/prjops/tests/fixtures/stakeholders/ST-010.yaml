@@ -1,0 +1,12 @@
+# REQ-002, SPEC-INT-022
+id: ST-010
+name: 山田太郎
+organization_id: ORG-001
+assignments:
+  - project_id: PJ-001
+    profile: PRF-02
+  - project_id: PJ-002
+    profile: PRF-01
+email: yamada@example.com
+preferred_language: ja
+timezone: Asia/Tokyo
