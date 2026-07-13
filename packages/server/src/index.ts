@@ -14,12 +14,11 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
-import type { StakeholderInput } from "@aiops/prjops";
+import { YamlStakeholderMasterProvider } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
-import { parse as parseYaml } from "yaml";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { PgAuditLog } from "./db/pgAuditLog.js";
@@ -58,7 +57,7 @@ import {
   type DevopsAgentId,
   type DevopsEventHandlerInput,
 } from "./lib/githubEventRouter.js";
-import { decideStakeholderMaster, loadStakeholdersFromYamlDirectory } from "./lib/stakeholderYamlLoader.js";
+import { decideStakeholderMaster } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
@@ -161,10 +160,10 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
-  const stakeholders: StakeholderInput[] | null = config.STAKEHOLDERS_DIR
-    ? loadStakeholdersFromYamlDirectory(config.STAKEHOLDERS_DIR, { readdirSync, readFileSync }, parseYaml)
+  const stakeholderProvider = config.STAKEHOLDERS_DIR
+    ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
     : null;
-  const stakeholderMaster = decideStakeholderMaster(stakeholders);
+  const stakeholderMaster = decideStakeholderMaster(stakeholderProvider);
   if (stakeholderMaster.auditIntent) {
     await prjopsAuditLog.append({
       trace_id: randomUUID(),

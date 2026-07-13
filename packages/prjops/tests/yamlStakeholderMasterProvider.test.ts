@@ -62,6 +62,7 @@ organization_id: ORG-001
 assignments:
 ${assignments}
 email: ${email}
+teams_user_id: teams-${id}
 preferred_language: ja
 timezone: Asia/Tokyo
 `;
@@ -92,6 +93,15 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
       },
     ]);
     await expect(provider.findByEmail("unknown@example.com")).resolves.toEqual([]);
+  });
+
+  it("同じhardened scanからTeams userとprojectのprofileを解決する [REQ-002, SPEC-INT-022]", async () => {
+    const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-010") });
+    const provider = new YamlStakeholderMasterProvider("/data/stakeholders", fs);
+
+    await expect(provider.findProfileByTeamsUserId("teams-ST-010", "PJ-001")).resolves.toBe("PRF-02");
+    await expect(provider.findProfileByTeamsUserId("teams-ST-010", "PJ-999")).resolves.toBeNull();
+    await expect(provider.findProfileByTeamsUserId(null, "PJ-001")).resolves.toBeNull();
   });
 
   it("ST-1000以降を読み、emailをtrim+casefoldして比較・出力する [REQ-002, SPEC-INT-022]", async () => {
@@ -203,6 +213,17 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
       new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("USER@example.com"),
     ).rejects.toThrow(/duplicate normalized stakeholder email.*user@example\.com.*ST-010.*ST-011/i);
     expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it("異なるST IDでteams_user_idが重複したら認可をfail closedにする [REQ-002]", async () => {
+    const { fs } = fakeFs({
+      "ST-010.yaml": yaml("ST-010"),
+      "ST-011.yaml": yaml("ST-011", "other@example.com").replace("teams-ST-011", "teams-ST-010"),
+    });
+
+    await expect(
+      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findProfileByTeamsUserId("teams-ST-010", "PJ-001"),
+    ).rejects.toThrow(/duplicate teams user id.*teams-ST-010.*ST-010.*ST-011/i);
   });
 
   it("Unicode正規等価なemailが異なるST IDに重複したらfail closedにする [REQ-002]", async () => {

@@ -80,6 +80,7 @@ const stakeholderSchema = z
     timezone: z.string().trim().min(1),
   })
   .passthrough();
+type ParsedStakeholder = z.infer<typeof stakeholderSchema>;
 
 /**
  * YAML関係者マスタを毎回読み直す、Webの既存Providerと構造互換な実装。
@@ -106,11 +107,11 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
     return { dev: stat.dev, ino: stat.ino };
   }
 
-  async findByEmail(email: string): Promise<StakeholderRecord[]> {
+  private async readAll(): Promise<ParsedStakeholder[]> {
     const initialDirectory = await this.directoryIdentity();
-    const requestedEmail = canonicalizeEmail(email);
-    const stakeholders: Array<z.infer<typeof stakeholderSchema>> = [];
+    const stakeholders: ParsedStakeholder[] = [];
     const emailOwners = new Map<string, string>();
+    const teamsUserOwners = new Map<string, string>();
 
     for (const filename of (await this.fs.readdir(this.directory)).sort()) {
       if (!stakeholderLookingFilename.test(filename)) continue;
@@ -156,6 +157,13 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
         throw new Error(`Duplicate normalized stakeholder email: ${input.email} (${emailOwner}/${input.id})`);
       }
       emailOwners.set(input.email, input.id);
+      if (input.teams_user_id) {
+        const teamsUserOwner = teamsUserOwners.get(input.teams_user_id);
+        if (teamsUserOwner && teamsUserOwner !== input.id) {
+          throw new Error(`Duplicate Teams user ID: ${input.teams_user_id} (${teamsUserOwner}/${input.id})`);
+        }
+        teamsUserOwners.set(input.teams_user_id, input.id);
+      }
       stakeholders.push(input);
     }
 
@@ -163,6 +171,12 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
     if (initialDirectory.dev !== finalDirectory.dev || initialDirectory.ino !== finalDirectory.ino) {
       throw new Error("Stakeholder directory changed during scan");
     }
+    return stakeholders;
+  }
+
+  async findByEmail(email: string): Promise<StakeholderRecord[]> {
+    const requestedEmail = canonicalizeEmail(email);
+    const stakeholders = await this.readAll();
 
     const records: StakeholderRecord[] = [];
     for (const input of stakeholders) {
@@ -183,5 +197,11 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
       }
     }
     return records;
+  }
+
+  async findProfileByTeamsUserId(teamsUserId: string | null, projectId: string): Promise<Profile | null> {
+    if (!teamsUserId) return null;
+    const stakeholder = (await this.readAll()).find((input) => input.teams_user_id === teamsUserId);
+    return stakeholder?.assignments.find((assignment) => assignment.project_id === projectId)?.profile ?? null;
   }
 }

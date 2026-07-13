@@ -42,6 +42,7 @@ describe("GitHub App token provider [SPEC-INT-061]", () => {
       expect(input).toBe("https://api.github.com/app/installations/67890/access_tokens");
       expect(init).toEqual({
         method: "POST",
+        signal: expect.any(AbortSignal),
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${jwt}`,
@@ -85,11 +86,32 @@ describe("GitHub App token provider [SPEC-INT-061]", () => {
     const second = provider.getInstallationToken();
     expect(fetchImpl).toHaveBeenCalledOnce();
 
-    resolveFetch(
-      Response.json({ token: "shared-token", expires_at: "2026-07-12T01:00:00.000Z" }, { status: 201 }),
-    );
+    resolveFetch(Response.json({ token: "shared-token", expires_at: "2026-07-12T01:00:00.000Z" }, { status: 201 }));
     await expect(Promise.all([first, second])).resolves.toEqual(["shared-token", "shared-token"]);
     expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("installation token取得を注入した期限signalで中断し、固定エラーへ閉じる", async () => {
+    const controller = new AbortController();
+    const timeoutSignal = vi.fn(() => controller.signal);
+    const fetchImpl = vi.fn(
+      (_input: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+        }),
+    );
+    const provider = createGitHubAppTokenProvider(credentials, fetchImpl, () => nowMs, {
+      timeoutMs: 1_234,
+      timeoutSignal,
+    });
+
+    const pending = expect(provider.getInstallationToken()).rejects.toEqual(
+      new Error("E-AUTH02: GitHub installation token acquisition failed"),
+    );
+    expect(timeoutSignal).toHaveBeenCalledWith(1_234);
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+    controller.abort(new DOMException("timeout", "TimeoutError"));
+    await pending;
   });
 
   it.each([

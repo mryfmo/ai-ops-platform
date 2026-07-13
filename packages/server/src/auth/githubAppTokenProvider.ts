@@ -23,6 +23,12 @@ export type GitHubAuthMode = "app" | "pat" | "disabled";
 
 const AUTH_ERROR = "E-AUTH02: GitHub installation token acquisition failed";
 const REFRESH_BUFFER_MS = 5 * 60 * 1_000;
+const TOKEN_REQUEST_TIMEOUT_MS = 30_000;
+
+export interface GitHubAppTokenProviderOptions {
+  timeoutMs?: number;
+  timeoutSignal?: (ms: number) => AbortSignal;
+}
 
 function base64url(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -45,6 +51,7 @@ export function createGitHubAppTokenProvider(
   credentials: GitHubAppCredentials,
   fetchImpl: GhFetchLike = fetch,
   nowProvider: () => number = () => Date.now(),
+  options: GitHubAppTokenProviderOptions = {},
 ): GitHubTokenProvider {
   let cached: { token: string; expiresAt: number } | undefined;
   let inflight: Promise<string> | undefined;
@@ -56,6 +63,7 @@ export function createGitHubAppTokenProvider(
         `https://api.github.com/app/installations/${encodeURIComponent(credentials.installationId)}/access_tokens`,
         {
           method: "POST",
+          signal: (options.timeoutSignal ?? AbortSignal.timeout)(options.timeoutMs ?? TOKEN_REQUEST_TIMEOUT_MS),
           headers: {
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${jwt}`,
