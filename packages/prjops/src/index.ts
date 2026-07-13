@@ -17,6 +17,7 @@ export * from "./lib/narrativeSanitizer.js";
 export * from "./lib/executiveSevenKeys.js";
 export * from "./lib/investorMetrics.js";
 export * from "./lib/issueActionBurndown.js";
+export * from "./data/yamlStakeholderMasterProvider.js";
 export * from "./templates/index.js";
 export * from "./agents/AGT01_orchestrator.js";
 export * from "./agents/AGT02_collector.js";
