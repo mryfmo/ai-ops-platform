@@ -14,10 +14,11 @@ import {
 } from "../../../../server/personaResolver";
 import { handleInvestorSummary } from "../../../../server/reportData/investorSummaryHandler";
 import { InMemoryPrjopsReportDataProvider } from "../../../../server/reportData/prjopsReportData";
+import { selectedPersonaFromRequest } from "../../../../server/authGuard";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const config = loadWebConfig();
   const pool = getPool(config.DATABASE_URL);
   const resolver = new CompositePersonaResolver(
@@ -28,5 +29,6 @@ export async function GET(): Promise<Response> {
     getSession: async () => auth(),
     resolver,
     provider: new InMemoryPrjopsReportDataProvider([], []),
+    selectedPersona: selectedPersonaFromRequest(request),
   });
 }

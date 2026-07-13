@@ -5,8 +5,7 @@
  *   全ペルソナ共通。スコープ内プロジェクト一覧を {id,name}[] のみで返す（数値を一切含まない）。
  *
  * 認可: requireSession（未認証401）→ requirePersona()（該当ペルソナなし403）を経由する。
- *   先頭のペルソナ（複数ペルソナを持つ場合の切替UIは次フェーズ残課題）のドメインに応じて
- *   プロジェクト一覧を取得する。
+ *   検証済みの選択ペルソナ（未選択時は先頭）のドメインに応じてプロジェクト一覧を取得する。
  *
  * DIを引数で受け取る設計（getSession/resolver/prjopsProvider/devopsDb）にすることで、
  * route.ts（本番配線）と切り離してネットワーク・実DBなしでテストできる。
@@ -23,23 +22,23 @@ export interface ProjectsHandlerDeps {
   resolver: PersonaResolver;
   prjopsProvider: PrjopsReportDataProvider;
   devopsDb: PgQueryable;
+  selectedPersona?: string;
 }
 
 export async function handleProjects(deps: ProjectsHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver);
-    const persona = personas[0]!;
+    const [persona] = await resolvePersonas(deps.getSession, deps.resolver, undefined, deps.selectedPersona);
 
-    if (persona.domain === "prjops") {
-      const projects = await listScopedProjectSummaries(deps.prjopsProvider, persona.profile, persona.visibility);
+    if (persona!.domain === "prjops") {
+      const projects = await listScopedProjectSummaries(deps.prjopsProvider, persona!.profile, persona!.visibility);
       return Response.json({ domain: "prjops", projects });
     }
-    if (persona.domain === "investor") {
-      const projects = await listScopedProjectSummaries(deps.prjopsProvider, "PRF-05", persona.visibility);
+    if (persona!.domain === "investor") {
+      const projects = await listScopedProjectSummaries(deps.prjopsProvider, "PRF-05", persona!.visibility);
       return Response.json({ domain: "investor", projects });
     }
 
-    const projects = await listDevOpsScopedProjectSummaries(deps.devopsDb, persona.profile, persona.visibility);
+    const projects = await listDevOpsScopedProjectSummaries(deps.devopsDb, persona!.profile, persona!.visibility);
     return Response.json({ domain: "devops", projects });
   } catch (err) {
     return toErrorResponse(err);

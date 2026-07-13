@@ -22,6 +22,7 @@ import {
 } from "../../../../server/personaResolver";
 import { handleManagerSummary } from "../../../../server/reportData/managerSummaryHandler";
 import { InMemoryPrjopsReportDataProvider } from "../../../../server/reportData/prjopsReportData";
+import { selectedPersonaFromRequest } from "../../../../server/authGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -52,5 +53,6 @@ export async function GET(request: Request): Promise<Response> {
     devopsDb: pool,
     periodStart,
     periodEnd,
+    selectedPersona: selectedPersonaFromRequest(request),
   });
 }

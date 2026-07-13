@@ -35,6 +35,12 @@ const prjopsExecutive: ResolvedPersona = {
   },
 };
 
+const devopsManager: ResolvedPersona = {
+  domain: "devops",
+  profile: "PRF-G",
+  visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+};
+
 function emptyCostDb(): PgQueryable {
   return {
     query: vi.fn(async (text: string) => {
@@ -119,6 +125,18 @@ describe("handleChat（権限外403）", () => {
     });
     expect(res.status).toBe(403);
   });
+
+  it("改ざんした選択ペルソナを403にする [REQ-041 / SPEC-INT-068]", async () => {
+    const res = await handleChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([prjopsExecutive]),
+      selectedPersona: "devops:PRF-G",
+      languageModel: mockTextModel("hello"),
+      costGuard: new PgCostGuard(emptyCostDb()),
+      messages: userMessage("こんにちは"),
+    });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("handleChat（ANTHROPIC_API_KEY未設定時503）", () => {
@@ -151,6 +169,27 @@ describe("handleChat（コスト超過429）", () => {
 });
 
 describe("handleChat（正当なセッション: ストリーミング応答）", () => {
+  it("ダッシュボードと同じ選択ペルソナをchat promptへ反映する [REQ-041 / SPEC-INT-068]", async () => {
+    let prompt = "";
+    const model = new MockLanguageModelV2({
+      doStream: async (options) => {
+        prompt = JSON.stringify(options.prompt);
+        return mockTextModel("ok").doStream(options);
+      },
+    });
+    const res = await handleChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([prjopsExecutive, devopsManager]),
+      selectedPersona: "devops:PRF-G",
+      languageModel: model,
+      costGuard: new PgCostGuard(emptyCostDb()),
+      messages: userMessage("こんにちは"),
+    });
+    await res.text();
+    expect(prompt).toContain("DevOps PRF-G");
+    expect(prompt).not.toContain("PrjOps PRF-04");
+  });
+
   it("PRF-04ペルソナでテキスト応答をストリーミングする（200・本文にUIMessageストリームを含む）", async () => {
     const res = await handleChat({
       getSession: sessionWithEmail,

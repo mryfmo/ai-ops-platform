@@ -21,6 +21,7 @@ export interface ExecutiveSummaryHandlerDeps {
   getSession: () => Promise<Session | null>;
   resolver: PersonaResolver;
   provider: PrjopsReportDataProvider;
+  selectedPersona?: string;
 }
 
 /**
@@ -33,7 +34,7 @@ function isPrjopsExecutive(p: ResolvedPersona): p is Extract<ResolvedPersona, { 
 
 export async function handleExecutiveSummary(deps: ExecutiveSummaryHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver, "prjops");
+    const personas = await resolvePersonas(deps.getSession, deps.resolver, "prjops", deps.selectedPersona);
     const executivePersona = personas.find(isPrjopsExecutive);
     if (!executivePersona) {
       throw new ForbiddenError("E-AUTH02: executive-summary requires PRF-04 persona");

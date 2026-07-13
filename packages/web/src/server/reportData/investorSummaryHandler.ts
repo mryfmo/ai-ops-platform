@@ -13,6 +13,7 @@ export interface InvestorSummaryHandlerDeps {
   getSession: () => Promise<Session | null>;
   resolver: PersonaResolver;
   provider: PrjopsReportDataProvider;
+  selectedPersona?: string;
 }
 
 function isInvestor(p: ResolvedPersona): p is Extract<ResolvedPersona, { domain: "investor" }> {
@@ -21,7 +22,7 @@ function isInvestor(p: ResolvedPersona): p is Extract<ResolvedPersona, { domain:
 
 export async function handleInvestorSummary(deps: InvestorSummaryHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver, "investor");
+    const personas = await resolvePersonas(deps.getSession, deps.resolver, "investor", deps.selectedPersona);
     const investor = personas.find(isInvestor);
     if (!investor) throw new ForbiddenError("E-AUTH02: investor-summary requires investor persona");
     return Response.json(await buildInvestorSummary(deps.provider, investor.visibility));

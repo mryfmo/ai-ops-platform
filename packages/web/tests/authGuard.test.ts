@@ -7,7 +7,15 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Session } from "next-auth";
-import { ForbiddenError, UnauthorizedError, requirePersona, requireSession } from "../src/server/authGuard";
+import {
+  ForbiddenError,
+  UnauthorizedError,
+  personaKey,
+  requirePersona,
+  requireSession,
+  selectPersona,
+  selectedPersonaFromRequest,
+} from "../src/server/authGuard";
 import type { PersonaResolver, ResolvedPersona } from "../src/server/personaResolver";
 
 describe("requireSession（ADR-0005: 未認証のハンドリング）", () => {
@@ -77,5 +85,51 @@ describe("requirePersona（ADR-0005: 該当ペルソナなしのハンドリン�
     await expect(requirePersona("user@example.com", resolver, "devops")).rejects.toBeInstanceOf(ForbiddenError);
     const result = await requirePersona("user@example.com", resolver, "prjops");
     expect(result).toEqual(personas);
+  });
+
+  it("申告ペルソナが現在の保有ペルソナに無ければ403にする [REQ-041 / SPEC-INT-068]", async () => {
+    const personas: ResolvedPersona[] = [
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+      },
+    ];
+    await expect(
+      requirePersona("user@example.com", resolverWith(personas), undefined, "prjops:PRF-04"),
+    ).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("entitlement削除後の古い選択も毎回再解決して403にする [REQ-041 / SPEC-INT-068]", async () => {
+    const resolver: PersonaResolver = { resolveByEmail: async () => [] };
+    await expect(requirePersona("user@example.com", resolver, undefined, "devops:PRF-G")).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it("選択省略時は先頭、正当な選択時は該当ペルソナを返す [REQ-041 / SPEC-INT-068]", () => {
+    const personas: ResolvedPersona[] = [
+      {
+        domain: "devops",
+        profile: "PRF-L",
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+      },
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+      },
+    ];
+    expect(selectPersona(personas)).toBe(personas[0]);
+    expect(personaKey(selectPersona(personas, "devops:PRF-G"))).toBe("devops:PRF-G");
+  });
+
+  it("API requestの選択Cookieを読み取る [REQ-041 / SPEC-INT-068]", () => {
+    const request = new Request("https://example.test/app/api/data/projects", {
+      headers: { cookie: "other=x; aiops-persona=devops:PRF-G" },
+    });
+    expect(selectedPersonaFromRequest(request)).toBe("devops:PRF-G");
   });
 });

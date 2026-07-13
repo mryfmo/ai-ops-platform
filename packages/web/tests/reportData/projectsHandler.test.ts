@@ -47,6 +47,35 @@ describe("handleProjects（権限外403）", () => {
 });
 
 describe("handleProjects（正当なセッション: データ返却）", () => {
+  it("選択した2番目のペルソナをAPIでも使用する [REQ-041 / SPEC-INT-068]", async () => {
+    const personas: ResolvedPersona[] = [
+      {
+        domain: "prjops",
+        profile: "PRF-01",
+        visibility: {
+          recipientStakeholderId: "STK-001",
+          recipientManagedProjectIds: [],
+          recipientAssignedProjectIds: [],
+          recipientParticipatingProjectIds: [],
+          investedProjectIds: [],
+        },
+      },
+      {
+        domain: "devops",
+        profile: "PRF-L",
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"] },
+      },
+    ];
+    const res = await handleProjects({
+      getSession: sessionWithEmail,
+      resolver: resolverWith(personas),
+      selectedPersona: "devops:PRF-L",
+      prjopsProvider: new InMemoryPrjopsReportDataProvider([], []),
+      devopsDb: { query: vi.fn().mockResolvedValue({ rows: [{ project_id: "PRJ-0002" }] }) },
+    });
+    expect(await res.json()).toEqual({ domain: "devops", projects: [{ id: "PRJ-0002", name: "PRJ-0002" }] });
+  });
+
   it("prjopsペルソナが先頭ならPrjOps側のプロジェクト一覧を返す", async () => {
     const personas: ResolvedPersona[] = [
       {

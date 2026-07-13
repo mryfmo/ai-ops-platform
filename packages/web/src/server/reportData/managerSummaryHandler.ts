@@ -8,8 +8,7 @@
  * 認可: requireSession（未認証401）→ requirePersona()（domain指定なし。両ドメインの
  *   ペルソナを許容する）（該当ペルソナなし403）を経由する。取得したペルソナに
  *   PRF-03/PRF-Gがいずれも含まれない場合も403。
- *   同一アカウントが両ペルソナを持つ場合はPrjOps(PRF-03)を優先する
- *   （ダッシュボードページのペルソナ選択方針＝先頭優先、と揃える）。
+ *   選択ペルソナがある場合はその1件を使用し、未選択時のみPrjOps(PRF-03)を優先する。
  *
  * DIを引数で受け取る設計（getSession/resolver/prjopsProvider/devopsDb）にすることで、
  * route.ts（本番配線）と切り離してネットワーク・実DBなしでテストできる。
@@ -30,6 +29,7 @@ export interface ManagerSummaryHandlerDeps {
   /** 集計期間（ISO日付文字列）。未指定時は呼び出し側のroute.tsが既定期間（直近28日）を渡す。 */
   periodStart: string;
   periodEnd: string;
+  selectedPersona?: string;
 }
 
 /**
@@ -45,7 +45,7 @@ function isDevopsManager(p: ResolvedPersona): p is Extract<ResolvedPersona, { do
 
 export async function handleManagerSummary(deps: ManagerSummaryHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver);
+    const personas = await resolvePersonas(deps.getSession, deps.resolver, undefined, deps.selectedPersona);
     const prjopsManager = personas.find(isPrjopsManager);
     const devopsManager = personas.find(isDevopsManager);
     if (!prjopsManager && !devopsManager) {
