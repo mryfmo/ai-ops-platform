@@ -31,6 +31,8 @@ export interface LlmUsageRecord {
   model: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
   estimated_cost_usd: number;
 }
 
@@ -207,12 +209,25 @@ export function estimateCostUsd(
   inputTokens: number,
   outputTokens: number,
   pricingUsdPerMtok: ModelPricingUsdPerMtok,
+  cacheCreationInputTokens = 0,
+  cacheReadInputTokens = 0,
 ): number {
   validateTokenCount(inputTokens, "inputTokens");
   validateTokenCount(outputTokens, "outputTokens");
+  validateTokenCount(cacheCreationInputTokens, "cacheCreationInputTokens");
+  validateTokenCount(cacheReadInputTokens, "cacheReadInputTokens");
   const { price } = resolveModelPrice(model, pricingUsdPerMtok);
-  const cost = (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
-  if (!Number.isFinite(cost) || cost < 0 || (cost === 0 && (inputTokens > 0 || outputTokens > 0))) {
+  const cost =
+    (inputTokens * price.input +
+      cacheCreationInputTokens * price.input * 1.25 +
+      cacheReadInputTokens * price.input * 0.1 +
+      outputTokens * price.output) /
+    1_000_000;
+  if (
+    !Number.isFinite(cost) ||
+    cost < 0 ||
+    (cost === 0 && (inputTokens > 0 || outputTokens > 0 || cacheCreationInputTokens > 0 || cacheReadInputTokens > 0))
+  ) {
     throw new Error("E-COST02: estimated cost must be finite and positive for non-zero usage");
   }
   return cost;
@@ -249,7 +264,12 @@ export interface StructuredCallResult<T> {
   value: T;
   model: string;
   attempts: number;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
 }
 
 export interface AnthropicStructuredClientOptions {
@@ -323,7 +343,9 @@ export class AnthropicStructuredClient {
         model: currentModel,
         input_tokens: estimatedInputTokens,
         output_tokens: 2048,
-        estimated_cost_usd: estimateCostUsd(currentModel, estimatedInputTokens, 2048, pricing),
+        // A cache miss bills the cacheable prefix at 1.25x, so reserve that
+        // conservative case before the request instead of exceeding the limit later.
+        estimated_cost_usd: estimateCostUsd(currentModel, 0, 2048, pricing, estimatedInputTokens),
       };
       const reservationId = await this.costGuard.reserve(reservedUsage);
 
@@ -333,18 +355,21 @@ export class AnthropicStructuredClient {
           model: currentModel,
           max_tokens: 2048,
           ...(shouldSendTemperature(currentModel, this.clientOptions.escalationModel) ? { temperature: 0 } : {}),
-          system: opts.system,
+          system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
           messages: [{ role: "user", content: sanitizedUser }],
           tools: [
             {
               name: opts.toolName,
               description: opts.toolDescription,
               input_schema: opts.inputSchema as Anthropic.Tool.InputSchema,
+              cache_control: { type: "ephemeral" },
             },
           ],
           tool_choice: { type: "tool", name: opts.toolName },
         } satisfies Anthropic.MessageCreateParamsNonStreaming;
         const response = await this.client.messages.create(request);
+        const cacheCreationInputTokens = response.usage.cache_creation_input_tokens ?? 0;
+        const cacheReadInputTokens = response.usage.cache_read_input_tokens ?? 0;
 
         const actualUsage = {
           at: new Date().toISOString(),
@@ -353,11 +378,15 @@ export class AnthropicStructuredClient {
           model: currentModel,
           input_tokens: response.usage.input_tokens,
           output_tokens: response.usage.output_tokens,
+          cache_creation_input_tokens: cacheCreationInputTokens,
+          cache_read_input_tokens: cacheReadInputTokens,
           estimated_cost_usd: estimateCostUsd(
             currentModel,
             response.usage.input_tokens,
             response.usage.output_tokens,
             pricing,
+            cacheCreationInputTokens,
+            cacheReadInputTokens,
           ),
         };
         await this.costGuard.reconcileReservation(reservationId, actualUsage);
@@ -378,7 +407,12 @@ export class AnthropicStructuredClient {
           value,
           model: currentModel,
           attempts,
-          usage: { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens },
+          usage: {
+            input_tokens: response.usage.input_tokens,
+            output_tokens: response.usage.output_tokens,
+            cache_creation_input_tokens: cacheCreationInputTokens,
+            cache_read_input_tokens: cacheReadInputTokens,
+          },
         };
       } catch (err) {
         if (err instanceof AnthropicRefusalError || err instanceof DailyCostLimitExceededError) throw err;

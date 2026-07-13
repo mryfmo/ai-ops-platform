@@ -14,7 +14,14 @@ const { poolConstructor, query } = vi.hoisted(() => {
     }
     return { rows: [] };
   });
-  return { query, poolConstructor: vi.fn(() => ({ query })) };
+  return {
+    query,
+    poolConstructor: vi.fn(
+      class Pool {
+        readonly query = query;
+      },
+    ),
+  };
 });
 
 vi.mock("pg", () => ({ default: { Pool: poolConstructor } }));
@@ -37,9 +44,10 @@ describe("web data API pool load baseline [REQ-041 SPEC-INT-068]", () => {
 
   it("keeps one pool across 500 consecutive data API requests", async () => {
     const { GET } = await import("../src/app/api/data/projects/route");
+    const request = new Request("https://example.invalid/api/data/projects");
     const startedAt = performance.now();
     for (let index = 0; index < 500; index += 1) {
-      expect((await GET()).status).toBe(200);
+      expect((await GET(request)).status).toBe(200);
     }
     const elapsedMs = performance.now() - startedAt;
 

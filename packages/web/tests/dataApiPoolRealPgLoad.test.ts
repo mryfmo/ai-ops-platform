@@ -88,13 +88,14 @@ describe.skipIf(!baseDatabaseUrl)("real PostgreSQL web pool load [REQ-041 SPEC-I
   it("keeps one physical route connection across 500 production GET requests", async () => {
     const before = await physicalConnectionCount();
     const { GET } = await import("../src/app/api/data/projects/route");
+    const request = new Request("https://example.invalid/api/data/projects");
     const { getPool } = await import("../src/server/db/pool");
     routePool = getPool(routeDatabaseUrl);
     let peak = before;
     let poolTotalPeak = routePool.totalCount;
 
     for (let index = 0; index < 500; index += 1) {
-      expect((await GET()).status).toBe(200);
+      expect((await GET(request)).status).toBe(200);
       peak = Math.max(peak, await physicalConnectionCount());
       poolTotalPeak = Math.max(poolTotalPeak, routePool.totalCount);
     }

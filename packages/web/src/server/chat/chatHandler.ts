@@ -32,7 +32,7 @@ import {
   type ModelPricingUsdPerMtok,
   type PgCostGuard,
 } from "@aiops/shared";
-import type { PersonaResolver } from "../personaResolver";
+import type { PersonaResolver, ResolvedPersona } from "../personaResolver";
 import { resolvePersonas, toErrorResponse } from "../reportData/dataApiSupport";
 import { buildToolsForPersona } from "./tools";
 import { buildSystemPrompt, type PageAgentContext } from "./systemPrompt";
@@ -50,6 +50,7 @@ export interface ChatHandlerDeps {
   languageModel: LanguageModel | undefined;
   costGuard: PgCostGuard;
   auditLog?: AuditLogWriter;
+  auditLogForDomain?: (domain: ResolvedPersona["domain"]) => AuditLogWriter;
   traceIdProvider?: () => string;
   pricingUsdPerMtok: ModelPricingUsdPerMtok;
   messages: UIMessage[];
@@ -134,19 +135,23 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
 
     const modelName = deps.modelName;
     const pricing = deps.pricingUsdPerMtok;
-    if (Boolean(deps.auditLog) !== Boolean(deps.traceIdProvider)) {
+    if (deps.auditLog && deps.auditLogForDomain) {
+      throw new Error("E-CFG04: configure auditLog or auditLogForDomain, not both");
+    }
+    const auditLog = deps.auditLogForDomain?.(persona!.domain) ?? deps.auditLog;
+    if (Boolean(auditLog) !== Boolean(deps.traceIdProvider)) {
       throw new Error("E-CFG04: auditLog and traceIdProvider must be configured together");
     }
     const sanitizedMessages = sanitizeMessages(deps.messages);
     const at = new Date().toISOString();
     const { price, usedFallback } = resolveModelPrice(modelName, pricing);
-    if (usedFallback && !deps.auditLog) {
+    if (usedFallback && !auditLog) {
       throw new Error("E-CFG04: auditLog is required for unknown model pricing fallback");
     }
     if (usedFallback) {
       const traceId = deps.traceIdProvider?.();
       if (!traceId) throw new Error("E-CFG04: traceIdProvider is required when pricing audit is enabled");
-      await deps.auditLog!.append({
+      await auditLog!.append({
         trace_id: traceId,
         actor: CHAT_COST_AGENT,
         action: "llm_unknown_model_pricing_fallback",

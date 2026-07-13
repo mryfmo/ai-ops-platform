@@ -28,7 +28,11 @@ const clientOptions = {
   },
 };
 
-function response(content: unknown[], stopReason = "tool_use") {
+function response(
+  content: unknown[],
+  stopReason = "tool_use",
+  usage: Record<string, number> = { input_tokens: 10, output_tokens: 5 },
+) {
   return {
     id: "msg_test",
     type: "message",
@@ -37,11 +41,88 @@ function response(content: unknown[], stopReason = "tool_use") {
     content,
     stop_reason: stopReason,
     stop_sequence: null,
-    usage: { input_tokens: 10, output_tokens: 5 },
+    usage,
   };
 }
 
 describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-030]", () => {
+  it("marks stable system and tool definitions for prompt caching and records cache usage [SPEC-INT-030 / SPEC-INT-060]", async () => {
+    const create = vi.fn().mockResolvedValue(
+      response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }], "tool_use", {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_creation_input_tokens: 8,
+        cache_read_input_tokens: 4,
+      }),
+    );
+    const guard = new InMemoryCostGuard();
+    const client = new AnthropicStructuredClient(
+      { messages: { create } } as unknown as Anthropic,
+      guard,
+      clientOptions,
+    );
+
+    const result = await client.call({
+      agent: "AGT-04",
+      purpose: "standard_report_slots",
+      system: "Return a tool.",
+      user: "hello",
+      toolName: "emit",
+      toolDescription: "emit value",
+      inputSchema: schema,
+      parse: (raw) => raw as { value: string },
+      maxAttempts: 1,
+    });
+
+    expect(create.mock.calls[0]![0]).toMatchObject({
+      system: [{ cache_control: { type: "ephemeral" } }],
+      tools: [{ cache_control: { type: "ephemeral" } }],
+    });
+    expect(result.usage).toMatchObject({ cache_creation_input_tokens: 8, cache_read_input_tokens: 4 });
+    expect(guard.getRecords()[0]).toMatchObject({ cache_creation_input_tokens: 8, cache_read_input_tokens: 4 });
+  });
+
+  it("reserves the cache-creation premium before a cached request [SPEC-INT-030 / SPEC-INT-060]", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValue(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
+    const reserve = vi.fn(async () => "reservation-1");
+    const client = new AnthropicStructuredClient(
+      { messages: { create } } as unknown as Anthropic,
+      {
+        dailyLimitUsd: 20,
+        getTodaySpendUsd: async () => 0,
+        record: async () => {},
+        reserve,
+        reconcileReservation: async () => {},
+      },
+      clientOptions,
+    );
+
+    await client.call({
+      agent: "AGT-04",
+      purpose: "standard_report_slots",
+      system: "Return a tool.",
+      user: "hello",
+      toolName: "emit",
+      toolDescription: "emit value",
+      inputSchema: schema,
+      parse: (raw) => raw as { value: string },
+      maxAttempts: 1,
+    });
+
+    const reservation = reserve.mock.calls[0]![0];
+    expect(reservation.estimated_cost_usd).toBe(
+      estimateCostUsd(
+        reservation.model,
+        0,
+        reservation.output_tokens,
+        clientOptions.pricingUsdPerMtok,
+        reservation.input_tokens,
+      ),
+    );
+  });
+
   it("configured escalation capability omits temperature without model-name inference [SPEC-INT-001 / SPEC-INT-030]", async () => {
     const create = vi
       .fn()

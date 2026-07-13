@@ -194,7 +194,7 @@ export async function main(
           defaultModel: config.ANTHROPIC_DEFAULT_MODEL,
           escalationModel: config.ANTHROPIC_ESCALATION_MODEL,
           pricingUsdPerMtok: config.ANTHROPIC_PRICING_USD_PER_MTOK,
-          auditLog,
+          auditLog: prjopsAuditLog,
           traceIdProvider: () => randomUUID(),
         },
       )

@@ -138,7 +138,7 @@ describe("handleChat（権限外403）", () => {
   });
 
   it("改ざんした選択ペルソナを403にする [REQ-041 / SPEC-INT-068]", async () => {
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       selectedPersona: "devops:PRF-G",
@@ -188,7 +188,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
         return mockTextModel("ok").doStream(options);
       },
     });
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive, devopsManager]),
       selectedPersona: "devops:PRF-G",
@@ -336,10 +336,11 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
 
     const res = await handleTestChat({
       getSession: sessionWithEmail,
-      resolver: resolverWith([prjopsExecutive]),
+      resolver: resolverWith([devopsManager]),
+      selectedPersona: "devops:PRF-G",
       languageModel: mockTextModel("表示を切り替えました。"),
       costGuard: new PgCostGuard(db),
-      auditLog: new PgAuditLog(db),
+      auditLogForDomain: (domain) => new PgAuditLog(db, domain === "devops" ? "devops_1y" : "prjops_5y"),
       traceIdProvider: () => traceId,
       pricingUsdPerMtok: { "known-model": { input: 7, output: 35 } },
       messages: userMessage("こんにちは"),
@@ -349,10 +350,11 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
     await res.text();
 
     const auditCall = queries.find((q) => q.text.includes("INSERT INTO audit_log"));
-    expect(auditCall?.params?.[0]).toBe(traceId);
+    expect(auditCall?.params?.[0]).toBe("devops_1y");
+    expect(auditCall?.params?.[1]).toBe(traceId);
     expect(traceId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-    expect(auditCall?.params?.[2]).toBe("llm_unknown_model_pricing_fallback");
-    expect(JSON.parse(String(auditCall?.params?.[4]))).toMatchObject({
+    expect(auditCall?.params?.[3]).toBe("llm_unknown_model_pricing_fallback");
+    expect(JSON.parse(String(auditCall?.params?.[5]))).toMatchObject({
       severity: "warn",
       model: "unknown-model",
       applied_price_usd_per_mtok: { input: 7, output: 35 },
@@ -373,7 +375,7 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
       resolver: resolverWith([prjopsExecutive]),
       languageModel: mockTextModel("表示を切り替えました。"),
       costGuard: new PgCostGuard(db),
-      auditLog: new PgAuditLog(db),
+      auditLog: new PgAuditLog(db, "prjops_5y"),
       traceIdProvider: () => "550e8400-e29b-41d4-a716-446655440001",
       messages: userMessage("こんにちは"),
       modelName: "claude-sonnet-4-6",

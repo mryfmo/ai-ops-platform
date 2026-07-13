@@ -302,7 +302,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
       },
       "trace-card-failure",
     );
-    expect(result.sent).toBe(1);
+    expect(result.failed).toBe(1);
     const serialized = JSON.stringify(await auditLog.readAll());
     expect(serialized).toContain('"reportId":"STD-1"');
     expect(serialized).toContain('"recipientId":"ST-001"');
@@ -588,6 +588,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     let heartbeats = 0;
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
+      defaultTeamsTeamId: "team-1",
       defaultTeamsChannelId: "channel-1",
       publicBaseUrl: "not-a-url",
       fetchImpl: async () => {
@@ -616,6 +617,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     let heartbeats = 0;
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
+      defaultTeamsTeamId: "team-1",
       defaultTeamsChannelId: "channel-1",
       fetchImpl: async () => new Response(null, { status: ++heartbeats === 1 ? 503 : 200 }),
       graphClient: {
@@ -642,6 +644,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     let heartbeats = 0;
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
+      defaultTeamsTeamId: "team-1",
       defaultTeamsChannelId: "channel-1",
       fetchImpl: async () => {
         heartbeats += 1;

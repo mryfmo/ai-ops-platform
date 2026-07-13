@@ -7,7 +7,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { poolConstructor } = vi.hoisted(() => ({
-  poolConstructor: vi.fn((options: { connectionString: string }) => ({ options })),
+  poolConstructor: vi.fn(
+    class Pool {
+      constructor(readonly options: { connectionString: string }) {}
+    },
+  ),
 }));
 
 vi.mock("pg", () => ({ default: { Pool: poolConstructor } }));

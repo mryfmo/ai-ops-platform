@@ -54,7 +54,7 @@ describe("PgAuditLog PostgreSQL boundary [REQ-028, SPEC-INT-056]", () => {
   it("passes a valid UUID trace_id to the INSERT boundary [REQ-028 / SPEC-INT-056]", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ log_id: "7" }] });
     const traceId = "123e4567-e89b-42d3-a456-426614174000";
-    await new PgAuditLog({ query }).append({
+    await new PgAuditLog({ query }, "prjops_5y").append({
       trace_id: traceId,
       actor: "AGT-04",
       action: "llm_unknown_model_pricing_fallback",
@@ -62,7 +62,7 @@ describe("PgAuditLog PostgreSQL boundary [REQ-028, SPEC-INT-056]", () => {
       detail: { model: "unknown" },
       at: "2026-07-13T00:00:00Z",
     });
-    expect(query.mock.calls[0]![1]![0]).toBe(traceId);
+    expect(query.mock.calls[0]![1]![1]).toBe(traceId);
     expect(traceId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });

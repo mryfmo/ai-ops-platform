@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     resolver,
     languageModel,
     costGuard,
-    auditLog: new PgAuditLog(pool),
+    auditLogForDomain: (domain) => new PgAuditLog(pool, domain === "devops" ? "devops_1y" : "prjops_5y"),
     traceIdProvider: () => randomUUID(),
     pricingUsdPerMtok: config.ANTHROPIC_PRICING_USD_PER_MTOK,
     messages: body.messages,

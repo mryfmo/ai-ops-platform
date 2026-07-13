@@ -13,6 +13,7 @@ describe("loadWebConfig model configuration [SPEC-INT-060]", () => {
     AUTH_MICROSOFT_ENTRA_ID_SECRET: "client-secret",
     AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: "tenant-id",
     DATABASE_URL: "postgres://example",
+    PUBLIC_BASE_URL: "https://example.invalid",
   };
 
   it("ANTHROPIC_DEFAULT_MODELを任意設定できる [SPEC-INT-060]", () => {
