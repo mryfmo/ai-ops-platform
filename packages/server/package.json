@@ -17,7 +17,7 @@
     "@aiops/devops": "workspace:*",
     "@aiops/prjops": "workspace:*",
     "@aiops/shared": "workspace:*",
-    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/sdk": "0.111.0",
     "@hono/node-server": "^1.13.7",
     "@opentelemetry/auto-instrumentations-node": "^0.78.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
