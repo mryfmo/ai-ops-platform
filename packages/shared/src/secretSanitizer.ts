@@ -23,8 +23,8 @@ interface SecretPattern {
 
 // 既知の主要シークレット形式（GitHub / Anthropic / Microsoft / 汎用トークン）
 export const SECRET_PATTERNS: SecretPattern[] = [
-  { name: "github_pat", regex: /gh[pousr]_[A-Za-z0-9]{20,}/g },
   { name: "github_app_token", regex: /ghs_[A-Za-z0-9]{20,}/g },
+  { name: "github_pat", regex: /gh[pousr]_[A-Za-z0-9]{20,}/g },
   { name: "anthropic_api_key", regex: /sk-ant-[A-Za-z0-9\-_]{20,}/g },
   { name: "authorization_header", regex: /Authorization:\s*Bearer\s+[A-Za-z0-9\-_.]+/gi },
   { name: "generic_bearer", regex: /Bearer\s+[A-Za-z0-9\-_.]{20,}/g },
@@ -44,21 +44,116 @@ export interface SanitizeResult {
   matchedPatterns: string[];
 }
 
-/** テキスト中の既知シークレットパターンを "***REDACTED:<pattern>***" に置換する。 */
-export function sanitizeSecrets(input: string): SanitizeResult {
-  let sanitized = input;
-  let redactionCount = 0;
-  const matchedPatterns = new Set<string>();
+interface NormalizedMatch {
+  start: number;
+  end: number;
+  name: string;
+  priority: number;
+}
 
-  for (const { name, regex } of SECRET_PATTERNS) {
-    sanitized = sanitized.replace(regex, () => {
-      redactionCount += 1;
-      matchedPatterns.add(name);
-      return `***REDACTED:${name}***`;
-    });
+interface NormalizedShadow {
+  text: string;
+  originalStarts: number[];
+  originalEnds: number[];
+}
+
+function buildNormalizedShadow(input: string): NormalizedShadow {
+  const normalizedParts: string[] = [];
+  const originalStarts: number[] = [];
+  const originalEnds: number[] = [];
+  let originalStart = 0;
+
+  // 検出regexはNFKC後のASCII形式だけを対象とする。code point間のUnicode合成差はASCII secret形状を
+  // 新たに作らないため、grapheme segmentationを避けて1-passのcode point mapを構築する。
+  for (const character of input) {
+    const normalized = character.normalize("NFKC");
+    const originalEnd = originalStart + character.length;
+    normalizedParts.push(normalized);
+    for (let offset = 0; offset < normalized.length; offset += 1) {
+      originalStarts.push(originalStart);
+      originalEnds.push(originalEnd);
+    }
+    originalStart = originalEnd;
   }
 
-  return { sanitized, redactionCount, matchedPatterns: [...matchedPatterns] };
+  return { text: normalizedParts.join(""), originalStarts, originalEnds };
+}
+
+function mergeByStart(left: NormalizedMatch[], right: NormalizedMatch[]): NormalizedMatch[] {
+  const merged: NormalizedMatch[] = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < left.length || rightIndex < right.length) {
+    if (rightIndex >= right.length || (leftIndex < left.length && left[leftIndex]!.start <= right[rightIndex]!.start)) {
+      merged.push(left[leftIndex++]!);
+    } else {
+      merged.push(right[rightIndex++]!);
+    }
+  }
+  return merged;
+}
+
+function selectNonOverlappingMatches(candidates: NormalizedMatch[]): NormalizedMatch[] {
+  candidates.sort((a, b) => a.priority - b.priority || a.start - b.start || b.end - a.end);
+  let selected: NormalizedMatch[] = [];
+
+  for (let groupStart = 0; groupStart < candidates.length;) {
+    const priority = candidates[groupStart]!.priority;
+    let groupEnd = groupStart;
+    while (groupEnd < candidates.length && candidates[groupEnd]!.priority === priority) groupEnd += 1;
+
+    const accepted: NormalizedMatch[] = [];
+    let selectedIndex = 0;
+    for (const candidate of candidates.slice(groupStart, groupEnd)) {
+      while (selectedIndex < selected.length && selected[selectedIndex]!.end <= candidate.start) selectedIndex += 1;
+      const occupied = selected[selectedIndex];
+      if (!occupied || occupied.start >= candidate.end) accepted.push(candidate);
+    }
+    selected = mergeByStart(selected, accepted);
+    groupStart = groupEnd;
+  }
+
+  return selected;
+}
+
+/** テキスト中の既知シークレットパターンを "***REDACTED:<pattern>***" に置換する。 */
+export function sanitizeSecrets(input: string): SanitizeResult {
+  const shadow = buildNormalizedShadow(input);
+  const candidates: NormalizedMatch[] = [];
+
+  for (const [priority, { name, regex }] of SECRET_PATTERNS.entries()) {
+    regex.lastIndex = 0;
+    for (let match = regex.exec(shadow.text); match; match = regex.exec(shadow.text)) {
+      candidates.push({ start: match.index, end: match.index + match[0].length, name, priority });
+    }
+  }
+
+  const matches = selectNonOverlappingMatches(candidates);
+  if (matches.length === 0) return { sanitized: input, redactionCount: 0, matchedPatterns: [] };
+
+  const mappedRedactions = matches.map((match) => ({
+    range: [shadow.originalStarts[match.start]!, shadow.originalEnds[match.end - 1]!] as const,
+    name: match.name,
+  }));
+  const redactions: typeof mappedRedactions = [];
+  for (const redaction of mappedRedactions) {
+    const previous = redactions[redactions.length - 1];
+    if (!previous || redaction.range[0] >= previous.range[1]) redactions.push(redaction);
+  }
+  let sanitized = "";
+  let cursor = 0;
+  for (const {
+    range: [start, end],
+    name,
+  } of redactions) {
+    sanitized += `${input.slice(cursor, start)}***REDACTED:${name}***`;
+    cursor = end;
+  }
+  sanitized += input.slice(cursor);
+
+  const matchedNames = new Set(redactions.map(({ name }) => name));
+  const matchedPatterns = SECRET_PATTERNS.filter(({ name }) => matchedNames.has(name)).map(({ name }) => name);
+  return { sanitized, redactionCount: redactions.length, matchedPatterns };
 }
 
 /** LLMへ渡す前の入力に対する必須ゲート。REDACTしても検知件数を返すため、呼び出し側で監査ログに記録できる。 */
@@ -68,8 +163,5 @@ export function sanitizeForLlmInput(input: string): SanitizeResult {
 
 /** 出力（PRコメント・レポート・ログ）に対する最終防御チェック。true=クリーン。 */
 export function isFreeOfKnownSecrets(text: string): boolean {
-  return SECRET_PATTERNS.every(({ regex }) => {
-    regex.lastIndex = 0;
-    return !regex.test(text);
-  });
+  return sanitizeSecrets(text).redactionCount === 0;
 }
