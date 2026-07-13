@@ -9,8 +9,12 @@
  *         （Graphは応答遅延でサブスクリプションを削除するため、重い処理は非同期化する）。
  */
 import type { Hono } from "hono";
-import type { AuditLogWriter } from "@aiops/shared";
-import { classifyNotifications, type GraphNotification } from "../../lib/graphNotificationValidator.js";
+import { graphSubscriptionErrorDetail, type AuditLogWriter } from "@aiops/shared";
+import {
+  classifyNotifications,
+  graphNotificationDedupeKey,
+  type GraphNotification,
+} from "../../lib/graphNotificationValidator.js";
 
 export type GraphLifecycleEventName = "reauthorizationRequired" | "subscriptionRemoved" | "missed";
 
@@ -65,7 +69,8 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
         detail: {
           lifecycleEvent: event.lifecycleEvent,
           subscriptionId: event.subscriptionId,
-          error: error instanceof Error ? error.message : String(error),
+          ...graphSubscriptionErrorDetail(error),
+          recovery: "lifecycle_event_retry",
         },
         at: new Date().toISOString(),
       }),
@@ -132,7 +137,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           ids,
         },
         traceId,
-        { dedupeKey: `graph:${messageId}` },
+        { dedupeKey: graphNotificationDedupeKey(notification) },
       );
       if (!inserted) {
         await deps.auditLog.append({

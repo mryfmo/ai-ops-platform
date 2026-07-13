@@ -4,13 +4,16 @@
  * 根拠: SPEC-INT-001 / Microsoft Graph lifecycle notifications。
  * lifecycle通知は通常のmessage通知と違い、キュー投入ではなく購読台帳のrenew/fallback/backfillを即時起動する。
  */
-import type { AuditLogWriter } from "@aiops/shared";
+import { graphSubscriptionErrorDetail, type AuditLogWriter } from "@aiops/shared";
 import type { GraphSubscription, GraphSubscriptionsRepo } from "../db/graphSubscriptionsRepo.js";
 import type { GraphLifecycleEvent } from "../http/routes/graphNotifications.js";
+import { computeGraphSubscriptionExpiration } from "./graphSubscriptionPolicy.js";
 
 export interface GraphLifecycleHandlerDeps {
   graphSubscriptionsRepo: Pick<GraphSubscriptionsRepo, "findBySubscriptionId" | "updateExpiresAt" | "switchMode">;
-  graphClient: { renewSubscription(subscriptionId: string, newExpirationIso: string): Promise<void> };
+  graphClient: {
+    renewSubscription(subscriptionId: string, newExpirationIso: string, teamId: string | null): Promise<void>;
+  };
   backfillSubscription(sub: GraphSubscription, now: Date): Promise<void>;
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
@@ -53,9 +56,27 @@ export async function handleGraphLifecycleEvent(
   }
 
   if (event.lifecycleEvent === "reauthorizationRequired") {
-    const newExpirationIso = new Date(now.getTime() + 60 * 60_000).toISOString();
-    await deps.graphClient.renewSubscription(sub.subscriptionId, newExpirationIso);
-    await deps.graphSubscriptionsRepo.updateExpiresAt(sub.subscriptionId, newExpirationIso);
+    const newExpirationIso = computeGraphSubscriptionExpiration(now);
+    try {
+      await deps.graphClient.renewSubscription(sub.subscriptionId, newExpirationIso, sub.teamId);
+      await deps.graphSubscriptionsRepo.updateExpiresAt(sub.subscriptionId, newExpirationIso);
+    } catch (error) {
+      await deps.graphSubscriptionsRepo.switchMode(sub.subscriptionId, "polling");
+      await deps.backfillSubscription(sub, now);
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "graph_lifecycle_reauthorization_failed",
+        basis: "SPEC-INT-001",
+        detail: {
+          subscriptionId: sub.subscriptionId,
+          ...graphSubscriptionErrorDetail(error),
+          recovery: "polling_backfill",
+        },
+        at: now.toISOString(),
+      });
+      return;
+    }
     await deps.auditLog.append({
       trace_id: traceId,
       actor: "SERVER",
@@ -69,6 +90,7 @@ export async function handleGraphLifecycleEvent(
 
   if (event.lifecycleEvent === "subscriptionRemoved") {
     await deps.graphSubscriptionsRepo.switchMode(sub.subscriptionId, "polling");
+    await deps.backfillSubscription(sub, now);
     await deps.auditLog.append({
       trace_id: traceId,
       actor: "SERVER",
@@ -76,7 +98,7 @@ export async function handleGraphLifecycleEvent(
       basis: "SPEC-INT-001",
       detail: {
         subscriptionId: sub.subscriptionId,
-        recovery: "polling fallback enabled; recreate subscription via CLI",
+        recovery: "polling_backfill_and_automatic_replacement",
       },
       at: now.toISOString(),
     });

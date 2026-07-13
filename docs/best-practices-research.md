@@ -26,11 +26,13 @@
 
 ## 3. Microsoft Graph APIによるTeams/Outlook連携
 
-- **出典**: `learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/`、
-  `learn.microsoft.com/en-us/graph/teams-messaging-overview`、
-  SyncRivo Blog "Microsoft Teams & the Graph API: A Technical Deep Dive"（2026-04-06）
-- **change notificationサブスクリプションの有効期限は短い**（チャネルメッセージ等のリソースは
-  最大60分程度）。継続受信には定期的な`PATCH /subscriptions/{id}`によるリニューアルが必須であり、
+- **出典（2026-07-11確認）**: `learn.microsoft.com/en-us/graph/api/resources/subscription?view=graph-rest-1.0`、
+  `learn.microsoft.com/en-us/graph/teams-changenotifications-chatmessage`、
+  `learn.microsoft.com/en-us/graph/change-notifications-lifecycle-events`
+- **Teams `chatMessage` change notification**: canonical channel resourceの最大有効期限は4,320分
+  （rich notificationは1,440分で本実装の対象外）。1時間を超える購読には
+  `lifecycleNotificationUrl`が必須で、`created,updated,deleted`を明示する。継続受信には
+  定期的な`PATCH /subscriptions/{id}`によるリニューアルが必要であり、
   リニューアル失敗は「サイレントなデータ損失」になり得る。この事実に基づき、本実装
   （`GraphClient.createSubscription`/`renewSubscription`）は、リニューアル失敗を例外として
   明示的に投げ、呼び出し側がポーリングへフォールバックできる設計にした

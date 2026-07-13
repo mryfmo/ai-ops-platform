@@ -13,6 +13,7 @@
  */
 import type { GraphClient } from "@aiops/shared/clients/graphClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
+import { isValidId } from "@aiops/shared/ids.js";
 import { calculateDoraSummary, type DeploymentRecord, type IncidentRecord } from "../lib/doraMetrics.js";
 import { isActiveRecipient, type RecipientRecord } from "../lib/reportPermissionFilter.js";
 import type { CodingTaskActivitySummary } from "../lib/codingTaskActivity.js";
@@ -32,6 +33,66 @@ export interface RptDependencies {
   fromMailbox: string;
 }
 
+const NUMERIC_USER_ID = /^U-\d{3,}$/;
+const UUID = /^[0-9A-F]{8}-[0-9A-F]{4}-[1-8][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i;
+
+function isSafeRecipientId(value: string): boolean {
+  return isValidId("stakeholder", value) || NUMERIC_USER_ID.test(value) || UUID.test(value);
+}
+
+function graphMailStatus(error: unknown): number | null {
+  const match =
+    error instanceof Error ? /^E-DLV01: sendMail failed with status ([1-5]\d{2})$/.exec(error.message) : null;
+  return match ? Number(match[1]) : null;
+}
+
+function deliveryErrorDetail(error: unknown): { category: "graph_delivery"; code: "E-DLV01"; status: number | null } {
+  return { category: "graph_delivery", code: "E-DLV01", status: graphMailStatus(error) };
+}
+
+async function sendAuditedReport(
+  input: {
+    recipientId: string;
+    recipientEmail: string;
+    subject: string;
+    html: string;
+    action: string;
+    basis: string;
+    detail?: Record<string, unknown>;
+  },
+  deps: RptDependencies,
+): Promise<void> {
+  if (!isSafeRecipientId(input.recipientId)) throw new Error("E-DLV03: invalid recipient ID");
+  const detail = { recipientId: input.recipientId, ...input.detail };
+  try {
+    await deps.graphClient.sendMail({
+      toEmail: input.recipientEmail,
+      subject: input.subject,
+      htmlBody: input.html,
+      fromMailbox: deps.fromMailbox,
+    });
+  } catch (error) {
+    const classified = deliveryErrorDetail(error);
+    await deps.auditLog.append({
+      trace_id: deps.traceId,
+      actor: "AGT-RPT",
+      action: `${input.action}_failed`,
+      basis: input.basis,
+      detail: { ...detail, error: classified },
+      at: new Date().toISOString(),
+    });
+    throw new Error(`E-DLV01: graph_delivery_failed status=${classified.status ?? "unknown"}`);
+  }
+  await deps.auditLog.append({
+    trace_id: deps.traceId,
+    actor: "AGT-RPT",
+    action: input.action,
+    basis: input.basis,
+    detail,
+    at: new Date().toISOString(),
+  });
+}
+
 /** REQ-024 AC-024a: 配信直前に名簿を読み直し、非activeな宛先を除外する */
 export function resolveActiveRecipients(recipients: RecipientRecord[], candidateUserIds: string[]): string[] {
   return candidateUserIds.filter((id) => isActiveRecipient(recipients, id));
@@ -41,19 +102,22 @@ export function resolveActiveRecipients(recipients: RecipientRecord[], candidate
 export async function deliverMemberDailyReport(
   common: DevOpsComposeCommon,
   data: MemberDailyData,
+  recipientId: string,
   recipientEmail: string,
   deps: RptDependencies,
 ): Promise<void> {
   const { subject, html } = composeMemberDailyReport(common, data);
-  await deps.graphClient.sendMail({ toEmail: recipientEmail, subject, htmlBody: html, fromMailbox: deps.fromMailbox });
-  await deps.auditLog.append({
-    trace_id: deps.traceId,
-    actor: "AGT-RPT",
-    action: "deliver_member_daily",
-    basis: "REQ-021",
-    detail: { recipientEmail },
-    at: new Date().toISOString(),
-  });
+  await sendAuditedReport(
+    {
+      recipientId,
+      recipientEmail,
+      subject,
+      html,
+      action: "deliver_member_daily",
+      basis: "REQ-021",
+    },
+    deps,
+  );
 }
 
 /** PRF-L日次/週次レポートの配信（REQ-022） */
@@ -62,19 +126,23 @@ export async function deliverLeaderReport(
   data: LeaderPeriodData,
   projectId: string,
   frequency: "日次" | "週次",
+  recipientId: string,
   recipientEmail: string,
   deps: RptDependencies,
 ): Promise<void> {
   const { subject, html } = composeLeaderReport(common, data, projectId, frequency);
-  await deps.graphClient.sendMail({ toEmail: recipientEmail, subject, htmlBody: html, fromMailbox: deps.fromMailbox });
-  await deps.auditLog.append({
-    trace_id: deps.traceId,
-    actor: "AGT-RPT",
-    action: "deliver_leader",
-    basis: "REQ-022",
-    detail: { recipientEmail, projectId, frequency },
-    at: new Date().toISOString(),
-  });
+  await sendAuditedReport(
+    {
+      recipientId,
+      recipientEmail,
+      subject,
+      html,
+      action: "deliver_leader",
+      basis: "REQ-022",
+      detail: { projectId, frequency },
+    },
+    deps,
+  );
 }
 
 /** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA指標表示） */
@@ -87,6 +155,7 @@ export async function buildAndDeliverManagerReport(
   sev1And2: Array<{ id: string; projectId: string; title: string; severity: string }>,
   expiredApprovalCount: number,
   frequency: "週次" | "月次",
+  recipientId: string,
   recipientEmail: string,
   deps: RptDependencies,
   permissionAudit?: { totalGrants: number; revokedThisMonth: number; externalAccountCount: number },
@@ -119,13 +188,16 @@ export async function buildAndDeliverManagerReport(
     frequency,
   );
 
-  await deps.graphClient.sendMail({ toEmail: recipientEmail, subject, htmlBody: html, fromMailbox: deps.fromMailbox });
-  await deps.auditLog.append({
-    trace_id: deps.traceId,
-    actor: "AGT-RPT",
-    action: "deliver_manager",
-    basis: "REQ-023 AC-023a/b",
-    detail: { recipientEmail, frequency, projectCount: projectRiskInputs.length },
-    at: new Date().toISOString(),
-  });
+  await sendAuditedReport(
+    {
+      recipientId,
+      recipientEmail,
+      subject,
+      html,
+      action: "deliver_manager",
+      basis: "REQ-023 AC-023a/b",
+      detail: { frequency, projectCount: projectRiskInputs.length },
+    },
+    deps,
+  );
 }

@@ -7,7 +7,12 @@
  *   承認完了イベントを受けた場合、影響対象の関連企業へSPEC-EXT-033のリリース事前通知を送信する。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
-import type { GraphClient, AdaptiveCardPayload } from "@aiops/shared/clients/graphClient.js";
+import {
+  isAbsoluteHttpsUrl,
+  type GraphClient,
+  type AdaptiveCardPayload,
+  type ChannelRef,
+} from "@aiops/shared/clients/graphClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
 import type { HolidayCalendar } from "@aiops/shared/calendar/businessCalendar.js";
 import { formatExternalDateTime } from "@aiops/shared/ids.js";
@@ -51,10 +56,17 @@ export interface ApprovalPackage {
   riskScore: RiskScoreBreakdown;
   rollbackSummary: string;
   approvalDeadlineLabel: string;
+  decisionUrl: string;
 }
 
 /** SPEC-EXT-010: 本番デプロイ承認カードを送信する（表示項目の順序固定） */
-export async function sendApprovalCard(pkg: ApprovalPackage, channelId: string, deps: ChgDependencies): Promise<void> {
+export async function sendApprovalCard(
+  pkg: ApprovalPackage,
+  channel: ChannelRef,
+  deps: ChgDependencies,
+): Promise<void> {
+  const decisionUrl = pkg.decisionUrl?.trim();
+  if (!isAbsoluteHttpsUrl(decisionUrl)) throw new Error("Approval card requires a reviewed HTTPS decision URL");
   const card: AdaptiveCardPayload = {
     body: [
       { type: "TextBlock", text: `${pkg.projectName} — 対象環境: 本番`, weight: "bolder" },
@@ -72,14 +84,11 @@ export async function sendApprovalCard(pkg: ApprovalPackage, channelId: string, 
         ],
       },
     ],
-    actions: [
-      { title: "承認", id: "approve" },
-      { title: "却下", id: "reject" },
-      { title: "保留（コメント必須）", id: "hold" },
-    ],
+    actions: [],
+    openUrlActions: [{ title: "承認判断を開く", url: decisionUrl }],
   };
 
-  await deps.graphClient.sendAdaptiveCard({ channelOrChatId: channelId, card });
+  await deps.graphClient.sendAdaptiveCard({ target: channel, card });
   await deps.auditLog.append({
     trace_id: deps.traceId,
     actor: "AGT-CHG",

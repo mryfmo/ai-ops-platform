@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import type { PgQueryable } from "@aiops/shared";
-import { InMemoryAuditLog } from "@aiops/shared";
+import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
 import { buildApp, type AppDependencies } from "../src/http/app.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
 import { createReadinessCheck } from "../src/http/routes/health.js";
@@ -186,7 +186,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     expect(payload.ids.messageId).toBe("m-1");
   });
 
-  it("Graph通常通知はtop-level idなしでもresource由来messageIdでdedupeしてエンキューする", async () => {
+  it("Graph通常通知は不正resourceを拒否し、id/versionなしの同一更新は両方エンキューする", async () => {
     const { deps, auditLog, inboundEvents } = makeDeps();
     const app = buildApp(deps);
     const res = await app.request("/webhooks/graph", {
@@ -202,7 +202,13 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
           },
           {
             clientState: CLIENT_STATE,
-            changeType: "created",
+            changeType: "updated",
+            resource: "teams('t-1')/channels('c-1')/messages('m-2')",
+            subscriptionId: "sub-1",
+          },
+          {
+            clientState: CLIENT_STATE,
+            changeType: "updated",
             resource: "teams('t-1')/channels('c-1')/messages('m-2')",
             subscriptionId: "sub-1",
           },
@@ -211,18 +217,18 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
     });
 
     expect(res.status).toBe(202);
-    expect(inboundEvents).toHaveLength(1);
+    expect(inboundEvents).toHaveLength(2);
     const payload = inboundEvents[0]!.payload as { ids: { messageId: string } };
     expect(payload.ids.messageId).toBe("m-2");
-    expect(inboundEvents[0]!.dedupeKey).toBe("graph:m-2");
+    expect(inboundEvents.map((event) => event.dedupeKey)).toEqual([null, null]);
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "graph_notification_missing_dedupe_key")).toBe(true);
   });
 
-  it("同一Graph messageIdの再送はtop-level notification idが違っても1件だけエンキューする", async () => {
+  it("created/updated/deletedは別notification idなら同じmessageでもすべてエンキューする", async () => {
     const { deps, inboundEvents } = makeDeps();
     const app = buildApp(deps);
-    const firstBody = JSON.stringify({
+    const body = JSON.stringify({
       value: [
         {
           id: "graph-notification-1",
@@ -231,35 +237,88 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
           resource: "teams('t-1')/channels('c-1')/messages('m-1')",
           subscriptionId: "sub-1",
         },
-      ],
-    });
-    const secondBody = JSON.stringify({
-      value: [
         {
           id: "graph-notification-2",
           clientState: CLIENT_STATE,
-          changeType: "created",
+          changeType: "updated",
+          resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+          subscriptionId: "sub-1",
+        },
+        {
+          id: "graph-notification-3",
+          clientState: CLIENT_STATE,
+          changeType: "deleted",
           resource: "teams('t-1')/channels('c-1')/messages('m-1')",
           subscriptionId: "sub-1",
         },
       ],
     });
 
-    const first = await app.request("/webhooks/graph", {
+    const res = await app.request("/webhooks/graph", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: firstBody,
-    });
-    const second = await app.request("/webhooks/graph", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: secondBody,
+      body,
     });
 
-    expect(first.status).toBe(202);
-    expect(second.status).toBe(202);
+    expect(res.status).toBe(202);
+    expect(inboundEvents).toHaveLength(3);
+    expect(inboundEvents.map((event) => event.dedupeKey)).toEqual([
+      "graph:notification:graph-notification-1",
+      "graph:notification:graph-notification-2",
+      "graph:notification:graph-notification-3",
+    ]);
+  });
+
+  it("同一notification idのexact redeliveryは1件だけエンキューし、監査にclientStateを含めない", async () => {
+    const { deps, auditLog, inboundEvents } = makeDeps();
+    const app = buildApp(deps);
+    const notification = {
+      id: "graph-notification-redelivery",
+      clientState: CLIENT_STATE,
+      changeType: "updated",
+      resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+      subscriptionId: "sub-1",
+    };
+    for (let i = 0; i < 2; i += 1) {
+      const res = await app.request("/webhooks/graph", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: [notification] }),
+      });
+      expect(res.status).toBe(202);
+    }
     expect(inboundEvents).toHaveLength(1);
-    expect(inboundEvents[0]!.dedupeKey).toBe("graph:m-1");
+    expect(JSON.stringify(await auditLog.readAll())).not.toContain(CLIENT_STATE);
+  });
+
+  it("同じmessage/etagでもteam/channel/subscriptionが異なれば衝突しない", async () => {
+    const { deps, inboundEvents } = makeDeps();
+    const app = buildApp(deps);
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [
+          {
+            clientState: CLIENT_STATE,
+            changeType: "updated",
+            resource: "teams('t-1')/channels('c-1')/messages('m-1')",
+            subscriptionId: "sub-1",
+            resourceData: { "@odata.etag": "version-1" },
+          },
+          {
+            clientState: CLIENT_STATE,
+            changeType: "updated",
+            resource: "teams('t-2')/channels('c-2')/messages('m-1')",
+            subscriptionId: "sub-2",
+            resourceData: { "@odata.etag": "version-1" },
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(202);
+    expect(inboundEvents).toHaveLength(2);
+    expect(inboundEvents[0]!.dedupeKey).not.toBe(inboundEvents[1]!.dedupeKey);
   });
 
   it("idなしのGraph lifecycle通知を分類してhandlerへ渡す", async () => {
@@ -329,6 +388,29 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
 
     expect(res.status).toBe(202);
     await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  it("Graph lifecycle background失敗はbounded code/status/recoveryだけを監査する", async () => {
+    const { deps, auditLog } = makeDeps();
+    deps.graph.handleLifecycleEvent = async () => {
+      throw new GraphSubscriptionError("E-SUB02", 503, "secret response body");
+    };
+    const app = buildApp(deps);
+    const res = await app.request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        value: [{ clientState: CLIENT_STATE, lifecycleEvent: "reauthorizationRequired", subscriptionId: "sub-1" }],
+      }),
+    });
+    expect(res.status).toBe(202);
+    await Promise.resolve();
+    const serialized = JSON.stringify(await auditLog.readAll());
+    expect(serialized).toContain('"code":"E-SUB02"');
+    expect(serialized).toContain('"status":503');
+    expect(serialized).not.toContain("secret response body");
   });
 
   it("clientState不一致は破棄+監査ログ、それでも202（検証結果を漏らさない）", async () => {

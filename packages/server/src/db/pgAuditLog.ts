@@ -13,8 +13,17 @@
 import { sanitizeSecrets, validateReasonRequirement, type AuditLogWriter, type AuditRecord } from "@aiops/shared";
 import type { PgQueryable } from "@aiops/shared";
 
+export type AuditRetentionClass = "prjops_5y" | "devops_1y";
+
 export class PgAuditLog implements AuditLogWriter {
-  constructor(private readonly db: PgQueryable) {}
+  constructor(
+    private readonly db: PgQueryable,
+    private readonly retentionClass: AuditRetentionClass,
+  ) {
+    if (retentionClass !== "prjops_5y" && retentionClass !== "devops_1y") {
+      throw new Error(`invalid audit retention class: ${String(retentionClass)}`);
+    }
+  }
 
   async append(record: Omit<AuditRecord, "log_id">): Promise<AuditRecord> {
     validateReasonRequirement(record.action, record.reason);
@@ -26,8 +35,8 @@ export class PgAuditLog implements AuditLogWriter {
       );
     }
     const res = await this.db.query(
-      "INSERT INTO audit_log (trace_id, actor, action, basis, detail, at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING log_id",
-      [record.trace_id, record.actor, record.action, record.basis, detailStr, record.at],
+      "INSERT INTO audit_log (retention_class, trace_id, actor, action, basis, detail, at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING log_id",
+      [this.retentionClass, record.trace_id, record.actor, record.action, record.basis, detailStr, record.at],
     );
     return { ...record, log_id: Number(res.rows[0]?.log_id) };
   }

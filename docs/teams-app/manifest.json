@@ -37,14 +37,6 @@
         {
           "name": "ChannelMessage.Send.Group",
           "type": "Application"
-        },
-        {
-          "name": "Channel.ReadBasic.Group",
-          "type": "Application"
-        },
-        {
-          "name": "TeamMember.Read.Group",
-          "type": "Application"
         }
       ]
     }

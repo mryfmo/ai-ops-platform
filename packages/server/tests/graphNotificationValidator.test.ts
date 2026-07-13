@@ -8,6 +8,7 @@ import {
   isValidClientState,
   parseChannelMessageResource,
   classifyNotifications,
+  graphNotificationDedupeKey,
 } from "../src/lib/graphNotificationValidator.js";
 
 describe("isValidClientState (ADR-0005)", () => {
@@ -48,5 +49,37 @@ describe("classifyNotifications (ADR-0005)", () => {
     expect(accepted).toHaveLength(1);
     expect(accepted[0]!.ids?.messageId).toBe("m");
     expect(rejected).toHaveLength(2);
+  });
+});
+
+describe("graphNotificationDedupeKey (SPEC-INT-001)", () => {
+  it("notification idをexact redelivery keyとして優先する", () => {
+    expect(
+      graphNotificationDedupeKey({
+        id: "notification-1",
+        subscriptionId: "sub-1",
+        resource: "teams('t')/channels('c')/messages('m')",
+        changeType: "updated",
+        resourceData: { "@odata.etag": "version-1" },
+      }),
+    ).toBe("graph:notification:notification-1");
+  });
+
+  it("idなしはsubscription/resource/changeType/etagが揃う場合だけversion keyを返す", () => {
+    expect(
+      graphNotificationDedupeKey({
+        subscriptionId: "sub-1",
+        resource: "teams('t')/channels('c')/messages('m')",
+        changeType: "updated",
+        resourceData: { "@odata.etag": 'W/"version-1"' },
+      }),
+    ).toContain('["sub-1","teams(\'t\')/channels(\'c\')/messages(\'m\')","updated","W/\\"version-1\\""]');
+    expect(
+      graphNotificationDedupeKey({
+        subscriptionId: "sub-1",
+        resource: "teams('t')/channels('c')/messages('m')",
+        changeType: "updated",
+      }),
+    ).toBeNull();
   });
 });

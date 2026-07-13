@@ -56,7 +56,7 @@ import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js"
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
-import { createClientCredentialsTokenProvider } from "./auth/graphTokenProvider.js";
+import { createMsalGraphTokenProvider } from "./auth/graphTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
 import {
   dispatchGithubWebhookEvent,
@@ -97,6 +97,7 @@ export * from "./serverLifecycle.js";
 export * from "./lib/schedulerPolicy.js";
 export * from "./lib/dashboardDeepLink.js";
 export * from "./lib/graphNotificationValidator.js";
+export * from "./lib/graphSubscriptionPolicy.js";
 export * from "./lib/channelAuthorization.js";
 export * from "./lib/freeTextIntent.js";
 export * from "./lib/confirmToken.js";
@@ -157,7 +158,8 @@ export async function main(
     statementTimeoutMs: config.DB_STATEMENT_TIMEOUT_MS,
     idleInTransactionSessionTimeoutMs: config.DB_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS,
   });
-  const auditLog = new PgAuditLog(pool);
+  const prjopsAuditLog = new PgAuditLog(pool, "prjops_5y");
+  const devopsAuditLog = new PgAuditLog(pool, "devops_1y");
   const eventsRepo = new EventsRepo(pool);
   const grantsRepo = new GrantsRepo(pool);
   const graphSubscriptionsRepo = new GraphSubscriptionsRepo(pool);
@@ -171,12 +173,15 @@ export async function main(
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
 
-  const graphTokenProvider = createClientCredentialsTokenProvider({
+  const graphTokenProvider = createMsalGraphTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
     clientId: config.GRAPH_CLIENT_ID,
     clientSecret: config.GRAPH_CLIENT_SECRET,
   });
-  const graphClient = new GraphClient(graphTokenProvider);
+  const graphClient = new GraphClient(graphTokenProvider, undefined, undefined, undefined, undefined, {
+    allowedTeamIds: config.GRAPH_ALLOWED_TEAM_IDS,
+    allowedFromMailboxes: config.GRAPH_ALLOWED_FROM_MAILBOXES,
+  });
 
   const githubClient = new GitHubClient({
     // 暫定: 環境変数トークン（本来はGitHub App installation token。ヘッダコメント参照）
@@ -194,7 +199,7 @@ export async function main(
   const devopsEventHandlers: Record<DevopsAgentId, (event: DevopsEventHandlerInput, traceId: string) => Promise<void>> =
     {
       AGT_BLD: async (event, traceId) => {
-        await auditLog.append({
+        await devopsAuditLog.append({
           trace_id: traceId,
           actor: "AGT-BLD",
           action: "github_event_received",
@@ -204,7 +209,7 @@ export async function main(
         });
       },
       AGT_DEP: async (event, traceId) => {
-        await auditLog.append({
+        await devopsAuditLog.append({
           trace_id: traceId,
           actor: "AGT-DEP",
           action: "github_event_received",
@@ -214,7 +219,7 @@ export async function main(
         });
       },
       AGT_INC: async (event, traceId) => {
-        await auditLog.append({
+        await devopsAuditLog.append({
           trace_id: traceId,
           actor: "AGT-INC",
           action: "github_event_received",
@@ -230,7 +235,7 @@ export async function main(
     channelMessagesRepo,
     graphClient,
     githubClient,
-    auditLog,
+    auditLog: prjopsAuditLog,
     llmClient,
     resolveCallerProfile: (authorAadId, projectId) =>
       resolveCallerProfileFromStakeholders(SAMPLE_STAKEHOLDERS, authorAadId, projectId).profile,
@@ -241,7 +246,7 @@ export async function main(
 
   let failsafeActive = false;
   let shuttingDown = false;
-  const guardTask = (task: ScheduledTask): ScheduledTask =>
+  const guardTask = (task: ScheduledTask, auditLog: PgAuditLog): ScheduledTask =>
     guardFailsafeTask(task, {
       isFailsafeActive: () => failsafeActive,
       auditLog,
@@ -263,14 +268,14 @@ export async function main(
           setFailsafeActive: (v) => {
             failsafeActive = v;
           },
-          auditLog,
+          auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
         }),
       ),
       observedTask(
         createJitRevocationTask({
           grantsRepo,
-          secDeps: { githubClient, auditLog },
+          secDeps: { githubClient, auditLog: devopsAuditLog },
           traceIdProvider: () => randomUUID(),
         }),
       ),
@@ -278,8 +283,22 @@ export async function main(
         createSubscriptionRenewalTask({
           graphSubscriptionsRepo,
           graphClient,
-          auditLog,
+          auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
+          backfillSubscription: async (sub, now) => {
+            await backfillGraphSubscription(
+              sub,
+              {
+                graphSubscriptionsRepo,
+                projectChannelsRepo,
+                channelMessagesRepo,
+                graphClient,
+                auditLog: prjopsAuditLog,
+                traceIdProvider: () => randomUUID(),
+              },
+              now,
+            );
+          },
         }),
       ),
       observedTask(
@@ -288,25 +307,29 @@ export async function main(
           projectChannelsRepo,
           channelMessagesRepo,
           graphClient,
-          auditLog,
+          auditLog: prjopsAuditLog,
           traceIdProvider: () => randomUUID(),
+          recovery: {
+            notificationUrl: new URL("/webhooks/graph", config.PUBLIC_BASE_URL).toString(),
+            clientState: config.GRAPH_CLIENT_STATE,
+          },
         }),
       ),
       observedTask(
         guardTask(
           createEventsPollingTask({
             eventsRepo,
-            auditLog,
+            auditLog: devopsAuditLog,
             dispatchInboundNotification: (payload, traceId) =>
               teamsConversationAgent.handleNotification(payload, traceId),
             dispatchGithubEvent: (payload, traceId) =>
               dispatchGithubWebhookEvent(payload, traceId, {
-                auditLog,
+                auditLog: devopsAuditLog,
                 handlers: devopsEventHandlers,
                 pmRepo: pmTimeseriesRepo,
               }),
             dispatchMonitorEvent: async (payload, traceId) => {
-              await auditLog.append({
+              await devopsAuditLog.append({
                 trace_id: traceId,
                 actor: "AGT-DEP",
                 action: "monitor_event_received",
@@ -319,6 +342,7 @@ export async function main(
             logger,
             metrics,
           }),
+          devopsAuditLog,
         ),
       ),
       observedTask(
@@ -335,7 +359,7 @@ export async function main(
                 }
               : {
                   listCurrentSnapshots: async () => {
-                    await auditLog.append({
+                    await prjopsAuditLog.append({
                       trace_id: randomUUID(),
                       actor: "SERVER",
                       action: "pm_snapshot_reconcile_disabled",
@@ -346,9 +370,10 @@ export async function main(
                     return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
                   },
                 },
-            auditLog,
+            auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
           }),
+          prjopsAuditLog,
         ),
       ),
       observedTask(
@@ -356,10 +381,11 @@ export async function main(
           createSevenKeysMonthlySnapshotTask({
             repo: sevenKeysSnapshotsRepo,
             disabledReason: "PrjOps report data provider is not configured",
-            auditLog,
+            auditLog: prjopsAuditLog,
             calendar: loadJpHolidayCalendar(),
             traceIdProvider: () => randomUUID(),
           }),
+          prjopsAuditLog,
         ),
       ),
       observedTask(
@@ -367,6 +393,7 @@ export async function main(
           createReportDeliveryTask({
             enabled: config.REPORT_DELIVERY_ENABLED,
             fromMailbox: config.FROM_MAILBOX,
+            defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
             defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
             publicBaseUrl: config.PUBLIC_BASE_URL,
             calendar: loadJpHolidayCalendar(),
@@ -374,11 +401,12 @@ export async function main(
             standardReportsRepo,
             graphClient,
             deliveryLogStore: reportDeliveryLogRepo,
-            auditLog,
+            auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
             logger,
             metrics,
           }),
+          prjopsAuditLog,
         ),
       ),
     ],
@@ -389,7 +417,7 @@ export async function main(
   );
 
   const app = buildApp({
-    auditLog,
+    auditLog: devopsAuditLog,
     readiness: createReadinessCheck({
       checkDependencies: async () => {
         await pool.query("SELECT 1");
@@ -400,33 +428,34 @@ export async function main(
     metrics,
     graph: {
       clientState: config.GRAPH_CLIENT_STATE,
-      auditLog,
+      auditLog: devopsAuditLog,
       enqueueInboundEvent: (payload, traceId, options) => eventsRepo.enqueue("inbound", payload, traceId, options),
       handleLifecycleEvent: (event, traceId) =>
         handleGraphLifecycleEvent(event, traceId, {
           graphSubscriptionsRepo,
           graphClient,
-          backfillSubscription: (sub, now) =>
-            backfillGraphSubscription(
+          backfillSubscription: async (sub, now) => {
+            await backfillGraphSubscription(
               sub,
               {
                 graphSubscriptionsRepo,
                 projectChannelsRepo,
                 channelMessagesRepo,
                 graphClient,
-                auditLog,
+                auditLog: prjopsAuditLog,
                 traceIdProvider: () => randomUUID(),
               },
               now,
-            ),
-          auditLog,
+            );
+          },
+          auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
         }),
       traceIdProvider: () => randomUUID(),
     },
     github: {
       webhookSecret: config.GITHUB_WEBHOOK_SECRET,
-      auditLog,
+      auditLog: devopsAuditLog,
       enqueueGithubEvent: (eventName, payload, traceId, options) =>
         eventsRepo.enqueue("github", { eventName, payload }, traceId, options),
       traceIdProvider: () => randomUUID(),
@@ -434,7 +463,7 @@ export async function main(
     codingTasks: {
       codingTasksRepo,
       githubClient,
-      auditLog,
+      auditLog: devopsAuditLog,
       confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
       callbackSecret: config.CODING_TASK_CALLBACK_SECRET,
       resolveRepoForProject: async (projectId) => {
@@ -448,7 +477,7 @@ export async function main(
     xlsxImport: {
       ledger: importLedgerRepo,
       githubClient,
-      auditLog,
+      auditLog: prjopsAuditLog,
       traceIdProvider: () => randomUUID(),
       importSecret: config.XLSX_IMPORT_SECRET,
       allowedRepos: config.XLSX_IMPORT_ALLOWED_REPOS,
@@ -457,12 +486,12 @@ export async function main(
     reports: {
       ingestSecret: config.REPORT_INGEST_SECRET,
       reportsRepo: standardReportsRepo,
-      auditLog,
+      auditLog: prjopsAuditLog,
       traceIdProvider: () => randomUUID(),
       isFailsafeActive: () => failsafeActive,
       deliverReport: async (report, traceId) => {
         if (!config.REPORT_DELIVERY_ENABLED || !config.FROM_MAILBOX) {
-          await auditLog.append({
+          await prjopsAuditLog.append({
             trace_id: traceId,
             actor: "AGT-05",
             action: "report_delivery_disabled",
@@ -480,12 +509,13 @@ export async function main(
           report,
           {
             fromMailbox: config.FROM_MAILBOX,
+            defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
             defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
             publicBaseUrl: config.PUBLIC_BASE_URL,
             recipientsRepo,
             graphClient,
             deliveryLogStore: reportDeliveryLogRepo,
-            auditLog,
+            auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
             logger,
             metrics,

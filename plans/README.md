@@ -1,0 +1,84 @@
+# AI Ops Platform 製品化実装計画
+
+2026-07-11、commit `21306d8` の全体監査を基準に作成し、Plan 009でcommit `6a6c1aa`とPlan 005受入済みworking treeへ再同期した。後工程の executor は、各 plan を全文読了し、依存 plan が `DONE` であることを確認してから着手すること。推測で未記載機能を追加せず、STOP 条件に該当したら作業を止めて証拠を報告する。
+
+## 実行順序と状態
+
+| Plan | Phase | Title                                                               | Priority | Effort | Depends on | Status                                                                |
+| ---- | ----- | ------------------------------------------------------------------- | -------- | ------ | ---------- | --------------------------------------------------------------------- |
+| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる             | P0       | L      | —          | DONE                                                                  |
+| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                 | P0       | L      | 001        | BLOCKED: authoritative data/identity decisions pending                |
+| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる         | P0       | L      | 002, 005   | TODO                                                                  |
+| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する             | P0       | L      | 001, 005   | TODO                                                                  |
+| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる   | P0       | L      | 001        | BLOCKED: core local accepted; sandbox adapter/tenant evidence pending |
+| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする | P0       | L      | 001, 002   | TODO                                                                  |
+| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する             | P1       | L      | 001, 002   | TODO                                                                  |
+| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる     | P0       | XL     | 001–007    | TODO                                                                  |
+| 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる             | P0       | XL     | 001        | TODO                                                                  |
+
+Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
+
+## フェーズゲート
+
+- Phase 0: `plans/001-*`。fresh PostgreSQLへschema+migrationを適用し、監査INSERTまで成功しなければ他planを開始しない。
+- Phase 1: `plans/002-*`, `plans/005-*`。実データ、認可、Teams/Outlookのsandbox smokeが通るまでagent配線へ進まない。
+- Phase 2: `plans/003-*`, `plans/004-*`, `plans/006-*`。各agent/workflowを実イベントで駆動し、mockだけの合格を受理しない。
+- Phase 3: `plans/007-*`。trust boundary、SQL側認可、Pool共有、Excel冪等性を閉じる。
+- Phase 4: `plans/008-*`。supported runtime、CI、IaC、backup/restore、HA、監視を整備する。
+- Phase 5: `plans/008-*` の実環境受入。GitHub、Microsoft 365、Anthropic、Factory、PostgreSQLを用いた証跡が揃った場合のみgo-liveを許可する。
+
+## 横断実行規則
+
+- 各planごとに `agent/<plan-number>-<slug>` ブランチを作る。mainへ直接pushしない。
+- 各planはテスト先行。失敗する回帰テストを確認してから最小実装を行う。
+- 各plan完了時に `mise run ci`、対象の追加統合テスト、`git diff --check` を通す。
+- 実外部サービスへ書込むtestはsandbox tenant/repository/mailboxのみを使う。本番書込みは別途人間承認を得る。
+- 秘密値をplan、ログ、fixture、PR本文へ書かない。証跡はsecret名とredacted IDだけを残す。
+- git diffが意味のある変更を含む場合はroot `AGENTS.md` のCrit receipt運用に従う。
+- plan完了時はこの表だけを更新し、他planの内容をついでに変更しない。
+
+## 実行前にoperatorが設定する入力
+
+値はsecret storeまたは実行環境へ設定し、planやcommitへ値を書かない。
+
+| Name                                                 | Meaning                                                | Required by   |
+| ---------------------------------------------------- | ------------------------------------------------------ | ------------- |
+| `AIOPS_SANDBOX_REPO`                                 | `owner/repo` 形式の破棄可能なGitHub sandbox repository | 004, 006, 008 |
+| `AIOPS_SANDBOX_PROJECT_ID`                           | sandboxの `PJ-nnn`                                     | 002–008       |
+| `AIOPS_SANDBOX_TEAM_ID` / `AIOPS_SANDBOX_CHANNEL_ID` | RSC app導入済みTeams sandbox                           | 005, 008      |
+| `AIOPS_SANDBOX_MAILBOX` / `AIOPS_SANDBOX_RECIPIENT`  | test専用Outlook mailbox/address                        | 005, 008      |
+| `TEST_DATABASE_URL`                                  | disposable PostgreSQLのみを指す接続文字列              | 001–008       |
+| `STAGING_BASE_URL`                                   | staging公開URL。production URLは禁止                   | 008           |
+
+値が欠けるplanは該当する実外部Verifyをskipせず `BLOCKED` にする。
+
+## 依存関係
+
+```text
+001 DB baseline
+ ├─ 002 PrjOps data/identity ─┬─ 003 PrjOps runtime
+ │                            ├─ 006 agent/report workflows
+ │                            └─ 007 Web/API hardening
+ ├─ 004 DevOps runtime ───────┐
+ └─ 005 Microsoft Graph ──────┼─ 008 production/E2E/go-live
+      ├─ 003                  │
+      └─ 004                  │
+006, 007 ─────────────────────┘
+```
+
+## 監査指摘との対応
+
+- 001: audit DDL/partition/retention、migration/fresh DB不成立。
+- 002: 空のPrjOps provider、sample stakeholder、email主体、persona未完成。
+- 003: PrjOps workflow不存在、AGT-01〜07未配線、マルチチャネル収集不足。
+- 004: DevOps handlerがaudit-only、deploy/incident/build workflow雛形、状態DB未更新。
+- 005: Teams送信URL、Graph dedupe、lifecycle/renew、Outlook/Teams実送信。
+- 006: CLI未導入/API key未配線/Droid read-only、runner secret境界、fake zero report。
+- 007: requestごとのPool、SQL後段認可、raw event保存、Excel競合/size、rate limit/headers。
+- 008: Node 20 EOL、dependency audit、CI差異/coverage、Docker握り潰し、HA/IaC/監視、文書/E2E。
+
+## 今回採用しない指摘
+
+- NextAuth email misdelivery advisory: 現在はNodemailer/email providerを使用せずMicrosoft Entra IDのみのため、直接のexploit pathはない。ただし依存更新はPlan 008に含める。
+- PostCSS `</style>` advisory: user-supplied CSSをparse/stringifyしてHTMLへ埋める経路は現状ない。ただしpatched transitive dependencyへの更新をPlan 008で確認する。
+- RSC application permissionそのもの: Microsoft公式で `ChannelMessage.Send.Group` はサポートされているため却下。修正対象はURL、team/channel識別、実consent検証。

@@ -2,11 +2,10 @@
  * packages/server/src/auth/graphTokenProvider.ts
  *
  * 根拠: SPEC-INT-062 / ADR-0005（Microsoft Graph アプリケーション権限 client credentials flow）。
- *   msal-nodeを追加依存せず、token endpointへの直接POSTで実装（外部通信は
- *   login.microsoftonline.com / graph.microsoft.com のみ。SPEC-INT-060のallowlist内）。
- *   トークンは有効期限の60秒前までキャッシュする。
+ * MSAL Nodeのapplication token cacheへ委譲し、wrapperは同時取得だけをsingle-flightする。
  */
-import type { FetchLike, GraphTokenProvider } from "@aiops/shared";
+import type { GraphTokenProvider } from "@aiops/shared";
+import { ConfidentialClientApplication } from "@azure/msal-node";
 
 export interface ClientCredentials {
   tenantId: string;
@@ -14,37 +13,57 @@ export interface ClientCredentials {
   clientSecret: string;
 }
 
-export function createClientCredentialsTokenProvider(
+export interface ConfidentialClientApplicationCompatible {
+  acquireTokenByClientCredential(request: { scopes: string[] }): Promise<{
+    accessToken?: string;
+    expiresOn?: Date | null;
+  } | null>;
+}
+
+const GRAPH_DEFAULT_SCOPE = "https://graph.microsoft.com/.default";
+const AUTH_ERROR = "E-AUTH01: Graph token acquisition failed";
+
+export function createMsalGraphTokenProvider(
   creds: ClientCredentials,
-  fetchImpl: FetchLike = fetch,
+  client: ConfidentialClientApplicationCompatible = new ConfidentialClientApplication({
+    auth: {
+      authority: `https://login.microsoftonline.com/${encodeURIComponent(creds.tenantId)}`,
+      clientId: creds.clientId,
+      clientSecret: creds.clientSecret,
+    },
+  }),
   nowProvider: () => number = () => Date.now(),
 ): GraphTokenProvider {
-  let cached: { token: string; expiresAtMs: number } | null = null;
+  let inflight: Promise<string> | null = null;
+
+  async function acquire(): Promise<string> {
+    try {
+      const result = await client.acquireTokenByClientCredential({ scopes: [GRAPH_DEFAULT_SCOPE] });
+      const expiresAt = result?.expiresOn?.getTime();
+      if (
+        !result?.accessToken?.trim() ||
+        result.accessToken !== result.accessToken.trim() ||
+        expiresAt === undefined ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= nowProvider()
+      ) {
+        throw new Error(AUTH_ERROR);
+      }
+      return result.accessToken;
+    } catch {
+      throw new Error(AUTH_ERROR);
+    }
+  }
 
   return {
     async getAccessToken(): Promise<string> {
-      if (cached && nowProvider() < cached.expiresAtMs - 60_000) {
-        return cached.token;
+      if (inflight) return inflight;
+      inflight = acquire();
+      try {
+        return await inflight;
+      } finally {
+        inflight = null;
       }
-      const res = await fetchImpl(
-        `https://login.microsoftonline.com/${encodeURIComponent(creds.tenantId)}/oauth2/v2.0/token`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_id: creds.clientId,
-            client_secret: creds.clientSecret,
-            scope: "https://graph.microsoft.com/.default",
-            grant_type: "client_credentials",
-          }).toString(),
-        },
-      );
-      if (!res.ok) {
-        throw new Error(`E-AUTH01: Graph token acquisition failed with status ${res.status}`);
-      }
-      const json = (await res.json()) as { access_token: string; expires_in: number };
-      cached = { token: json.access_token, expiresAtMs: nowProvider() + json.expires_in * 1000 };
-      return cached.token;
     },
   };
 }

@@ -45,7 +45,7 @@ describe("promoteToStagingIfEligible [REQ-003, TH-001]", () => {
     const { deps, cardCount } = makeDeps();
     const promoted = await promoteToStagingIfEligible(
       { ciAllJobsSuccess: true, unitTestCoveragePct: 85, staticAnalysisCriticalCount: 0 },
-      "chan-1",
+      { teamId: "team-1", channelId: "chan-1" },
       "abc1234",
       deps,
     );
@@ -59,7 +59,7 @@ describe("promoteToStagingIfEligible [REQ-003, TH-001]", () => {
     const { deps, cardCount } = makeDeps();
     const promoted = await promoteToStagingIfEligible(
       { ciAllJobsSuccess: true, unitTestCoveragePct: 79, staticAnalysisCriticalCount: 0 },
-      "chan-1",
+      { teamId: "team-1", channelId: "chan-1" },
       "abc1234",
       deps,
     );
@@ -97,7 +97,7 @@ describe("monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c]", () => {
       "acme",
       "devops-system",
       "PRJ-001",
-      "chan-1",
+      { teamId: "team-1", channelId: "chan-1" },
       deps,
     );
     expect(result.rolledBack).toBe(false);
@@ -118,7 +118,7 @@ describe("monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c]", () => {
       "acme",
       "devops-system",
       "PRJ-001",
-      "chan-1",
+      { teamId: "team-1", channelId: "chan-1" },
       deps,
     );
     expect(result.rolledBack).toBe(true);
@@ -141,7 +141,7 @@ describe("monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c]", () => {
       "acme",
       "devops-system",
       "PRJ-001",
-      "chan-1",
+      { teamId: "team-1", channelId: "chan-1" },
       deps,
     );
     expect(result.rolledBack).toBe(false);

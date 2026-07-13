@@ -7,7 +7,7 @@
  *
  * 設計: 既存Repo（channelMessagesRepo.ts / projectChannelsRepo.ts）と同じPgQueryable注入パターン。
  */
-import type { PgQueryable } from "@aiops/shared";
+import type { PgConnectable, PgQueryable } from "@aiops/shared";
 
 export type GraphSubscriptionMode = "notification" | "polling";
 
@@ -115,5 +115,57 @@ export class GraphSubscriptionsRepo {
       `UPDATE graph_subscriptions SET expires_at = $2, updated_at = now() WHERE subscription_id = $1`,
       [subscriptionId, expiresAt],
     );
+  }
+
+  /** polling rowの識別子だけをGraph返却値へ条件付き置換し、resource/team/channel/deltaを保持する。 */
+  async replacePollingSubscription(
+    oldSubscriptionId: string,
+    newSubscriptionId: string,
+    expiresAt: string,
+  ): Promise<boolean> {
+    const res = await this.db.query(
+      `UPDATE graph_subscriptions
+       SET subscription_id = $2, expires_at = $3, mode = 'notification', updated_at = now()
+       WHERE subscription_id = $1 AND mode = 'polling'`,
+      [oldSubscriptionId, newSubscriptionId, expiresAt],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  /** PostgreSQL session advisory lockで同じrowのcross-process recovery ownerを1つに絞る。 */
+  async withRecoveryLock(subscriptionId: string, operation: () => Promise<void>): Promise<boolean> {
+    const connectable = this.db as Partial<PgConnectable>;
+    if (typeof connectable.connect !== "function") throw new Error("recovery lock requires a connectable database");
+    const client = await connectable.connect.call(this.db);
+    const key = `graph-subscription-recovery:${subscriptionId}`;
+    let locked = false;
+    let releaseError: Error | undefined;
+    try {
+      const result = await client.query("SELECT pg_try_advisory_lock(hashtext($1)) AS locked", [key]);
+      locked = result.rows[0]?.locked === true;
+      if (!locked) return false;
+      let operationError: unknown;
+      let operationFailed = false;
+      try {
+        await operation();
+      } catch (error) {
+        operationFailed = true;
+        operationError = error;
+      }
+      try {
+        const unlock = await client.query("SELECT pg_advisory_unlock(hashtext($1)) AS unlocked", [key]);
+        if (unlock.rows[0]?.unlocked !== true) throw new Error("recovery advisory unlock failed");
+      } catch (error) {
+        releaseError = error instanceof Error ? error : new Error("recovery advisory unlock failed");
+        throw releaseError;
+      }
+      if (operationFailed) throw operationError;
+      return true;
+    } catch (error) {
+      if (!locked) releaseError = error instanceof Error ? error : new Error("recovery lock query failed");
+      throw error;
+    } finally {
+      client.release(releaseError);
+    }
   }
 }
