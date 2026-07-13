@@ -6,12 +6,20 @@
  */
 import ExcelJS from "exceljs";
 import { sanitizeSecrets } from "../secretSanitizer.js";
-import { XLSX_IMPORT_TEMPLATE, type SheetName } from "./template.js";
+import {
+  XLSX_IMPORT_METADATA_SHEET,
+  XLSX_IMPORT_TEMPLATE,
+  XLSX_IMPORT_TEMPLATE_VERSION,
+  type SheetName,
+} from "./template.js";
+
+export const XLSX_TEMPLATE_VERSION_ERROR = "E-XLS-001";
 
 export interface ImportValidationError {
-  sheet: SheetName;
+  sheet: SheetName | typeof XLSX_IMPORT_METADATA_SHEET;
   row: number;
   column?: string;
+  code?: typeof XLSX_TEMPLATE_VERSION_ERROR;
   message: string;
 }
 
@@ -47,6 +55,18 @@ export type XlsxImportRow = IssueImportRow | ProjectItemImportRow | MilestoneImp
 export interface ParsedXlsxImport {
   rows: XlsxImportRow[];
   errors: ImportValidationError[];
+  summary: string;
+}
+
+export function summarizeXlsxImportValidation(rowCount: number, errors: ImportValidationError[]): string {
+  if (errors.length === 0) return `Dry-run accepted: ${rowCount} row(s); no validation errors.`;
+  const details = errors
+    .map(
+      (error) =>
+        `${error.code ? `${error.code} ` : ""}${error.sheet}:${error.row}${error.column ? `:${error.column}` : ""} ${error.message}`,
+    )
+    .join("; ");
+  return `Dry-run rejected: 0 row(s) accepted; ${errors.length} error(s). ${details}`;
 }
 
 function asText(value: unknown): string {
@@ -165,6 +185,27 @@ export async function parseXlsxImport(buffer: Buffer): Promise<ParsedXlsxImport>
   const rows: XlsxImportRow[] = [];
   const seenSourceKeys = new Map<string, { sheet: SheetName; row: number }>();
 
+  const metadata = workbook.getWorksheet(XLSX_IMPORT_METADATA_SHEET);
+  const templateVersion = asText(metadata?.getCell("B1").value);
+  if (asText(metadata?.getCell("A1").value) !== "template_version" || templateVersion.length === 0) {
+    errors.push({
+      sheet: XLSX_IMPORT_METADATA_SHEET,
+      row: 1,
+      column: "template_version",
+      code: XLSX_TEMPLATE_VERSION_ERROR,
+      message: "template version missing",
+    });
+  } else if (templateVersion !== XLSX_IMPORT_TEMPLATE_VERSION) {
+    errors.push({
+      sheet: XLSX_IMPORT_METADATA_SHEET,
+      row: 1,
+      column: "template_version",
+      code: XLSX_TEMPLATE_VERSION_ERROR,
+      message: `template version mismatch: expected ${XLSX_IMPORT_TEMPLATE_VERSION}, received ${cleanText(templateVersion)}`,
+    });
+  }
+  if (errors.length > 0) return { rows: [], errors, summary: summarizeXlsxImportValidation(0, errors) };
+
   for (const sheetName of Object.keys(XLSX_IMPORT_TEMPLATE) as SheetName[]) {
     const sheet = workbook.getWorksheet(sheetName);
     if (!sheet) {
@@ -196,5 +237,5 @@ export async function parseXlsxImport(buffer: Buffer): Promise<ParsedXlsxImport>
   }
 
   const validRows = errors.length === 0 ? rows : [];
-  return { rows: validRows, errors };
+  return { rows: validRows, errors, summary: summarizeXlsxImportValidation(validRows.length, errors) };
 }

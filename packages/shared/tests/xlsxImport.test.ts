@@ -5,6 +5,9 @@ import {
   buildXlsxImportTemplateBuffer,
   executeXlsxImport,
   parseXlsxImport,
+  XLSX_IMPORT_METADATA_SHEET,
+  XLSX_IMPORT_TEMPLATE_VERSION,
+  XLSX_TEMPLATE_VERSION_ERROR,
   type ImportLedger,
   type ImportLedgerEntry,
   type XlsxImportGithubClient,
@@ -12,6 +15,7 @@ import {
 
 async function workbookBuffer(setup: (workbook: ExcelJS.Workbook) => void): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
+  workbook.addWorksheet(XLSX_IMPORT_METADATA_SHEET).addRow(["template_version", XLSX_IMPORT_TEMPLATE_VERSION]);
   for (const name of ["issues", "project_items", "milestones"]) workbook.addWorksheet(name);
   setup(workbook);
   return Buffer.from(await workbook.xlsx.writeBuffer());
@@ -45,9 +49,46 @@ function githubStub(): XlsxImportGithubClient {
 
 describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
   it("AC-037-1: テンプレートxlsxを生成してパースできる", async () => {
-    const parsed = await parseXlsxImport(await buildXlsxImportTemplateBuffer());
+    const buffer = await buildXlsxImportTemplateBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    expect(workbook.getWorksheet(XLSX_IMPORT_METADATA_SHEET)?.getCell("B1").text).toBe(XLSX_IMPORT_TEMPLATE_VERSION);
+    const parsed = await parseXlsxImport(buffer);
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows.map((row) => row.kind)).toEqual(["issue", "project_item", "milestone"]);
+    expect(parsed.summary).toBe("Dry-run accepted: 3 row(s); no validation errors.");
+  });
+
+  it("AC-037-1: テンプレート版不一致はE-XLS-001でファイル全件を拒否する", async () => {
+    const submittedVersion = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz";
+    const buffer = await workbookBuffer((workbook) => {
+      workbook.getWorksheet(XLSX_IMPORT_METADATA_SHEET)!.getCell("B1").value = submittedVersion;
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title"]);
+      workbook.getWorksheet("issues")!.addRow(["ISS-1", "must not import"]);
+    });
+
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.errors).toEqual([
+      expect.objectContaining({ code: XLSX_TEMPLATE_VERSION_ERROR, message: expect.stringContaining("mismatch") }),
+    ]);
+    expect(parsed.summary).toContain("Dry-run rejected: 0 row(s) accepted; 1 error(s). E-XLS-001");
+    expect(parsed.summary).toContain("***REDACTED:authorization_header***");
+    expect(parsed.summary).not.toContain(submittedVersion);
+  });
+
+  it("AC-037-1: テンプレート版セル欠落はE-XLS-001でファイル全件を拒否する", async () => {
+    const buffer = await workbookBuffer((workbook) => {
+      workbook.removeWorksheet(workbook.getWorksheet(XLSX_IMPORT_METADATA_SHEET)!.id);
+      addHeaders(workbook.getWorksheet("issues")!, ["source_key", "title"]);
+      workbook.getWorksheet("issues")!.addRow(["ISS-1", "must not import"]);
+    });
+
+    const parsed = await parseXlsxImport(buffer);
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.errors).toEqual([
+      expect.objectContaining({ code: XLSX_TEMPLATE_VERSION_ERROR, message: "template version missing" }),
+    ]);
   });
 
   it("AC-037-1: 未知列・必須欠落・source_key重複を全件レポートし、行を返さない", async () => {
@@ -206,6 +247,10 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
       ],
     });
     expect(result).toMatchObject({ imported: 1, skipped: 1, failed: 0 });
+    expect(result.summary).toBe(
+      "Execute completed: imported=1, skipped=1, failed=0. Skipped: SKIP-1 (already imported).",
+    );
+    expect(result.progress[0]).toMatchObject({ status: "skipped", reason: "already imported" });
     expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].body).toContain("<!-- import:ISS-1 -->");
   });
 
