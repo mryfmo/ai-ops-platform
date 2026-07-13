@@ -14,6 +14,7 @@ import {
 } from "../../../../server/personaResolver";
 import { handleTimeseries } from "../../../../server/reportData/timeseriesHandler";
 import type { PeriodKind } from "@aiops/shared";
+import { selectedPersonaFromRequest } from "../../../../server/authGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -36,5 +37,6 @@ export async function GET(request: Request): Promise<Response> {
     period,
     baseDate: url.searchParams.get("baseDate") ?? new Date().toISOString().slice(0, 10),
     persona: (url.searchParams.get("persona") ?? undefined) as "executive" | "manager" | "investor" | undefined,
+    selectedPersona: selectedPersonaFromRequest(request),
   });
 }

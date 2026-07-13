@@ -24,6 +24,7 @@ export interface AgentActivityHandlerDeps {
   getSession: () => Promise<Session | null>;
   resolver: PersonaResolver;
   devopsDb: PgQueryable;
+  selectedPersona?: string;
 }
 
 /**
@@ -36,7 +37,7 @@ function isDevopsManager(p: ResolvedPersona): p is Extract<ResolvedPersona, { do
 
 export async function handleAgentActivity(deps: AgentActivityHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver, "devops");
+    const personas = await resolvePersonas(deps.getSession, deps.resolver, "devops", deps.selectedPersona);
     const devopsManager = personas.find(isDevopsManager);
     if (!devopsManager) {
       throw new ForbiddenError("E-AUTH02: agent-activity requires PRF-G persona");

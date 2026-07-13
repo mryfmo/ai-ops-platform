@@ -19,8 +19,8 @@
  * route.ts（本番配線）と切り離してネットワーク・実DBなしでテストできる
  * （ai/test の MockLanguageModelV2 を languageModel として注入する）。
  *
- * ペルソナ選択方針: dashboard/page.tsx・managerSummaryHandler.ts と同じく、複数ペルソナを
- * 持つアカウントは先頭のペルソナのみを採用する（複数ペルソナ切替UIは#14の残課題）。
+ * ペルソナ選択方針: dashboard/page.tsx・data API と同じ選択値を、現在の保有ペルソナに
+ * 含まれるか検証してから採用する。未選択時は従来どおり先頭を採用する。
  */
 import type { Session } from "next-auth";
 import { streamText, stepCountIs, convertToModelMessages, type LanguageModel, type UIMessage } from "ai";
@@ -48,6 +48,7 @@ export interface ChatHandlerDeps {
   thinkingBudgetTokens?: number;
   /** costGuard.record()のコスト見積もりに使うモデル名（route.tsのCHAT_MODELと一致させる） */
   modelName?: string;
+  selectedPersona?: string;
 }
 
 function sanitizeText(value: unknown): string | undefined {
@@ -111,15 +112,14 @@ export function isRefusalFinishReason(finishReason: unknown): boolean {
 
 export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver);
-    const persona = personas[0]!;
+    const [persona] = await resolvePersonas(deps.getSession, deps.resolver, undefined, deps.selectedPersona);
 
     if (!deps.languageModel) {
       return Response.json({ error: "チャット機能は現在利用できません" }, { status: 503 });
     }
 
-    const tools = buildToolsForPersona(persona);
-    const system = buildSystemPrompt(persona, sanitizePageContext(deps.pageContext));
+    const tools = buildToolsForPersona(persona!);
+    const system = buildSystemPrompt(persona!, sanitizePageContext(deps.pageContext));
 
     const modelName = deps.modelName ?? DEFAULT_MODEL;
     const sanitizedMessages = sanitizeMessages(deps.messages);

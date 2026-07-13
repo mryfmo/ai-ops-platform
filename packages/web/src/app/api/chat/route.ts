@@ -23,6 +23,7 @@ import {
   PrjopsPersonaSource,
 } from "../../../server/personaResolver";
 import { handleChat } from "../../../server/chat/chatHandler";
+import { selectedPersonaFromRequest } from "../../../server/authGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -57,5 +58,6 @@ export async function POST(request: Request): Promise<Response> {
     maxSteps: config.PAGE_AGENT_MAX_STEPS,
     thinkingBudgetTokens: config.PAGE_AGENT_THINKING_BUDGET_TOKENS,
     modelName: CHAT_MODEL,
+    selectedPersona: selectedPersonaFromRequest(request),
   });
 }

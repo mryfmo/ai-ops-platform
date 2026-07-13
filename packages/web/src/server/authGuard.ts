@@ -12,6 +12,38 @@
 import type { Session } from "next-auth";
 import type { PersonaResolver, ResolvedPersona } from "./personaResolver";
 
+export const PERSONA_COOKIE = "aiops-persona";
+
+export function personaKey(persona: ResolvedPersona): string {
+  return `${persona.domain}:${persona.profile}`;
+}
+
+export function selectedPersonaFromRequest(request: Request): string | undefined {
+  const cookie = request.headers.get("cookie");
+  if (!cookie) return undefined;
+  for (const part of cookie.split(";")) {
+    const [name, ...value] = part.trim().split("=");
+    if (name === PERSONA_COOKIE) return value.join("=") || undefined;
+  }
+  return undefined;
+}
+
+export function selectPersona(personas: ResolvedPersona[], selectedPersona?: string): ResolvedPersona {
+  const [defaultPersona] = personas;
+  const persona =
+    selectedPersona !== undefined
+      ? personas.find((candidate) => personaKey(candidate) === selectedPersona)
+      : defaultPersona;
+  if (!persona) {
+    throw new ForbiddenError(
+      selectedPersona
+        ? "E-AUTH02: selected persona is not assigned to this account"
+        : "E-AUTH02: no matching persona for this account",
+    );
+  }
+  return persona;
+}
+
 export class UnauthorizedError extends Error {
   public readonly status = 401 as const;
   constructor(message = "E-AUTH01: authentication required") {
@@ -49,11 +81,13 @@ export async function requirePersona(
   email: string,
   resolver: PersonaResolver,
   domain?: ResolvedPersona["domain"],
+  selectedPersona?: string,
 ): Promise<ResolvedPersona[]> {
   const personas = await resolver.resolveByEmail(email);
   const filtered = domain ? personas.filter((p) => p.domain === domain) : personas;
-  if (filtered.length === 0) {
-    throw new ForbiddenError();
+  if (selectedPersona === undefined) {
+    if (filtered.length === 0) throw new ForbiddenError();
+    return filtered;
   }
-  return filtered;
+  return [selectPersona(filtered, selectedPersona)];
 }
