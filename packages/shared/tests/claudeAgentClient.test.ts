@@ -27,20 +27,35 @@ async function* sdkMessages(messages: unknown[]) {
 describe("generateReadOnlyDiffSuggestion [AC-002b]", () => {
   beforeEach(() => queryMock.mockReset());
 
-  it("mutating toolsをdisallowedToolsとcanUseToolの両方で拒否する", async () => {
+  it("公開ツールをread-onlyに限定し、それ以外をfail-closedで拒否する", async () => {
     queryMock.mockReturnValue(sdkMessages([]));
 
     await generateReadOnlyDiffSuggestion(request);
 
     const options = queryMock.mock.calls[0]![0].options as {
+      tools: string[];
+      allowedTools: string[];
       disallowedTools: string[];
       canUseTool(toolName: string): Promise<{ behavior: string }>;
     };
+    expect(options.tools).toEqual(["Read", "Grep", "Glob"]);
+    expect(options.allowedTools).toEqual(["Read", "Grep", "Glob"]);
     expect(options.disallowedTools).toEqual(expect.arrayContaining(["Write", "Edit", "Bash", "NotebookEdit"]));
-    for (const tool of ["Write", "Edit", "Bash", "NotebookEdit"]) {
+    for (const tool of ["Read", "Grep", "Glob"]) {
+      await expect(options.canUseTool(tool)).resolves.toEqual({ behavior: "allow" });
+    }
+    for (const tool of [
+      "Write",
+      "Edit",
+      "Bash",
+      "NotebookEdit",
+      "mcp__filesystem__write_file",
+      "Task",
+      "WebFetch",
+      "unknown",
+    ]) {
       await expect(options.canUseTool(tool)).resolves.toMatchObject({ behavior: "deny" });
     }
-    await expect(options.canUseTool("Read")).resolves.toEqual({ behavior: "allow" });
   });
 
   it("fenced unified diffを抽出する", async () => {

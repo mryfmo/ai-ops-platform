@@ -13,10 +13,11 @@
  *   pnpm add @anthropic-ai/claude-agent-sdk / 認証はANTHROPIC_API_KEY環境変数）。
  *   出典: https://docs.claude.com/en/docs/agent-sdk/typescript
  *
- * 設計方針（書き込み禁止の二重防御）:
- *   (1) allowedTools を読み取り専用ツールのみに限定し、Write/Edit/Bash等の変更系ツールは
- *       disallowedTools で明示的に禁止する。
- *   (2) canUseTool フックで変更系ツール名を実行時にも拒否する（allowedToolsの設定漏れに対する保険）。
+ * 設計方針（書き込み禁止の多層防御）:
+ *   (1) tools でモデルへ公開するツールを読み取り専用のみに限定し、allowedTools でその3種を
+ *       自動許可する。Write/Edit/Bash等は disallowedTools でも明示的に禁止する。
+ *   (2) canUseTool フックでは読み取り専用allowlist以外をすべて拒否し、将来追加されるツールも
+ *       fail-closedにする（tools設定漏れに対する保険）。
  *   (3) 生成された差分はこのプロセス内の文字列としてのみ受け取り、対象リポジトリへの書き込みAPI
  *       （git commit/push, GitHub Contents API等）を本モジュールが一切呼び出さないことでAC-002bを満たす。
  *
@@ -61,19 +62,21 @@ export async function generateReadOnlyDiffSuggestion(req: DiffSuggestionRequest)
   const options: AgentSdkOptions = {
     cwd: req.repoCheckoutPath,
     model: "sonnet",
-    // (1) 許可ツールをread-onlyに限定
+    // (1) モデルに公開するツール自体をread-onlyに限定
+    tools: [...READ_ONLY_TOOLS],
+    // read-onlyツールだけをプロンプトなしで許可
     allowedTools: [...READ_ONLY_TOOLS],
     disallowedTools: [...MUTATING_TOOLS],
     permissionMode: "default",
-    // (2) 実行時フックでも変更系ツールを拒否（多層防御）
+    // (2) 実行時フックでもread-only以外をすべて拒否（将来追加されるツールもfail-closed）
     canUseTool: async (toolName: string) => {
-      if ((MUTATING_TOOLS as readonly string[]).includes(toolName)) {
-        return { behavior: "deny", message: "read-only workspace: mutating tools are disabled (SPEC-INT-011)" };
+      if ((READ_ONLY_TOOLS as readonly string[]).includes(toolName)) {
+        return { behavior: "allow" };
       }
-      return { behavior: "allow" };
+      return { behavior: "deny", message: "read-only workspace: tool is not allowlisted (SPEC-INT-011)" };
     },
     settingSources: [], // SDKアプリケーションとしての分離設定を明示（プロジェクト側の設定を継承しない）
-  } as AgentSdkOptions;
+  };
 
   let diffText: string | null = null;
   const transcriptParts: string[] = [];
