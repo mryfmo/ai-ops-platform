@@ -6,7 +6,7 @@
 
 ## Status
 
-`ACTIVE`
+`IN PROGRESS`
 
 - Priority: P0
 - Risk: CRITICAL
@@ -23,7 +23,7 @@
 含むもの:
 
 - `docs/audit/00`〜`09`の履歴監査資料としての収載
-- `docs/AI_Ops_Platform_Summary.pptx` 14枚版の検証済み更新
+- 既存`docs/AI_Ops_Platform_Summary.pptx` 12枚版の保持と、未実装主張を含む14枚候補の不採用記録
 - namespaced traceability、ViewSpec/report runtime契約、PrjOps stable identity、production provider、project picker、read-only Kanban、承認基盤
 - Graph smoke実adapterとMicrosoft 365 sandbox証跡
 - Plans 003/004/006/007の未実装
@@ -105,6 +105,60 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 - schema変更はfresh `schema.sql`、新migration、repository、fresh/upgrade/idempotency testを同じPRに含める。
 - external taskはpreflight、operation、correlation、cleanupを分け、cleanup failureもFAILとする。
 
+### 5. task DAG
+
+下表の`requires`がすべて`ACCEPTED`になるまで対象taskを`ASSIGNED`にしない。カンマはAND、`A|B`は明記した場合だけORを意味する。本Planでは暗黙のphase継承や「先行taskがたぶん済んでいる」という解釈を禁止する。
+
+| Task/range          | Requires                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| F00-T01/T02/T03     | Plan 001 DONE; each may run independently                                                        |
+| F00-T04             | F00-T01, F00-T02, F00-T03                                                                        |
+| F01-T01             | F00-T04                                                                                          |
+| F01-T02             | F01-T01                                                                                          |
+| F01-T03             | F01-T02                                                                                          |
+| F01-T04             | F01-T03                                                                                          |
+| F01-T05             | F01-T01                                                                                          |
+| F01-T06             | F01-T05                                                                                          |
+| F01-T07/T08/T09     | F01-T01; each may run independently                                                              |
+| F01-T10             | F01-T01 through F01-T09                                                                          |
+| F01-T11             | F01-T10                                                                                          |
+| F02-T01/T03/T05     | F01-T11; each may run independently                                                              |
+| F02-T02             | F02-T01                                                                                          |
+| F02-T04             | F02-T03                                                                                          |
+| F02-T06             | F02-T03, F02-T05                                                                                 |
+| F02-T07             | F02-T01, F02-T02, F02-T06                                                                        |
+| F02-T08             | F02-T06, F02-T07                                                                                 |
+| F02-T09             | F02-T04, F02-T05, F02-T06, F02-T08                                                               |
+| F02-T10             | F02-T06, F02-T07, F02-T08                                                                        |
+| F02-T11             | F02-T10                                                                                          |
+| F02-T12             | F02-T05, F02-T06, F02-T07, F02-T08, F02-T10, F02-T11                                             |
+| F02-T13             | F02-T09, F02-T10, F02-T11, F02-T12                                                               |
+| F02-T14             | F02-T09 through F02-T13                                                                          |
+| F03-T01/T02/T03     | F02-T03, F02-T05, F02-T06; each may run independently                                            |
+| F03-T04             | F03-T01, F03-T02, F03-T03                                                                        |
+| F03-T05             | F03-T04                                                                                          |
+| F03-T06             | F03-T05                                                                                          |
+| F03-T07             | F03-T06                                                                                          |
+| F03-T08             | F03-T07                                                                                          |
+| F04-T01/T04         | F01-T11; local T01 and external T04 may run independently                                        |
+| F04-T02             | F04-T01                                                                                          |
+| F04-T03             | F04-T02                                                                                          |
+| F04-T05             | F04-T03, F04-T04                                                                                 |
+| F04-T06             | F04-T05                                                                                          |
+| F04-T07             | F04-T06                                                                                          |
+| F04-T08             | F04-T07                                                                                          |
+| F05-T01 through T05 | F02-T14, F03-T08, F04-T08; then numeric order                                                    |
+| F05-T06 through T09 | Plan 001 DONE, F03-T08, F04-T08; then numeric order                                              |
+| F05-T10 through T14 | F02-T14, F03-T08; then numeric order                                                             |
+| F05-T15 through T20 | F02-T14, F03-T08; then numeric order                                                             |
+| F06-T01 through T08 | F02-T14, F03-T08, F04-T08, F05-T20; then numeric order except T02-T05 may follow T01 in parallel |
+| F06-T09 through T18 | F06-T08; then numeric order                                                                      |
+| F07-T01             | F00-T04, F01-T11, F02-T14, F03-T08, F04-T08, F05-T20, F06-T18                                    |
+| F07-T02             | F07-T01                                                                                          |
+| F07-T03             | F07-T02                                                                                          |
+
+`numeric order`は各range内で直前番号のACCEPTEDを要求する。例外として明示したparallel task以外を並列化しない。
+
 ## Current State
 
 `main@88b3653`で確認済み:
@@ -115,7 +169,7 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 - Graph smoke harnessは存在するがCLI mainは実adapter不在を示す`E-SMK07`でfail-closedする。
 - Azure IaC、real-environment E2E harness、acceptance manifest validatorは存在しない。
 - Plan 009は古いplanned-at/current-stateを含むため、本Planのdrift taskで現mainへ同期する必要がある。
-- `docs/audit/00`〜`09`は未追跡、PPTX 14枚版は未コミット、primary checkoutは古いdirty branchで保全対象。
+- `docs/audit/00`〜`09`は未追跡、primary checkoutのPPTX 14枚候補は既存12枚と追加2枚から成るが、追加slideに未実装機能の現在形主張があり導入PRから除外する。primary checkoutは古いdirty branchとして保全対象。
 
 ## Implementation
 
@@ -136,26 +190,26 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 #### P010-F00-T02 decision recordと本Planを追加する
 
 - Type/model: decision+docs / high
-- Allowed files: `docs/spec/productization-decisions.md`, `plans/010-recommended-spec-environment-execution.md`, `plans/README.md`
-- Work: accepted仕様/環境値、SPEC/ENVの区別、全task universe、優先順位、Plan README statusを同期する。
-- Complete: open questionに推奨値の選択余地が残らず、ENV ID/credentialだけが入力欄として残る。
+- Allowed files: `docs/spec/productization-decisions.md`, `docs/adr/0016-azure-platform.md`, `plans/009-remaining-productization-execution.md`, `plans/010-recommended-spec-environment-execution.md`, `plans/README.md`
+- Work: accepted仕様/環境値、SPEC/ENVの区別、Azure architecture/supersession、全task universe、優先順位、Plan README statusを同期する。Plan 009冒頭へdecision record/Plan 010優先と補助ledger範囲を明記し、Plan 009本文を別の正本として残さない。
+- Complete: open questionに推奨値の選択余地が残らず、ENV ID/credentialだけが入力欄として残り、Plan 009/010/README/audit 09の優先順位が相互に矛盾しない。
 - Verify: required section grep、task ID uniqueness/order、全source path存在確認、fresh-context high review ACCEPT。
 - Negative: `TBD`、`適切な`、`必要に応じて`、`等`だけで実装判断を委ねる記述があればREVISE。
 
-#### P010-F00-T03 PPTX 14枚版を検証して更新する
+#### P010-F00-T03 PPTX 14枚候補を否定検証し既存12枚版を保持する
 
-- Type/model: docs/binary / mechanical worker + high visual/claim review
-- Allowed files: `docs/AI_Ops_Platform_Summary.pptx`
-- Work: 14枚をPDF/画像化し、重なり、切れ、文字化け、空白slide、秘密/個人metadataを確認する。各数値/機能主張を現行docs/codeへ照合する。
-- Complete: slide count 14、SHA-256記録、全slide visual PASS、unsupported claim 0、metadataに個人名/絶対path 0。
-- Verify: `unzip -t`, XML text/metadata scan、rendered image review、existing 12枚との差分要約。
-- Negative: 生成元不在を理由に内容未確認でcommitしない。秘密または現mainと矛盾する主張があればPPTXだけ除外する。
+- Type/model: docs/binary review / mechanical worker + high visual/claim review
+- Allowed files: repository変更なし。primary checkoutの候補はread-only、`origin/main`の`docs/AI_Ops_Platform_Summary.pptx`を保持する。
+- Work: 14枚候補をQuick Look HTML/画像へ展開し、既存12枚とのslide XML比較、追加2枚の主張、重なり、切れ、文字化け、秘密/個人metadataを確認する。未実装を現在形で述べる「重要報告の人間承認」「全操作監査」「途中失敗後の安全再開」を理由付きでrejectする。
+- Complete:導入PRのPPTX diff 0、保持する12枚版SHA-256が`b5451e0417b77220f45a5193f0097ec2f72849aef4a1d7388cac043e4a2055f9`、14枚候補はprimary checkoutから変更/削除されず、reject理由が本taskに記録される。
+- Verify: `git diff origin/main -- docs/AI_Ops_Platform_Summary.pptx` empty、12枚版`unzip -t`/slide count/hash、14枚候補の既存1-12 slide XML一致、追加2枚XML text/metadata/render review。
+- Negative:未実装機能を現在形で記載したbinaryを「将来計画」と読み替えてcommitしない。14枚を再提案する場合は生成元、全claim source、全slide render evidenceを別PRで提出する。
 
 #### P010-F00-T04 一回限りの導入PRをmergeする
 
 - Type/model: Git/PR / high orchestrator
 - Preconditions: T01-T03 ACCEPTED、最新`origin/main`へrebase、staged allowlist完全一致。
-- Work: audit/decision/planとPPTXを論理commitへ分け、push、`ai-generated` label付きPR、hosted checks、独立negative review、今回の明示例外をPRへ記録してmergeする。
+- Work: audit/decision/plan/ADRだけをcommitし、PPTX diff 0を確認してpush、`ai-generated` label付きPR、hosted checks、独立negative review、今回の明示例外をPRへ記録してmergeする。
 - Complete: PR merged SHAが`origin/main`のancestor、open PR 0、primary dirty checkoutのhash/inventory不変。
 - Verify: `git diff --cached --name-status` allowlist、`mise run ci`、GitHub checks/review threads、post-merge fetch/ancestry。
 - STOP: `git add -A`、`.agents`/`.codex`/stale matrixのstage、CI red、unresolved review、base drift。
@@ -229,20 +283,20 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 - Complete: AGT_RPTにburndown sectionを新設せず、全5 profileが許可slot以外を生成/受理しない。
 - Verify: all profile matrix、digit/Unicode digit/secret/empty fallback tests、PrjOps/Web tests。
 
-#### P010-F01-T10 Phase 1 acceptance
-
-- Allowed files: `docs/reference/page-agent-tools.md`, `docs/reference/http-api.md`, spec catalog/output generated at final HEAD。
-- Work: docs/schema/output同期、full CI、independent review。
-- Complete: T01-T09 ACCEPTED、P0/P1 finding 0、P2にowner/date/mitigation。
-- Verify: clean checkout `mise run ci`, generated matrix no regression, high review ACCEPT。
-
-#### P010-F01-T11 acceptance manifest validatorを実装する
+#### P010-F01-T10 acceptance manifest validatorを実装する
 
 - Allowed files: `scripts/validate-acceptance-manifest.mjs`, `tests/validate-acceptance-manifest.test.mjs`, `verification/acceptance-manifest.json`, root package script entry only。
 - Work: 本Planのimmutable commit/blob hashからordered task universeを抽出し、`--through`と`--final`でtask ID、status、target SHA、command exit、artifact SHA、dependency ancestry、external/human fieldsを検証する。
-- Complete: missing/extra/duplicate/out-of-order/blocked、plan hash mismatch、nonzero command、missing artifact、dependency non-ancestor、required nullをすべてexit 1にする。未来taskは`--through`で要求しない。
-- Verify: Node testのvalid/各invalid fixture、実manifestを`--through P010-F01-T11`でgreenにする。
+- Complete:正規task headingは合計86件（F00=4、F01=11、F02=14、F03=8、F04=8、F05=20、F06=18、F07=3）。missing/extra/duplicate/out-of-order/blocked、plan hash mismatch、nonzero command、missing artifact、dependency non-ancestor、required nullをすべてexit 1にする。未来taskは`--through`で要求しない。
+- Verify: Node testのvalid/各invalid fixture、既にACCEPTEDなtaskだけを含む実manifestを`--through P010-F01-T09`でgreenにする。T10自身のacceptance recordはこのcommand成功と独立review後にorchestratorが追加し、同じtaskの自己参照を禁止する。task universeは`^#### P010-F[0-9]{2}-T[0-9]{2} `だけを正規task見出しとして抽出し、expected task ID listのgolden fixtureと完全一致させる。
 - Negative: symlink artifact、repo外path、hash mismatch、自己申告だけのreview/ENV evidenceを受理しない。
+
+#### P010-F01-T11 Phase 1 acceptance
+
+- Allowed files: `docs/reference/page-agent-tools.md`, `docs/reference/http-api.md`, spec catalog/output generated at final HEAD。
+- Work: docs/schema/output同期、full CI、independent review。
+- Complete: T01-T10 ACCEPTED、task universe golden fixture一致、P0/P1 finding 0、P2にowner/date/mitigation。
+- Verify: clean checkout `mise run ci`, generated matrix no regression, `node scripts/validate-acceptance-manifest.mjs --through P010-F01-T10 verification/acceptance-manifest.json`, high review ACCEPT。成功後にorchestratorがT11 acceptance recordを追加し、F02-T01のpreflightが初めてT11までを検証する。
 
 ### Phase 2: Plan 002 stable identityとproduction data provider
 
@@ -251,9 +305,9 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 #### P010-F02-T01 prjops-data machine contractを追加する
 
 - Allowed files: `docs/contracts/prjops-data.md`, `docs/contracts/entra-subject-mapping.md`, `docs/contracts/persona-scope-matrix.md`, `docs/contracts/data-handling.md`, contract fixtures/schema files selected in packet。
-- Work: DEC-SPEC-001〜004をfield、type、path、owner、update、delete、checksum、migration dispositionへ展開する。
+- Work:最初にacceptance validatorを`--through P010-F01-T11`で実行し、T11 recordを含むPhase 1 closureを検証する。成功後、DEC-SPEC-001〜004をfield、type、path、owner、update、delete、checksum、migration dispositionへ展開する。checksumはDEC-SPEC-001のcanonical manifest bytesを実装言語に依存せず記述し、empty/one/multi/order/LF/CRLF/BOM/NFC-NFD/path/symlink/boundaryのinput bytes、expected canonical manifest bytes、expected SHA-256をgolden vectorへ固定する。
 - Complete: valid/invalid fixturesを人の解釈なしに判定でき、owner/signature欄とENV値が区別される。
-- Verify: link/schema validation、unknown field/duplicate/checksum negative fixtures。
+- Verify: `node scripts/validate-acceptance-manifest.mjs --through P010-F01-T11 verification/acceptance-manifest.json`、link/schema validation、unknown field/duplicate/checksum negative fixtures。
 
 #### P010-F02-T02 snapshot validatorを実装する
 
@@ -309,7 +363,7 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 - Type: external+review / high
 - Preconditions: authoritative repo URL/commit/owner、mapping、PII approval、sandbox Entra identities。
 - Work: dry-run owner review→sandbox apply→all persona/query negative matrix→independent security review。
-- Complete: DEC-SPEC-001〜004のidentity/data criteria全件、unresolved mapping 0、PII violation 0。Plan 002の最終DONE判定はT13で行う。
+- Complete: DEC-SPEC-001〜004のidentity/data criteria全件、unresolved mapping 0、PII violation 0。Plan 002の最終DONE判定はT14で行う。
 - Verify: exact commit/checksum、DB queries、HTTP tests、`mise run ci`、redacted evidence。
 - STOP: unsigned mapping/contract、production-only identity、scope leak。
 
@@ -317,34 +371,44 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 
 - Model: frontend/full-stack worker、review high。
 - Preconditions: T06-T08 ACCEPTED、DEC-SPEC-008 ENV mapping fixture available。
-- Allowed files: `packages/web/src/app/dashboard/page.tsx`, new/existing project picker component, project query parsing support, `/api/data/projects` handler/route, corresponding component/handler tests。
-- Work: scoped `{id,name}` optionsを取得し、`?project=PJ-*`をcanonical parserで検証する。1件auto-select、複数未選択409、globalだけ`all`、URL back/forward/reload、label/focus/error announcementを実装する。選択値をすべてのproject-specific fetchへ渡す。
+- Allowed files: `packages/web/src/app/dashboard/page.tsx`, `packages/web/src/components/ProjectPicker.tsx`, `packages/web/src/server/projectSelection.ts`, `packages/web/src/server/reportData/projectsHandler.ts`, `packages/web/src/app/api/data/projects/route.ts`, `packages/web/tests/ProjectPicker.test.tsx`, `packages/web/tests/projectSelection.test.ts`, `packages/web/tests/reportData/projectsHandler.test.ts`。
+- Work: scoped `{id,name}`と`portfolioAllowed`を取得し、`?project=PJ-*|all`をcanonical parserで分類する。projects APIはproject queryを拒否し、UIだけが`portfolioAllowed=true`時に`all` optionを合成する。1件auto-select、複数未選択409、URL back/forward/reload、label/focus/error announcementを実装する。このtaskはselection resolve/controlだけを実装し、domain endpointへの適用はT13で行う。
 - Complete: client-supplied IDだけでdata queryを開始する経路0。one/many/global/stale/unknown/inactive/malformed/cross-tenant/cross-persona casesがDEC-SPEC-008どおり。
-- Verify: component keyboard/accessible-name tests、handler query-spy tests、HTTP 200/409/403 matrix、`rg -n 'localStorage|project.*cookie' packages/web/src`の新authorization state 0。
+- Verify: component keyboard/accessible-name tests、handler query-spy tests、projects APIのparameter absent 200 / parameter present(empty/valid/malformed/all/repeated) 400 E-AUTH05かつdomain query 0、project-specific HTTP 200/409/400/403 matrix、`rg -n 'localStorage|project.*cookie' packages/web/src`の新authorization state 0。
 - Negative: optionをDOMから改変、URL直打ち、別persona URL再利用、同名別ID、case/Unicode/encoded traversal、APIをpicker非経由で直接呼ぶ。
 
 #### P010-F02-T11 ProjectV2 board snapshot contractを実装する
 
 - Model: backend worker、review high/security。
 - Preconditions: T10 ACCEPTED、sandbox ProjectV2 Status field inventory available。
-- Allowed files: `packages/shared/src/clients/githubClient.ts`, board pure-lib/schema module、`packages/server/src/db/pmTimeseriesRepo.ts`, required additive migration/schema、snapshot/client/repository tests。
-- Work: ProjectV2 field option ID/name/color/order、item position/type/title/repository/assignees/labels/authorized URL/archive/redaction、capturedAtを取得・sanitize・validateして保存する。repository queryはstable subject/persona/canonical projectIdを条件に最新complete snapshotだけを返す。
-- Complete: unknown option/duplicate source/incomplete page/snapshot mismatchはfail-closed。unmapped/foreign ProjectV2 node、archived/redacted/deleted item、scope外rowをboard結果へ含める経路0。
-- Verify: GraphQL pagination/rate limit/field-order fixtures、schema fresh/upgrade/reapply、SQL query-spy、secret/HTML/unsafe URL、corrupt/partial/duplicate/unknown-option negative tests。
+- Allowed files: `packages/shared/src/clients/githubClient.ts`, `packages/shared/src/projectBoard.ts`, `packages/shared/src/index.ts`, `packages/shared/tests/githubClient.test.ts`, `packages/shared/tests/projectBoard.test.ts`, `packages/devops/src/db/schema.sql`, `packages/devops/src/db/migrations/202607130203_project_board_snapshots.sql`, `packages/server/src/config.ts`, `packages/server/src/index.ts`, `packages/server/src/db/pmTimeseriesRepo.ts`, `packages/server/src/scheduler/tasks/pmSnapshotReconcileTask.ts`, `packages/server/tests/pmTimeseriesRepo.test.ts`, `packages/server/tests/pmSnapshotReconcileTask.test.ts`。
+- Work: owner-signed inventoryからStatus field option ID/name/color/ordinalを検証する。GraphQL `items(orderBy:{field:POSITION,direction:ASC})`を全page取得し、responseのzero-based ordinalをitem positionとして、type/title/repository/assignees/labels/authorized URL/archive/redaction/capturedAtとともにsanitize・validateして保存する。pagination前後のproject `updatedAt`が変化したsnapshotは破棄する。repository queryはstable subject/persona/canonical projectIdを条件に最新complete snapshotだけを返す。
+- Complete: Status未設定だけが`未分類`、non-null unknown/changed optionは503。duplicate source/incomplete page/cursor loop/updatedAt change/snapshot mismatchはfail-closed。unmapped/foreign ProjectV2 node、archived/redacted/deleted item、scope外rowをboard結果へ含める経路0。
+- Verify: GraphQL pagination/rate limit/POSITION ordinal/inventory fixtures、schema fresh/upgrade/reapply、SQL query-spy、secret/HTML/unsafe URL、corrupt/partial/duplicate/unknown-option/option add-delete-rename-recolor negative tests。
 
 #### P010-F02-T12 read-only Kanban viewとnavigationを実装する
 
 - Model: frontend worker、review high/accessibility。
 - Preconditions: T05-T11 ACCEPTED。
-- Allowed files: `packages/web/src/server/viewSpec.ts`, chat tools/system prompt, `DashboardClient.tsx`, new board data handler/route/view component, reference docs, corresponding tests。
+- Allowed files: `packages/web/src/server/viewSpec.ts`, `packages/web/src/server/chat/tools.ts`, `packages/web/src/server/chat/systemPrompt.ts`, `packages/web/src/server/chat/chatHandler.ts`, `packages/web/src/components/chat/ChatPanel.tsx`, `packages/web/src/components/DashboardClient.tsx`, `packages/web/src/components/views/ProjectBoardView.tsx`, `packages/web/src/server/reportData/projectBoardHandler.ts`, `packages/web/src/app/api/data/project-board/route.ts`, `packages/web/tests/chat/tools.test.ts`, `packages/web/tests/chat/systemPrompt.test.ts`, `packages/web/tests/chat/chatRoute.test.ts`, `packages/web/tests/chat/ChatPanel.test.tsx`, `packages/web/tests/DashboardClient.test.tsx`, `packages/web/tests/ProjectBoardView.test.tsx`, `packages/web/tests/reportData/projectBoardHandler.test.ts`, `docs/reference/page-agent-tools.md`, `docs/reference/http-api.md`。
 - Work: strict `projectBoard {projectId}` ViewSpec、scoped board endpoint、Status option order columns、final `未分類`、snapshot timestamp、authorized GitHub edit deep linkを結線する。card数/列数は受信済みboard JSONからcode算出する。drag/drop/mutationは実装しない。
 - Complete: boardは単一selected projectだけを表示し、LLM embedded data/URL/status/cardを拒否する。keyboard/heading/list semantics、empty/loading/error/409/403を明示し、horizontal overflowでも操作可能。
 - Verify: seven-kind boundary matrix、view/handler tests、axe相当accessibility assertions、mobile/desktop rendering、foreign deep-link/unsafe URL/HTML injection、GitHub mutation call 0、web typecheck。
 
-#### P010-F02-T13 project operations sandbox acceptance
+#### P010-F02-T13 project selectionを全data boundaryへ強制する
+
+- Model: backend/full-stack worker、review high/security。
+- Preconditions: T09-T12 ACCEPTED。
+- Allowed files: `packages/web/src/server/projectSelection.ts`, `packages/web/src/server/reportData/executiveSummaryHandler.ts`, `packages/web/src/server/reportData/managerSummaryHandler.ts`, `packages/web/src/server/reportData/investorSummaryHandler.ts`, `packages/web/src/server/reportData/timeseriesHandler.ts`, `packages/web/src/server/reportData/agentActivityHandler.ts`, `packages/web/src/server/reportData/prjopsReportData.ts`, `packages/web/src/server/reportData/devopsReportData.ts`, `packages/web/src/server/reportData/agentActivityData.ts`, `packages/web/src/app/api/data/executive-summary/route.ts`, `packages/web/src/app/api/data/manager-summary/route.ts`, `packages/web/src/app/api/data/investor-summary/route.ts`, `packages/web/src/app/api/data/timeseries/route.ts`, `packages/web/src/app/api/data/agent-activity/route.ts`, `packages/web/src/components/DashboardClient.tsx`, `packages/web/tests/projectSelection.test.ts`, `packages/web/tests/reportData/executiveSummaryHandler.test.ts`, `packages/web/tests/reportData/managerSummaryHandler.test.ts`, `packages/web/tests/reportData/investorSummaryHandler.test.ts`, `packages/web/tests/reportData/timeseriesHandler.test.ts`, `packages/web/tests/reportData/agentActivityHandler.test.ts`, `packages/web/tests/reportData/prjopsReportData.test.ts`, `packages/web/tests/reportData/devopsReportData.test.ts`, `packages/web/tests/reportData/agentActivityData.test.ts`, `packages/web/tests/DashboardClient.test.tsx`。
+- Work: DEC-SPEC-008 endpoint matrixをそのままpolicy tableにし、page queryと各routeで同じresolverを呼ぶ。missing one auto、missing many 409、malformed 400、well-formed unknown/inactive/foreign/out-of-scope 403をdomain query前に返す。single selectionはprovider/SQLのproject predicateへ渡し、`all`はactive global PRF-04/PRF-Gの対象endpointだけで許可する。summary ViewSpecから別projectIdを受け取らない。
+- Complete: pickerを経由しない直接API、改変URL、別persona/tabのstale URLでも同じstatus/policy。single project responseに他project row 0、unauthorized requestのdomain query call 0。
+- Verify: endpoint×persona×one/many/all/missing/malformed/stale/inactive/cross-tenant/cross-persona matrix、provider/SQL query spy、Dashboard URL propagation/back-forward tests、web typecheck。
+- Negative: `all`をPRF-03/PRF-05/investor/boardで使用、project name/node IDをPJの代用、client-side後段filter、summary toolからproject override、403後のcached data表示。
+
+#### P010-F02-T14 project operations sandbox acceptance
 
 - Type: external+review / high。
-- Preconditions: T10-T12、two authorized and one unauthorized sandbox projects、Status field inventory、GitHub App read permission。
+- Preconditions: T09-T13 ACCEPTED、two authorized and one unauthorized sandbox projects、owner-signed Status field inventory、GitHub App read permission。
 - Work: one/many/global selection、reload/back/share、board columns/order/cards、GitHub deep link、snapshot reconciliation、revoked assignmentを実アカウントで検証する。
 - Complete: authorized board matches the same ProjectV2 snapshot、foreign/unmapped/revoked leakage 0、write API call 0、accessibility/security review ACCEPT、Plan 002 criteria全件、README 002 DONE。
 - Verify: redacted HTTP/DB/GraphQL correlation、exact ProjectV2 node/Status option hashes、negative account evidence、`mise run ci`。
@@ -352,7 +416,7 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 
 ### Phase 3: T-P0-13/T-P0-14 approval trust boundary
 
-開始条件: F02-T06 ACCEPTED。stable subject実装前にapproval routeを公開しない。
+開始条件: F02-T03、F02-T05、F02-T06 ACCEPTED。stable subject schema、validated token propagation、persona resolutionのいずれか未完ならapproval routeを実装・公開しない。
 
 #### P010-F03-T01 approval state schema/migration
 
@@ -469,41 +533,144 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 
 ### Phase 5: Plans 003/004/006/007の残実装
 
-このPhaseではPlan 009の同名task本文をそのまま作業仕様として使う。本Planのdecision/identity/approvalが衝突する場合は本Planが優先する。各taskを混載せず個別packet/RED/GREEN/reviewで閉じる。
+開始条件はDesign §5のDAGを正本とする。PrjOps列T01-T05はPlans 002/005とapproval受入、DevOps列T06-T09はPlan 001/005とapproval受入、agent列T10-T14とWeb/API/Excel列T15-T20はPlan 002とapproval受入をそれぞれ要求する。元Plan 009のphase開始条件はこのDAGへ包含され、緩和されない。
 
-| Task         | Exact source work                                         | Completion oracle                                            |
-| ------------ | --------------------------------------------------------- | ------------------------------------------------------------ |
-| P010-F05-T01 | Plan 009 `P009-F04-T01` PrjOps persistent job schema/repo | fresh/upgrade/CAS/restart tests                              |
-| P010-F05-T02 | `P009-F04-T02` three-channel intake                       | same record identity, sanitize, duplicate/out-of-order tests |
-| P010-F05-T03 | `P009-F04-T03` analyze/report/verify                      | code-calculated metrics, all-profile validation              |
-| P010-F05-T04 | `P009-F04-T04` approval/delivery/tracking                 | Phase 3 reuse, preapproval send 0, duplicate send 0          |
-| P010-F05-T05 | `P009-F04-T05` PrjOps sandbox E2E                         | 3-channel→approval→delivery trace and cleanup                |
-| P010-F05-T06 | `P009-F05-T01` DevOps state repositories                  | deterministic state persistence/restart                      |
-| P010-F05-T07 | `P009-F05-T02` build/deploy real wiring                   | echo/missing script fail; no approval no deploy              |
-| P010-F05-T08 | `P009-F05-T03` incident/change/report wiring              | webhook→state→approval→side-effect→audit                     |
-| P010-F05-T09 | `P009-F05-T04` DevOps sandbox E2E                         | failure/cancel/timeout/rollback/failsafe trace               |
-| P010-F05-T10 | `P009-F06-T01` agent execution contracts                  | pinned CLI/provider/version/budget/timeout                   |
-| P010-F05-T11 | `P009-F06-T02` isolated workspace/patch validation        | escape/symlink/tool deny, primary worktree untouched         |
-| P010-F05-T12 | `P009-F06-T03` draft PR publish credential separation     | agent has no push/merge token; publisher only draft PR       |
-| P010-F05-T13 | `P009-F06-T04` real agent metrics                         | actual task/PR/cost/audit source, no fixture metrics         |
-| P010-F05-T14 | `P009-F06-T05` agent sandbox acceptance                   | Claude+Droid success/failure/timeout, main write 0           |
-| P010-F05-T15 | `P009-F07-T01` SQL-side auth/active recipients            | scope rows never fetched; active reread                      |
-| P010-F05-T16 | `P009-F07-T02` HTTP/proxy/rate/body boundary              | spoof/direct/oversize/slow/429 matrix                        |
-| P010-F05-T17 | `P009-F07-T03` Excel claim/lease/idempotency              | duplicate/crash/lease/partial/zip-bomb matrix                |
-| P010-F05-T18 | `P009-F07-T04` reconciliation/source conflict             | dry-run digest/CAS/owner resolution                          |
-| P010-F05-T19 | `P009-F07-T05` Plan 007 acceptance                        | Web/API/Excel integration + CI/security review               |
+このPhaseでは各見出しの`Source`に指定したPlan 009 taskのWork/Complete/Verify/STOP全文を、名前を置き換えず作業仕様として使う。本Planのdecision/identity/approvalが衝突する箇所だけ、明記したOverrideを優先する。source taskを1件でも欠落、重複、隣接番号へずらすことを禁止する。
 
-各taskのallowed filesはPlan 009のphase allowlistから実在する個別pathへ狭める。Plan 009に存在しないfile名やcommandを推測で作らない。driftがあれば実装前にtask packetだけを改訂し、objective/acceptanceは変えない。
+#### P010-F05-T01 PrjOps永続job state machineとCAS claim
+
+- Source: Plan 009 `P009-F04-T01`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: fresh/upgrade、two-worker CAS、lease/restart、invalid transition。
+
+#### P010-F05-T02 Outlook/Teams/GitHub intake正規化
+
+- Source: Plan 009 `P009-F04-T02`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: three-channel valid/invalid/duplicateが同じrecord identity/state transitionを通り、raw text保存0。
+
+#### P010-F05-T03 AGT-03/04/07分析・report・verify配線
+
+- Source: Plan 009 `P009-F04-T03`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: code-calculated metric、sanitized narrative、全profile schema、source→report→audit trace。
+
+#### P010-F05-T04 PrjOps approval・冪等配信・追跡
+
+- Source: Plan 009 `P009-F04-T04`。
+- Override: approval identity/token/atomic decisionはF03のaccepted基盤だけを再利用し、別実装を作らない。
+- Work/Complete/Verify/STOP: Override以外はsource task全文。
+- Completion oracle: preapproval send 0、retry/restart duplicate 0、active recipient request-time reread。
+
+#### P010-F05-T05 Plan 003 sandbox受入
+
+- Source: Plan 009 `P009-F04-T05`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: three-channel→master→analysis→approval→delivery→cleanupの単一trace、README 003 DONE。
+
+#### P010-F05-T06 DevOps event/state repositories
+
+- Source: Plan 009 `P009-F05-T01`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: normalized eventとbuild/deploy/incident/change stateのfresh/upgrade/dedupe/restart tests。
+
+#### P010-F05-T07 BLD/DEP workflow実配線
+
+- Source: Plan 009 `P009-F05-T02`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle:実sandbox runでstate遷移、echo/missing script failure、no approval no deploy。
+
+#### P010-F05-T08 INC/CHG/RPT/SEC/ORCH実配線
+
+- Source: Plan 009 `P009-F05-T03`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: webhook/monitor→state→approval→side effect→audit、failsafe/scope negative。
+
+#### P010-F05-T09 Plan 004 sandbox受入
+
+- Source: Plan 009 `P009-F05-T04`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: success/failure/cancel/timeout/rollback/manual recovery、README 004 DONE。
+
+#### P010-F05-T10 coding-task confirmationとdispatch CAS
+
+- Source: Plan 009 `P009-F06-T01`。
+- Override: Entra subject、nonce/jti、expiry、secret separationはF02/F03のaccepted実装を再利用し、このtaskはcoding taskのqueued→running CASとdispatch correlationだけを追加する。
+- Work/Complete/Verify/STOP: Override以外はsource task全文。
+- Completion oracle: replay/expired/cross-user/double dispatch拒否、one committed dispatch。
+
+#### P010-F05-T11 unprivileged agent runnerとartifact boundary
+
+- Source: Plan 009 `P009-F06-T02`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: agent credential read 0、path/symlink/digest tamper deny、publisherだけがvalidated artifactを読む。
+
+#### P010-F05-T12 Claude Code/Droid pinと予算強制
+
+- Source: Plan 009 `P009-F06-T03`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: version/SHA/checksum pin、tool allowlist、max turns/timeout/concurrency/cost fail-closed。
+
+#### P010-F05-T13 report metric extractionとingest
+
+- Source: Plan 009 `P009-F06-T04`。
+- Override: metric unavailable shapeとnarrative schemaはDEC-SPEC-007/F01のaccepted契約を使う。
+- Work/Complete/Verify/STOP: Override以外はsource task全文。
+- Completion oracle: DB/GitHub period/scope source、implicit zero 0、digest/run ID audit、missing adapter silent success 0。
+
+#### P010-F05-T14 Plan 006 sandbox draft PR/report受入
+
+- Source: Plan 009 `P009-F06-T05`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: Claude/Droid両方のpatch→validated draft PR、report→ingest、secret scan、README 006 DONE。auto-merge 0。
+
+#### P010-F05-T15 shared Pool load/query boundary
+
+- Source: Plan 009 `P009-F07-T01`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: per-request Pool 0、scope外row fetch 0、50 concurrent requestでconnection max内。
+
+#### P010-F05-T16 HTTP trust boundary
+
+- Source: Plan 009 `P009-F07-T02`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: 413/415/429、spoof/direct/slow body/proxy timeout matrix。
+
+#### P010-F05-T17 raw event深層sanitize
+
+- Source: Plan 009 `P009-F07-T03`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: nested object/array/stringを保存前・LLM前・出力前にsanitizeしraw secret永続化0。
+
+#### P010-F05-T18 Excel claim/leaseとlimits
+
+- Source: Plan 009 `P009-F07-T04`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: atomic claim/lease/heartbeat/crash recovery、bytes/rows/sheets/cells/archive ratio/time limit。
+
+#### P010-F05-T19 Excel reconciliationとpersona UX
+
+- Source: Plan 009 `P009-F07-T05`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: conflict/partial/retry state、persona route matrix、keyboard/name/status、UI/API scope leak 0。
+
+#### P010-F05-T20 container fail-fastとPlan 007受入
+
+- Source: Plan 009 `P009-F07-T06`。
+- Work/Complete/Verify/STOP: source task全文。
+- Completion oracle: build failure nonzero、load/security/Excel/Web E2E、container start/probe、README 007 DONE。
+
+Phase 1 validatorは次のexact bijectionをgolden fixtureで検証する: `P010-F05-T01..T05 ↔ P009-F04-T01..T05`、`T06..T09 ↔ P009-F05-T01..T04`、`T10..T14 ↔ P009-F06-T01..T05`、`T15..T20 ↔ P009-F07-T01..T06`。source IDの欠落、重複、順序差、題名差はFAIL。
 
 ### Phase 6: Azure IaC、staging、DR、go-live
 
-開始条件: F02/F03/F04 ACCEPTED。F05はlocal taskを並行可だが、staging E2E前に全ACCEPTED。
+開始条件: F02-T14、F03-T08、F04-T08、F05-T20がすべてACCEPTED。IaC local taskもF05と並行開始せず、Design §5のDAGを厳守する。
 
-#### P010-F06-T01 Azure ADRとnonsecret parameter schema
+#### P010-F06-T01 Azure ADR同期とnonsecret parameter schema
 
-- Allowed files: `docs/adr/0015-azure-platform.md`, `infra/azure/parameters.schema.json`, nonsecret example only。
-- Work: DEC-ENV-002をresource、region、network、identity、RPO/RTO/SLO、naming/tagへ固定する。
-- Complete: secret値0、staging/prod separation、Japan East/West、immutable digest、rollbackが一意。
+- Allowed files: `docs/adr/0016-azure-platform.md`, `infra/azure/parameters.schema.json`, nonsecret example only。
+- Work:導入PRでACCEPTED済みのADR-0016とDEC-ENV-002を同期確認し、resource、region、network、identity、RPO/RTO/SLO、naming/tagをparameter schemaへ固定する。ADRの選択内容はこのtaskで再選定しない。
+- Complete: ADR/decision drift 0、secret値0、staging/prod separation、Japan East/West、immutable digest、rollbackが一意。
 - Verify: JSON schema validation、ADR link/reference review。
 
 #### P010-F06-T02 network/identity/Key Vault Bicep
@@ -616,6 +783,8 @@ Orchestratorはworkerの要約だけで受入れず、diff、変更ファイル�
 - Verify: review target SHA=deployed digest source SHA、receipt/evidence hashes。
 
 ### Phase 7: final reconciliation
+
+開始条件: F00-T04、F01-T11、F02-T14、F03-T08、F04-T08、F05-T20、F06-T18がすべてACCEPTED。外部/human taskのBLOCKEDをDONEへ読み替えて開始しない。
 
 #### P010-F07-T01 plans/audit/statusを実態へ同期する
 
