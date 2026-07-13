@@ -202,6 +202,15 @@ CREATE TABLE IF NOT EXISTS audit_log_prjops_5y PARTITION OF audit_log
 CREATE TABLE IF NOT EXISTS audit_log_devops_1y PARTITION OF audit_log
   FOR VALUES IN ('devops_1y') PARTITION BY RANGE (at);
 
+CREATE OR REPLACE FUNCTION audit_log_block_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'E-AUD03: audit_log is append-only';
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION ensure_audit_log_partition(p_retention_class TEXT, p_month DATE)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -232,6 +241,14 @@ BEGIN
       month_end_utc
     );
   END IF;
+  EXECUTE format(
+    'CREATE OR REPLACE TRIGGER audit_log_block_update_delete BEFORE UPDATE OR DELETE ON %I FOR EACH STATEMENT EXECUTE FUNCTION audit_log_block_mutation()',
+    partition_name
+  );
+  EXECUTE format(
+    'CREATE OR REPLACE TRIGGER audit_log_block_truncate BEFORE TRUNCATE ON %I FOR EACH STATEMENT EXECUTE FUNCTION audit_log_block_mutation()',
+    partition_name
+  );
   RETURN partition_name;
 END;
 $$;
@@ -243,6 +260,24 @@ SELECT ensure_audit_log_partition('devops_1y', (date_trunc('month', CURRENT_TIME
 
 CREATE TABLE IF NOT EXISTS audit_log_prjops_5y_default PARTITION OF audit_log_prjops_5y DEFAULT;
 CREATE TABLE IF NOT EXISTS audit_log_devops_1y_default PARTITION OF audit_log_devops_1y DEFAULT;
+
+DO $$
+DECLARE
+  audit_partition REGCLASS;
+BEGIN
+  FOR audit_partition IN SELECT relid FROM pg_partition_tree('audit_log'::regclass)
+  LOOP
+    EXECUTE format(
+      'CREATE OR REPLACE TRIGGER audit_log_block_update_delete BEFORE UPDATE OR DELETE ON %s FOR EACH STATEMENT EXECUTE FUNCTION audit_log_block_mutation()',
+      audit_partition
+    );
+    EXECUTE format(
+      'CREATE OR REPLACE TRIGGER audit_log_block_truncate BEFORE TRUNCATE ON %s FOR EACH STATEMENT EXECUTE FUNCTION audit_log_block_mutation()',
+      audit_partition
+    );
+  END LOOP;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION audit_retention_candidates(
   p_as_of DATE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
