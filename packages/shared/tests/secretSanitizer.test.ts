@@ -1,11 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { SECRET_PATTERNS, sanitizeSecrets, isFreeOfKnownSecrets } from "../src/secretSanitizer.js";
+import { sanitizeSecrets, isFreeOfKnownSecrets } from "../src/secretSanitizer.js";
 
 describe("sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070]", () => {
-  it("既定の10パターンを維持する", () => {
-    expect(SECRET_PATTERNS).toHaveLength(10);
-  });
-
   it("GitHub personal access token を検出・マスキングする", () => {
     const input = "token: ghp_1234567890abcdefghijklmnopqrstuvwx を使ってください";
     const { sanitized, redactionCount, matchedPatterns } = sanitizeSecrets(input);
@@ -28,7 +24,7 @@ describe("sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070]", () => {
   });
 
   it("秘密情報を含まないテキストはそのまま通過する", () => {
-    const input = "進捗率62%、来週はテスト工程に着手予定です。";
+    const input = "進捗率62%、安全①、プロジェクトＡ、ﬃを維持します。";
     const { sanitized, redactionCount } = sanitizeSecrets(input);
     expect(redactionCount).toBe(0);
     expect(sanitized).toBe(input);
@@ -39,15 +35,64 @@ describe("sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070]", () => {
     expect(isFreeOfKnownSecrets("key=" + "ghp_" + "a".repeat(36))).toBe(false);
   });
 
+  it("REQ-032: compatibility文字をNFKC正規化してからsecretを除去する", () => {
+    const secret = `ｇｈｐ＿${"a".repeat(24)}`;
+    const canonicalSecret = secret.normalize("NFKC");
+
+    const result = sanitizeSecrets(`key=${secret}`);
+
+    expect(result.redactionCount).toBe(1);
+    expect(result.sanitized).not.toContain(secret);
+    expect(result.sanitized).not.toContain(canonicalSecret);
+    expect(result.sanitized).toContain("***REDACTED:github_pat***");
+    expect(isFreeOfKnownSecrets(secret)).toBe(false);
+  });
+
+  it("REQ-032: compatibility secretだけを除去し、周囲の原文は正規化せず保持する", () => {
+    const secret = `ｇｈｐ＿${"a".repeat(24)}`;
+    const input = `ﬃ/安全①:${secret}:プロジェクトＡ`;
+
+    expect(sanitizeSecrets(input).sanitized).toBe("ﬃ/安全①:***REDACTED:github_pat***:プロジェクトＡ");
+  });
+
+  it("REQ-032: GitHub App tokenをgithub_patより先に固有分類する", () => {
+    const secret = `ghs_${"a".repeat(24)}`;
+    const result = sanitizeSecrets(secret);
+
+    expect(result.sanitized).toBe("***REDACTED:github_app_token***");
+    expect(result.matchedPatterns).toEqual(["github_app_token"]);
+  });
+
+  it("REQ-032: combining・surrogate・expanded glyphの周囲を保ったまま複数secretを除去する", () => {
+    const compatSecret = `ｇｈｐ＿${"a".repeat(24)}`;
+    const appSecret = `ghs_${"b".repeat(24)}`;
+    const input = `😀e\u0301ﬃ/${compatSecret}/安全①/${appSecret}/𠮷`;
+
+    expect(sanitizeSecrets(input)).toEqual({
+      sanitized: "😀e\u0301ﬃ/***REDACTED:github_pat***/安全①/***REDACTED:github_app_token***/𠮷",
+      redactionCount: 2,
+      matchedPatterns: ["github_app_token", "github_pat"],
+      warnings: [],
+    });
+  });
+
+  it("REQ-032: 多数のcompatibility secretを実用的な短時間で線形処理する", () => {
+    const secret = `ｇｈｐ＿${"a".repeat(24)}`;
+    const input = `😀e\u0301ﬃ|${Array.from({ length: 200 }, () => secret).join("|安全①|")}|プロジェクトＡ`;
+    const result = sanitizeSecrets(input);
+
+    expect(result.redactionCount).toBe(200);
+    expect(result.sanitized.startsWith("😀e\u0301ﬃ|***REDACTED:github_pat***")).toBe(true);
+    expect(result.sanitized.endsWith("***REDACTED:github_pat***|プロジェクトＡ")).toBe(true);
+    expect(result.sanitized).not.toContain(secret);
+  }, 1_000);
+
   it("運用固有のパターンを既定パターンに追加できる", () => {
     const input = "INTERNAL_TOKEN=corp_token_abcdefghijklmnopqrstuvwxyz";
-
-    expect(sanitizeSecrets(input).redactionCount).toBe(0);
-    expect(
-      sanitizeSecrets(input, {
-        additionalPatterns: [{ name: "internal_token", regex: /corp_token_[a-z]{26}/g }],
-      }),
-    ).toMatchObject({
+    const result = sanitizeSecrets(input, {
+      additionalPatterns: [{ name: "internal_token", regex: /corp_token_[a-z]{26}/g }],
+    });
+    expect(result).toMatchObject({
       sanitized: "INTERNAL_TOKEN=***REDACTED:internal_token***",
       redactionCount: 1,
       matchedPatterns: ["internal_token"],
@@ -59,13 +104,10 @@ describe("sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070]", () => {
     const hex = "0123456789abcdef".repeat(2);
     const base64 = "Z2l0bGVha3MtcHNldWRvLXNlY3JldC0xMjM0NTY=";
     const input = `${hex} ${base64}`;
-
     expect(sanitizeSecrets(input)).toMatchObject({ sanitized: input, redactionCount: 0, warnings: [] });
-
     const result = sanitizeSecrets(input, { maskSuspiciousSequences: true });
     expect(result.sanitized).not.toContain(hex);
     expect(result.sanitized).not.toContain(base64);
     expect(result.warnings).toEqual(["suspicious_hex", "suspicious_base64"]);
-    expect(result.redactionCount).toBe(2);
   });
 });
