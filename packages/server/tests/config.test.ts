@@ -3,7 +3,7 @@
  *
  * 根拠: ADR-0005（環境変数のfail-fastパース。誤設定のまま黙って稼働することを防ぐ）
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { loadConfig } from "../src/config.js";
 
 // security-reviewer指摘によりmin(32)へ引き上げたため、フィクスチャも32文字以上にする
@@ -18,6 +18,7 @@ const validEnv = {
   GRAPH_ALLOWED_FROM_MAILBOXES: "reports@example.com",
   PUBLIC_BASE_URL: "https://aiops.example.com",
   CODING_TASK_CALLBACK_SECRET: "coding-task-secret-of-at-least-32-chars",
+  METRICS_TOKEN: "metrics-token-of-at-least-32-chars",
 };
 
 describe("loadConfig (ADR-0005)", () => {
@@ -150,5 +151,21 @@ describe("loadConfig (ADR-0005)", () => {
     ],
   ])("delivery有効時の不正defaultは起動設定を拒否する: %s", (_label, override) => {
     expect(() => loadConfig({ ...validEnv, ...override })).toThrow("E-CFG01");
+  });
+
+  it("METRICS_TOKEN未設定時は起動警告を1回だけ出し、値をログへ含めない", () => {
+    const { METRICS_TOKEN: _drop, ...rest } = validEnv;
+    const warn = vi.fn();
+
+    const config = loadConfig(rest, warn);
+
+    expect(config.METRICS_TOKEN).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(validEnv.METRICS_TOKEN);
+  });
+
+  it("METRICS_TOKENが32文字未満ならfail-fastする", () => {
+    expect(() => loadConfig({ ...validEnv, METRICS_TOKEN: "too-short" })).toThrow("E-CFG01");
   });
 });

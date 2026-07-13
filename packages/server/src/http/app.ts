@@ -23,6 +23,7 @@ import { registerXlsxImportRoutes, type XlsxImportRoutesDeps } from "./routes/xl
 import { registerReportIngestRoutes, type ReportIngestDeps } from "./routes/reportIngest.js";
 import { MetricsRegistry } from "../observability/metrics.js";
 import { registerMetricsRoutes } from "./routes/metrics.js";
+import { verifyBearerToken } from "../lib/confirmToken.js";
 
 export interface AppDependencies {
   auditLog: AuditLogWriter;
@@ -32,13 +33,33 @@ export interface AppDependencies {
   codingTasks: CodingTaskRoutesDeps;
   xlsxImport: XlsxImportRoutesDeps;
   metrics?: MetricsRegistry;
+  metricsToken?: string;
   reports?: ReportIngestDeps;
   webui?: WebuiProxyDeps; // 未指定時は /app/* を503にする（WebUI未起動の縮退運転）
 }
 
 export function buildApp(deps: AppDependencies): Hono {
   const app = new Hono();
+  const metricsToken = deps.metricsToken;
+  app.use("/coding-tasks/:taskId/confirm", async (c, next) => {
+    await next();
+    c.header(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    );
+    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("X-Frame-Options", "DENY");
+  });
   registerHealthRoutes(app, deps.readiness);
+  if (metricsToken) {
+    app.use("/metrics", async (c, next) => {
+      if (!verifyBearerToken(c.req.header("Authorization") ?? "", metricsToken)) {
+        return c.text("Unauthorized", 401, { "WWW-Authenticate": "Bearer" });
+      }
+      await next();
+    });
+  }
   registerMetricsRoutes(app, deps.metrics ?? new MetricsRegistry());
   registerGraphNotificationRoutes(app, deps.graph);
   registerGithubWebhookRoutes(app, deps.github);

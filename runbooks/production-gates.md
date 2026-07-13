@@ -34,3 +34,9 @@ The workflow fails before checkout when the secret is missing. This is intention
 - linux x64 tarball SHA-256: `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb`
 
 Update both values together after checking the upstream release checksum.
+
+## Upstream Rate Limiting
+
+Before go-live, the deployment owner must configure rate limiting for every public route at the upstream load balancer or WAF. Application-level rate limiting is intentionally not implemented while the deployment platform is undecided.
+
+Record the selected platform, policy/rule identifier, covered routes, limits, test date, test result, and approving owner here before production traffic is enabled. The limits and platform are `TBD(HUMAN)`; this gate remains open until that evidence is present.

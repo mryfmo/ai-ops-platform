@@ -44,6 +44,8 @@ const baseConfigSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
   /** OpenTelemetry service name. */
   OTEL_SERVICE_NAME: z.string().default("ai-ops-platform-server"),
+  /** Prometheus scrape endpointのBearerトークン。未設定時は後方互換のため認証なし。 */
+  METRICS_TOKEN: z.string().min(32).optional(),
   /** OTLP base endpoint. 未設定時はtelemetry disabledを明示ログしてno-op。 */
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   /** OTLP traces endpoint. 指定時はOTEL_EXPORTER_OTLP_ENDPOINTより優先。 */
@@ -145,11 +147,17 @@ export type ServerConfig = z.infer<typeof configSchema>;
  * 環境変数をパースする。不足・不正があれば起動時に例外を投げ、
  * 誤設定のまま黙って稼働すること（webhook検証スキップ等）を防ぐ。
  */
-export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {
+export function loadConfig(
+  env: Record<string, string | undefined> = process.env,
+  warn: (message: string) => void = console.warn,
+): ServerConfig {
   const parsed = configSchema.safeParse(env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`E-CFG01: invalid server configuration: ${issues}`);
+  }
+  if (!parsed.data.METRICS_TOKEN) {
+    warn("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
   }
   return parsed.data;
 }
