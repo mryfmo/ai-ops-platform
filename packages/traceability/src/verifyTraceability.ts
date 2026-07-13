@@ -15,7 +15,7 @@
  *   実装コードへの直接参照を必須としない（警告のみ）。
  */
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format as formatMarkdown } from "prettier";
 
@@ -72,13 +72,26 @@ function buildCorpus(packageDirs: string[]): FileCorpus {
   return { srcText, testText };
 }
 
-interface CategoryResult {
+export interface CategoryResult {
   category: string;
   total: number;
   inSrc: number;
   inTest: number;
   missingFromSrc: string[];
   missingFromTest: string[];
+}
+
+export function collectFailureMessages(
+  results: CategoryResult[],
+  basisFailures: string[],
+  adrFailures: string[],
+): string[] {
+  const mandatory = results.filter((result) => ["REQ", "SPEC-INT", "TH"].includes(result.category));
+  return [
+    ...mandatory.flatMap((result) => result.missingFromSrc),
+    ...basisFailures.map((file) => `basis header missing: ${file}`),
+    ...adrFailures.map((id) => `ADR reference missing file: ${id}`),
+  ];
 }
 
 function checkCategory(ids: string[] | undefined, category: string, corpus: FileCorpus): CategoryResult {
@@ -129,9 +142,9 @@ function formatResults(systemName: string, results: CategoryResult[]): string {
   return lines.join("\n");
 }
 
-function basisHeaderFailures(): string[] {
-  const reportingDir = join(REPO_ROOT, "packages", "shared", "src", "reporting");
-  const serverDir = join(REPO_ROOT, "packages", "server", "src");
+function basisHeaderFailures(repoRoot: string): string[] {
+  const reportingDir = join(repoRoot, "packages", "shared", "src", "reporting");
+  const serverDir = join(repoRoot, "packages", "server", "src");
   return [...listFiles(reportingDir, [".ts"]), ...listFiles(serverDir, [".ts"])]
     .filter(
       (file) =>
@@ -139,15 +152,16 @@ function basisHeaderFailures(): string[] {
           .slice(0, 500)
           .match(/根拠:[\s\S]*(REQ|SPEC-INT|AC|ADR)-\d{3,4}/),
     )
-    .map((file) => file.replace(`${REPO_ROOT}/`, ""));
+    .map((file) => file.replace(`${repoRoot}/`, ""));
 }
 
-function adrReferenceFailures(): string[] {
-  const adrDir = join(REPO_ROOT, "docs", "adr");
+function adrReferenceFailures(repoRoot: string): string[] {
+  const adrDir = join(repoRoot, "docs", "adr");
+  const generatedOutputDir = resolve(repoRoot, "packages", "traceability", "output");
   const files = [
-    ...listFiles(join(REPO_ROOT, "packages"), [".ts", ".md"]),
-    ...listFiles(join(REPO_ROOT, "docs"), [".md"]),
-  ];
+    ...listFiles(join(repoRoot, "packages"), [".ts", ".md"]),
+    ...listFiles(join(repoRoot, "docs"), [".md"]),
+  ].filter((file) => !resolve(file).startsWith(`${generatedOutputDir}${sep}`));
   const refs = new Set<string>();
   for (const file of files) {
     for (const match of readFileSync(file, "utf8").matchAll(/ADR-(\d{4})/g)) refs.add(match[1]!);
@@ -158,15 +172,32 @@ function adrReferenceFailures(): string[] {
     .map((id) => `ADR-${id}`);
 }
 
-async function main(): Promise<void> {
-  const prjopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "prjops.json"));
-  const devopsIndex = loadSpecIndex(join(__dirname, "..", "spec-ids", "devops.json"));
+export interface TraceabilityCliOptions {
+  repoRoot?: string;
+  writeOutput?: boolean;
+  now?: Date;
+  stdout?: (line: string) => void;
+  stderr?: (line: string) => void;
+}
 
-  const sharedDir = join(REPO_ROOT, "packages", "shared");
-  const prjopsDir = join(REPO_ROOT, "packages", "prjops");
-  const devopsDir = join(REPO_ROOT, "packages", "devops");
-  const serverDir = join(REPO_ROOT, "packages", "server");
-  const webDir = join(REPO_ROOT, "packages", "web");
+export interface TraceabilityRunResult {
+  report: string;
+  failures: string[];
+  exitCode: 0 | 1;
+  errorMessage?: string;
+}
+
+export async function runTraceability(options: TraceabilityCliOptions = {}): Promise<TraceabilityRunResult> {
+  const repoRoot = options.repoRoot ?? REPO_ROOT;
+  const specIdsDir = join(repoRoot, "packages", "traceability", "spec-ids");
+  const prjopsIndex = loadSpecIndex(join(specIdsDir, "prjops.json"));
+  const devopsIndex = loadSpecIndex(join(specIdsDir, "devops.json"));
+
+  const sharedDir = join(repoRoot, "packages", "shared");
+  const prjopsDir = join(repoRoot, "packages", "prjops");
+  const devopsDir = join(repoRoot, "packages", "devops");
+  const serverDir = join(repoRoot, "packages", "server");
+  const webDir = join(repoRoot, "packages", "web");
 
   const prjopsCorpus = buildCorpus([sharedDir, prjopsDir, serverDir, webDir]);
   const devopsCorpus = buildCorpus([sharedDir, devopsDir, serverDir, webDir]);
@@ -194,7 +225,7 @@ async function main(): Promise<void> {
     [
       "# トレーサビリティ検証結果",
       "",
-      `生成日時: ${new Date().toISOString()}`,
+      `生成日時: ${(options.now ?? new Date()).toISOString()}`,
       "",
       "凡例: 「実装参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。",
       "「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。",
@@ -206,33 +237,37 @@ async function main(): Promise<void> {
       "",
       "## Traceability Guards",
       "",
-      `- 根拠ヘッダ不足: ${basisHeaderFailures().join(", ") || "—"}`,
-      `- 存在しないADR参照: ${adrReferenceFailures().join(", ") || "—"}`,
+      `- 根拠ヘッダ不足: ${basisHeaderFailures(repoRoot).join(", ") || "—"}`,
+      `- 存在しないADR参照: ${adrReferenceFailures(repoRoot).join(", ") || "—"}`,
       "",
     ].join("\n"),
     { parser: "markdown" },
   );
 
-  const outDir = join(__dirname, "..", "output");
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(join(outDir, "traceability_matrix.md"), report, "utf8");
-  console.log(report);
-
-  const mandatoryCategories = [...prjopsResults, ...devopsResults].filter((r) =>
-    ["REQ", "SPEC-INT", "TH"].includes(r.category),
-  );
-  const hardFailures = mandatoryCategories.flatMap((r) => r.missingFromSrc);
-  const guardFailures = [
-    ...basisHeaderFailures().map((file) => `basis header missing: ${file}`),
-    ...adrReferenceFailures().map((id) => `ADR reference missing file: ${id}`),
-  ];
-
-  if (hardFailures.length > 0 || guardFailures.length > 0) {
-    console.error(`\nE-TRACE01: トレーサビリティ検証に失敗しました: ${[...hardFailures, ...guardFailures].join(", ")}`);
-    process.exitCode = 1;
-  } else {
-    console.log("\nOK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。");
+  if (options.writeOutput !== false) {
+    const outDir = join(repoRoot, "packages", "traceability", "output");
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, "traceability_matrix.md"), report, "utf8");
   }
+
+  const failures = collectFailureMessages(
+    [...prjopsResults, ...devopsResults],
+    basisHeaderFailures(repoRoot),
+    adrReferenceFailures(repoRoot),
+  );
+  const errorMessage =
+    failures.length > 0 ? `E-TRACE01: トレーサビリティ検証に失敗しました: ${failures.join(", ")}` : undefined;
+  return { report, failures, exitCode: errorMessage ? 1 : 0, errorMessage };
 }
 
-await main();
+export async function runTraceabilityCli(options: TraceabilityCliOptions = {}): Promise<number> {
+  const result = await runTraceability(options);
+  (options.stdout ?? console.log)(result.report);
+  if (result.errorMessage) (options.stderr ?? console.error)(`\n${result.errorMessage}`);
+  else (options.stdout ?? console.log)("\nOK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。");
+  return result.exitCode;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = await runTraceabilityCli();
+}

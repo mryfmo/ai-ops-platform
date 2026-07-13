@@ -89,8 +89,9 @@ mise run ci                  # 上記をCIと同順序で一括実行
 
 ## 4. 検証について（要点）
 
-- **750件のユニットテストを実際に実行し、全件合格を確認済み**（決定的ロジック・テンプレート・
-  クライアント層・一部エージェント層）。
+- 現行テストスイートの合否と件数は、固定値を本文へ転記せず `mise run ci` の出力を正とする。
+  過去スナップショットとの範囲差および最新の検証証跡は
+  [`verification/VERIFICATION_REPORT.md`](./verification/VERIFICATION_REPORT.md) に記録している。
 - Phase V では Web を `next build` + `next start` で実起動し、`/app/login` と `/app/api/health`
   の実HTTP 200、未認証時の `/app/dashboard` 307、`/app/api/data/*` と `/app/api/chat` の 401 を確認した。
   認証済みダッシュボード、実DB、実LLM、GitHub/Teams webhook は実環境必須であり、ローカルのモックや
