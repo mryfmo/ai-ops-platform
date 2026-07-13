@@ -55,7 +55,7 @@ importers:
         version: link:../shared
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.0
-        version: 0.1.77(zod@3.25.76)
+        version: 0.1.77(zod@4.4.3)
       '@anthropic-ai/sdk':
         specifier: ^0.32.1
         version: 0.32.1
@@ -63,8 +63,8 @@ importers:
         specifier: ^8.13.0
         version: 8.22.0
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       tsx:
         specifier: ^4.19.1
@@ -91,8 +91,8 @@ importers:
         specifier: ^2.6.0
         version: 2.9.0
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -166,7 +166,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.0
-        version: 0.1.77(zod@3.25.76)
+        version: 0.1.77(zod@4.4.3)
       '@anthropic-ai/sdk':
         specifier: ^0.32.1
         version: 0.32.1
@@ -177,8 +177,8 @@ importers:
         specifier: ^2.6.0
         version: 2.9.0
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -3888,9 +3888,6 @@ packages:
     resolution: {integrity: sha512-9qv4rlDiopXg4E69k+vMHjNN63YFMe9sZMrdlvKnCjlCRWeCBswPPMPUfx+ipsAWq1LXHe70RcbaHdJJpS6hyQ==}
     engines: {node: '>= 10'}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -3932,9 +3929,9 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@anthropic-ai/claude-agent-sdk@0.1.77(zod@3.25.76)':
+  '@anthropic-ai/claude-agent-sdk@0.1.77(zod@4.4.3)':
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.33.5
       '@img/sharp-darwin-x64': 0.33.5
@@ -7478,7 +7475,5 @@ snapshots:
       archiver-utils: 3.0.4
       compress-commons: 4.1.2
       readable-stream: 3.6.2
-
-  zod@3.25.76: {}
 
   zod@4.4.3: {}
