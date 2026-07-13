@@ -116,7 +116,7 @@ export async function distributeOne(
             detail: { reportId: target.reportId, recipientId: target.recipientId, error: String(err) },
             at: new Date().toISOString(),
           });
-          if (!sentSomething) throw err;
+          throw err;
         }
       }
     }

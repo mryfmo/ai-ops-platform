@@ -61,6 +61,8 @@ const configSchema = z.object({
     .enum(["true", "false", "1", "0"])
     .default("false")
     .transform((v) => v === "true" || v === "1"),
+  /** AUD-OPM-009: 配信サイクル成功を外部 dead man's switch へ通知するURL。未設定時はno-op。 */
+  HEARTBEAT_URL: z.string().url().optional(),
   /** ADR-0014: report-generation.yml -> /reports/ingest HMAC鍵。未設定時はingest disabled。 */
   REPORT_INGEST_SECRET: z.string().min(32).optional(),
   /** ADR-0008: /xlsx-import/* HMAC鍵。未設定時はxlsx import disabled。 */

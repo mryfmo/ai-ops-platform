@@ -94,11 +94,17 @@ describe("loadConfig (ADR-0005)", () => {
       REPORT_DELIVERY_ENABLED: "true",
       FROM_MAILBOX: "reports@example.com",
       REPORT_INGEST_SECRET: "report-ingest-secret-of-at-least-32-chars",
+      HEARTBEAT_URL: "https://heartbeat.example.com/report-delivery",
       DEFAULT_TEAMS_TEAM_ID: "team-1",
       DEFAULT_TEAMS_CHANNEL_ID: "channel-1",
     });
     expect(config.REPORT_DELIVERY_ENABLED).toBe(true);
     expect(config.FROM_MAILBOX).toBe("reports@example.com");
+    expect(config.HEARTBEAT_URL).toBe("https://heartbeat.example.com/report-delivery");
     expect(config.DEFAULT_TEAMS_CHANNEL_ID).toBe("channel-1");
+  });
+
+  it("ADR-0005 AUD-OPM-009: HEARTBEAT_URLがURL形式でなければE-CFG01", () => {
+    expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: "not-a-url" })).toThrow("E-CFG01");
   });
 });

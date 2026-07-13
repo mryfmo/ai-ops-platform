@@ -376,6 +376,7 @@ export async function main(
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog,
             traceIdProvider: () => randomUUID(),
+            heartbeatUrl: config.HEARTBEAT_URL,
             logger,
             metrics,
           }),

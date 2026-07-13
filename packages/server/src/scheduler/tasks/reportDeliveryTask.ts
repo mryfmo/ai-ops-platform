@@ -39,6 +39,9 @@ export interface ReportDeliveryTaskDeps {
   deliveryLogStore: DeliveryLogStore;
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
+  heartbeatUrl?: string;
+  heartbeatTimeoutMs?: number;
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
   intervalMs?: number;
   logger?: Logger;
   metrics?: MetricsRegistry;
@@ -145,6 +148,7 @@ export async function deliverStandardReportToRecipients(
   const activeRecords = devopsActiveRecords(recipients);
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
   const targets: DeliveryTarget[] = [];
+  let targetFailures = 0;
   for (const recipient of activeRecipients) {
     const persona = recipient.persona ?? recipient.profile;
     const teamsChannelId = recipient.teamsChannelId ?? deps.defaultTeamsChannelId;
@@ -165,6 +169,7 @@ export async function deliverStandardReportToRecipients(
           detail: { recipientId: recipient.userId, reason: String(err) },
           at: new Date().toISOString(),
         });
+        targetFailures += 1;
         continue;
       }
     }
@@ -188,15 +193,15 @@ export async function deliverStandardReportToRecipients(
   });
   deps.metrics?.recordDelivery("sent", result.sent.length);
   deps.metrics?.recordDelivery("skipped", result.skipped.length);
-  deps.metrics?.recordDelivery("failed", result.failed.length);
+  deps.metrics?.recordDelivery("failed", result.failed.length + targetFailures);
   logger?.info(
-    { sent: result.sent.length, skipped: result.skipped.length, failed: result.failed.length },
+    { sent: result.sent.length, skipped: result.skipped.length, failed: result.failed.length + targetFailures },
     "report delivery completed",
   );
   return {
     sent: result.sent.length,
     skipped: result.skipped.length,
-    failed: result.failed.length,
+    failed: result.failed.length + targetFailures,
     activeRecipients: activeRecipients.length,
   };
 }
@@ -241,11 +246,24 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "AGT-05",
-        action: "report_delivery_cycle_completed",
+        action: failed === 0 ? "report_delivery_cycle_completed" : "report_delivery_cycle_failed",
         basis: "REQ-042 SPEC-INT-069 AC-042-1",
         detail: { sent, skipped, failed },
         at,
       });
+
+      if (deps.heartbeatUrl && failed === 0) {
+        let response: Response;
+        try {
+          response = await (deps.fetchImpl ?? fetch)(deps.heartbeatUrl, {
+            method: "GET",
+            signal: AbortSignal.timeout(deps.heartbeatTimeoutMs ?? 10_000),
+          });
+        } catch {
+          throw new Error("heartbeat request failed");
+        }
+        if (!response.ok) throw new Error(`heartbeat failed: HTTP ${response.status}`);
+      }
     },
   };
 }
