@@ -54,7 +54,7 @@ describe("GitHubClient.listPullRequests (ADR-0005)", () => {
 
   it("失敗時はE-GHR01例外", async () => {
     const fetchImpl: GhFetchLike = async () => jsonResponse({}, 500);
-    const client = new GitHubClient(tokenProvider, fetchImpl);
+    const client = new GitHubClient(tokenProvider, fetchImpl, undefined, { retry: { maxRetries: 0 } });
     await expect(client.listPullRequests("acme", "repo")).rejects.toThrow("E-GHR01");
   });
 });

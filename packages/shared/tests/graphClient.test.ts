@@ -65,6 +65,18 @@ describe("fetchWithBackoff [DevOps SPEC-INT-080]", () => {
     expect(call).toBe(1);
   });
 
+  it("GraphはRetry-After付き403を再試行しない", async () => {
+    let calls = 0;
+    const res = await fetchWithBackoff(
+      async () => ((calls += 1), new Response("", { status: 403, headers: { "Retry-After": "1" } })),
+      "https://graph.microsoft.com/v1.0/me",
+      { method: "GET" },
+      { sleep: async () => {} },
+    );
+    expect(res.status).toBe(403);
+    expect(calls).toBe(1);
+  });
+
   it("non-idempotent POSTは500を再送しない", async () => {
     let calls = 0;
     const res = await fetchWithBackoff(

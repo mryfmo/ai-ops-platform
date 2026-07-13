@@ -192,7 +192,7 @@ export async function main(
   // ANTHROPIC_API_KEY未設定時はTeams自由文フォールバックを無効化する（config.tsのコメント通り）
   const llmClient = config.ANTHROPIC_API_KEY
     ? new AnthropicStructuredClient(
-        new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }),
+        new Anthropic({ apiKey: config.ANTHROPIC_API_KEY, timeout: 600_000, maxRetries: 2 }),
         new PgCostGuard(pool, { perAgentDailyLimitUsd: { SERVER: 10 }, perAgentRequestLimitUsd: { SERVER: 1 } }),
       )
     : undefined;

@@ -48,6 +48,7 @@ export interface ChatHandlerDeps {
   thinkingBudgetTokens?: number;
   /** costGuard.record()のコスト見積もりに使うモデル名（route.tsのCHAT_MODELと一致させる） */
   modelName?: string;
+  maxRetries?: number;
 }
 
 function sanitizeText(value: unknown): string | undefined {
@@ -152,6 +153,7 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
       messages: convertToModelMessages(sanitizedMessages),
       tools,
       stopWhen: stepCountIs(deps.maxSteps ?? DEFAULT_PAGE_AGENT_MAX_STEPS),
+      maxRetries: deps.maxRetries ?? 2,
       providerOptions: {
         anthropic: {
           thinking: {

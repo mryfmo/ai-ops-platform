@@ -18,6 +18,7 @@
  * タイミング攻撃対策済みの定数時間比較（crypto.timingSafeEqual）で検証する。
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { fetchWithBackoff, withTimeout, type RetryOptions } from "./fetchPolicy.js";
 
 export interface GitHubTokenProvider {
   getInstallationToken(): Promise<string>;
@@ -109,11 +110,24 @@ export interface ProjectV2SnapshotPage {
 }
 
 export class GitHubClient {
+  private readonly fetchImpl: GhFetchLike;
+  private readonly retryOptions: RetryOptions;
+
   constructor(
     private readonly tokenProvider: GitHubTokenProvider,
-    private readonly fetchImpl: GhFetchLike = fetch,
+    fetchImpl: GhFetchLike = fetch,
     private readonly baseUrl: string = "https://api.github.com",
-  ) {}
+    options: { retry?: RetryOptions; timeoutMs?: number } = {},
+  ) {
+    this.fetchImpl = withTimeout(fetchImpl, options.timeoutMs ?? 30_000);
+    this.retryOptions = { ...options.retry, retryForbiddenWithRetryAfter: true };
+  }
+
+  private fetch(url: string, init: RequestInit): Promise<Response> {
+    const method = init.method?.toUpperCase() ?? "GET";
+    const policy = ["POST", "PATCH", "PUT", "DELETE"].includes(method) ? "non-idempotent" : "idempotent";
+    return fetchWithBackoff(this.fetchImpl, url, init, this.retryOptions, policy);
+  }
 
   private async headers(): Promise<Record<string, string>> {
     const token = await this.tokenProvider.getInstallationToken();
@@ -128,7 +142,7 @@ export class GitHubClient {
   /** SPEC-EXT-001 ビルド失敗PRコメント / SPEC-EXT-015 インシデントIssue本文への追記等 */
   async createIssueComment(input: CreateIssueCommentInput): Promise<void> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(
+    const res = await this.fetch(
       `${this.baseUrl}/repos/${input.owner}/${input.repo}/issues/${input.issueOrPrNumber}/comments`,
       { method: "POST", headers, body: JSON.stringify({ body: input.body }) },
     );
@@ -138,7 +152,7 @@ export class GitHubClient {
   /** SPEC-EXT-015 インシデントIssue起票（[SevN][プロジェクトID] 事象概要, ラベル: incident/sevN/auto-triaged） */
   async createIssue(input: CreateIssueInput): Promise<{ number: number; htmlUrl: string }> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${input.owner}/${input.repo}/issues`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${input.owner}/${input.repo}/issues`, {
       method: "POST",
       headers,
       body: JSON.stringify({ title: input.title, body: input.body, labels: input.labels, milestone: input.milestone }),
@@ -151,7 +165,7 @@ export class GitHubClient {
   /** REQ-037 / SPEC-INT-063: ExcelインポートからMilestoneを作成する。 */
   async createMilestone(input: CreateMilestoneInput): Promise<{ number: number; htmlUrl: string; nodeId?: string }> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${input.owner}/${input.repo}/milestones`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${input.owner}/${input.repo}/milestones`, {
       method: "POST",
       headers,
       body: JSON.stringify({ title: input.title, due_on: input.dueOn, description: input.description }),
@@ -163,7 +177,7 @@ export class GitHubClient {
 
   async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/graphql`, {
+    const res = await this.fetch(`${this.baseUrl}/graphql`, {
       method: "POST",
       headers,
       body: JSON.stringify({ query, variables }),
@@ -275,7 +289,7 @@ export class GitHubClient {
    */
   async dispatchWorkflow(input: WorkflowDispatchInput): Promise<void> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(
+    const res = await this.fetch(
       `${this.baseUrl}/repos/${input.owner}/${input.repo}/actions/workflows/${input.workflowIdOrFileName}/dispatches`,
       { method: "POST", headers, body: JSON.stringify({ ref: input.ref, inputs: input.inputs }) },
     );
@@ -285,7 +299,7 @@ export class GitHubClient {
   /** 失敗ジョブのログ取得（SPEC-INT-011 手順2。最大1MB、超過分は末尾優先で切り詰め） */
   async getWorkflowJobLog(owner: string, repo: string, jobId: number): Promise<string> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${repo}/actions/jobs/${jobId}/logs`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/actions/jobs/${jobId}/logs`, {
       method: "GET",
       headers,
     });
@@ -305,7 +319,7 @@ export class GitHubClient {
     permission: "pull" | "push" | "maintain" | "admin",
   ): Promise<void> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${repo}/collaborators/${username}`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/collaborators/${username}`, {
       method: "PUT",
       headers,
       body: JSON.stringify({ permission }),
@@ -315,7 +329,7 @@ export class GitHubClient {
 
   async removeCollaborator(owner: string, repo: string, username: string): Promise<void> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${repo}/collaborators/${username}`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/collaborators/${username}`, {
       method: "DELETE",
       headers,
     });
@@ -330,7 +344,7 @@ export class GitHubClient {
   ): Promise<PullRequestSummary[]> {
     const headers = await this.headers();
     const params = new URLSearchParams({ state: opts.state ?? "open", per_page: String(opts.perPage ?? 30) });
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${repo}/pulls?${params}`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/pulls?${params}`, {
       method: "GET",
       headers,
     });
@@ -342,7 +356,7 @@ export class GitHubClient {
   /** PR詳細取得（マージ可否・head/base情報を含む） */
   async getPullRequest(owner: string, repo: string, number: number): Promise<PullRequestDetail> {
     const headers = await this.headers();
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${repo}/pulls/${number}`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/pulls/${number}`, {
       method: "GET",
       headers,
     });
@@ -368,7 +382,7 @@ export class GitHubClient {
     const headers = await this.headers();
     const params = new URLSearchParams({ state: opts.state ?? "open", per_page: String(opts.perPage ?? 30) });
     if (opts.labels?.length) params.set("labels", opts.labels.join(","));
-    const res = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${repo}/issues?${params}`, {
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/issues?${params}`, {
       method: "GET",
       headers,
     });

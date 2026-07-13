@@ -13,7 +13,7 @@
 import pg from "pg";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { UIMessage } from "ai";
-import { PgCostGuard } from "@aiops/shared";
+import { PgCostGuard, withTimeout } from "@aiops/shared";
 import { auth } from "../../../auth";
 import { loadWebConfig } from "../../../server/config";
 import {
@@ -37,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
   );
 
   const languageModel = config.ANTHROPIC_API_KEY
-    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY })(CHAT_MODEL)
+    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY, fetch: withTimeout(fetch, 600_000) })(CHAT_MODEL)
     : undefined;
 
   const costGuard = new PgCostGuard(pool, {
@@ -57,5 +57,6 @@ export async function POST(request: Request): Promise<Response> {
     maxSteps: config.PAGE_AGENT_MAX_STEPS,
     thinkingBudgetTokens: config.PAGE_AGENT_THINKING_BUDGET_TOKENS,
     modelName: CHAT_MODEL,
+    maxRetries: 2,
   });
 }
