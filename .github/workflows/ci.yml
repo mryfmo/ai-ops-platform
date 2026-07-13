@@ -42,4 +42,4 @@ jobs:
           curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${asset}"
           echo "${GITLEAKS_LINUX_X64_SHA256}  ${asset}" | sha256sum -c -
           tar -xzf "${asset}" gitleaks
-          ./gitleaks detect --source . --redact --verbose
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --verbose
