@@ -11,6 +11,8 @@
  *   実運用では pg.Pool をそのまま渡せる（Pool.query は本インターフェースを構造的に満たす）。
  */
 import type { CostGuard, LlmUsageRecord } from "./anthropicClient.js";
+import { jstDayRange } from "../jst.js";
+export { jstDayRange } from "../jst.js";
 
 /**
  * pg.Pool / pg.Client と構造的に互換な最小クエリインターフェース。
@@ -37,17 +39,6 @@ export interface PgCostGuardOptions {
   perAgentDailyLimitUsd?: Record<string, number>;
   /** agent名ごとの1リクエスト上限USD。設定時は予約時に超過を拒否する */
   perAgentRequestLimitUsd?: Record<string, number>;
-}
-
-/** JSTの「本日」の開始・終了をUTC ISO文字列で返す（ASM-003: JST基準の日次リセット） */
-export function jstDayRange(now: Date): { startIso: string; endIso: string } {
-  const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-  const jst = new Date(now.getTime() + JST_OFFSET_MS);
-  const startJstMs = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - JST_OFFSET_MS;
-  return {
-    startIso: new Date(startJstMs).toISOString(),
-    endIso: new Date(startJstMs + 24 * 60 * 60 * 1000).toISOString(),
-  };
 }
 
 export class PgCostGuard implements CostGuard {
@@ -85,13 +76,20 @@ export class PgCostGuard implements CostGuard {
   }
 
   async record(usage: LlmUsageRecord): Promise<void> {
-    await this.db.query("INSERT INTO llm_usage (agent, purpose, model, cost_usd, at) VALUES ($1, $2, $3, $4, $5)", [
-      usage.agent,
-      usage.purpose,
-      usage.model,
-      usage.estimated_cost_usd,
-      usage.at,
-    ]);
+    await this.db.query(
+      `INSERT INTO llm_usage
+         (agent, purpose, model, cost_usd, cache_creation_input_tokens, cache_read_input_tokens, at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        usage.agent,
+        usage.purpose,
+        usage.model,
+        usage.estimated_cost_usd,
+        usage.cache_creation_input_tokens ?? 0,
+        usage.cache_read_input_tokens ?? 0,
+        usage.at,
+      ],
+    );
   }
 
   async reserve(usage: LlmUsageRecord): Promise<string> {
@@ -124,8 +122,9 @@ export class PgCostGuard implements CostGuard {
            FROM llm_usage
           WHERE agent = $3 AND at >= $1 AND at < $2
        )
-       INSERT INTO llm_usage (agent, purpose, model, cost_usd, at)
-       SELECT $3, $4, $5, $6, $7
+       INSERT INTO llm_usage
+         (agent, purpose, model, cost_usd, cache_creation_input_tokens, cache_read_input_tokens, at)
+       SELECT $3, $4, $5, $6, $10, $11, $7
          FROM total_spend, agent_spend
         WHERE (total_spend.total + $6) <= $8
           AND ($9::numeric IS NULL OR (agent_spend.total + $6) <= $9::numeric)
@@ -140,6 +139,8 @@ export class PgCostGuard implements CostGuard {
           usage.at,
           this.dailyLimitUsd,
           agentLimit,
+          usage.cache_creation_input_tokens ?? 0,
+          usage.cache_read_input_tokens ?? 0,
         ],
       );
       const usageId = res.rows[0]?.usage_id;
@@ -166,9 +167,19 @@ export class PgCostGuard implements CostGuard {
   async reconcileReservation(reservationId: string, usage: LlmUsageRecord): Promise<void> {
     await this.db.query(
       `UPDATE llm_usage
-          SET agent = $2, purpose = $3, model = $4, cost_usd = $5, at = $6
+          SET agent = $2, purpose = $3, model = $4, cost_usd = $5,
+              cache_creation_input_tokens = $6, cache_read_input_tokens = $7, at = $8
         WHERE usage_id = $1`,
-      [reservationId, usage.agent, usage.purpose, usage.model, usage.estimated_cost_usd, usage.at],
+      [
+        reservationId,
+        usage.agent,
+        usage.purpose,
+        usage.model,
+        usage.estimated_cost_usd,
+        usage.cache_creation_input_tokens ?? 0,
+        usage.cache_read_input_tokens ?? 0,
+        usage.at,
+      ],
     );
   }
 

@@ -369,6 +369,8 @@ CREATE TABLE IF NOT EXISTS llm_usage (
   purpose   TEXT NOT NULL,
   model     TEXT NOT NULL,
   cost_usd  NUMERIC(10, 6) NOT NULL CHECK (cost_usd >= 0),
+  cache_creation_input_tokens BIGINT NOT NULL DEFAULT 0 CHECK (cache_creation_input_tokens >= 0),
+  cache_read_input_tokens     BIGINT NOT NULL DEFAULT 0 CHECK (cache_read_input_tokens >= 0),
   at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_llm_usage_at ON llm_usage (at);

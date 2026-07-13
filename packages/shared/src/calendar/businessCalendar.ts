@@ -14,6 +14,7 @@
  *     日付演算はすべて Date.UTC を「タイムゾーン中立な日数カウンタ」として使う。
  */
 import { parse as parseYaml } from "yaml";
+import { toJstClock } from "../jst.js";
 
 export interface HolidayEntry {
   date: string; // YYYY-MM-DD (JST)
@@ -186,9 +187,7 @@ export function businessDaysBetween(cal: HolidayCalendar, startExclusive: string
 }
 
 export function todayJstDateString(now: Date = new Date()): string {
-  // JSTはUTC+9固定（サマータイムなし）
-  const jstMs = now.getTime() + 9 * 60 * 60 * 1000;
-  const jst = new Date(jstMs);
+  const jst = toJstClock(now);
   const y = jst.getUTCFullYear();
   const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const d = String(jst.getUTCDate()).padStart(2, "0");
@@ -196,8 +195,7 @@ export function todayJstDateString(now: Date = new Date()): string {
 }
 
 export function nowJstHHmm(now: Date = new Date()): string {
-  const jstMs = now.getTime() + 9 * 60 * 60 * 1000;
-  const jst = new Date(jstMs);
+  const jst = toJstClock(now);
   const h = String(jst.getUTCHours()).padStart(2, "0");
   const mi = String(jst.getUTCMinutes()).padStart(2, "0");
   return `${h}:${mi}`;

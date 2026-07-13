@@ -18,6 +18,7 @@
  * 出力は呼び出し側のzodスキーマで再検証してから使用する（二重検証によりE-ING03/LLM出力スキーマ不適合を防ぐ）。
  */
 import Anthropic from "@anthropic-ai/sdk";
+import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/beta/prompt-caching/messages";
 import { sanitizeForLlmInput } from "../secretSanitizer.js";
 
 export const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -30,6 +31,8 @@ export interface LlmUsageRecord {
   model: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
   estimated_cost_usd: number;
 }
 
@@ -83,9 +86,21 @@ const PRICING_USD_PER_MTOK: Record<string, { input: number; output: number }> = 
   "claude-haiku-4-5-20251001": { input: 1, output: 5 },
 };
 
-export function estimateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+export function estimateCostUsd(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheCreationInputTokens = 0,
+  cacheReadInputTokens = 0,
+): number {
   const price = PRICING_USD_PER_MTOK[model] ?? PRICING_USD_PER_MTOK[DEFAULT_MODEL]!;
-  return (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
+  return (
+    (inputTokens * price.input +
+      cacheCreationInputTokens * price.input * 1.25 +
+      cacheReadInputTokens * price.input * 0.1 +
+      outputTokens * price.output) /
+    1_000_000
+  );
 }
 
 export class DailyCostLimitExceededError extends Error {
@@ -119,7 +134,12 @@ export interface StructuredCallResult<T> {
   value: T;
   model: string;
   attempts: number;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
 }
 
 export class AnthropicStructuredClient {
@@ -163,18 +183,22 @@ export class AnthropicStructuredClient {
           model: currentModel,
           max_tokens: 2048,
           ...(shouldSendTemperature(currentModel) ? { temperature: 0 } : {}),
-          system: opts.system,
+          system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
           messages: [{ role: "user", content: sanitizedUser }],
           tools: [
             {
               name: opts.toolName,
               description: opts.toolDescription,
               input_schema: opts.inputSchema as Anthropic.Tool.InputSchema,
+              cache_control: { type: "ephemeral" },
             },
           ],
           tool_choice: { type: "tool", name: opts.toolName },
-        } satisfies Anthropic.MessageCreateParamsNonStreaming;
-        const response = await this.client.messages.create(request);
+        } satisfies MessageCreateParamsNonStreaming;
+        const response = await this.client.beta.promptCaching.messages.create(request);
+
+        const cacheCreationInputTokens = response.usage.cache_creation_input_tokens ?? 0;
+        const cacheReadInputTokens = response.usage.cache_read_input_tokens ?? 0;
 
         const actualUsage = {
           at: new Date().toISOString(),
@@ -183,7 +207,15 @@ export class AnthropicStructuredClient {
           model: currentModel,
           input_tokens: response.usage.input_tokens,
           output_tokens: response.usage.output_tokens,
-          estimated_cost_usd: estimateCostUsd(currentModel, response.usage.input_tokens, response.usage.output_tokens),
+          cache_creation_input_tokens: cacheCreationInputTokens,
+          cache_read_input_tokens: cacheReadInputTokens,
+          estimated_cost_usd: estimateCostUsd(
+            currentModel,
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+            cacheCreationInputTokens,
+            cacheReadInputTokens,
+          ),
         };
         await this.costGuard.reconcileReservation(reservationId, actualUsage);
         reconciledActualUsage = true;
@@ -203,7 +235,12 @@ export class AnthropicStructuredClient {
           value,
           model: currentModel,
           attempts,
-          usage: { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens },
+          usage: {
+            input_tokens: response.usage.input_tokens,
+            output_tokens: response.usage.output_tokens,
+            cache_creation_input_tokens: cacheCreationInputTokens,
+            cache_read_input_tokens: cacheReadInputTokens,
+          },
         };
       } catch (err) {
         if (err instanceof AnthropicRefusalError || err instanceof DailyCostLimitExceededError) throw err;

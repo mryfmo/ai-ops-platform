@@ -10,6 +10,7 @@
  *   の2つを提供する。永続化されたカウンタ管理は呼び出し側（各エージェントの正本更新処理）が行う。
  */
 import { randomUUID } from "node:crypto";
+import { JST_UTC_LABEL, toJstClock } from "./jst.js";
 
 export const ID_PATTERNS = {
   // PrjOps
@@ -115,8 +116,7 @@ export function newTraceId(): string {
 
 /** ISO 8601 + JST オフセット表記（DOC-05 §8「内部保存はISO 8601＋タイムゾーン」） */
 export function nowIsoJst(now: Date = new Date()): string {
-  const jstMs = now.getTime() + 9 * 60 * 60 * 1000;
-  const jst = new Date(jstMs);
+  const jst = toJstClock(now);
   const y = jst.getUTCFullYear();
   const mo = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const d = String(jst.getUTCDate()).padStart(2, "0");
@@ -126,16 +126,15 @@ export function nowIsoJst(now: Date = new Date()): string {
   return `${y}-${mo}-${d}T${h}:${mi}:${s}+09:00`;
 }
 
-/** 外部向け日時表記（SPEC-EXT-027: "2026-07-06 08:00 JST (UTC+9)"） */
+/** 外部向け日時表記（SPEC-EXT-027: JST時刻とUTCオフセットを明示） */
 export function formatExternalDateTime(now: Date = new Date()): string {
-  const jstMs = now.getTime() + 9 * 60 * 60 * 1000;
-  const jst = new Date(jstMs);
+  const jst = toJstClock(now);
   const y = jst.getUTCFullYear();
   const mo = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const d = String(jst.getUTCDate()).padStart(2, "0");
   const h = String(jst.getUTCHours()).padStart(2, "0");
   const mi = String(jst.getUTCMinutes()).padStart(2, "0");
-  return `${y}-${mo}-${d} ${h}:${mi} JST (UTC+9)`;
+  return `${y}-${mo}-${d} ${h}:${mi} JST (${JST_UTC_LABEL})`;
 }
 
 /** ISO週番号（月曜始まり、ISO 8601）を返す。status_updateのID生成（period.start基準）に使用。 */

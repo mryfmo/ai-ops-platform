@@ -207,6 +207,8 @@ describe("PgCostGuard (SPEC-INT-060)", () => {
       model: "claude-sonnet-4-6",
       input_tokens: 10,
       output_tokens: 5,
+      cache_creation_input_tokens: 120,
+      cache_read_input_tokens: 80,
       estimated_cost_usd: 0.000105,
     });
 
@@ -217,6 +219,8 @@ describe("PgCostGuard (SPEC-INT-060)", () => {
       "view_switching",
       "claude-sonnet-4-6",
       0.000105,
+      120,
+      80,
       "2026-07-07T01:00:05Z",
     ]);
   });
