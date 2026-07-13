@@ -18,20 +18,20 @@
     "@aiops/devops": "workspace:*",
     "@aiops/prjops": "workspace:*",
     "@aiops/shared": "workspace:*",
-    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/sdk": "^0.111.0",
     "@azure/msal-node": "5.4.0",
-    "@hono/node-server": "^1.13.7",
+    "@hono/node-server": "^2.0.8",
     "@opentelemetry/auto-instrumentations-node": "^0.78.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
     "@opentelemetry/sdk-node": "^0.220.0",
-    "hono": "^4.6.14",
+    "hono": "^4.12.30",
     "pg": "^8.13.0",
     "pino": "^10.3.1",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.4"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

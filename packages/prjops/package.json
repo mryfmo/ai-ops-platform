@@ -14,12 +14,12 @@
   },
   "dependencies": {
     "@aiops/shared": "workspace:*",
-    "@anthropic-ai/sdk": "^0.32.1",
-    "zod": "^3.23.8",
+    "@anthropic-ai/sdk": "^0.111.0",
+    "zod": "^4.4.3",
     "yaml": "^2.6.0"
   },
   "devDependencies": {
-    "vitest": "^2.1.4",
-    "typescript": "^5.6.3"
+    "vitest": "^4.1.10",
+    "typescript": "^7.0.2"
   }
 }
