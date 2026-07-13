@@ -41,6 +41,9 @@ export interface ReportDeliveryTaskDeps {
   deliveryLogStore: DeliveryLogStore;
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
+  heartbeatUrl?: string;
+  heartbeatTimeoutMs?: number;
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
   intervalMs?: number;
   logger?: Logger;
   metrics?: MetricsRegistry;
@@ -166,6 +169,7 @@ export async function deliverStandardReportToRecipients(
   const targets: DeliveryTarget[] = [];
   let invalidRecipientCount = 0;
   let defaultTeamsCardAssigned = false;
+  let targetFailures = 0;
   for (const recipient of activeRecipients) {
     if (!isSafeRecipientId(recipient.userId)) {
       invalidRecipientCount += 1;
@@ -206,6 +210,7 @@ export async function deliverStandardReportToRecipients(
           detail: { recipientId: recipient.userId, reason: "invalid_dashboard_url" },
           at: new Date().toISOString(),
         });
+        targetFailures += 1;
         continue;
       }
     }
@@ -246,13 +251,14 @@ export async function deliverStandardReportToRecipients(
   });
   deps.metrics?.recordDelivery("sent", result.sent.length);
   const skipped = result.skipped.length + invalidRecipientCount;
+  const failed = result.failed.length + targetFailures;
   deps.metrics?.recordDelivery("skipped", skipped);
-  deps.metrics?.recordDelivery("failed", result.failed.length);
-  logger?.info({ sent: result.sent.length, skipped, failed: result.failed.length }, "report delivery completed");
+  deps.metrics?.recordDelivery("failed", failed);
+  logger?.info({ sent: result.sent.length, skipped, failed }, "report delivery completed");
   return {
     sent: result.sent.length,
     skipped,
-    failed: result.failed.length,
+    failed,
     activeRecipients: activeRecipients.length,
   };
 }
@@ -297,11 +303,24 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "AGT-05",
-        action: "report_delivery_cycle_completed",
+        action: failed === 0 ? "report_delivery_cycle_completed" : "report_delivery_cycle_failed",
         basis: "REQ-042 SPEC-INT-069 AC-042-1",
         detail: { sent, skipped, failed },
         at,
       });
+
+      if (deps.heartbeatUrl && failed === 0) {
+        let response: Response;
+        try {
+          response = await (deps.fetchImpl ?? fetch)(deps.heartbeatUrl, {
+            method: "GET",
+            signal: AbortSignal.timeout(deps.heartbeatTimeoutMs ?? 10_000),
+          });
+        } catch {
+          throw new Error("heartbeat request failed");
+        }
+        if (!response.ok) throw new Error(`heartbeat failed: HTTP ${response.status}`);
+      }
     },
   };
 }

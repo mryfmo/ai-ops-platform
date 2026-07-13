@@ -83,7 +83,7 @@ describe("distributeOne [REQ-018, SPEC-INT-052]", () => {
     expect(cardCounter.count).toBe(1);
   });
 
-  it("メール成功後のカード失敗はメール失敗扱いにせず、次回カードだけ再試行する", async () => {
+  it("メール成功後のカード失敗は部分失敗として伝播し、次回カードだけ再試行する", async () => {
     const sentMails: Array<{ subject: string }> = [];
     let cardCalls = 0;
     const deps: DistributorDependencies = {
@@ -103,7 +103,7 @@ describe("distributeOne [REQ-018, SPEC-INT-052]", () => {
       fromMailbox: "prjops-system@example.com",
     };
 
-    await expect(distributeOne(baseTarget, deps)).resolves.toBe("sent");
+    await expect(distributeOne(baseTarget, deps)).rejects.toThrow("card down");
     await expect(distributeOne(baseTarget, deps)).resolves.toBe("sent");
     expect(sentMails).toHaveLength(1);
     expect(cardCalls).toBe(2);

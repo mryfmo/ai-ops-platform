@@ -403,6 +403,7 @@ export async function main(
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
+            heartbeatUrl: config.HEARTBEAT_URL,
             logger,
             metrics,
           }),
