@@ -13,7 +13,14 @@ import { runTraceabilityCli } from "../src/verifyTraceability.js";
 const fixtures: string[] = [];
 const missingAdr = (number: number): string => `ADR-${number}`;
 
-function fixture(prjopsReqs: string[] = []): string {
+interface FixtureOptions {
+  prjopsReqs?: string[];
+  devopsReqs?: string[];
+  sourceText?: string;
+}
+
+function fixture(options: FixtureOptions | string[] = {}): string {
+  const normalized: FixtureOptions = Array.isArray(options) ? { prjopsReqs: options } : options;
   const root = mkdtempSync(join(tmpdir(), "aiops-traceability-"));
   fixtures.push(root);
   for (const dir of [
@@ -30,9 +37,15 @@ function fixture(prjopsReqs: string[] = []): string {
   }
   writeFileSync(
     join(root, "packages/traceability/spec-ids/prjops.json"),
-    JSON.stringify({ system: "PrjOps", REQ: prjopsReqs }),
+    JSON.stringify({ system: "PrjOps", REQ: normalized.prjopsReqs ?? [] }),
   );
-  writeFileSync(join(root, "packages/traceability/spec-ids/devops.json"), JSON.stringify({ system: "DevOps" }));
+  writeFileSync(
+    join(root, "packages/traceability/spec-ids/devops.json"),
+    JSON.stringify({ system: "DevOps", REQ: normalized.devopsReqs ?? [] }),
+  );
+  if (normalized.sourceText !== undefined) {
+    writeFileSync(join(root, "packages/shared/src/references.ts"), normalized.sourceText);
+  }
   writeFileSync(join(root, "docs/adr/0004-toolchain.md"), "# ADR-0004\n");
   return root;
 }
@@ -80,5 +93,69 @@ describe("traceability CLI negative paths [ADR-0004 / AUD-VER-007]", () => {
     const result = await runFailure(root);
     expect(result.stderr).not.toContain(ignoredId);
     expect(result.stderr).toContain(detectedId);
+  });
+});
+
+describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", () => {
+  it("rejects one bare colliding ID as evidence for both systems [PrjOps:AC-043-1 / DevOps:AC-033a]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      devopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("REQ-001");
+  });
+
+  it("does not let a DevOps reference satisfy the PrjOps catalog [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      devopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: DevOps:REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("PrjOps:REQ-001");
+  });
+
+  it("rejects a malformed namespace instead of accepting its bare suffix [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps :REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("PrjOps :REQ-001");
+  });
+
+  it("accepts explicit references to the same ID in both systems [PrjOps:AC-043-1 / DevOps:AC-033a]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      devopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 / DevOps:REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("rejects a canonical reference absent from its system catalog [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      sourceText: "/** 根拠: PrjOps:REQ-999 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("PrjOps:REQ-999");
   });
 });
