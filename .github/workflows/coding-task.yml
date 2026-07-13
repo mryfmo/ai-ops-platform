@@ -65,6 +65,7 @@ jobs:
   run-coding-task:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency: coding-task-${{ inputs.task_id }}
     steps:
       - name: Require CI-triggering PR token
         env:
