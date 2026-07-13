@@ -16,7 +16,7 @@
  * コードによる機械的除去を必須の層として置く。
  */
 
-interface SecretPattern {
+export interface SecretPattern {
   name: string;
   regex: RegExp;
 }
@@ -42,33 +42,57 @@ export interface SanitizeResult {
   sanitized: string;
   redactionCount: number;
   matchedPatterns: string[];
+  warnings: string[];
 }
 
+export interface SanitizeOptions {
+  additionalPatterns?: readonly SecretPattern[];
+  maskSuspiciousSequences?: boolean;
+}
+
+const SUSPICIOUS_SEQUENCE_PATTERNS: SecretPattern[] = [
+  { name: "suspicious_hex", regex: /[A-Fa-f0-9]{32,}/g },
+  { name: "suspicious_base64", regex: /[A-Za-z0-9+/]{32,}={0,2}/g },
+];
+const SUSPICIOUS_SEQUENCE_NAMES = new Set(SUSPICIOUS_SEQUENCE_PATTERNS.map(({ name }) => name));
+
 /** テキスト中の既知シークレットパターンを "***REDACTED:<pattern>***" に置換する。 */
-export function sanitizeSecrets(input: string): SanitizeResult {
+export function sanitizeSecrets(input: string, options: SanitizeOptions = {}): SanitizeResult {
   let sanitized = input;
   let redactionCount = 0;
   const matchedPatterns = new Set<string>();
+  const warnings = new Set<string>();
+  const patterns = [
+    ...SECRET_PATTERNS,
+    ...(options.additionalPatterns ?? []),
+    ...(options.maskSuspiciousSequences ? SUSPICIOUS_SEQUENCE_PATTERNS : []),
+  ];
 
-  for (const { name, regex } of SECRET_PATTERNS) {
+  for (const { name, regex } of patterns) {
     sanitized = sanitized.replace(regex, () => {
       redactionCount += 1;
       matchedPatterns.add(name);
+      if (SUSPICIOUS_SEQUENCE_NAMES.has(name)) warnings.add(name);
       return `***REDACTED:${name}***`;
     });
   }
 
-  return { sanitized, redactionCount, matchedPatterns: [...matchedPatterns] };
+  return { sanitized, redactionCount, matchedPatterns: [...matchedPatterns], warnings: [...warnings] };
 }
 
 /** LLMへ渡す前の入力に対する必須ゲート。REDACTしても検知件数を返すため、呼び出し側で監査ログに記録できる。 */
-export function sanitizeForLlmInput(input: string): SanitizeResult {
-  return sanitizeSecrets(input);
+export function sanitizeForLlmInput(input: string, options: SanitizeOptions = {}): SanitizeResult {
+  return sanitizeSecrets(input, options);
 }
 
 /** 出力（PRコメント・レポート・ログ）に対する最終防御チェック。true=クリーン。 */
-export function isFreeOfKnownSecrets(text: string): boolean {
-  return SECRET_PATTERNS.every(({ regex }) => {
+export function isFreeOfKnownSecrets(text: string, options: SanitizeOptions = {}): boolean {
+  const patterns = [
+    ...SECRET_PATTERNS,
+    ...(options.additionalPatterns ?? []),
+    ...(options.maskSuspiciousSequences ? SUSPICIOUS_SEQUENCE_PATTERNS : []),
+  ];
+  return patterns.every(({ regex }) => {
     regex.lastIndex = 0;
     return !regex.test(text);
   });

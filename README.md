@@ -62,6 +62,18 @@ mise run traceability        # 仕様トレーサビリティ検証
 mise run ci                  # 上記をCIと同順序で一括実行
 ```
 
+### コミット前の秘密情報スキャン
+
+CI と同じ [gitleaks 8.30.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1) をインストールし、
+リポジトリ付属の Git hook を有効化する。
+
+```bash
+git config core.hooksPath .githooks
+gitleaks version # 8.30.1
+```
+
+以後のコミットでは、`.gitleaks.toml` を使った `gitleaks protect --staged` が自動実行される。
+
 実運用に必要な外部リソース（GitHub Organization、Microsoft 365テナント、Anthropic APIキー等）の
 一覧・概算費用は、元資料 `PrjOps DOC-06/07`・`DevOps DOC-DEV-05/OPS-06` を参照（本リポジトリには
 価格情報は含めていない。契約前に必ず一次情報で最新価格を再確認すること、と元資料にも明記されている）。
