@@ -14,17 +14,17 @@
  *   ペルソナに応じて公開されるtool（buildToolsForPersona参照）によりshowExecutiveSummary /
  *   showManagerSummary / listProjects を呼び分ける。
  *
- * DIの暫定実装（pg.Pool生成・InMemoryStakeholderMasterProvider・
+ * DIの暫定実装（共有pg.Pool取得・InMemoryStakeholderMasterProvider・
  * InMemoryPrjopsReportDataProvider）は既存の方式を踏襲する。
  * 残課題: PrjopsReportDataProviderの本番実装（prjops-dataリポジトリ連携）が無いため、
  * 現状は空データで暫定配線する（表示自体はゼロ件のセブンキー/マネージャーサマリになる）。
  */
 import { redirect } from "next/navigation";
-import pg from "pg";
 import { auth } from "../../auth";
 import { Card } from "../../components/ui/Card";
 import { DashboardClient } from "../../components/DashboardClient";
 import { loadWebConfig } from "../../server/config";
+import { getPool } from "../../server/db/pool";
 import {
   CompositePersonaResolver,
   DevopsPersonaSource,
@@ -52,7 +52,7 @@ export default async function DashboardPage() {
   }
 
   const config = loadWebConfig();
-  const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
+  const pool = getPool(config.DATABASE_URL);
   const resolver = new CompositePersonaResolver(
     new DevopsPersonaSource(pool),
     new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),

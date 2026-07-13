@@ -11,9 +11,9 @@
  * 残課題: PrjopsReportDataProviderの本番実装（prjops-dataリポジトリ連携）が無いため、
  * 現状は空データのInMemoryPrjopsReportDataProviderで暫定配線する。
  */
-import pg from "pg";
 import { auth } from "../../../../auth";
 import { loadWebConfig } from "../../../../server/config";
+import { getPool } from "../../../../server/db/pool";
 import {
   CompositePersonaResolver,
   DevopsPersonaSource,
@@ -33,7 +33,7 @@ function defaultPeriod(): { periodStart: string; periodEnd: string } {
 
 export async function GET(request: Request): Promise<Response> {
   const config = loadWebConfig();
-  const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
+  const pool = getPool(config.DATABASE_URL);
   const resolver = new CompositePersonaResolver(
     new DevopsPersonaSource(pool),
     new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),

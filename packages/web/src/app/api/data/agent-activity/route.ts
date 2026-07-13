@@ -6,9 +6,9 @@
  * server/reportData/agentActivityHandler.ts へ委譲する薄い配線層。
  * ハンドラ本体のロジック・認可・エラー変換はハンドラ側のユニットテストで検証済み。
  */
-import pg from "pg";
 import { auth } from "../../../../auth";
 import { loadWebConfig } from "../../../../server/config";
+import { getPool } from "../../../../server/db/pool";
 import {
   CompositePersonaResolver,
   DevopsPersonaSource,
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
   const config = loadWebConfig();
-  const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
+  const pool = getPool(config.DATABASE_URL);
   const resolver = new CompositePersonaResolver(
     new DevopsPersonaSource(pool),
     new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
