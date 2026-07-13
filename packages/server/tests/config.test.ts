@@ -36,6 +36,10 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
     expect(config.GRAPH_ALLOWED_TEAM_IDS).toEqual(["team-1", "team-2"]);
     expect(config.GRAPH_ALLOWED_FROM_MAILBOXES).toEqual(["reports@example.com"]);
+    expect(config.GITHUB_APP_ID).toBeUndefined();
+    expect(config.GITHUB_APP_PRIVATE_KEY).toBeUndefined();
+    expect(config.GITHUB_APP_INSTALLATION_ID).toBeUndefined();
+    expect(config.GITHUB_TOKEN).toBeUndefined();
   });
 
   it("Anthropic modelとpricingの現行既定値を維持する [SPEC-INT-001 / SPEC-INT-060]", () => {
@@ -44,6 +48,25 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("claude-opus-4-8");
     expect(config.ANTHROPIC_PRICING_USD_PER_MTOK["claude-sonnet-4-6"]).toEqual({ input: 3, output: 15 });
   });
+
+  it("SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      GITHUB_APP_ID: "123",
+      GITHUB_APP_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----",
+      GITHUB_APP_INSTALLATION_ID: "456",
+    });
+
+    expect(config.GITHUB_APP_ID).toBe("123");
+    expect(config.GITHUB_APP_INSTALLATION_ID).toBe("456");
+  });
+
+  it.each(["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"])(
+    "SPEC-INT-061: App設定が一部だけのときE-CFG01: %s",
+    (name) => {
+      expect(() => loadConfig({ ...validEnv, [name]: "configured" })).toThrow("E-CFG01");
+    },
+  );
 
   it("PORTを上書きできる", () => {
     const config = loadConfig({ ...validEnv, PORT: "9090" });

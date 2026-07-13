@@ -87,6 +87,12 @@ const baseConfigSchema = z.object({
   ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
   ANTHROPIC_ESCALATION_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_ESCALATION_MODEL),
   ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
+  /** SPEC-INT-061: GitHub App認証。App系3変数はsuperRefineでall-or-noneを強制する。 */
+  GITHUB_APP_ID: z.string().trim().min(1).optional(),
+  GITHUB_APP_PRIVATE_KEY: z.string().trim().min(1).optional(),
+  GITHUB_APP_INSTALLATION_ID: z.string().trim().min(1).optional(),
+  /** SPEC-INT-061: GitHub App移行までの暫定PAT fallback。 */
+  GITHUB_TOKEN: z.string().trim().min(1).optional(),
   /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
   GITHUB_PROJECT_NODE_ID: z.string().optional(),
   /** ADR-0014: Outlook配信元メールボックス。未設定時はreport deliveryをdisabled+監査にする。 */
@@ -140,6 +146,15 @@ const baseConfigSchema = z.object({
 });
 
 const configSchema = baseConfigSchema.superRefine((config, ctx) => {
+  const githubAppValues = [config.GITHUB_APP_ID, config.GITHUB_APP_PRIVATE_KEY, config.GITHUB_APP_INSTALLATION_ID];
+  const configuredGithubAppValues = githubAppValues.filter(Boolean).length;
+  if (configuredGithubAppValues !== 0 && configuredGithubAppValues !== githubAppValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GITHUB_APP_ID"],
+      message: "GitHub App ID, private key, and installation ID must be configured together",
+    });
+  }
   if (!config.REPORT_DELIVERY_ENABLED) return;
   if (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX)) {
     ctx.addIssue({
