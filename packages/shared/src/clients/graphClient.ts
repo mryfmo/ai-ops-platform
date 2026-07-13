@@ -26,6 +26,11 @@
  *   （アプリケーション権限、client credentials flow）を実装として注入する。
  */
 
+import { fetchWithBackoff, withTimeout, type FetchLike, type RetryOptions } from "./fetchPolicy.js";
+
+export { fetchWithBackoff } from "./fetchPolicy.js";
+export type { FetchLike, RetryOptions, RetryPolicy } from "./fetchPolicy.js";
+
 export interface GraphTokenProvider {
   getAccessToken(): Promise<string>;
 }
@@ -154,17 +159,6 @@ function toChannelMessage(raw: any): ChannelMessage {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export interface RetryOptions {
-  maxRetries?: number;
-  initialDelayMs?: number; // 既定30秒（SPEC-INT-080）
-  maxDelayMs?: number; // 既定15分（SPEC-INT-080）
-  /** Receives the exact total delay once; only the native implementation chunks long waits. */
-  sleep?: (ms: number) => Promise<void>;
-  random?: () => number;
-}
-
-export type RetryPolicy = "idempotent" | "non-idempotent";
-
 export interface GraphRequestMetadata {
   clientRequestId: string;
   requestId: string | null;
@@ -177,8 +171,6 @@ export type GraphRequestObserver = (metadata: GraphRequestMetadata) => void | Pr
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HTTP_DATE_PATTERN =
   /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
-
-export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const ADAPTIVE_CARD_ATTACHMENT_ID = "1";
 
@@ -224,71 +216,24 @@ function buildAdaptiveCardAttachment(card: AdaptiveCardPayload) {
   };
 }
 
-const MAX_TIMEOUT_MS = 2_147_483_647;
-
-async function sleep(ms: number): Promise<void> {
-  let remaining = ms;
-  while (remaining > MAX_TIMEOUT_MS) {
-    await new Promise((resolve) => setTimeout(resolve, MAX_TIMEOUT_MS));
-    remaining -= MAX_TIMEOUT_MS;
-  }
-  await new Promise((resolve) => setTimeout(resolve, remaining));
-}
-
-function jitter(ms: number, random: () => number): number {
-  return ms * (0.8 + random() * 0.4);
-}
-
-/** 429/5xxに対する指数バックオフ付きfetch（SPEC-INT-080: 初期30秒、最大15分） */
-export async function fetchWithBackoff(
-  fetchImpl: FetchLike,
-  url: string,
-  init: RequestInit,
-  opts: RetryOptions = {},
-  policy: RetryPolicy = init.method?.toUpperCase() === "POST" ? "non-idempotent" : "idempotent",
-): Promise<Response> {
-  const maxRetries = opts.maxRetries ?? 5;
-  const maxDelayMs = Math.max(0, opts.maxDelayMs ?? 15 * 60_000);
-  const initialDelayMs = Math.min(Math.max(0, opts.initialDelayMs ?? 30_000), maxDelayMs);
-  const wait = opts.sleep ?? sleep;
-  const random = opts.random ?? Math.random;
-
-  let attempt = 0;
-  let delay = initialDelayMs;
-  for (;;) {
-    const res = await fetchImpl(url, init);
-    const retryable = res.status === 429 || (policy === "idempotent" && res.status >= 500);
-    if (!retryable) return res;
-    if (attempt >= maxRetries) return res;
-
-    const retryAfterHeader = res.headers.get("Retry-After");
-    const normalizedRetryAfter = retryAfterHeader?.trim() ?? "";
-    const retryAfterSeconds = /^\d+$/.test(normalizedRetryAfter) ? Number(normalizedRetryAfter) : Number.NaN;
-    const waitMs =
-      Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds <= Number.MAX_SAFE_INTEGER / 1000
-        ? retryAfterSeconds * 1000
-        : Math.min(jitter(delay, random), maxDelayMs);
-    await wait(waitMs);
-    delay = Math.min(delay * 2, maxDelayMs);
-    attempt += 1;
-  }
-}
-
 export class GraphClient {
+  private readonly fetchImpl: FetchLike;
   private readonly allowedTeamIds: ReadonlySet<string>;
   private readonly allowedFromMailboxes: ReadonlySet<string>;
   private requestSequence = 0;
 
   constructor(
     private readonly tokenProvider: GraphTokenProvider,
-    private readonly fetchImpl: FetchLike = fetch,
+    fetchImpl: FetchLike = fetch,
     private readonly baseUrl: string = "https://graph.microsoft.com/v1.0",
     private readonly retryOptions: RetryOptions = {},
     private readonly nowProvider: () => Date = () => new Date(),
     accessPolicy?: GraphAccessPolicy,
     private readonly observer?: GraphRequestObserver,
     private readonly requestIdProvider?: () => string,
+    timeoutMs = 30_000,
   ) {
+    this.fetchImpl = withTimeout(fetchImpl, timeoutMs);
     this.allowedTeamIds = new Set(
       (accessPolicy?.allowedTeamIds ?? []).map((teamId) => teamId.trim()).filter((teamId) => teamId && teamId !== "*"),
     );
