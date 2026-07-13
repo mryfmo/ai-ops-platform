@@ -38,16 +38,19 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 
 ## Web (`packages/web/src/server/config.ts`, `packages/web/src/auth.ts`)
 
-| Variable                            | Required | Default            | Behavior                                                         |
-| ----------------------------------- | -------- | ------------------ | ---------------------------------------------------------------- |
-| `AUTH_SECRET`                       | Yes      | None               | Auth.js session secret.                                          |
-| `AUTH_MICROSOFT_ENTRA_ID_ID`        | Yes      | None               | Microsoft Entra ID client ID.                                    |
-| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | Yes      | None               | Microsoft Entra ID client secret.                                |
-| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Yes      | None               | Tenant ID; also builds the issuer URL in `auth.ts`.              |
-| `DATABASE_URL`                      | Yes      | None               | Used by persona resolver and dashboard data handlers.            |
-| `ANTHROPIC_API_KEY`                 | No       | unset              | If unset, `/app/api/chat` returns 503 and does not call a model. |
-| `PAGE_AGENT_MAX_STEPS`              | No       | `5` in handler     | Max AI SDK tool steps; config accepts 1-10.                      |
-| `PAGE_AGENT_THINKING_BUDGET_TOKENS` | No       | `12000` in handler | Anthropic extended thinking budget; config accepts 1024-64000.   |
+| Variable                            | Required | Default                 | Behavior                                                                     |
+| ----------------------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `AUTH_SECRET`                       | Yes      | None                    | Auth.js session secret.                                                      |
+| `AUTH_MICROSOFT_ENTRA_ID_ID`        | Yes      | None                    | Microsoft Entra ID client ID.                                                |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | Yes      | None                    | Microsoft Entra ID client secret.                                            |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Yes      | None                    | Tenant ID; also builds the issuer URL in `auth.ts`.                          |
+| `DATABASE_URL`                      | Yes      | None                    | Used by persona resolver and dashboard data handlers.                        |
+| `PUBLIC_BASE_URL`                   | Yes      | None                    | Allowed origin for authenticated Excel import state changes.                 |
+| `AIOPS_SERVER_INTERNAL_URL`         | No       | `http://127.0.0.1:8080` | Internal Hono endpoint used only by the server-side Excel import proxy.      |
+| `XLSX_IMPORT_SECRET`                | No       | unset                   | HMAC key retained by server-side routes; if unset, Excel import returns 503. |
+| `ANTHROPIC_API_KEY`                 | No       | unset                   | If unset, `/app/api/chat` returns 503 and does not call a model.             |
+| `PAGE_AGENT_MAX_STEPS`              | No       | `5` in handler          | Max AI SDK tool steps; config accepts 1-10.                                  |
+| `PAGE_AGENT_THINKING_BUDGET_TOKENS` | No       | `12000` in handler      | Anthropic extended thinking budget; config accepts 1024-64000.               |
 
 `loadWebConfig()` fails fast with `E-CFG02` when required values are missing or invalid. The module does not validate at import time, so `next build` does not need secrets.
 

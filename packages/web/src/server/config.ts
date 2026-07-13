@@ -26,6 +26,12 @@ const webConfigSchema = z.object({
   AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: z.string().min(1),
   /** PostgreSQL接続文字列（DevOps正本DB。recipientsテーブル照会用） */
   DATABASE_URL: z.string().min(1),
+  /** 同一コンテナ内Honoサーバー。Excel取込のサーバーサイド転送専用。 */
+  AIOPS_SERVER_INTERNAL_URL: z.string().url().default("http://127.0.0.1:8080"),
+  /** ブラウザからの状態変更リクエストで許可する公開origin。 */
+  PUBLIC_BASE_URL: z.string().url(),
+  /** Excel取込のHMAC鍵。ブラウザへ公開せずRoute Handlerのみで使用する。 */
+  XLSX_IMPORT_SECRET: z.string().min(32).optional(),
   /** Anthropic APIキー（/api/chat用。未設定時はチャット機能を503で無効化する） */
   ANTHROPIC_API_KEY: z.string().optional(),
   /** ページエージェントの最大toolステップ数（SPEC-INT-068）。未指定時は5。 */

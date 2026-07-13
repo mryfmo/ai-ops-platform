@@ -52,6 +52,14 @@ async function readAuthenticatedBody(
   deps: XlsxImportRoutesDeps,
 ): Promise<{ ok: true; buffer: Buffer; traceId: string } | { ok: false; response: Response }> {
   const buffer = Buffer.from(await c.req.arrayBuffer());
+  return authenticateBuffer(c, deps, buffer);
+}
+
+async function authenticateBuffer(
+  c: Context,
+  deps: XlsxImportRoutesDeps,
+  buffer: Buffer,
+): Promise<{ ok: true; buffer: Buffer; traceId: string } | { ok: false; response: Response }> {
   const traceId = deps.traceIdProvider();
   if (!deps.importSecret) {
     await deps.auditLog.append({
@@ -96,7 +104,9 @@ async function auditSubmittedFile(
 }
 
 export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps): void {
-  app.get("/xlsx-import/template", async () => {
+  app.get("/xlsx-import/template", async (c) => {
+    const auth = await authenticateBuffer(c, deps, Buffer.alloc(0));
+    if (!auth.ok) return auth.response;
     const buffer = await buildXlsxImportTemplateBuffer();
     return new Response(buffer, {
       status: 200,
