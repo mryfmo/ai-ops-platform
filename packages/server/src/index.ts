@@ -14,11 +14,12 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
 import type { StakeholderInput } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
+import { parse as parseYaml } from "yaml";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { PgAuditLog } from "./db/pgAuditLog.js";
@@ -57,7 +58,7 @@ import {
   type DevopsAgentId,
   type DevopsEventHandlerInput,
 } from "./lib/githubEventRouter.js";
-import { resolveCallerProfileFromStakeholders } from "./lib/stakeholderProfileResolver.js";
+import { decideStakeholderMaster, loadStakeholdersFromYamlDirectory } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
@@ -97,6 +98,7 @@ export * from "./lib/freeTextIntent.js";
 export * from "./lib/confirmToken.js";
 export * from "./lib/githubEventRouter.js";
 export * from "./lib/stakeholderProfileResolver.js";
+export * from "./lib/stakeholderYamlLoader.js";
 export * from "./lib/graphLifecycleHandler.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
@@ -114,22 +116,6 @@ export * from "./db/reportDeliveryLogRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./auth/githubAppTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
-
-const SAMPLE_STAKEHOLDERS: StakeholderInput[] = [
-  {
-    id: "ST-010",
-    name: "山田太郎",
-    organization_id: "ORG-001",
-    assignments: [
-      { project_id: "PJ-001", profile: "PRF-02" },
-      { project_id: "PJ-002", profile: "PRF-01" },
-    ],
-    email: "yamada@example.com",
-    teams_user_id: "29:1a2b3c-example-teams-id",
-    preferred_language: "ja",
-    timezone: "Asia/Tokyo",
-  },
-];
 
 function loadJpHolidayCalendar() {
   const yamlUrl = new URL("../../shared/src/calendar/jp_holidays.yaml", import.meta.url);
@@ -175,6 +161,17 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  const stakeholders: StakeholderInput[] | null = config.STAKEHOLDERS_DIR
+    ? loadStakeholdersFromYamlDirectory(config.STAKEHOLDERS_DIR, { readdirSync, readFileSync }, parseYaml)
+    : null;
+  const stakeholderMaster = decideStakeholderMaster(stakeholders);
+  if (stakeholderMaster.auditIntent) {
+    await prjopsAuditLog.append({
+      trace_id: randomUUID(),
+      ...stakeholderMaster.auditIntent,
+      at: new Date().toISOString(),
+    });
+  }
 
   const graphTokenProvider = createMsalGraphTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
@@ -245,8 +242,7 @@ export async function main(
     githubClient,
     auditLog: prjopsAuditLog,
     llmClient,
-    resolveCallerProfile: (authorAadId, projectId) =>
-      resolveCallerProfileFromStakeholders(SAMPLE_STAKEHOLDERS, authorAadId, projectId).profile,
+    resolveCallerProfile: stakeholderMaster.resolveCallerProfile,
     codingTasksRepo,
     confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
     publicBaseUrl: config.PUBLIC_BASE_URL,
