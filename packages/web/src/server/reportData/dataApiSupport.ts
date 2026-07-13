@@ -19,9 +19,10 @@ export async function resolvePersonas(
   getSession: () => Promise<Session | null>,
   resolver: PersonaResolver,
   domain?: ResolvedPersona["domain"],
+  selectedPersona?: string,
 ): Promise<ResolvedPersona[]> {
   const session = await requireSession(getSession);
-  return requirePersona(session.user!.email!, resolver, domain);
+  return requirePersona(session.user!.email!, resolver, domain, selectedPersona);
 }
 
 /**

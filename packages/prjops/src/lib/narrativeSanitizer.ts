@@ -10,7 +10,28 @@
  * 混入していないかを機械的に検査する、決定的なガードである。
  */
 
-const NUMBER_PATTERN = /\d+(\.\d+)?%?/g;
+const NUMBER_PATTERN = /\p{N}+(?:[.．]\p{N}+)?[%％]?/gu;
+// 数量と同じ漢字を含む通常語だけを後続文脈で限定し、それ以外の漢数字はfail-closedで拒否する。
+const CJK_NUMERAL_CHARS = "〇零一二三四五六七八九十百千万億兆壱壹弌弐弍貳貮参參弎肆伍陸漆捌玖拾佰仟萬亿廿卅卌皕両兩两";
+const CJK_NUMBER_PATTERN = new RegExp(`[${CJK_NUMERAL_CHARS}]+`, "gu");
+const SAFE_CJK_LEXEME_PATTERN = new RegExp(
+  `(?<![${CJK_NUMERAL_CHARS}])(?:` +
+    "一方(?=で|では|、|が|を|の)|" +
+    "十分(?=な|に|かつ)|" +
+    "万全(?=な|に|です|でした|である|を|の|と|、)|" +
+    "万一(?=に|の|へ|、|の場合)|" +
+    "八百屋(?=との|と|で|へ|を|が|に|の|です|でした|、|$)|" +
+    "一時的(?=な|に|です|でした|である|と|、|$)|" +
+    "一件落着(?=しました|し|後|です|でした|で|、|$)|" +
+    "一人前(?=として|になる|になり)|" +
+    "四日市(?=との|と|で|では|市|に|へ|から|です|でした|、)" +
+    ")",
+  "gu",
+);
+
+function maskSafeCjkLexemes(text: string): string {
+  return text.replace(SAFE_CJK_LEXEME_PATTERN, (term) => "_".repeat(term.length));
+}
 
 export interface NarrativeCheckResult {
   ok: boolean;
@@ -19,7 +40,16 @@ export interface NarrativeCheckResult {
 
 /** LLM生成テキストに数値らしき文字列が含まれていないかを検査する（SPEC-INT-031設計原則の機械的強制） */
 export function checkNarrativeHasNoNumbers(text: string): NarrativeCheckResult {
-  const matches = text.match(NUMBER_PATTERN) ?? [];
+  const masked = maskSafeCjkLexemes(text);
+  const normalized = maskSafeCjkLexemes(text.normalize("NFKC"));
+  const matches = [
+    ...new Set([
+      ...(masked.match(NUMBER_PATTERN) ?? []),
+      ...(masked.match(CJK_NUMBER_PATTERN) ?? []),
+      ...(normalized.match(NUMBER_PATTERN) ?? []),
+      ...(normalized.match(CJK_NUMBER_PATTERN) ?? []),
+    ]),
+  ];
   return { ok: matches.length === 0, suspiciousNumbers: matches };
 }
 
@@ -30,5 +60,17 @@ export function checkNarrativeHasNoNumbers(text: string): NarrativeCheckResult {
 export function stripSentencesWithNumbers(text: string, lang: "ja" | "en" = "ja"): string {
   const sentenceSeparator = lang === "ja" ? /(?<=[。！？])/ : /(?<=[.!?])\s+/;
   const sentences = text.split(sentenceSeparator).filter((s) => s.trim().length > 0);
-  return sentences.filter((s) => checkNarrativeHasNoNumbers(s).ok).join(lang === "ja" ? "" : " ");
+  return sentences
+    .filter((s) => checkNarrativeHasNoNumbers(s).ok)
+    .map((s) => s.normalize("NFKC"))
+    .join(lang === "ja" ? "" : " ");
+}
+
+/** 数値文を除去し、文章が残らない場合はコード定義の安全な固定文へ置換する。 */
+export function sanitizeNarrativeWithFallback(text: string, lang: "ja" | "en", fallback: string): string {
+  if (!checkNarrativeHasNoNumbers(fallback).ok) {
+    throw new Error("E-NAR01: narrative fallback must not contain numbers");
+  }
+  const sanitized = stripSentencesWithNumbers(text, lang);
+  return sanitized.trim().length > 0 ? sanitized : fallback.normalize("NFKC");
 }

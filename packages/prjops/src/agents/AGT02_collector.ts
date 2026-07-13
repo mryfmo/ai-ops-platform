@@ -17,7 +17,7 @@
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
-import { sanitizeForLlmInput } from "@aiops/shared/secretSanitizer.js";
+import { isFreeOfKnownSecrets, sanitizeForLlmInput, sanitizeSecrets } from "@aiops/shared/secretSanitizer.js";
 import {
   checkCompleteness,
   decideClarificationAction,
@@ -59,6 +59,47 @@ export interface CollectorDependencies {
   stakeholderLookup: StakeholderLookup;
 }
 
+function parseStructuredStatusUpdate(raw: unknown): StructuredStatusUpdate {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("E-ING03: invalid structured status");
+  const value = raw as Record<string, unknown>;
+  const required = ["progress_pct", "self_status", "achievements", "plans", "issues", "risks"];
+  if (!required.every((key) => Object.prototype.hasOwnProperty.call(value, key))) {
+    throw new Error("E-ING03: invalid structured status");
+  }
+  if (
+    value.progress_pct !== null &&
+    (typeof value.progress_pct !== "number" ||
+      !Number.isInteger(value.progress_pct) ||
+      value.progress_pct < 0 ||
+      value.progress_pct > 100)
+  ) {
+    throw new Error("E-ING03: invalid structured status");
+  }
+  if (
+    value.self_status !== null &&
+    (typeof value.self_status !== "string" || !["green", "yellow", "red"].includes(value.self_status))
+  ) {
+    throw new Error("E-ING03: invalid structured status");
+  }
+  for (const key of ["achievements", "plans", "issues", "risks"] as const) {
+    if (value[key] !== null && typeof value[key] !== "string") throw new Error("E-ING03: invalid structured status");
+  }
+  const safeText = (key: "achievements" | "plans" | "issues" | "risks") => {
+    if (value[key] === null) return null;
+    const sanitized = sanitizeSecrets(value[key] as string).sanitized;
+    if (!isFreeOfKnownSecrets(sanitized)) throw new Error("E-ING03: unsafe structured status");
+    return sanitized;
+  };
+  return {
+    progress_pct: value.progress_pct as number | null,
+    self_status: value.self_status as StructuredStatusUpdate["self_status"],
+    achievements: safeText("achievements"),
+    plans: safeText("plans"),
+    issues: safeText("issues"),
+    risks: safeText("risks"),
+  };
+}
+
 export type CollectorOutcome =
   | { kind: "accepted"; structured: StructuredStatusUpdate; projectId: string; stakeholderId: string } // SPEC-EXT-013/033 受理通知の送信対象
   | { kind: "clarify"; message: string; clarifyCount: number }
@@ -97,7 +138,7 @@ export async function structureFreeText(
     toolName: "emit_structured_status_update",
     toolDescription: "抽出した進捗報告の構造化データを返す",
     inputSchema: STRUCTURING_TOOL_SCHEMA,
-    parse: (raw) => raw as StructuredStatusUpdate,
+    parse: parseStructuredStatusUpdate,
     maxAttempts: 2, // SPEC-INT-030: LLM呼び出しは最大2回
     allowEscalation: true, // (a)自由文構造化のみ昇格対象（SPEC-INT-001）
   });
@@ -111,14 +152,19 @@ export async function ingestOne(
   deps: CollectorDependencies,
 ): Promise<CollectorOutcome> {
   // 手順1: 発信者突合
+  // 権威的識別子は redaction で衝突させず、受信値のまま完全一致で照合する。
   const stakeholder = await deps.stakeholderLookup.findBySenderIdentifier(report.senderIdentifier);
+  const sanitizedSenderIdentifier = sanitizeSecrets(report.senderIdentifier).sanitized;
+  const safeSenderIdentifier = isFreeOfKnownSecrets(sanitizedSenderIdentifier)
+    ? sanitizedSenderIdentifier
+    : "***REDACTED:unknown***";
   if (!stakeholder) {
     await deps.auditLog.append({
       trace_id: deps.traceId,
       actor: "AGT-02",
       action: "reject_unknown_sender",
       basis: "SPEC-INT-030 E-ING01",
-      detail: { senderIdentifier: report.senderIdentifier },
+      detail: { senderIdentifier: safeSenderIdentifier },
       at: new Date().toISOString(),
     });
     return { kind: "rejected_unknown_sender" };
@@ -132,7 +178,7 @@ export async function ingestOne(
       actor: "AGT-02",
       action: "reject_unresolved_project",
       basis: "SPEC-INT-030 E-ING02",
-      detail: { senderIdentifier: report.senderIdentifier },
+      detail: { senderIdentifier: safeSenderIdentifier },
       at: new Date().toISOString(),
     });
     return { kind: "rejected_unresolved_project" };

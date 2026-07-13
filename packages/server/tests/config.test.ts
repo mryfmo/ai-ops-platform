@@ -3,7 +3,7 @@
  *
  * 根拠: ADR-0005（環境変数のfail-fastパース。誤設定のまま黙って稼働することを防ぐ）
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { loadConfig } from "../src/config.js";
 
 // security-reviewer指摘によりmin(32)へ引き上げたため、フィクスチャも32文字以上にする
@@ -18,6 +18,7 @@ const validEnv = {
   GRAPH_ALLOWED_FROM_MAILBOXES: "reports@example.com",
   PUBLIC_BASE_URL: "https://aiops.example.com",
   CODING_TASK_CALLBACK_SECRET: "coding-task-secret-of-at-least-32-chars",
+  METRICS_TOKEN: "metrics-token-of-at-least-32-chars",
 };
 
 describe("loadConfig (ADR-0005)", () => {
@@ -35,11 +36,78 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.REPORT_DELIVERY_ENABLED).toBe(false);
     expect(config.GRAPH_ALLOWED_TEAM_IDS).toEqual(["team-1", "team-2"]);
     expect(config.GRAPH_ALLOWED_FROM_MAILBOXES).toEqual(["reports@example.com"]);
+    expect(config.GITHUB_APP_ID).toBeUndefined();
+    expect(config.GITHUB_APP_PRIVATE_KEY).toBeUndefined();
+    expect(config.GITHUB_APP_INSTALLATION_ID).toBeUndefined();
+    expect(config.GITHUB_TOKEN).toBeUndefined();
+    expect(config.STAKEHOLDERS_DIR).toBeUndefined();
   });
+
+  it("REQ-002: STAKEHOLDERS_DIRは絶対パスだけを許可する", () => {
+    expect(loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "/etc/aiops/stakeholders" }).STAKEHOLDERS_DIR).toBe(
+      "/etc/aiops/stakeholders",
+    );
+    expect(() => loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "./stakeholders" })).toThrow("E-CFG01");
+  });
+
+  it("Anthropic modelとpricingの現行既定値を維持する [SPEC-INT-001 / SPEC-INT-060]", () => {
+    const config = loadConfig(validEnv);
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-sonnet-4-6");
+    expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("claude-opus-4-8");
+    expect(config.ANTHROPIC_PRICING_USD_PER_MTOK["claude-sonnet-4-6"]).toEqual({ input: 3, output: 15 });
+  });
+
+  it("SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {
+    const config = loadConfig({
+      ...validEnv,
+      GITHUB_APP_ID: "123",
+      GITHUB_APP_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----",
+      GITHUB_APP_INSTALLATION_ID: "456",
+    });
+
+    expect(config.GITHUB_APP_ID).toBe("123");
+    expect(config.GITHUB_APP_INSTALLATION_ID).toBe("456");
+  });
+
+  it.each(["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"])(
+    "SPEC-INT-061: App設定が一部だけのときE-CFG01: %s",
+    (name) => {
+      expect(() => loadConfig({ ...validEnv, [name]: "configured" })).toThrow("E-CFG01");
+    },
+  );
 
   it("PORTを上書きできる", () => {
     const config = loadConfig({ ...validEnv, PORT: "9090" });
     expect(config.PORT).toBe(9090);
+  });
+
+  it("Anthropic default/escalation modelを環境変数から受け取る [SPEC-INT-001 / SPEC-INT-060]", () => {
+    const config = loadConfig({
+      ...validEnv,
+      ANTHROPIC_DEFAULT_MODEL: "  custom-sonnet  ",
+      ANTHROPIC_ESCALATION_MODEL: "  custom-opus  ",
+      ANTHROPIC_PRICING_USD_PER_MTOK: '{"custom-sonnet":{"input":2,"output":10}}',
+    });
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("custom-sonnet");
+    expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("custom-opus");
+    expect(config.ANTHROPIC_PRICING_USD_PER_MTOK).toEqual({ "custom-sonnet": { input: 2, output: 10 } });
+  });
+
+  it.each(["ANTHROPIC_DEFAULT_MODEL", "ANTHROPIC_ESCALATION_MODEL"] as const)(
+    "%sの空白のみを拒否する [SPEC-INT-001 / SPEC-INT-060]",
+    (key) => {
+      expect(() => loadConfig({ ...validEnv, [key]: "   " })).toThrow("E-CFG01");
+    },
+  );
+
+  it("モデルIDの長さ上限を超える値を拒否する [SPEC-INT-001 / SPEC-INT-060]", () => {
+    expect(() => loadConfig({ ...validEnv, ANTHROPIC_DEFAULT_MODEL: `m${"x".repeat(200)}` })).toThrow("E-CFG01");
+  });
+
+  it("不正なpricing JSONを起動時に拒否する [SPEC-INT-060]", () => {
+    expect(() =>
+      loadConfig({ ...validEnv, ANTHROPIC_PRICING_USD_PER_MTOK: '{"model":{"input":-1,"output":5}}' }),
+    ).toThrow("E-CFG01");
   });
 
   it("DB pool設定を上書きできる", () => {
@@ -98,11 +166,13 @@ describe("loadConfig (ADR-0005)", () => {
       REPORT_DELIVERY_ENABLED: "true",
       FROM_MAILBOX: "reports@example.com",
       REPORT_INGEST_SECRET: "report-ingest-secret-of-at-least-32-chars",
+      HEARTBEAT_URL: "https://heartbeat.example.com/report-delivery",
       DEFAULT_TEAMS_TEAM_ID: "team-1",
       DEFAULT_TEAMS_CHANNEL_ID: "channel-1",
     });
     expect(config.REPORT_DELIVERY_ENABLED).toBe(true);
     expect(config.FROM_MAILBOX).toBe("reports@example.com");
+    expect(config.HEARTBEAT_URL).toBe("https://heartbeat.example.com/report-delivery");
     expect(config.DEFAULT_TEAMS_TEAM_ID).toBe("team-1");
     expect(config.DEFAULT_TEAMS_CHANNEL_ID).toBe("channel-1");
   });
@@ -150,5 +220,32 @@ describe("loadConfig (ADR-0005)", () => {
     ],
   ])("delivery有効時の不正defaultは起動設定を拒否する: %s", (_label, override) => {
     expect(() => loadConfig({ ...validEnv, ...override })).toThrow("E-CFG01");
+  });
+
+  it("METRICS_TOKEN未設定時は起動警告を1回だけ出し、値をログへ含めない", () => {
+    const { METRICS_TOKEN: _drop, ...rest } = validEnv;
+    const warn = vi.fn();
+
+    const config = loadConfig(rest, warn);
+
+    expect(config.METRICS_TOKEN).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(validEnv.METRICS_TOKEN);
+  });
+
+  it("METRICS_TOKENが32文字未満ならfail-fastする", () => {
+    expect(() => loadConfig({ ...validEnv, METRICS_TOKEN: "too-short" })).toThrow("E-CFG01");
+  });
+
+  it("ADR-0005 AUD-OPM-009: HEARTBEAT_URLがURL形式でなければE-CFG01", () => {
+    expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: "not-a-url" })).toThrow("E-CFG01");
+  });
+
+  it.each([
+    "https://heartbeat-user@heartbeat.example.com/report-delivery",
+    "https://heartbeat-user:super-secret@heartbeat.example.com/report-delivery",
+  ])("ADR-0005 AUD-OPM-009: credential付きHEARTBEAT_URLはE-CFG01", (heartbeatUrl) => {
+    expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: heartbeatUrl })).toThrow("E-CFG01");
   });
 });

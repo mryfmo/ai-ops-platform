@@ -16,10 +16,13 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
       - run: pnpm run governance:check
       - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
+      - run: pnpm run lint
+      - run: pnpm run format
       - run: pnpm -r --if-present run build
       - run: pnpm -r --if-present run typecheck
       - run: pnpm -r --if-present run test:coverage
@@ -32,7 +35,7 @@ jobs:
       GITLEAKS_VERSION: "8.30.1"
       GITLEAKS_LINUX_X64_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: gitleaks secret scan (DEV-10, REQ-032)
@@ -42,4 +45,4 @@ jobs:
           curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${asset}"
           echo "${GITLEAKS_LINUX_X64_SHA256}  ${asset}" | sha256sum -c -
           tar -xzf "${asset}" gitleaks
-          ./gitleaks detect --source . --redact --verbose
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --verbose

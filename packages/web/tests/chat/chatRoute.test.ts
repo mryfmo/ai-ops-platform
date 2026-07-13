@@ -11,9 +11,9 @@ import { describe, it, expect, vi } from "vitest";
 import type { Session } from "next-auth";
 import { MockLanguageModelV2 } from "ai/test";
 import type { UIMessage } from "ai";
-import { PgCostGuard, type PgQueryable } from "@aiops/shared";
+import { PgAuditLog, PgCostGuard, type PgQueryable } from "@aiops/shared";
 import type { PersonaResolver, ResolvedPersona } from "../../src/server/personaResolver";
-import { handleChat } from "../../src/server/chat/chatHandler";
+import { handleChat, type ChatHandlerDeps } from "../../src/server/chat/chatHandler";
 import { buildSystemPrompt } from "../../src/server/chat/systemPrompt";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
@@ -35,6 +35,23 @@ const prjopsExecutive: ResolvedPersona = {
   },
 };
 
+const devopsManager: ResolvedPersona = {
+  domain: "devops",
+  profile: "PRF-G",
+  visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+};
+
+const testModelConfig = {
+  modelName: "claude-sonnet-4-6",
+  pricingUsdPerMtok: { "claude-sonnet-4-6": { input: 3, output: 15 } },
+};
+
+function handleTestChat(
+  deps: Omit<ChatHandlerDeps, "modelName" | "pricingUsdPerMtok"> &
+    Partial<Pick<ChatHandlerDeps, "modelName" | "pricingUsdPerMtok">>,
+): Promise<Response> {
+  return handleChat({ ...testModelConfig, ...deps });
+}
 function emptyCostDb(): PgQueryable {
   return {
     query: vi.fn(async (text: string) => {
@@ -97,7 +114,7 @@ function mockToolCallModel(): MockLanguageModelV2 {
 
 describe("handleChat（未認証401）", () => {
   it("セッションが無い場合401を返す", async () => {
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: async () => null,
       resolver: resolverWith([]),
       languageModel: mockTextModel("hello"),
@@ -110,9 +127,21 @@ describe("handleChat（未認証401）", () => {
 
 describe("handleChat（権限外403）", () => {
   it("該当ペルソナが無い場合403を返す", async () => {
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([]),
+      languageModel: mockTextModel("hello"),
+      costGuard: new PgCostGuard(emptyCostDb()),
+      messages: userMessage("こんにちは"),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("改ざんした選択ペルソナを403にする [REQ-041 / SPEC-INT-068]", async () => {
+    const res = await handleTestChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([prjopsExecutive]),
+      selectedPersona: "devops:PRF-G",
       languageModel: mockTextModel("hello"),
       costGuard: new PgCostGuard(emptyCostDb()),
       messages: userMessage("こんにちは"),
@@ -123,7 +152,7 @@ describe("handleChat（権限外403）", () => {
 
 describe("handleChat（ANTHROPIC_API_KEY未設定時503）", () => {
   it("languageModelがundefinedの場合503とチャット利用不可メッセージを返す", async () => {
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: undefined,
@@ -139,7 +168,7 @@ describe("handleChat（ANTHROPIC_API_KEY未設定時503）", () => {
 describe("handleChat（コスト超過429）", () => {
   it("本日の消費が日次上限以上の場合429を返す", async () => {
     const overBudgetDb: PgQueryable = { query: vi.fn().mockResolvedValue({ rows: [] }) };
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: mockTextModel("hello"),
@@ -151,8 +180,29 @@ describe("handleChat（コスト超過429）", () => {
 });
 
 describe("handleChat（正当なセッション: ストリーミング応答）", () => {
+  it("ダッシュボードと同じ選択ペルソナをchat promptへ反映する [REQ-041 / SPEC-INT-068]", async () => {
+    let prompt = "";
+    const model = new MockLanguageModelV2({
+      doStream: async (options) => {
+        prompt = JSON.stringify(options.prompt);
+        return mockTextModel("ok").doStream(options);
+      },
+    });
+    const res = await handleTestChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([prjopsExecutive, devopsManager]),
+      selectedPersona: "devops:PRF-G",
+      languageModel: model,
+      costGuard: new PgCostGuard(emptyCostDb()),
+      messages: userMessage("こんにちは"),
+    });
+    await res.text();
+    expect(prompt).toContain("DevOps PRF-G");
+    expect(prompt).not.toContain("PrjOps PRF-04");
+  });
+
   it("PRF-04ペルソナでテキスト応答をストリーミングする（200・本文にUIMessageストリームを含む）", async () => {
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: mockTextModel("表示を切り替えました。"),
@@ -189,7 +239,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
       },
     });
 
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: model,
@@ -208,7 +258,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
   });
 
   it("PRF-04ペルソナでshowExecutiveSummary tool callが合成された応答を200で返す", async () => {
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: mockToolCallModel(),
@@ -235,8 +285,83 @@ describe("buildSystemPrompt（ADR-0013: ページコンテキスト注入）", (
   });
 });
 
-describe("handleChat（T26: costGuard予約・照合）", () => {
-  it("ストリーミング開始前にllm_usageへ予約し、完了後に実使用量へ照合する", async () => {
+describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]", () => {
+  it("unknown fallbackはaudit sink未注入なら予約前にfail-closedする [SPEC-INT-060]", async () => {
+    const query = vi.fn();
+    const res = await handleTestChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([prjopsExecutive]),
+      languageModel: mockTextModel("unused"),
+      costGuard: new PgCostGuard({ query }),
+      pricingUsdPerMtok: { "known-model": { input: 7, output: 35 } },
+      messages: userMessage("こんにちは"),
+      modelName: "unknown-model",
+    });
+
+    expect(res.status).toBe(500);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("unknown fallbackはaudit append失敗時も予約前にfail-closedする [SPEC-INT-060]", async () => {
+    const query = vi.fn();
+    const append = vi.fn().mockRejectedValue(new Error("audit unavailable"));
+    const res = await handleTestChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([prjopsExecutive]),
+      languageModel: mockTextModel("unused"),
+      costGuard: new PgCostGuard({ query }),
+      auditLog: { append, readAll: vi.fn() },
+      traceIdProvider: () => "550e8400-e29b-41d4-a716-446655440000",
+      pricingUsdPerMtok: { "known-model": { input: 7, output: 35 } },
+      messages: userMessage("こんにちは"),
+      modelName: "unknown-model",
+    });
+
+    expect(res.status).toBe(500);
+    expect(append).toHaveBeenCalledOnce();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("未知モデルの保守的料金をwarn監査し、実UUIDをPostgreSQL境界へ渡す [SPEC-INT-060]", async () => {
+    const traceId = "550e8400-e29b-41d4-a716-446655440000";
+    const queries: Array<{ text: string; params: unknown[] | undefined }> = [];
+    const db: PgQueryable = {
+      query: vi.fn(async (text: string, params?: unknown[]) => {
+        queries.push({ text, params });
+        if (text.includes("RETURNING log_id")) return { rows: [{ log_id: "7" }] };
+        if (text.includes("RETURNING usage_id")) return { rows: [{ usage_id: "99" }] };
+        return { rows: [{ total: 0 }] };
+      }),
+    };
+
+    const res = await handleTestChat({
+      getSession: sessionWithEmail,
+      resolver: resolverWith([devopsManager]),
+      selectedPersona: "devops:PRF-G",
+      languageModel: mockTextModel("表示を切り替えました。"),
+      costGuard: new PgCostGuard(db),
+      auditLogForDomain: (domain) => new PgAuditLog(db, domain === "devops" ? "devops_1y" : "prjops_5y"),
+      traceIdProvider: () => traceId,
+      pricingUsdPerMtok: { "known-model": { input: 7, output: 35 } },
+      messages: userMessage("こんにちは"),
+      modelName: "unknown-model",
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    const auditCall = queries.find((q) => q.text.includes("INSERT INTO audit_log"));
+    expect(auditCall?.params?.[0]).toBe("devops_1y");
+    expect(auditCall?.params?.[1]).toBe(traceId);
+    expect(traceId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(auditCall?.params?.[3]).toBe("llm_unknown_model_pricing_fallback");
+    expect(JSON.parse(String(auditCall?.params?.[5]))).toMatchObject({
+      severity: "warn",
+      model: "unknown-model",
+      applied_price_usd_per_mtok: { input: 7, output: 35 },
+    });
+  });
+
+  it("known modelは監査せず、ストリーミング前予約と完了後照合を行う [SPEC-INT-060]", async () => {
     const queries: Array<{ text: string; params: unknown[] | undefined }> = [];
     const db: PgQueryable = {
       query: vi.fn(async (text: string, params?: unknown[]) => {
@@ -245,11 +370,13 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
         return { rows: [{ total: 0 }] };
       }),
     };
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: mockTextModel("表示を切り替えました。"),
       costGuard: new PgCostGuard(db),
+      auditLog: new PgAuditLog(db, "prjops_5y"),
+      traceIdProvider: () => "550e8400-e29b-41d4-a716-446655440001",
       messages: userMessage("こんにちは"),
       modelName: "claude-sonnet-4-6",
     });
@@ -269,6 +396,8 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
       expect.any(String),
       20,
       null,
+      0,
+      0,
     ]);
     const updateCall = queries.find((q) => q.text.includes("UPDATE llm_usage"));
     expect(updateCall!.params).toEqual([
@@ -277,11 +406,14 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
       "view_switching",
       "claude-sonnet-4-6",
       expect.any(Number),
+      0,
+      0,
       expect.any(String),
     ]);
+    expect(queries.some((q) => q.text.includes("INSERT INTO audit_log"))).toBe(false);
   });
 
-  it("ストリーム途中エラーでも予約行を残し、未記録にしない [C-3b]", async () => {
+  it("ストリーム途中エラーでも予約行を残し、未記録にしない [SPEC-INT-060]", async () => {
     const queries: Array<{ text: string; params: unknown[] | undefined }> = [];
     const db: PgQueryable = {
       query: vi.fn(async (text: string, params?: unknown[]) => {
@@ -302,7 +434,7 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
       }),
     });
 
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: model,
@@ -318,7 +450,7 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
     expect(queries.some((q) => q.text.includes("UPDATE llm_usage"))).toBe(false);
   });
 
-  it("refusal相当のfinishReasonを通常完了として扱わない [C-6]", async () => {
+  it("refusal相当のfinishReasonを通常完了として扱わない [SPEC-INT-060]", async () => {
     const model = new MockLanguageModelV2({
       doStream: async () => ({
         stream: new ReadableStream({
@@ -335,7 +467,7 @@ describe("handleChat（T26: costGuard予約・照合）", () => {
       }),
     });
 
-    const res = await handleChat({
+    const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
       languageModel: model,

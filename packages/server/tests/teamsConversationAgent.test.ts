@@ -193,9 +193,10 @@ describe("TeamsConversationAgent: 権限チェック拒否 (SPEC-INT-033)", () =
     expect(logs.some((l) => l.action === "teams_message_rejected")).toBe(true);
   });
 
-  it("関係者マスタでauthorを解決できない場合は拒否+監査ログ (ADR-0005)", async () => {
+  it("関係者マスタ未設定でも会話保存を継続し、コマンドを拒否+監査する (REQ-002 ADR-0005)", async () => {
     const h = makeHarness({ message: { content: "/gh pr list PJ-001" }, callerProfile: null });
     await h.agent.handleNotification(makeNotification(), "trace-4b");
+    expect(h.upserted).toHaveLength(1);
     expect(h.ghCalls.listPr).toBe(0);
     expect(h.replies[0]!.content).toContain("関係者マスタ");
     const logs = await h.auditLog.readAll();
@@ -251,6 +252,15 @@ describe("TeamsConversationAgent: GitHub照会成功 (ADR-0005)", () => {
     const logs = await h.auditLog.readAll();
     expect(logs.some((l) => l.action === "teams_code_task_queued")).toBe(true);
     expect(logs.every((l) => l.action !== "teams_code_task_deferred")).toBe(true);
+  });
+
+  it("/code fix のinstructionはdispatch前にLLM入力用サニタイズを通す (DevOps REQ-030)", async () => {
+    const h = makeHarness({
+      message: { content: '/code fix PJ-001 "キー sk-ant-abcdefghijklmnopqrstuvwxyz を除去"' },
+      callerProfile: "PRF-02",
+    });
+    await h.agent.handleNotification(makeNotification(), "trace-sanitized-instruction");
+    expect(h.codingTaskInserts[0]!.instruction).toBe("キー ***REDACTED:anthropic_api_key*** を除去");
   });
 
   it("/dashboard はpersona付きWebUIディープリンクカードを返信する (REQ-042 SPEC-INT-069 AC-042-1)", async () => {

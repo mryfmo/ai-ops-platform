@@ -6,6 +6,8 @@
   "private": true,
   "scripts": {
     "verify": "tsx src/verifyTraceability.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --config ../../eslint.config.mjs"

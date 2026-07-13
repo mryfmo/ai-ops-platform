@@ -23,7 +23,12 @@
  *   （graphClient, githubClient, llmClient, codingTasksRepo）を結線する薄いオーケストレーション層に徹する。
  */
 import { randomUUID } from "node:crypto";
-import { sanitizeSecrets, type AuditLogWriter, type AnthropicStructuredClient } from "@aiops/shared";
+import {
+  sanitizeForLlmInput,
+  sanitizeSecrets,
+  type AuditLogWriter,
+  type AnthropicStructuredClient,
+} from "@aiops/shared";
 import { parseCommand, checkCommandPermission, type ParsedCommand, type Profile } from "@aiops/prjops";
 import { parseChannelMessageResource, type GraphResourceIds } from "../lib/graphNotificationValidator.js";
 import { decideChannelIngestion } from "../lib/channelAuthorization.js";
@@ -428,7 +433,7 @@ export class TeamsConversationAgent {
       projectId: intent.projectId,
       requestedBy: `USER:${callerProfile}`,
       source: "teams",
-      instruction: sanitizeSecrets(intent.instruction).sanitized,
+      instruction: sanitizeForLlmInput(intent.instruction).sanitized,
       agent: this.deps.codeTaskAgent ?? "claude-code",
       traceId,
       confirmTokenHash,

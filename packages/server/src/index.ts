@@ -4,9 +4,8 @@
  * 根拠: ADR-0005（常駐サーバのcomposition root）。
  *   config読込（fail-fast）→ DI組立 → 常駐スケジューラ起動 → HTTP待受 → SIGTERMでgraceful shutdown。
  *
- * 残課題（ADR-0005に記載）: GitHubトークンはGitHub AppのJWT署名→installation token交換が本来の方式
- *   （SPEC-INT-061）。本composition rootでは暫定的に環境変数GITHUB_TOKENを許容し、
- *   App認証への置換をインフラ導入時のタスクとする。
+ * SPEC-INT-061: GitHub App JWT署名→installation token交換を標準とし、移行用PATを暫定許容する。
+ *   いずれも未設定ならGitHub outboundを無効化し、起動時に1回監査する。
  *
  * 2026-07-07 追記（ステップ#8/#9）: 購読管理（subscriptionRenewalTask/channelPollingTask）、
  *   イベントディスパッチ（eventsPollingTask）、Teams会話取込・コマンド実行（teamsConversationAgent）を配線。
@@ -17,14 +16,8 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
-import {
-  GraphClient,
-  GitHubClient,
-  AnthropicStructuredClient,
-  PgCostGuard,
-  buildHolidayCalendarFromYaml,
-} from "@aiops/shared";
-import type { StakeholderInput } from "@aiops/prjops";
+import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
+import { YamlStakeholderMasterProvider } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -57,13 +50,14 @@ import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotRecon
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
 import { createMsalGraphTokenProvider } from "./auth/graphTokenProvider.js";
+import { createGitHubClientForConfig, type GitHubAuthMode } from "./auth/githubAppTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
 import {
   dispatchGithubWebhookEvent,
   type DevopsAgentId,
   type DevopsEventHandlerInput,
 } from "./lib/githubEventRouter.js";
-import { resolveCallerProfileFromStakeholders } from "./lib/stakeholderProfileResolver.js";
+import { decideStakeholderMaster } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
@@ -103,6 +97,7 @@ export * from "./lib/freeTextIntent.js";
 export * from "./lib/confirmToken.js";
 export * from "./lib/githubEventRouter.js";
 export * from "./lib/stakeholderProfileResolver.js";
+export * from "./lib/stakeholderYamlLoader.js";
 export * from "./lib/graphLifecycleHandler.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
@@ -118,27 +113,20 @@ export * from "./db/recipientsRepo.js";
 export * from "./db/standardReportsRepo.js";
 export * from "./db/reportDeliveryLogRepo.js";
 export * from "./auth/graphTokenProvider.js";
+export * from "./auth/githubAppTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
-
-const SAMPLE_STAKEHOLDERS: StakeholderInput[] = [
-  {
-    id: "ST-010",
-    name: "山田太郎",
-    organization_id: "ORG-001",
-    assignments: [
-      { project_id: "PJ-001", profile: "PRF-02" },
-      { project_id: "PJ-002", profile: "PRF-01" },
-    ],
-    email: "yamada@example.com",
-    teams_user_id: "29:1a2b3c-example-teams-id",
-    preferred_language: "ja",
-    timezone: "Asia/Tokyo",
-  },
-];
 
 function loadJpHolidayCalendar() {
   const yamlUrl = new URL("../../shared/src/calendar/jp_holidays.yaml", import.meta.url);
   return buildHolidayCalendarFromYaml(readFileSync(yamlUrl, "utf8"));
+}
+
+export function githubCompositionPolicy(mode: GitHubAuthMode): {
+  enabled: boolean;
+  blocksWhen(failsafeActive: boolean): boolean;
+} {
+  const enabled = mode !== "disabled";
+  return { enabled, blocksWhen: (failsafeActive) => failsafeActive || !enabled };
 }
 
 export async function main(
@@ -172,6 +160,17 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  const stakeholderProvider = config.STAKEHOLDERS_DIR
+    ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
+    : null;
+  const stakeholderMaster = decideStakeholderMaster(stakeholderProvider);
+  if (stakeholderMaster.auditIntent) {
+    await prjopsAuditLog.append({
+      trace_id: randomUUID(),
+      ...stakeholderMaster.auditIntent,
+      at: new Date().toISOString(),
+    });
+  }
 
   const graphTokenProvider = createMsalGraphTokenProvider({
     tenantId: config.GRAPH_TENANT_ID,
@@ -183,16 +182,21 @@ export async function main(
     allowedFromMailboxes: config.GRAPH_ALLOWED_FROM_MAILBOXES,
   });
 
-  const githubClient = new GitHubClient({
-    // 暫定: 環境変数トークン（本来はGitHub App installation token。ヘッダコメント参照）
-    getInstallationToken: async () => process.env.GITHUB_TOKEN ?? "",
-  });
+  const { client: githubClient, mode: githubAuthMode } = await createGitHubClientForConfig(config, devopsAuditLog);
+  const githubPolicy = githubCompositionPolicy(githubAuthMode);
 
   // ANTHROPIC_API_KEY未設定時はTeams自由文フォールバックを無効化する（config.tsのコメント通り）
   const llmClient = config.ANTHROPIC_API_KEY
     ? new AnthropicStructuredClient(
-        new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }),
+        new Anthropic({ apiKey: config.ANTHROPIC_API_KEY, timeout: 600_000, maxRetries: 2 }),
         new PgCostGuard(pool, { perAgentDailyLimitUsd: { SERVER: 10 }, perAgentRequestLimitUsd: { SERVER: 1 } }),
+        {
+          defaultModel: config.ANTHROPIC_DEFAULT_MODEL,
+          escalationModel: config.ANTHROPIC_ESCALATION_MODEL,
+          pricingUsdPerMtok: config.ANTHROPIC_PRICING_USD_PER_MTOK,
+          auditLog: prjopsAuditLog,
+          traceIdProvider: () => randomUUID(),
+        },
       )
     : undefined;
 
@@ -237,8 +241,7 @@ export async function main(
     githubClient,
     auditLog: prjopsAuditLog,
     llmClient,
-    resolveCallerProfile: (authorAadId, projectId) =>
-      resolveCallerProfileFromStakeholders(SAMPLE_STAKEHOLDERS, authorAadId, projectId).profile,
+    resolveCallerProfile: stakeholderMaster.resolveCallerProfile,
     codingTasksRepo,
     confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
     publicBaseUrl: config.PUBLIC_BASE_URL,
@@ -253,6 +256,32 @@ export async function main(
       traceIdProvider: () => randomUUID(),
     });
   const observedTask = (task: ScheduledTask): ScheduledTask => instrumentScheduledTask(task, metrics);
+  const pmSnapshotClient =
+    githubPolicy.enabled && config.GITHUB_PROJECT_NODE_ID
+      ? {
+          listCurrentSnapshots: (cursor?: string | null) =>
+            githubClient.listCurrentProjectV2Snapshots({
+              projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
+              cursor,
+            }),
+        }
+      : {
+          listCurrentSnapshots: async () => {
+            await prjopsAuditLog.append({
+              trace_id: randomUUID(),
+              actor: "SERVER",
+              action: "pm_snapshot_reconcile_disabled",
+              basis: "SPEC-INT-081",
+              detail: {
+                reason: githubPolicy.enabled
+                  ? "GITHUB_PROJECT_NODE_ID is not configured"
+                  : "GitHub authentication is not configured",
+              },
+              at: new Date().toISOString(),
+            });
+            return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
+          },
+        };
 
   const scheduler = startScheduler(
     [
@@ -272,13 +301,17 @@ export async function main(
           traceIdProvider: () => randomUUID(),
         }),
       ),
-      observedTask(
-        createJitRevocationTask({
-          grantsRepo,
-          secDeps: { githubClient, auditLog: devopsAuditLog },
-          traceIdProvider: () => randomUUID(),
-        }),
-      ),
+      ...(githubPolicy.enabled
+        ? [
+            observedTask(
+              createJitRevocationTask({
+                grantsRepo,
+                secDeps: { githubClient, auditLog: devopsAuditLog },
+                traceIdProvider: () => randomUUID(),
+              }),
+            ),
+          ]
+        : []),
       observedTask(
         createSubscriptionRenewalTask({
           graphSubscriptionsRepo,
@@ -349,27 +382,7 @@ export async function main(
         guardTask(
           createPmSnapshotReconcileTask({
             repo: pmTimeseriesRepo,
-            client: config.GITHUB_PROJECT_NODE_ID
-              ? {
-                  listCurrentSnapshots: (cursor) =>
-                    githubClient.listCurrentProjectV2Snapshots({
-                      projectNodeId: config.GITHUB_PROJECT_NODE_ID!,
-                      cursor,
-                    }),
-                }
-              : {
-                  listCurrentSnapshots: async () => {
-                    await prjopsAuditLog.append({
-                      trace_id: randomUUID(),
-                      actor: "SERVER",
-                      action: "pm_snapshot_reconcile_disabled",
-                      basis: "SPEC-INT-081",
-                      detail: { reason: "GITHUB_PROJECT_NODE_ID is not configured" },
-                      at: new Date().toISOString(),
-                    });
-                    return { rateLimit: { remaining: 999 }, snapshots: [], hasMore: false };
-                  },
-                },
+            client: pmSnapshotClient,
             auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
           }),
@@ -403,6 +416,7 @@ export async function main(
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
+            heartbeatUrl: config.HEARTBEAT_URL,
             logger,
             metrics,
           }),
@@ -426,6 +440,7 @@ export async function main(
       isShuttingDown: () => shuttingDown,
     }),
     metrics,
+    metricsToken: config.METRICS_TOKEN,
     graph: {
       clientState: config.GRAPH_CLIENT_STATE,
       auditLog: devopsAuditLog,
@@ -472,14 +487,14 @@ export async function main(
         return { githubOwner: channel.githubOwner, githubRepo: channel.githubRepo };
       },
       traceIdProvider: () => randomUUID(),
-      isFailsafeActive: () => failsafeActive,
+      isFailsafeActive: () => githubPolicy.blocksWhen(failsafeActive),
     },
     xlsxImport: {
       ledger: importLedgerRepo,
       githubClient,
       auditLog: prjopsAuditLog,
       traceIdProvider: () => randomUUID(),
-      importSecret: config.XLSX_IMPORT_SECRET,
+      importSecret: githubPolicy.enabled ? config.XLSX_IMPORT_SECRET : undefined,
       allowedRepos: config.XLSX_IMPORT_ALLOWED_REPOS,
       isFailsafeActive: () => failsafeActive,
     },

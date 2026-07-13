@@ -9,6 +9,7 @@
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
+import { isFreeOfKnownSecrets, sanitizeForLlmInput, sanitizeSecrets } from "@aiops/shared/secretSanitizer.js";
 import {
   judgeStatus,
   selfReportDiffersFromJudged,
@@ -16,6 +17,7 @@ import {
   type StatusColor,
 } from "../lib/statusJudge.js";
 import { evaluateEscalationTrigger, type EscalationTriggerInput } from "../lib/severityProposal.js";
+import { sanitizeNarrativeWithFallback } from "../lib/narrativeSanitizer.js";
 
 const REASON_TOOL_SCHEMA = {
   type: "object",
@@ -25,6 +27,18 @@ const REASON_TOOL_SCHEMA = {
   },
   required: ["reason_ja", "reason_en"],
 } as const;
+
+function parseEscalationReason(raw: unknown): { reason_ja: string; reason_en: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("E-GEN01: invalid escalation reason");
+  const value = raw as Record<string, unknown>;
+  if (typeof value.reason_ja !== "string" || typeof value.reason_en !== "string") {
+    throw new Error("E-GEN01: invalid escalation reason");
+  }
+  return { reason_ja: value.reason_ja, reason_en: value.reason_en };
+}
+
+const FALLBACK_REASON_JA = "影響記述が重要度引き上げ条件に合致し、複数組織への影響が確認されたためです。";
+const FALLBACK_REASON_EN = "The described impact meets the escalation condition and affects multiple organizations.";
 
 export interface AnalyzerDependencies {
   llmClient: AnthropicStructuredClient;
@@ -71,30 +85,51 @@ export async function proposeEscalationIfNeeded(
     return { proposed: false };
   }
 
+  const safeImpactDescription = sanitizeForLlmInput(trigger.impactDescription).sanitized;
+
   const result = await deps.llmClient.call<{ reason_ja: string; reason_en: string }>({
     agent: "AGT-03",
     purpose: "severity_escalation_reason",
     system:
       "あなたはPMOの重要度判定アシスタントです。与えられた課題の影響記述と検出キーワードから、" +
       "重要度を「高」へ引き上げるべき理由を日本語・英語それぞれ1〜2文で簡潔に説明してください。数値の創作は禁止です。",
-    user: `影響記述: ${trigger.impactDescription}\n検出キーワード: ${evaluation.matchedKeywords.join(", ")}\n影響企業数: ${
+    user: `影響記述: ${safeImpactDescription}\n検出キーワード: ${evaluation.matchedKeywords.join(", ")}\n影響企業数: ${
       trigger.affectedOrganizationIds.length
     }`,
     toolName: "emit_escalation_reason",
     toolDescription: "重要度引き上げ提案の理由文を返す",
     inputSchema: REASON_TOOL_SCHEMA,
-    parse: (raw) => raw as { reason_ja: string; reason_en: string },
+    parse: parseEscalationReason,
     maxAttempts: 2,
   });
+  const sanitizedReasonJa = sanitizeNarrativeWithFallback(
+    sanitizeSecrets(result.value.reason_ja).sanitized,
+    "ja",
+    FALLBACK_REASON_JA,
+  );
+  const sanitizedReasonEn = sanitizeNarrativeWithFallback(
+    sanitizeSecrets(result.value.reason_en).sanitized,
+    "en",
+    FALLBACK_REASON_EN,
+  );
+  const reasonJa = isFreeOfKnownSecrets(sanitizedReasonJa) ? sanitizedReasonJa : FALLBACK_REASON_JA;
+  const reasonEn = isFreeOfKnownSecrets(sanitizedReasonEn) ? sanitizedReasonEn : FALLBACK_REASON_EN;
+  const fallbackApplied = reasonJa === FALLBACK_REASON_JA || reasonEn === FALLBACK_REASON_EN;
 
   await deps.auditLog.append({
     trace_id: deps.traceId,
     actor: "AGT-03",
     action: "propose_escalation",
     basis: "REQ-008 AC-008-1",
-    detail: { issueId, matchedKeywords: evaluation.matchedKeywords, reason_ja: result.value.reason_ja },
+    detail: {
+      issueId,
+      matchedKeywords: evaluation.matchedKeywords,
+      affectsMultipleOrganizations: evaluation.affectsMultipleOrganizations,
+      fallbackApplied,
+      reason_ja: reasonJa,
+    },
     at: new Date().toISOString(),
   });
 
-  return { proposed: true, reasonJa: result.value.reason_ja, reasonEn: result.value.reason_en };
+  return { proposed: true, reasonJa, reasonEn };
 }

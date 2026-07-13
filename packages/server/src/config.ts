@@ -9,7 +9,18 @@
  *   - ADR-0006: CODING_TASK_CALLBACK_SECRETは.github/workflows/coding-task.ymlが
  *     POST /internal/coding-tasks/:taskId/callback を呼ぶ際のBearer認証シークレット。
  */
+import { isAbsolute } from "node:path";
 import { z } from "zod";
+import { MAX_MODEL_ID_LENGTH, parseModelPricingUsdPerMtokJson, type ModelPricingUsdPerMtok } from "@aiops/shared";
+
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const DEFAULT_ANTHROPIC_ESCALATION_MODEL = "claude-opus-4-8";
+const modelIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_MODEL_ID_LENGTH)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
 
 const commaList = (lowercase = false) =>
   z
@@ -44,6 +55,8 @@ const baseConfigSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
   /** OpenTelemetry service name. */
   OTEL_SERVICE_NAME: z.string().default("ai-ops-platform-server"),
+  /** Prometheus scrape endpointのBearerトークン。未設定時は後方互換のため認証なし。 */
+  METRICS_TOKEN: z.string().min(32).optional(),
   /** OTLP base endpoint. 未設定時はtelemetry disabledを明示ログしてno-op。 */
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   /** OTLP traces endpoint. 指定時はOTEL_EXPORTER_OTLP_ENDPOINTより優先。 */
@@ -72,6 +85,17 @@ const baseConfigSchema = z.object({
   PUBLIC_BASE_URL: z.string().url(),
   /** Anthropic APIキー（自由文意図解釈で使用。未設定時はLLMフォールバック無効） */
   ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
+  ANTHROPIC_ESCALATION_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_ESCALATION_MODEL),
+  ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
+  /** REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
+  STAKEHOLDERS_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
+  /** SPEC-INT-061: GitHub App認証。App系3変数はsuperRefineでall-or-noneを強制する。 */
+  GITHUB_APP_ID: z.string().trim().min(1).optional(),
+  GITHUB_APP_PRIVATE_KEY: z.string().trim().min(1).optional(),
+  GITHUB_APP_INSTALLATION_ID: z.string().trim().min(1).optional(),
+  /** SPEC-INT-061: GitHub App移行までの暫定PAT fallback。 */
+  GITHUB_TOKEN: z.string().trim().min(1).optional(),
   /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
   GITHUB_PROJECT_NODE_ID: z.string().optional(),
   /** ADR-0014: Outlook配信元メールボックス。未設定時はreport deliveryをdisabled+監査にする。 */
@@ -86,6 +110,16 @@ const baseConfigSchema = z.object({
     .enum(["true", "false", "1", "0"])
     .default("false")
     .transform((v) => v === "true" || v === "1"),
+  /** AUD-OPM-009: 配信サイクル成功を外部 dead man's switch へ通知するURL。未設定時はno-op。 */
+  HEARTBEAT_URL: z
+    .string()
+    .url()
+    .refine((value) => {
+      if (!URL.canParse(value)) return true;
+      const url = new URL(value);
+      return url.username === "" && url.password === "";
+    })
+    .optional(),
   /** ADR-0014: report-generation.yml -> /reports/ingest HMAC鍵。未設定時はingest disabled。 */
   REPORT_INGEST_SECRET: z.string().min(32).optional(),
   /** ADR-0008: /xlsx-import/* HMAC鍵。未設定時はxlsx import disabled。 */
@@ -115,6 +149,15 @@ const baseConfigSchema = z.object({
 });
 
 const configSchema = baseConfigSchema.superRefine((config, ctx) => {
+  const githubAppValues = [config.GITHUB_APP_ID, config.GITHUB_APP_PRIVATE_KEY, config.GITHUB_APP_INSTALLATION_ID];
+  const configuredGithubAppValues = githubAppValues.filter(Boolean).length;
+  if (configuredGithubAppValues !== 0 && configuredGithubAppValues !== githubAppValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GITHUB_APP_ID"],
+      message: "GitHub App ID, private key, and installation ID must be configured together",
+    });
+  }
   if (!config.REPORT_DELIVERY_ENABLED) return;
   if (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX)) {
     ctx.addIssue({
@@ -139,17 +182,33 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
   }
 });
 
-export type ServerConfig = z.infer<typeof configSchema>;
+type ParsedServerConfig = z.infer<typeof configSchema>;
+export type ServerConfig = Omit<ParsedServerConfig, "ANTHROPIC_PRICING_USD_PER_MTOK"> & {
+  ANTHROPIC_PRICING_USD_PER_MTOK: ModelPricingUsdPerMtok;
+};
 
 /**
  * 環境変数をパースする。不足・不正があれば起動時に例外を投げ、
  * 誤設定のまま黙って稼働すること（webhook検証スキップ等）を防ぐ。
  */
-export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {
+export function loadConfig(
+  env: Record<string, string | undefined> = process.env,
+  warn: (message: string) => void = console.warn,
+): ServerConfig {
   const parsed = configSchema.safeParse(env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`E-CFG01: invalid server configuration: ${issues}`);
   }
-  return parsed.data;
+  if (!parsed.data.METRICS_TOKEN) {
+    warn("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+  }
+  try {
+    return {
+      ...parsed.data,
+      ANTHROPIC_PRICING_USD_PER_MTOK: parseModelPricingUsdPerMtokJson(parsed.data.ANTHROPIC_PRICING_USD_PER_MTOK),
+    };
+  } catch (error) {
+    throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`);
+  }
 }

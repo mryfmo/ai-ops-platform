@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { InMemoryAuditLog, validateReasonRequirement, findTraceChain } from "../src/auditLog.js";
+import { PgAuditLog } from "../src/clients/pgAuditLog.js";
 
 describe("InMemoryAuditLog [REQ-020, SPEC-INT-053/056]", () => {
   it("追記した順にlog_idが採番される", async () => {
@@ -46,6 +47,23 @@ describe("InMemoryAuditLog [REQ-020, SPEC-INT-053/056]", () => {
         at: "x",
       }),
     ).rejects.toThrow(/E-AUD02/);
+  });
+});
+
+describe("PgAuditLog PostgreSQL boundary [REQ-028, SPEC-INT-056]", () => {
+  it("passes a valid UUID trace_id to the INSERT boundary [REQ-028 / SPEC-INT-056]", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ log_id: "7" }] });
+    const traceId = "123e4567-e89b-42d3-a456-426614174000";
+    await new PgAuditLog({ query }, "prjops_5y").append({
+      trace_id: traceId,
+      actor: "AGT-04",
+      action: "llm_unknown_model_pricing_fallback",
+      basis: "SPEC-INT-060",
+      detail: { model: "unknown" },
+      at: "2026-07-13T00:00:00Z",
+    });
+    expect(query.mock.calls[0]![1]![1]).toBe(traceId);
+    expect(traceId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });
 

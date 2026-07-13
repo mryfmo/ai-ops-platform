@@ -26,6 +26,7 @@ export interface TimeseriesHandlerDeps {
   period: PeriodKind;
   baseDate: string;
   persona?: "executive" | "manager" | "investor";
+  selectedPersona?: string;
 }
 
 interface PmEventRow {
@@ -72,7 +73,7 @@ function choosePersona(personas: ResolvedPersona[], requested?: TimeseriesHandle
     );
     if (persona) return persona;
   }
-  const fallback = personas[0];
+  const [fallback] = personas;
   if (!fallback) throw new ForbiddenError("E-AUTH02: timeseries requires persona");
   return fallback;
 }
@@ -86,7 +87,7 @@ function canSeeProject(persona: ResolvedPersona, projectId: string | null): bool
 
 export async function handleTimeseries(deps: TimeseriesHandlerDeps): Promise<Response> {
   try {
-    const personas = await resolvePersonas(deps.getSession, deps.resolver);
+    const personas = await resolvePersonas(deps.getSession, deps.resolver, undefined, deps.selectedPersona);
     const persona = choosePersona(personas, deps.persona);
     const range = resolvePeriodRange(deps.period, deps.baseDate);
     const [eventRows, snapshotRows] = await Promise.all([

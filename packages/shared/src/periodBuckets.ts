@@ -5,6 +5,7 @@
  * GitHub webhook/snapshot由来の時系列を、週/月/四半期/半年/年の表示期間へ決定的に集計する。
  */
 import { isoWeekOf } from "./ids.js";
+import { fromJstClock, toJstClock } from "./jst.js";
 
 export type PeriodKind = "week" | "month" | "quarter" | "half" | "year";
 
@@ -63,7 +64,6 @@ export interface TimeseriesAggregate {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function parseJstDate(dateLike: string): Date {
   const datePart = dateLike.slice(0, 10);
@@ -75,7 +75,7 @@ function parseJstDate(dateLike: string): Date {
   const day = Number(d);
   const roundTrip = new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
   if (roundTrip !== datePart) throw new Error(`invalid date: ${dateLike}`);
-  return new Date(Date.UTC(year!, month! - 1, day!) - JST_OFFSET_MS);
+  return fromJstClock(year, month - 1, day);
 }
 
 function addDays(date: Date, days: number): Date {
@@ -83,12 +83,12 @@ function addDays(date: Date, days: number): Date {
 }
 
 function addMonthsJst(date: Date, months: number): Date {
-  const jst = new Date(date.getTime() + JST_OFFSET_MS);
-  return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth() + months, 1) - JST_OFFSET_MS);
+  const jst = toJstClock(date);
+  return fromJstClock(jst.getUTCFullYear(), jst.getUTCMonth() + months, 1);
 }
 
 function toJstIso(date: Date): string {
-  const jst = new Date(date.getTime() + JST_OFFSET_MS);
+  const jst = toJstClock(date);
   const y = jst.getUTCFullYear();
   const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const d = String(jst.getUTCDate()).padStart(2, "0");
@@ -101,7 +101,7 @@ function ymdJst(date: Date): string {
 
 export function resolvePeriodRange(period: PeriodKind, baseDate: string): PeriodRange {
   const base = parseJstDate(baseDate);
-  const jst = new Date(base.getTime() + JST_OFFSET_MS);
+  const jst = toJstClock(base);
   const year = jst.getUTCFullYear();
   const month = jst.getUTCMonth();
 
@@ -122,7 +122,7 @@ export function resolvePeriodRange(period: PeriodKind, baseDate: string): Period
           ? Math.floor(month / 6) * 6
           : 0;
   const length = period === "month" ? 1 : period === "quarter" ? 3 : period === "half" ? 6 : 12;
-  const start = new Date(Date.UTC(year, startMonth, 1) - JST_OFFSET_MS);
+  const start = fromJstClock(year, startMonth, 1);
   const end = addMonthsJst(start, length);
   const label =
     period === "month"

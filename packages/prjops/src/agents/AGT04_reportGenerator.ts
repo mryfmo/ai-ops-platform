@@ -9,6 +9,7 @@
  * 他プロファイルの文章スロット（PRF-03のトピック要約等）も同一パターンで実装する。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
+import { isFreeOfKnownSecrets, sanitizeForLlmInput, sanitizeSecrets } from "@aiops/shared/secretSanitizer.js";
 import { checkNarrativeHasNoNumbers, stripSentencesWithNumbers } from "../lib/narrativeSanitizer.js";
 import { composeExecutiveReport, type ComposeCommonOptions } from "../templates/index.js";
 import type { ColorDistribution } from "../templates/svgCharts.js";
@@ -20,6 +21,21 @@ const CONCLUSION_TOOL_SCHEMA = {
   },
   required: ["lines"],
 } as const;
+
+const SAFE_CONCLUSION_PADDING = [
+  "全体状況を継続して確認します。",
+  "重点課題への対応を進めます。",
+  "必要な意思決定を適時行います。",
+] as const;
+
+function parseConclusionLines(raw: unknown): { lines: string[] } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("E-GEN01: invalid conclusion lines");
+  const lines = (raw as Record<string, unknown>).lines;
+  if (!Array.isArray(lines) || !lines.every((line) => typeof line === "string")) {
+    throw new Error("E-GEN01: invalid conclusion lines");
+  }
+  return { lines };
+}
 
 export interface ExecutiveNarrativeInput {
   colorDistribution: ColorDistribution;
@@ -33,6 +49,7 @@ export async function generateExecutiveConclusionLines(
   llmClient: AnthropicStructuredClient,
   input: ExecutiveNarrativeInput,
 ): Promise<[string, string, string]> {
+  const safeSummaries = sanitizeForLlmInput(input.topRiskProjectSummaries.join(" / ")).sanitized;
   const result = await llmClient.call<{ lines: string[] }>({
     agent: "AGT-04",
     purpose: "executive_conclusion",
@@ -40,20 +57,26 @@ export async function generateExecutiveConclusionLines(
       "あなたはPMOの経営報告アシスタントです。与えられた材料から、経営陣向け「結論」を必ず3行、" +
       "各行40〜60文字程度の日本語で生成してください。**数値・パーセンテージ・件数は一切書かないでください**" +
       "（数値は別途コードが表示します）。個人名は書かないでください。",
-    user: `Redプロジェクトの状況: ${input.topRiskProjectSummaries.join(" / ") || "特筆すべき懸念なし"}`,
+    user: `Redプロジェクトの状況: ${safeSummaries || "特筆すべき懸念なし"}`,
     toolName: "emit_conclusion",
     toolDescription: "経営陣向け結論3行を返す",
     inputSchema: CONCLUSION_TOOL_SCHEMA,
-    parse: (raw) => raw as { lines: string[] },
+    parse: parseConclusionLines,
     maxAttempts: 2,
   });
 
-  const cleaned = result.value.lines.map((line) => {
-    const check = checkNarrativeHasNoNumbers(line);
-    return check.ok ? line : stripSentencesWithNumbers(line, "ja");
-  });
+  const cleaned = result.value.lines
+    .map((line) => {
+      const safeLine = sanitizeSecrets(line).sanitized;
+      const check = checkNarrativeHasNoNumbers(safeLine);
+      const cleanedLine = check.ok ? safeLine.normalize("NFKC") : stripSentencesWithNumbers(safeLine, "ja");
+      return isFreeOfKnownSecrets(cleanedLine) ? cleanedLine : "";
+    })
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 
-  while (cleaned.length < 3) cleaned.push("特筆すべき事項はありません。");
+  while (cleaned.length < 3) cleaned.push(SAFE_CONCLUSION_PADDING[cleaned.length]!);
 
   return [cleaned[0]!, cleaned[1]!, cleaned[2]!];
 }

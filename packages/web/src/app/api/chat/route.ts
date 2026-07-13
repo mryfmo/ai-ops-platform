@@ -10,12 +10,13 @@
  * モジュールのトップレベルでは loadWebConfig() を呼ばない）。未設定時は languageModel を
  * undefined のままハンドラへ渡し、ハンドラ側が503を返す（ビルド時にAPIキーを要求しない）。
  */
-import pg from "pg";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { UIMessage } from "ai";
-import { PgCostGuard } from "@aiops/shared";
+import { PgAuditLog, PgCostGuard, withTimeout } from "@aiops/shared";
+import { randomUUID } from "node:crypto";
 import { auth } from "../../../auth";
 import { loadWebConfig } from "../../../server/config";
+import { getPool } from "../../../server/db/pool";
 import {
   CompositePersonaResolver,
   DevopsPersonaSource,
@@ -23,21 +24,21 @@ import {
   PrjopsPersonaSource,
 } from "../../../server/personaResolver";
 import { handleChat } from "../../../server/chat/chatHandler";
+import { selectedPersonaFromRequest } from "../../../server/authGuard";
 
 export const dynamic = "force-dynamic";
 
-const CHAT_MODEL = "claude-sonnet-4-6";
-
 export async function POST(request: Request): Promise<Response> {
   const config = loadWebConfig();
-  const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
+  const pool = getPool(config.DATABASE_URL);
   const resolver = new CompositePersonaResolver(
     new DevopsPersonaSource(pool),
     new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
   );
 
+  const chatModel = config.ANTHROPIC_DEFAULT_MODEL;
   const languageModel = config.ANTHROPIC_API_KEY
-    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY })(CHAT_MODEL)
+    ? createAnthropic({ apiKey: config.ANTHROPIC_API_KEY, fetch: withTimeout(fetch, 600_000) })(chatModel)
     : undefined;
 
   const costGuard = new PgCostGuard(pool, {
@@ -52,10 +53,15 @@ export async function POST(request: Request): Promise<Response> {
     resolver,
     languageModel,
     costGuard,
+    auditLogForDomain: (domain) => new PgAuditLog(pool, domain === "devops" ? "devops_1y" : "prjops_5y"),
+    traceIdProvider: () => randomUUID(),
+    pricingUsdPerMtok: config.ANTHROPIC_PRICING_USD_PER_MTOK,
     messages: body.messages,
     pageContext: body.pageContext,
     maxSteps: config.PAGE_AGENT_MAX_STEPS,
     thinkingBudgetTokens: config.PAGE_AGENT_THINKING_BUDGET_TOKENS,
-    modelName: CHAT_MODEL,
+    modelName: chatModel,
+    selectedPersona: selectedPersonaFromRequest(request),
+    maxRetries: 2,
   });
 }

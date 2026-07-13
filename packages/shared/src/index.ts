@@ -1,5 +1,6 @@
 export * from "./calendar/businessCalendar.js";
 export * from "./ids.js";
+export * from "./jst.js";
 export * from "./periodBuckets.js";
 export * from "./language.js";
 export * from "./secretSanitizer.js";
@@ -8,8 +9,10 @@ export * from "./html/htmlSanitizeCheck.js";
 export * from "./clients/anthropicClient.js";
 export * from "./clients/claudeAgentClient.js";
 export * from "./clients/graphClient.js";
+export * from "./clients/fetchPolicy.js";
 export * from "./clients/githubClient.js";
 export * from "./clients/pgCostGuard.js";
+export * from "./clients/pgAuditLog.js";
 export * from "./reporting/reportSchema.js";
 export * from "./reporting/reportValidation.js";
 export * from "./reporting/reportPrompt.js";

@@ -28,6 +28,8 @@
 | `FROM_MAILBOX`                              | No       | unset                    | Outlook mailbox used by report delivery. With delivery enabled it is required and must be in `GRAPH_ALLOWED_FROM_MAILBOXES`; otherwise startup fails.                 |
 | `REPORT_DELIVERY_ENABLED`                   | No       | `false`                  | Must be `true` or `1` before standard reports are sent. When false, ingest can store reports but delivery is disabled and audited.                                    |
 | `REPORT_INGEST_SECRET`                      | No       | unset                    | HMAC key for `POST /reports/ingest`; minimum length 32. Missing value disables the ingest route with a 503 response and audit record.                                 |
+| `XLSX_IMPORT_SECRET`                        | No       | unset                    | HMAC key for `/xlsx-import/*`; minimum length 32. Missing value disables XLSX import and writes an audit record.                                                      |
+| `XLSX_IMPORT_ALLOWED_REPOS`                 | No       | unset                    | Comma-separated `owner/repo` allowlist for XLSX execute operations. Unset means no repository is allowed.                                                             |
 | `DEFAULT_TEAMS_TEAM_ID`                     | No       | unset                    | Default Teams team for cards. With delivery enabled, team/channel defaults are both-or-neither and the team must be allowlisted.                                      |
 | `DEFAULT_TEAMS_CHANNEL_ID`                  | No       | unset                    | Default Teams channel for cards. With delivery enabled, team/channel defaults are both-or-neither.                                                                    |
 | `CODING_TASK_CALLBACK_SECRET`               | Yes      | None                     | HMAC key for confirmation tokens and bearer secret for coding task callback; minimum length 32.                                                                       |
@@ -40,18 +42,23 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 
 ## Web (`packages/web/src/server/config.ts`, `packages/web/src/auth.ts`)
 
-| Variable                            | Required | Default            | Behavior                                                         |
-| ----------------------------------- | -------- | ------------------ | ---------------------------------------------------------------- |
-| `AUTH_SECRET`                       | Yes      | None               | Auth.js session secret.                                          |
-| `AUTH_MICROSOFT_ENTRA_ID_ID`        | Yes      | None               | Microsoft Entra ID client ID.                                    |
-| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | Yes      | None               | Microsoft Entra ID client secret.                                |
-| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Yes      | None               | Tenant ID; also builds the issuer URL in `auth.ts`.              |
-| `DATABASE_URL`                      | Yes      | None               | Used by persona resolver and dashboard data handlers.            |
-| `ANTHROPIC_API_KEY`                 | No       | unset              | If unset, `/app/api/chat` returns 503 and does not call a model. |
-| `PAGE_AGENT_MAX_STEPS`              | No       | `5` in handler     | Max AI SDK tool steps; config accepts 1-10.                      |
-| `PAGE_AGENT_THINKING_BUDGET_TOKENS` | No       | `12000` in handler | Anthropic extended thinking budget; config accepts 1024-64000.   |
+| Variable                            | Required | Default                 | Behavior                                                                     |
+| ----------------------------------- | -------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `AUTH_SECRET`                       | Yes      | None                    | Auth.js session secret.                                                      |
+| `AUTH_MICROSOFT_ENTRA_ID_ID`        | Yes      | None                    | Microsoft Entra ID client ID.                                                |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | Yes      | None                    | Microsoft Entra ID client secret.                                            |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Yes      | None                    | Tenant ID; also builds the issuer URL in `auth.ts`.                          |
+| `DATABASE_URL`                      | Yes      | None                    | Used by persona resolver and dashboard data handlers.                        |
+| `PUBLIC_BASE_URL`                   | Yes      | None                    | Allowed origin for authenticated Excel import state changes.                 |
+| `AIOPS_SERVER_INTERNAL_URL`         | No       | `http://127.0.0.1:8080` | Internal Hono endpoint used only by the server-side Excel import proxy.      |
+| `XLSX_IMPORT_SECRET`                | No       | unset                   | HMAC key retained by server-side routes; if unset, Excel import returns 503. |
+| `ANTHROPIC_API_KEY`                 | No       | unset                   | If unset, `/app/api/chat` returns 503 and does not call a model.             |
+| `PAGE_AGENT_MAX_STEPS`              | No       | `5` in handler          | Max AI SDK tool steps; config accepts 1-10.                                  |
+| `PAGE_AGENT_THINKING_BUDGET_TOKENS` | No       | `12000` in handler      | Anthropic extended thinking budget; config accepts 1024-64000.               |
 
 `loadWebConfig()` fails fast with `E-CFG02` when required values are missing or invalid. The module does not validate at import time, so `next build` does not need secrets.
+
+The server and web tables above are the exact Zod-schema inventory represented in the repository-root `.env.example`. Variables below are used by separate report-generation jobs or direct runtime fallbacks and are not part of those two schemas.
 
 ## Report Generation Environment
 
@@ -69,3 +76,4 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 
 - `GITHUB_TOKEN` is read directly in `packages/server/src/index.ts` for the GitHub token provider fallback.
 - Web chat records cost through `PgCostGuard` as agent `WEB-CHAT` with route-code daily and per-request limits. The resident server uses the same guard for Teams free-text fallback as agent `SERVER`.
+- `.github/workflows/release-image.yml` is intentionally absent. Image-release automation remains blocked until a deployment-platform ADR selects the registry, provenance, and operating model.

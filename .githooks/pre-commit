@@ -1,0 +1,21 @@
+#!/bin/sh
+# @file .githooks/pre-commit
+# @brief CI と同じ gitleaks 版・ポリシーで staged 変更の秘密情報を検査する。
+# 根拠: REQ-032 / DevOps REQ-030
+
+set -eu
+
+expected_version="8.30.1"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks ${expected_version} is required; see README.md" >&2
+  exit 1
+fi
+
+actual_version="$(gitleaks version)"
+if [ "${actual_version}" != "${expected_version}" ]; then
+  echo "gitleaks ${expected_version} is required (found ${actual_version})" >&2
+  exit 1
+fi
+
+exec gitleaks protect --staged --config .gitleaks.toml --redact --verbose

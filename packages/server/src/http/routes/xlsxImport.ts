@@ -4,8 +4,9 @@
  * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
  * .xlsxアップロードをdry-run検証し、確認ヘッダ付きのexecuteでGitHub書き込みを行う。
  */
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import {
   buildXlsxImportTemplateBuffer,
   executeXlsxImport,
@@ -14,6 +15,8 @@ import {
   type ImportLedger,
   type XlsxImportGithubClient,
 } from "@aiops/shared";
+
+export const XLSX_IMPORT_MAX_BYTES = 10 * 1024 * 1024;
 
 export interface XlsxImportRoutesDeps {
   ledger: ImportLedger;
@@ -47,8 +50,19 @@ function verifyXlsxImportSignature(rawBody: Buffer, signature: string | null, se
 async function readAuthenticatedBody(
   c: Context,
   deps: XlsxImportRoutesDeps,
-): Promise<{ ok: true; buffer: Buffer } | { ok: false; response: Response }> {
+  operation: "dry-run" | "execute",
+): Promise<{ ok: true; buffer: Buffer; traceId: string } | { ok: false; response: Response }> {
   const buffer = Buffer.from(await c.req.arrayBuffer());
+  const auth = await authenticateBuffer(c, deps, buffer);
+  if (auth.ok) await auditSubmittedFile(deps, auth.traceId, operation, buffer);
+  return auth;
+}
+
+async function authenticateBuffer(
+  c: Context,
+  deps: XlsxImportRoutesDeps,
+  buffer: Buffer,
+): Promise<{ ok: true; buffer: Buffer; traceId: string } | { ok: false; response: Response }> {
   const traceId = deps.traceIdProvider();
   if (!deps.importSecret) {
     await deps.auditLog.append({
@@ -73,11 +87,29 @@ async function readAuthenticatedBody(
     });
     return { ok: false, response: c.json({ error: "invalid signature" }, 401) };
   }
-  return { ok: true, buffer };
+  return { ok: true, buffer, traceId };
+}
+
+async function auditSubmittedFile(
+  deps: XlsxImportRoutesDeps,
+  traceId: string,
+  operation: "dry-run" | "execute",
+  buffer: Buffer,
+): Promise<void> {
+  await deps.auditLog.append({
+    trace_id: traceId,
+    actor: "SERVER",
+    action: "xlsx_import_file_submitted",
+    basis: "REQ-037/SPEC-INT-063/AUD-OPM-011",
+    detail: { operation, sha256: createHash("sha256").update(buffer).digest("hex") },
+    at: new Date().toISOString(),
+  });
 }
 
 export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps): void {
-  app.get("/xlsx-import/template", async () => {
+  app.get("/xlsx-import/template", async (c) => {
+    const auth = await authenticateBuffer(c, deps, Buffer.alloc(0));
+    if (!auth.ok) return auth.response;
     const buffer = await buildXlsxImportTemplateBuffer();
     return new Response(buffer, {
       status: 200,
@@ -88,16 +120,28 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
     });
   });
 
-  app.post("/xlsx-import/dry-run", async (c) => {
-    const body = await readAuthenticatedBody(c, deps);
-    if (!body.ok) return body.response;
-    const parsed = await parseXlsxImport(body.buffer);
-    return c.json({ ok: parsed.errors.length === 0, rowCount: parsed.rows.length, errors: parsed.errors }, 200);
+  const xlsxBodyLimit = bodyLimit({
+    maxSize: XLSX_IMPORT_MAX_BYTES,
+    onError: (c) => c.json({ error: "payload too large", maxBytes: XLSX_IMPORT_MAX_BYTES }, 413),
   });
 
-  app.post("/xlsx-import/execute", async (c) => {
-    const body = await readAuthenticatedBody(c, deps);
+  app.post("/xlsx-import/dry-run", xlsxBodyLimit, async (c) => {
+    const body = await readAuthenticatedBody(c, deps, "dry-run");
     if (!body.ok) return body.response;
+    const parsed = await parseXlsxImport(body.buffer);
+    return c.json(
+      { ok: parsed.errors.length === 0, rowCount: parsed.rows.length, errors: parsed.errors, summary: parsed.summary },
+      200,
+    );
+  });
+
+  app.post("/xlsx-import/execute", xlsxBodyLimit, async (c) => {
+    const body = await readAuthenticatedBody(c, deps, "execute");
+    if (!body.ok) return body.response;
+    const parsed = await parseXlsxImport(body.buffer);
+    if (parsed.errors.length > 0) {
+      return c.json({ ok: false, rowCount: 0, errors: parsed.errors, summary: parsed.summary }, 400);
+    }
     if (c.req.header("x-confirm-import") !== "yes") return c.json({ error: "confirmation required" }, 409);
     let owner: string;
     let repo: string;
@@ -133,12 +177,7 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
       return c.json({ error: "failsafe active" }, 503);
     }
 
-    const parsed = await parseXlsxImport(body.buffer);
-    if (parsed.errors.length > 0) {
-      return c.json({ ok: false, rowCount: 0, errors: parsed.errors }, 400);
-    }
-
-    const importRunId = deps.traceIdProvider();
+    const importRunId = body.traceId;
     const result = await executeXlsxImport({
       owner,
       repo,

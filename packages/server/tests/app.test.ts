@@ -4,7 +4,7 @@
  * 根拠: ADR-0005（webhook全経路の結合テスト。app.request()でポートを開かず検証）
  *   / SPEC-INT-001（validationTokenハンドシェイク）/ SPEC-INT-061（GitHub署名検証）
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import type { PgQueryable } from "@aiops/shared";
 import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
@@ -12,11 +12,14 @@ import { buildApp, type AppDependencies } from "../src/http/app.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
 import { createReadinessCheck } from "../src/http/routes/health.js";
 import { MetricsRegistry } from "../src/observability/metrics.js";
+import { loadConfig } from "../src/config.js";
+import { XLSX_IMPORT_MAX_BYTES } from "../src/http/routes/xlsxImport.js";
 
 const CLIENT_STATE = "expected-client-state-16chars";
 const WEBHOOK_SECRET = "test-webhook-secret";
 const CONFIRM_TOKEN_SECRET = "test-confirm-token-secret-16+";
 const CALLBACK_SECRET = "test-callback-secret-16chars";
+const METRICS_TOKEN = "test-metrics-token-of-at-least-32-chars";
 
 function makeDeps() {
   const auditLog = new InMemoryAuditLog();
@@ -149,6 +152,57 @@ describe("health endpoints (ADR-0005)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/plain");
     expect(await res.text()).toContain('aiops_report_delivery_total{result="sent"} 2');
+  });
+
+  it("GET /metrics はMETRICS_TOKEN設定時に完全一致するBearerだけを許可する", async () => {
+    const { deps } = makeDeps();
+    deps.metricsToken = loadConfig({
+      DATABASE_URL: "postgres://test:test@localhost/test",
+      GRAPH_CLIENT_STATE: "test-client-state-of-at-least-32-chars",
+      GITHUB_WEBHOOK_SECRET: "test-webhook-secret-of-at-least-32-chars",
+      GRAPH_CLIENT_ID: "test-client",
+      GRAPH_CLIENT_SECRET: "test-client-secret",
+      GRAPH_TENANT_ID: "test-tenant",
+      GRAPH_ALLOWED_TEAM_IDS: "team-1",
+      GRAPH_ALLOWED_FROM_MAILBOXES: "from@example.com",
+      PUBLIC_BASE_URL: "https://example.invalid",
+      CODING_TASK_CALLBACK_SECRET: "test-callback-secret-of-at-least-32-chars",
+      METRICS_TOKEN,
+    }).METRICS_TOKEN;
+    const app = buildApp(deps);
+
+    for (const authorization of [
+      undefined,
+      `Bearer ${"x".repeat(METRICS_TOKEN.length)}`,
+      `bearer ${METRICS_TOKEN}`,
+      `Bearer  ${METRICS_TOKEN}`,
+      `Bearer ${METRICS_TOKEN}x`,
+    ]) {
+      const res = await app.request("/metrics", {
+        headers: authorization ? { Authorization: authorization } : undefined,
+      });
+      expect(res.status).toBe(401);
+      expect(res.headers.get("www-authenticate")).toBe("Bearer");
+      expect(await res.text()).toBe("Unauthorized");
+    }
+
+    const res = await app.request("/metrics", {
+      headers: { Authorization: `Bearer ${METRICS_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("# HELP aiops_report_delivery_total");
+  });
+});
+
+describe("browser security headers (AUD-SEC-002)", () => {
+  it("Honoの確認ページにもCSP、HSTS、nosniff、frame denialを設定する", async () => {
+    const { deps } = makeDeps();
+    const res = await buildApp(deps).request("/coding-tasks/missing/confirm");
+
+    expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(res.headers.get("strict-transport-security")).toContain("max-age=");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
   });
 });
 
@@ -515,5 +569,72 @@ describe("/app/* WebUIプロキシ (ADR-0005)", () => {
     const res = await app.request("/app/dashboard?tab=1");
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("dashboard");
+  });
+
+  it("xlsx importはContent-Length超過をbody読取前に413で拒否する [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+    const { deps } = makeDeps();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array([1]));
+        controller.close();
+      },
+    });
+    deps.webui = { targetBaseUrl: "http://127.0.0.1:3100", fetchImpl: async () => new Response() };
+    const request = new Request("http://localhost/app/api/xlsx-import?operation=dry-run", {
+      method: "POST",
+      headers: { "content-length": String(XLSX_IMPORT_MAX_BYTES + 1) },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const res = await buildApp(deps).request(request);
+
+    expect(res.status).toBe(413);
+    expect(request.body?.locked).toBe(false);
+  });
+
+  it("xlsx importはchunked超過をcancelして413にする [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+    const { deps } = makeDeps();
+    let cancelled = false;
+    const chunks = [new Uint8Array(6 * 1024 * 1024), new Uint8Array(5 * 1024 * 1024)];
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const chunk = chunks.shift();
+        if (chunk) controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetchImpl = vi.fn(async () => new Response());
+    deps.webui = { targetBaseUrl: "http://127.0.0.1:3100", fetchImpl };
+    const request = new Request("http://localhost/app/api/xlsx-import?operation=dry-run", {
+      method: "POST",
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const res = await buildApp(deps).request(request);
+
+    expect(res.status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("xlsx importはexactly 10MiBをNextへ転送する [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+    const { deps } = makeDeps();
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect((init?.body as Uint8Array).byteLength).toBe(XLSX_IMPORT_MAX_BYTES);
+      return Response.json({ ok: true });
+    });
+    deps.webui = { targetBaseUrl: "http://127.0.0.1:3100", fetchImpl };
+
+    const res = await buildApp(deps).request("/app/api/xlsx-import?operation=dry-run", {
+      method: "POST",
+      body: new Uint8Array(XLSX_IMPORT_MAX_BYTES),
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 });
