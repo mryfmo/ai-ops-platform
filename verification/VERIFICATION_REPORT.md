@@ -1,16 +1,18 @@
 # 検証結果報告書（VERIFICATION REPORT）
 
-版: 1.1 / 作成日: 2026-07-06 / 更新日: 2026-07-09
+版: 1.2 / 作成日: 2026-07-06 / 更新日: 2026-07-13
 対象: `ai-ops-platform` モノレポ（PrjOps AI基盤 + AIエージェント主導DevOps運用基盤、統合14エージェント）
 
 本書は、依頼文書「仕様と実装コード、仕様と検証コード、仕様と検証項目、検証結果を相互に照らし合わせ」る
 という要求に対する成果物である。以下の4点を相互に紐づけて示す。
 
 1. **仕様**: `/mnt/user-data/uploads` の元資料（PrjOps DOC-00〜07、DevOps DOC-ANL-01〜OPS-06、提案書PPTX）
-2. **実装コード**: `packages/{shared,prjops,devops}/src`
-3. **検証コード**: `packages/{shared,prjops,devops}/tests`（vitest形式、各テストのdescribe/itタイトルに
-   検証対象のREQ/SPEC-EXT/SPEC-INT/TH/AC IDを明記）
-4. **検証結果**: 本書 §2、および `verification/test-results/offline-run-results.json`
+2. **実装コード**: `packages/*/src`
+3. **検証コード**: `packages/*/tests`（vitest形式。behavior specificationのdescribe/itタイトルには
+   検証対象のREQ/SPEC-EXT/SPEC-INT/TH/AC IDを明記し、ADR/AUD保守ゲートのテストは設計判断ADRと
+   是正証跡AUDを明記）
+4. **検証結果**: 本書 §0.4・§2、`verification/test-results/offline-run-results.json`、
+   `verification/2026-07-13-load-baseline.md`
 
 ---
 
@@ -25,14 +27,14 @@
 
 ### 0.1 環境事実
 
-| 項目              | 観測結果                                                                                                                                           |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PostgreSQL server | `pg_isready` は `/tmp:5432 - no response`。`initdb` は存在するが `postgres` 実体が無く、`initdb: error: program "postgres" is needed` で起動不可。 |
-| Docker            | `docker --version` は `command not found`。                                                                                                        |
-| Anthropic API key | `ANTHROPIC_API_KEY` は未設定。実 LLM smoke は未実施。                                                                                              |
-| Web local bind    | サンドボックス内 bind は `listen EPERM`。承認付き実行で `next start -p 3100 -H 127.0.0.1` は Ready。                                               |
-| Auth.js localhost | `AUTH_TRUST_HOST` 未指定時は `UntrustedHost` ログ。`AUTH_TRUST_HOST=true` で解消。                                                                 |
-| Excel import      | 現 `agent/T12` ancestry に T08 の Excel import 実装が含まれていないため、検証対象コードが存在しない。                                              |
+| 項目              | 観測結果                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| PostgreSQL server | T13時点では `/tmp:5432 - no response` で起動不可。T-P2-05では別途用意した PostgreSQL 16.14 による限定的な実DB負荷検証を実施（§0.4）。 |
+| Docker            | `docker --version` は `command not found`。                                                                                           |
+| Anthropic API key | `ANTHROPIC_API_KEY` は未設定。実 LLM smoke は未実施。                                                                                 |
+| Web local bind    | サンドボックス内 bind は `listen EPERM`。承認付き実行で `next start -p 3100 -H 127.0.0.1` は Ready。                                  |
+| Auth.js localhost | `AUTH_TRUST_HOST` 未指定時は `UntrustedHost` ログ。`AUTH_TRUST_HOST=true` で解消。                                                    |
+| Excel import      | 現 `agent/T12` ancestry に T08 の Excel import 実装が含まれていないため、検証対象コードが存在しない。                                 |
 
 ### 0.2 検証結果サマリ
 
@@ -52,6 +54,15 @@
 
 実環境で完了すべき E2E 前提とチェックリストは [`runbooks/e2e-real-environment.md`](../runbooks/e2e-real-environment.md) に分離した。
 
+### 0.4 T-P2-05 負荷・実PostgreSQL検証（2026-07-13）
+
+- stub配信と `app.request()` のwall-clock測定は、結線を確認する機能ベースラインであり、本番SLAの証明には使用しない。
+- 2時間および5分の期限判定は純粋関数へ分離し、境界値ちょうどを合格、1ms超過を不合格として検証した。
+- PostgreSQL 16.14 に最小fixtureを投入し、本番routeとprocess-wide `getPool()` を通じて500リクエストを逐次実行した。
+  `pg_stat_activity` の専用 `application_name` 接続数は before 0 / peak 1 / requests後 1 / `pool.end()` 後 0、
+  `pool.totalCount` のpeakは1だった。再実行条件、ソースSHA-256、制約は
+  [`2026-07-13-load-baseline.md`](./2026-07-13-load-baseline.md) を正とする。
+
 ## 1. 実行環境に関する重要な注記（誠実な開示）
 
 本成果物は、インターネット接続が遮断された著者環境（サンドボックス）で作成された。このため、
@@ -69,7 +80,9 @@
   （`describe`/`it`/`expect`とその主要マッチャ）を再現した約150行の互換シム
   （本リポジトリには同梱しない。authoring専用）を用いて、**同一のテストファイルをそのまま**実行した。
   実運用・成果物確認時は、この互換シムではなく本物の `vitest`（`mise run install && mise run test`）を使用する。
-- **結果**: 全**359件**のテストが合格（0件失敗）。詳細は §2。
+- **結果**: 当時の互換シム対象 **359件**が合格（0件失敗）。これは
+  `verification/test-results/offline-run-results.json` に固定された過去時点のスナップショットであり、
+  現在のVitestスイート件数ではない。詳細は §2。
 - **この検証の価値**: 決定的ロジックはLLMや外部APIに依存しないため、この359件のテストは
   「実運用環境と全く同じ結果」を保証する。実際、この開発プロセス自体の中で、テストは
   **少なくとも3件の実装バグを検出**した（§3参照）。
@@ -97,6 +110,12 @@
 
 ## 2. オフライン検証結果（実測）
 
+この節の359件は、互換シムを使用した初期オフライン検証の生成物に記録された件数である。
+後に本文へ記載されていた750件は、拡張後のmonorepoをVitestで実行した別時点・別範囲の値だったが、
+対応する生成結果が保存されておらず、359件との包含関係を検証できないため撤回した。
+両者を加算したり、359件を750件の部分集合として扱ったりしない。現行スイートの合否と件数は
+CIのVitest出力を正とし、本書へ固定値を転記しない。
+
 ```
 合計: 359件 / 成功: 359件 / 失敗: 0件
 ```
@@ -104,7 +123,7 @@
 生データ: `verification/test-results/offline-run-results.json`（全359件のテスト名・結果を記録）
 実行ログ: `verification/test-results/offline-run-log.txt`
 
-### 2.1 パッケージ別内訳
+### 2.1 過去時点のパッケージ別内訳
 
 | パッケージ      | テストファイル数 | 主な検証対象                                                                                                       |
 | --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -120,21 +139,10 @@
 （REQ / SPEC-EXT / SPEC-INT / TH / AC / ISS / TOBE / ASM）が実装コード・テストコードに
 最低1回参照されているかを機械的に検証した。全文は `packages/traceability/output/traceability_matrix.md`。
 
-**必須カテゴリ（REQ・SPEC-INT・TH）は両システムとも実装コード参照率100%を達成**しており、
-このスクリプト自体が未達成時に`process.exitCode = 1`で失敗するゲートとして
-`.github/workflows/ci.yml` に組み込まれている。
-
-| システム | カテゴリ | 実装参照率   | 備考                                                                                  |
-| -------- | -------- | ------------ | ------------------------------------------------------------------------------------- |
-| PrjOps   | REQ      | 100% (27/27) |                                                                                       |
-| PrjOps   | SPEC-INT | 100% (22/22) |                                                                                       |
-| PrjOps   | SPEC-EXT | 85% (23/27)  | 残り4件は通知チャネル一覧・定型メッセージ限定等の記述であり、workflows/runbooksに反映 |
-| PrjOps   | AC       | 70% (21/30)  | 残りは非機能要件（性能・可用性等）で、実装より運用測定で確認する性質のもの            |
-| DevOps   | REQ      | 100% (22/22) |                                                                                       |
-| DevOps   | SPEC-INT | 100% (26/26) |                                                                                       |
-| DevOps   | TH       | 100% (7/7)   |                                                                                       |
-| DevOps   | SPEC-EXT | 76% (19/25)  | 同上                                                                                  |
-| DevOps   | AC       | 60% (24/40)  | 同上                                                                                  |
+カテゴリ別件数・参照率は手書きせず、spec-ids JSONから都度生成される
+[`packages/traceability/output/traceability_matrix.md`](../packages/traceability/output/traceability_matrix.md)
+を正とする。必須カテゴリ（REQ・SPEC-INT・TH）に実装参照の欠落があれば、同じ生成処理が
+`E-TRACE01` と終了コード1を返す。fail条件は `packages/traceability/tests/verifyTraceability.test.ts` で検証する。
 
 ISS/TOBE/ASM（現状課題・将来プロセス・仮定）はDOC-01/DOC-02/DOC-00の文書内トレーサビリティ用IDであり、
 実装コードへの直接参照を必須としないカテゴリとして扱った（スクリプトのコメントに設計判断を明記）。
@@ -220,8 +228,8 @@ DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテス�
 
 - 仕様のREQ/SPEC-EXT/SPEC-INT/TH IDは、実装コードのコメント・型・関数名に明記されている
   （`packages/traceability`によって機械検証、必須カテゴリ100%）。
-- 実装コード（特に決定的ロジック）は、対応するAC境界値を明示したテストで検証され、
-  **750件全て合格**している（このサンドボックス内で `mise run ci` を実際に実行して確認済み）。
+- 実装コード（特に決定的ロジック）は、対応するAC境界値を明示したVitestで検証される。
+  現行の合否と件数は `mise run ci` およびCIの生成ログを正とし、本書へ固定件数を転記しない。
 - LLM・外部API依存部分は、SDK呼び出し方自体を2026年7月時点の公式ドキュメントに基づいて実装し、
   周辺の決定的ガード（完全性判定・数値混入防止・confidence閾値処理）を分離してオフライン検証済みとした。
 - 未検証部分（実インフラ・実LLM呼び出し）は隠さず本書 §1.2, §5 に明記した。
