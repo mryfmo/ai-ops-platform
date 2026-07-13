@@ -9,6 +9,9 @@ import ExcelJS from "exceljs";
 export type ImportTargetKind = "issue" | "project_item" | "milestone";
 export type SheetName = "issues" | "project_items" | "milestones";
 
+export const XLSX_IMPORT_METADATA_SHEET = "_metadata";
+export const XLSX_IMPORT_TEMPLATE_VERSION = "1";
+
 export interface ColumnDefinition {
   key: string;
   label: string;
@@ -56,6 +59,11 @@ export async function buildXlsxImportTemplateBuffer(): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "ai-ops-platform";
   workbook.created = new Date("2026-07-09T00:00:00.000Z");
+
+  const metadata = workbook.addWorksheet(XLSX_IMPORT_METADATA_SHEET);
+  metadata.addRow(["template_version", XLSX_IMPORT_TEMPLATE_VERSION]);
+  metadata.getCell("A1").font = { bold: true };
+  metadata.columns = [{ width: 24 }, { width: 16 }];
 
   for (const [sheetName, columns] of Object.entries(XLSX_IMPORT_TEMPLATE) as Array<[SheetName, ColumnDefinition[]]>) {
     const sheet = workbook.addWorksheet(sheetName);

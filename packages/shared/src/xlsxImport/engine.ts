@@ -68,12 +68,35 @@ export interface ExecuteXlsxImportResult {
   imported: number;
   skipped: number;
   failed: number;
+  summary: string;
   progress: Array<{
     sourceKey: string;
     kind: ImportTargetKind;
     status: "imported" | "skipped" | "failed";
+    reason?: string;
     error?: string;
   }>;
+}
+
+export function summarizeXlsxImportExecution(
+  imported: number,
+  skipped: number,
+  failed: number,
+  progress: ExecuteXlsxImportResult["progress"],
+): string {
+  const skippedRows = progress
+    .filter((item) => item.status === "skipped")
+    .map((item) => `${item.sourceKey} (${item.reason ?? "skipped"})`);
+  const failedRows = progress
+    .filter((item) => item.status === "failed")
+    .map((item) => `${item.sourceKey} (${item.error ?? "failed"})`);
+  return [
+    `Execute completed: imported=${imported}, skipped=${skipped}, failed=${failed}.`,
+    skippedRows.length > 0 ? `Skipped: ${skippedRows.join(", ")}.` : "",
+    failedRows.length > 0 ? `Failed: ${failedRows.join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function rowKind(row: XlsxImportRow): ImportTargetKind {
@@ -160,7 +183,7 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
     if (existing?.status === "imported") {
       seedKnownMilestone(row, existing, knownMilestones);
       skipped += 1;
-      progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "skipped" });
+      progress.push({ sourceKey: row.sourceKey, kind: rowKind(row), status: "skipped", reason: "already imported" });
       continue;
     }
 
@@ -229,5 +252,12 @@ export async function executeXlsxImport(opts: ExecuteXlsxImportOptions): Promise
     }
   }
 
-  return { importRunId: opts.importRunId, imported, skipped, failed, progress };
+  return {
+    importRunId: opts.importRunId,
+    imported,
+    skipped,
+    failed,
+    summary: summarizeXlsxImportExecution(imported, skipped, failed, progress),
+    progress,
+  };
 }

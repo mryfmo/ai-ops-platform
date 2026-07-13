@@ -16,6 +16,8 @@ CLI で生成する場合:
 pnpm exec tsx packages/shared/src/xlsxImport/generateTemplate.ts aiops-import-template.xlsx
 ```
 
+テンプレートには `_metadata` シートの `template_version` が自動設定される。このセルは変更・削除しない。古い版、版数欠落、未知の版は `E-XLS-001` でファイル全体が拒否されるため、配布エンドポイントから最新版を取り直す。
+
 ## 2. シートを記入する
 
 ### `issues`
@@ -50,31 +52,58 @@ pnpm exec tsx packages/shared/src/xlsxImport/generateTemplate.ts aiops-import-te
 
 ## 3. Dry-run する
 
-```text
-POST /xlsx-import/dry-run
+`XLSX_IMPORT_SECRET` を使い、送信する `.xlsx` の raw bytes に HMAC-SHA256 署名する。推奨ヘッダは `x-aiops-signature-256: sha256=<lowercase hex>`（互換用に `x-hub-signature-256` も受理）。シークレットをコマンド引数や標準出力へ展開せず送信する例:
+
+```bash
+export AIOPS_BASE_URL=https://aiops.example.com
+export XLSX_FILE=aiops-import-template.xlsx
+# XLSX_IMPORT_SECRET はシークレットストアから環境変数へ設定済みとする。
+
+SIGNATURE="$(
+  node --input-type=module -e '
+    import { createHmac } from "node:crypto";
+    import { readFileSync } from "node:fs";
+    process.stdout.write(createHmac("sha256", process.env.XLSX_IMPORT_SECRET).update(readFileSync(process.env.XLSX_FILE)).digest("hex"));
+  '
+)"
+
+curl --fail-with-body \
+  -H "content-type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" \
+  -H "x-aiops-signature-256: sha256=${SIGNATURE}" \
+  --data-binary "@${XLSX_FILE}" \
+  "${AIOPS_BASE_URL}/xlsx-import/dry-run"
 ```
 
-レスポンスは `{ ok, rowCount, errors }`。`errors` は `sheet`、`row`、`column`、`message` を持つ。よくある `message` は次の通り。
+レスポンスは `{ ok, rowCount, errors, summary }`。`summary` は受理行数とエラーを固定順で示す人間可読文字列。`errors` は `sheet`、`row`、`column`、`code`（該当時）、`message` を持つ。よくあるエラーは次の通り。
 
-| Message                                           | Meaning / Fix                                    |
-| ------------------------------------------------- | ------------------------------------------------ |
-| `sheet missing`                                   | 必要なシート名がない。テンプレートから作り直す。 |
-| `unknown column`                                  | ヘッダ名がテンプレートと違う。                   |
-| `required value missing`                          | 必須列が空。                                     |
-| `duplicate source_key also used at <sheet>:<row>` | 同じ `source_key` が別行でも使われている。       |
+| Code / Message                                    | Meaning / Fix                                                        |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| `E-XLS-001`                                       | テンプレート版が欠落または不一致。最新版からファイル全体を作り直す。 |
+| `sheet missing`                                   | 必要なシート名がない。テンプレートから作り直す。                     |
+| `unknown column`                                  | ヘッダ名がテンプレートと違う。                                       |
+| `required value missing`                          | 必須列が空。                                                         |
+| `duplicate source_key also used at <sheet>:<row>` | 同じ `source_key` が別行でも使われている。                           |
 
 入力値と未知列名は既知 secret pattern に対して sanitize される。
 
+ファイル上限は 10 MiB。`XLSX_IMPORT_SECRET` 未設定は `503`、署名欠落・不一致は `401`、上限超過は body の読み込み完了前に `413` となる。
+
 ## 4. 実行する
 
-```text
-POST /xlsx-import/execute?owner=<owner>&repo=<repo>
-Header: x-confirm-import: yes
+```bash
+curl --fail-with-body \
+  -H "content-type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" \
+  -H "x-aiops-signature-256: sha256=${SIGNATURE}" \
+  -H "x-confirm-import: yes" \
+  --data-binary "@${XLSX_FILE}" \
+  "${AIOPS_BASE_URL}/xlsx-import/execute?owner=acme&repo=widget"
 ```
 
-確認ヘッダが無い場合は `409`。`owner` または `repo` が無い場合は `400`。
+Dry-run 後にファイルを変更した場合は署名を再計算する。確認ヘッダが無い場合は `409`、`owner` または `repo` が無い場合は `400`、allowlist 外は `403`。
 
-実行結果は `result.imported`、`result.skipped`、`result.failed` と行ごとの `progress` を返す。既に `import_ledger` にある `source_key` は `skipped` になる。
+実行結果は `result.imported`、`result.skipped`、`result.failed`、人間可読の `result.summary` と行ごとの `progress` を返す。既に `import_ledger` にある `source_key` は `reason: "already imported"` 付きの `skipped` になり、サマリにも理由が表示される。
+
+認証とテンプレート検証に成功した dry-run、および確認・allowlist・フェイルセーフの実行前ゲートを通過した execute だけが、ファイル本体やファイル名ではなく SHA-256 と操作種別を追記専用監査ログへ記録する。提出ファイルに個人情報を含める場合も監査ログへ内容は複製されない。
 
 ## 5. 再実行
 

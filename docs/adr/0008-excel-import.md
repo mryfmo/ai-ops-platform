@@ -8,7 +8,7 @@
 
 - PrjOpsの初期登録や一括更新では、Issue、Project v2アイテム、milestoneをExcelから取り込む要件がある。
 - `docs/research/2026-07-09-deep-research.md` は、既存OSSのGitHub issue importツールがProjects v2や冪等性を満たさないこと、npm `xlsx` がCVE-2024-22363未修正であること、GitHubのコンテンツ生成系セカンダリリミットが大規模インポートの律速になることを確認している。
-- `docs/research/2026-07-09-charts-and-design.md` は、`exceljs` は休眠気味だが未修正advisoryがなく、npm `xlsx` より安全な選択であると整理している。
+- `docs/research/2026-07-09-charts-and-design.md` は、`exceljs` 4.4.0 の最終リリースが 2023 年で保守活性が低下している一方、確認時点で未修正 advisory がなく、npm `xlsx` より安全な選択であると整理している。この前提は劣化しており、信頼できないファイルへの入力検証と定期的な依存棚卸しを継続する必要がある。
 - 予定仕様ID: PrjOps `REQ-037` / `SPEC-INT-063` / `AC-037-1`。実装コード参照を追加しない本ADR段階では、`REQ`/`SPEC-INT` のspec-id登録は実装フェーズへ送る。
 
 ## 決定
@@ -31,4 +31,4 @@
 - Excelテンプレートには安定キー列が必須になる。
 - import ledgerテーブルとジョブ状態テーブルが必要になる。
 - 大量インポートは即時完了ではなく、進捗確認とエラー修正を前提とする。
-- `exceljs` 自体のメンテナンス状況は実装時に再確認する。新規依存追加は本ADRでは行わない。
+- `exceljs` の保守活性・advisory を四半期の依存棚卸しで再確認する。代替ライブラリへの移行や新規依存追加は本ADRでは行わない。
