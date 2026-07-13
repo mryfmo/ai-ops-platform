@@ -23,6 +23,20 @@ describe("sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070]", () => {
     expect(redactionCount).toBeGreaterThanOrEqual(1);
   });
 
+  it("private-key block内のBearerよりblock全体を優先して1回でマスクする", () => {
+    const input = [
+      "-----BEGIN PRIVATE KEY-----",
+      "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345",
+      "-----END PRIVATE KEY-----",
+    ].join("\n");
+
+    expect(sanitizeSecrets(input)).toMatchObject({
+      sanitized: "***REDACTED:private_key_block***",
+      redactionCount: 1,
+      matchedPatterns: ["private_key_block"],
+    });
+  });
+
   it("秘密情報を含まないテキストはそのまま通過する", () => {
     const input = "進捗率62%、安全①、プロジェクトＡ、ﬃを維持します。";
     const { sanitized, redactionCount } = sanitizeSecrets(input);

@@ -50,9 +50,12 @@ function verifyXlsxImportSignature(rawBody: Buffer, signature: string | null, se
 async function readAuthenticatedBody(
   c: Context,
   deps: XlsxImportRoutesDeps,
+  operation: "dry-run" | "execute",
 ): Promise<{ ok: true; buffer: Buffer; traceId: string } | { ok: false; response: Response }> {
   const buffer = Buffer.from(await c.req.arrayBuffer());
-  return authenticateBuffer(c, deps, buffer);
+  const auth = await authenticateBuffer(c, deps, buffer);
+  if (auth.ok) await auditSubmittedFile(deps, auth.traceId, operation, buffer);
+  return auth;
 }
 
 async function authenticateBuffer(
@@ -123,10 +126,9 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
   });
 
   app.post("/xlsx-import/dry-run", xlsxBodyLimit, async (c) => {
-    const body = await readAuthenticatedBody(c, deps);
+    const body = await readAuthenticatedBody(c, deps, "dry-run");
     if (!body.ok) return body.response;
     const parsed = await parseXlsxImport(body.buffer);
-    if (parsed.errors.length === 0) await auditSubmittedFile(deps, body.traceId, "dry-run", body.buffer);
     return c.json(
       { ok: parsed.errors.length === 0, rowCount: parsed.rows.length, errors: parsed.errors, summary: parsed.summary },
       200,
@@ -134,7 +136,7 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
   });
 
   app.post("/xlsx-import/execute", xlsxBodyLimit, async (c) => {
-    const body = await readAuthenticatedBody(c, deps);
+    const body = await readAuthenticatedBody(c, deps, "execute");
     if (!body.ok) return body.response;
     const parsed = await parseXlsxImport(body.buffer);
     if (parsed.errors.length > 0) {
@@ -175,7 +177,6 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
       return c.json({ error: "failsafe active" }, 503);
     }
 
-    await auditSubmittedFile(deps, body.traceId, "execute", body.buffer);
     const importRunId = body.traceId;
     const result = await executeXlsxImport({
       owner,

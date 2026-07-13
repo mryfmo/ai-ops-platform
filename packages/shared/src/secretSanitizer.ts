@@ -23,6 +23,7 @@ export interface SecretPattern {
 
 // 既知の主要シークレット形式（GitHub / Anthropic / Microsoft / 汎用トークン）
 export const SECRET_PATTERNS: SecretPattern[] = [
+  { name: "private_key_block", regex: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g },
   { name: "github_app_token", regex: /ghs_[A-Za-z0-9]{20,}/g },
   { name: "github_pat", regex: /gh[pousr]_[A-Za-z0-9]{20,}/g },
   { name: "anthropic_api_key", regex: /sk-ant-[A-Za-z0-9\-_]{20,}/g },
@@ -35,7 +36,6 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   },
   { name: "generic_api_key_kv", regex: /(api[_-]?key|apikey)["']?\s*[:=]\s*["']?[A-Za-z0-9\-_.]{16,}["']?/gi },
   { name: "jwt", regex: /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g },
-  { name: "private_key_block", regex: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g },
 ];
 
 export interface SanitizeResult {

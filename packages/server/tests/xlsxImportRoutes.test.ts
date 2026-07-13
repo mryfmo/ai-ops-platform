@@ -139,7 +139,11 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: false, rowCount: 0, errors: [{ code: "E-XLS-001" }] });
-    expect(await d.auditLog.readAll()).toEqual([]);
+    expect((await d.auditLog.readAll()).map((record) => record.action)).toEqual(["xlsx_import_file_submitted"]);
+    expect((await d.auditLog.readAll())[0]?.detail).toEqual({
+      operation: "dry-run",
+      sha256: createHash("sha256").update(body).digest("hex"),
+    });
     expect(d.dbQuery).not.toHaveBeenCalled();
     expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
     expect(d.xlsxImport.githubClient.createMilestone).not.toHaveBeenCalled();
@@ -166,7 +170,11 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ ok: false, rowCount: 0, errors: [{ code: "E-XLS-001" }] });
-    expect(await d.auditLog.readAll()).toEqual([]);
+    expect((await d.auditLog.readAll()).map((record) => record.action)).toEqual(["xlsx_import_file_submitted"]);
+    expect((await d.auditLog.readAll())[0]?.detail).toEqual({
+      operation: "execute",
+      sha256: createHash("sha256").update(body).digest("hex"),
+    });
     expect(d.dbQuery).not.toHaveBeenCalled();
     expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
     expect(d.xlsxImport.githubClient.createMilestone).not.toHaveBeenCalled();
@@ -232,6 +240,23 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     expect(res.status).toBe(401);
   });
 
+  it("dry-runは署名済みの壊れたxlsxもSHA-256を監査する", async () => {
+    const d = deps();
+    const app = buildApp(d);
+    const body = Buffer.from("not-an-xlsx");
+    const res = await app.request("/xlsx-import/dry-run", {
+      method: "POST",
+      headers: signedHeaders(body),
+      body,
+    });
+
+    expect(res.status).toBe(500);
+    expect((await d.auditLog.readAll())[0]?.detail).toEqual({
+      operation: "dry-run",
+      sha256: createHash("sha256").update(body).digest("hex"),
+    });
+  });
+
   it("dry-runはシークレット未設定時に503と監査ログを返す", async () => {
     const d = deps({ importSecret: undefined, allowedRepos: ["acme/widget"] });
     const app = buildApp(d);
@@ -253,7 +278,10 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
       body,
     });
     expect(res.status).toBe(409);
-    expect(await d.auditLog.readAll()).toEqual([]);
+    expect((await d.auditLog.readAll())[0]?.detail).toEqual({
+      operation: "execute",
+      sha256: createHash("sha256").update(body).digest("hex"),
+    });
   });
 
   it("executeはallowlist外リポジトリを403で拒否して監査ログを残す", async () => {
@@ -267,7 +295,14 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     });
     expect(res.status).toBe(403);
     expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
-    expect((await d.auditLog.readAll()).map((record) => record.action)).toEqual(["xlsx_import_repo_rejected"]);
+    expect((await d.auditLog.readAll()).map((record) => record.action)).toEqual([
+      "xlsx_import_file_submitted",
+      "xlsx_import_repo_rejected",
+    ]);
+    expect((await d.auditLog.readAll())[0]?.detail).toEqual({
+      operation: "execute",
+      sha256: createHash("sha256").update(body).digest("hex"),
+    });
   });
 
   it("executeは確認後にGitHubモックへ書き込み、監査ログを追記する", async () => {
@@ -310,6 +345,13 @@ describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
     });
     expect(res.status).toBe(503);
     expect(d.xlsxImport.githubClient.createIssue).not.toHaveBeenCalled();
-    expect((await d.auditLog.readAll()).map((record) => record.action)).toEqual(["xlsx_import_blocked_by_failsafe"]);
+    expect((await d.auditLog.readAll()).map((record) => record.action)).toEqual([
+      "xlsx_import_file_submitted",
+      "xlsx_import_blocked_by_failsafe",
+    ]);
+    expect((await d.auditLog.readAll())[0]?.detail).toEqual({
+      operation: "execute",
+      sha256: createHash("sha256").update(body).digest("hex"),
+    });
   });
 });

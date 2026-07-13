@@ -394,6 +394,8 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
       expect.any(String),
       20,
       null,
+      0,
+      0,
     ]);
     const updateCall = queries.find((q) => q.text.includes("UPDATE llm_usage"));
     expect(updateCall!.params).toEqual([
@@ -402,6 +404,8 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
       "view_switching",
       "claude-sonnet-4-6",
       expect.any(Number),
+      0,
+      0,
       expect.any(String),
     ]);
     expect(queries.some((q) => q.text.includes("INSERT INTO audit_log"))).toBe(false);
