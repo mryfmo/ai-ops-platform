@@ -289,7 +289,11 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
       let sent = 0;
       let skipped = 0;
       let failed = 0;
+      let processedCurrentReport = false;
+      const weekStart = jstDateAtStart(now).getTime() - ((jstDayOfWeek(now) + 6) % 7) * 24 * 60 * 60 * 1000;
       for (const report of await deps.standardReportsRepo.listRecent(100)) {
+        const generatedAt = Date.parse(report.generatedAt);
+        processedCurrentReport ||= generatedAt >= weekStart && generatedAt <= now.getTime();
         const result = await deliverStandardReportToRecipients(
           report,
           { ...deps, fromMailbox: deps.fromMailbox },
@@ -309,7 +313,7 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
         at,
       });
 
-      if (deps.heartbeatUrl && failed === 0) {
+      if (deps.heartbeatUrl && failed === 0 && processedCurrentReport) {
         let response: Response;
         try {
           response = await (deps.fetchImpl ?? fetch)(deps.heartbeatUrl, {

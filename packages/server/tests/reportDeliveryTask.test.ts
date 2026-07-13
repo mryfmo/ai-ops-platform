@@ -446,6 +446,54 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(requests).toEqual([{ input: "https://heartbeat.example.com/report-delivery", method: "GET" }]);
   });
 
+  it("REQ-042 AUD-OPM-009: 当期レポートがなければheartbeatを送らない", async () => {
+    let heartbeats = 0;
+    const task = deliveryTask({
+      heartbeatUrl: "https://heartbeat.example.com/report-delivery",
+      standardReportsRepo: { listRecent: async () => [] },
+      fetchImpl: async () => {
+        heartbeats += 1;
+        return new Response(null, { status: 200 });
+      },
+    });
+
+    await task.run(new Date("2026-07-06T00:00:00.000Z"));
+
+    expect(heartbeats).toBe(0);
+  });
+
+  it("REQ-042 AUD-OPM-009: 前週レポートをskipしただけならheartbeatを送らない", async () => {
+    let heartbeats = 0;
+    const store = new InMemoryDeliveryLogStore();
+    const generatedAt = "2026-06-29T00:00:00.000Z";
+    const oldReport = {
+      ...report,
+      reportId: "STD-OLD",
+      generatedAt,
+      receivedAt: generatedAt,
+      payload: { ...report.payload, period: { ...report.payload.period, generatedAt } },
+    };
+    await store.record({
+      reportId: oldReport.reportId,
+      recipientId: "ST-001",
+      deliveredAt: generatedAt,
+      status: "sent",
+    });
+    const task = deliveryTask({
+      heartbeatUrl: "https://heartbeat.example.com/report-delivery",
+      standardReportsRepo: { listRecent: async () => [oldReport] },
+      deliveryLogStore: store,
+      fetchImpl: async () => {
+        heartbeats += 1;
+        return new Response(null, { status: 200 });
+      },
+    });
+
+    await task.run(new Date("2026-07-06T00:00:00.000Z"));
+
+    expect(heartbeats).toBe(0);
+  });
+
   it("REQ-042 AUD-OPM-009: 複数レポートを配信してもheartbeatはサイクルごとに1回", async () => {
     let mails = 0;
     let heartbeats = 0;

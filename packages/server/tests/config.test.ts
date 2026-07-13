@@ -210,4 +210,11 @@ describe("loadConfig (ADR-0005)", () => {
   it("ADR-0005 AUD-OPM-009: HEARTBEAT_URLがURL形式でなければE-CFG01", () => {
     expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: "not-a-url" })).toThrow("E-CFG01");
   });
+
+  it.each([
+    "https://heartbeat-user@heartbeat.example.com/report-delivery",
+    "https://heartbeat-user:super-secret@heartbeat.example.com/report-delivery",
+  ])("ADR-0005 AUD-OPM-009: credential付きHEARTBEAT_URLはE-CFG01", (heartbeatUrl) => {
+    expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: heartbeatUrl })).toThrow("E-CFG01");
+  });
 });
