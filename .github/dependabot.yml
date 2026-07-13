@@ -5,10 +5,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # 破壊的変更を一括しない。major は依存ごとの移行PRとして扱う。
+    open-pull-requests-limit: 3
     groups:
-      npm-dependencies:
+      npm-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: github-actions
     directory: /
     schedule:
