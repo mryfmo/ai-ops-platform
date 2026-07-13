@@ -28,6 +28,8 @@
 | `FROM_MAILBOX`                              | No       | unset                    | Outlook mailbox used by report delivery. With delivery enabled it is required and must be in `GRAPH_ALLOWED_FROM_MAILBOXES`; otherwise startup fails.                 |
 | `REPORT_DELIVERY_ENABLED`                   | No       | `false`                  | Must be `true` or `1` before standard reports are sent. When false, ingest can store reports but delivery is disabled and audited.                                    |
 | `REPORT_INGEST_SECRET`                      | No       | unset                    | HMAC key for `POST /reports/ingest`; minimum length 32. Missing value disables the ingest route with a 503 response and audit record.                                 |
+| `XLSX_IMPORT_SECRET`                        | No       | unset                    | HMAC key for `/xlsx-import/*`; minimum length 32. Missing value disables XLSX import and writes an audit record.                                                      |
+| `XLSX_IMPORT_ALLOWED_REPOS`                 | No       | unset                    | Comma-separated `owner/repo` allowlist for XLSX execute operations. Unset means no repository is allowed.                                                             |
 | `DEFAULT_TEAMS_TEAM_ID`                     | No       | unset                    | Default Teams team for cards. With delivery enabled, team/channel defaults are both-or-neither and the team must be allowlisted.                                      |
 | `DEFAULT_TEAMS_CHANNEL_ID`                  | No       | unset                    | Default Teams channel for cards. With delivery enabled, team/channel defaults are both-or-neither.                                                                    |
 | `CODING_TASK_CALLBACK_SECRET`               | Yes      | None                     | HMAC key for confirmation tokens and bearer secret for coding task callback; minimum length 32.                                                                       |
@@ -53,6 +55,8 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 
 `loadWebConfig()` fails fast with `E-CFG02` when required values are missing or invalid. The module does not validate at import time, so `next build` does not need secrets.
 
+The server and web tables above are the exact Zod-schema inventory represented in the repository-root `.env.example`. Variables below are used by separate report-generation jobs or direct runtime fallbacks and are not part of those two schemas.
+
 ## Report Generation Environment
 
 | Variable               | Required | Default                   | Used By                                                                                                                             |
@@ -69,3 +73,4 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 
 - `GITHUB_TOKEN` is read directly in `packages/server/src/index.ts` for the GitHub token provider fallback.
 - Web chat records cost through `PgCostGuard` as agent `WEB-CHAT` with route-code daily and per-request limits. The resident server uses the same guard for Teams free-text fallback as agent `SERVER`.
+- `.github/workflows/release-image.yml` is intentionally absent. Image-release automation remains blocked until a deployment-platform ADR selects the registry, provenance, and operating model.
