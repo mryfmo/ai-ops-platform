@@ -4,7 +4,7 @@
  * 根拠: ADR-0005（webhook全経路の結合テスト。app.request()でポートを開かず検証）
  *   / SPEC-INT-001（validationTokenハンドシェイク）/ SPEC-INT-061（GitHub署名検証）
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import type { PgQueryable } from "@aiops/shared";
 import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
@@ -13,6 +13,7 @@ import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
 import { createReadinessCheck } from "../src/http/routes/health.js";
 import { MetricsRegistry } from "../src/observability/metrics.js";
 import { loadConfig } from "../src/config.js";
+import { XLSX_IMPORT_MAX_BYTES } from "../src/http/routes/xlsxImport.js";
 
 const CLIENT_STATE = "expected-client-state-16chars";
 const WEBHOOK_SECRET = "test-webhook-secret";
@@ -566,5 +567,72 @@ describe("/app/* WebUIプロキシ (ADR-0005)", () => {
     const res = await app.request("/app/dashboard?tab=1");
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("dashboard");
+  });
+
+  it("xlsx importはContent-Length超過をbody読取前に413で拒否する [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+    const { deps } = makeDeps();
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array([1]));
+        controller.close();
+      },
+    });
+    deps.webui = { targetBaseUrl: "http://127.0.0.1:3100", fetchImpl: async () => new Response() };
+    const request = new Request("http://localhost/app/api/xlsx-import?operation=dry-run", {
+      method: "POST",
+      headers: { "content-length": String(XLSX_IMPORT_MAX_BYTES + 1) },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const res = await buildApp(deps).request(request);
+
+    expect(res.status).toBe(413);
+    expect(request.body?.locked).toBe(false);
+  });
+
+  it("xlsx importはchunked超過をcancelして413にする [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+    const { deps } = makeDeps();
+    let cancelled = false;
+    const chunks = [new Uint8Array(6 * 1024 * 1024), new Uint8Array(5 * 1024 * 1024)];
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const chunk = chunks.shift();
+        if (chunk) controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetchImpl = vi.fn(async () => new Response());
+    deps.webui = { targetBaseUrl: "http://127.0.0.1:3100", fetchImpl };
+    const request = new Request("http://localhost/app/api/xlsx-import?operation=dry-run", {
+      method: "POST",
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+
+    const res = await buildApp(deps).request(request);
+
+    expect(res.status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("xlsx importはexactly 10MiBをNextへ転送する [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+    const { deps } = makeDeps();
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect((init?.body as Uint8Array).byteLength).toBe(XLSX_IMPORT_MAX_BYTES);
+      return Response.json({ ok: true });
+    });
+    deps.webui = { targetBaseUrl: "http://127.0.0.1:3100", fetchImpl };
+
+    const res = await buildApp(deps).request("/app/api/xlsx-import?operation=dry-run", {
+      method: "POST",
+      body: new Uint8Array(XLSX_IMPORT_MAX_BYTES),
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 });

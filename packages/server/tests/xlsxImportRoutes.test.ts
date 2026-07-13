@@ -90,9 +90,14 @@ function deps(
 describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
   it("GET /xlsx-import/template はxlsxを返す", async () => {
     const app = buildApp(deps());
-    const res = await app.request("/xlsx-import/template");
+    const res = await app.request("/xlsx-import/template", { headers: signedHeaders(Buffer.alloc(0)) });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("spreadsheetml");
+  });
+
+  it("GET /xlsx-import/template は未署名アクセスを401で拒否する", async () => {
+    const app = buildApp(deps());
+    expect((await app.request("/xlsx-import/template")).status).toBe(401);
   });
 
   it("dry-runは検証結果を返し、GitHubへ書き込まない", async () => {

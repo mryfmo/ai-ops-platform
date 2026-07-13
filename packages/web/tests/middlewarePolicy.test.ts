@@ -11,6 +11,7 @@ describe("decideDashboardRedirect (ADR-0005)", () => {
   it("未認証で/dashboard配下にアクセスすると/loginへのリダイレクトを返す", () => {
     expect(decideDashboardRedirect("/dashboard", false)).toBe("/login");
     expect(decideDashboardRedirect("/dashboard/settings", false)).toBe("/login");
+    expect(decideDashboardRedirect("/dashboard/xlsx-import", false)).toBe("/login");
   });
 
   it("認証済みなら/dashboard配下でもリダイレクトしない", () => {

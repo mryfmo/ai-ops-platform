@@ -4,11 +4,8 @@ Excel import は GitHub Issue、Project v2 item、Milestone を取り込む。PR
 
 ## 1. テンプレートを入手する
 
-HTTP で取得する場合:
-
-```text
-GET /xlsx-import/template
-```
+認証後、ダッシュボードの「Excel取込」（`/app/dashboard/xlsx-import`）からダウンロードする。公開の
+`GET /xlsx-import/template` は廃止され、未署名アクセスは `401` になる。
 
 CLI で生成する場合:
 
@@ -52,7 +49,9 @@ pnpm exec tsx packages/shared/src/xlsxImport/generateTemplate.ts aiops-import-te
 
 ## 3. Dry-run する
 
-`XLSX_IMPORT_SECRET` を使い、送信する `.xlsx` の raw bytes に HMAC-SHA256 署名する。推奨ヘッダは `x-aiops-signature-256: sha256=<lowercase hex>`（互換用に `x-hub-signature-256` も受理）。シークレットをコマンド引数や標準出力へ展開せず送信する例:
+通常は認証後のダッシュボードでファイルと対象 GitHub owner/repository を選び、「dry-runで検証」を押す。全エラーを解消後、確認チェックを入れた場合だけ実行できる。ブラウザはファイルだけを WebUI へ送り、`XLSX_IMPORT_SECRET` は WebUI サーバーサイドが保持して raw bytes を HMAC-SHA256 署名する。
+
+UI を利用できない場合は、シークレットへアクセスできるエンジニアが次の CLI 手順を代行する。推奨ヘッダは `x-aiops-signature-256: sha256=<lowercase hex>`（互換用に `x-hub-signature-256` も受理）。シークレットをコマンド引数や標準出力へ展開しない。
 
 ```bash
 export AIOPS_BASE_URL=https://aiops.example.com
@@ -99,7 +98,7 @@ curl --fail-with-body \
   "${AIOPS_BASE_URL}/xlsx-import/execute?owner=acme&repo=widget"
 ```
 
-Dry-run 後にファイルを変更した場合は署名を再計算する。確認ヘッダが無い場合は `409`、`owner` または `repo` が無い場合は `400`、allowlist 外は `403`。
+UI では dry-run 後に同じファイルを使い、明示確認後だけ execute へ転送する。CLI で Dry-run 後にファイルを変更した場合は署名を再計算する。確認ヘッダが無い場合は `409`、`owner` または `repo` が無い場合は `400`、allowlist 外は `403`。
 
 実行結果は `result.imported`、`result.skipped`、`result.failed`、人間可読の `result.summary` と行ごとの `progress` を返す。既に `import_ledger` にある `source_key` は `reason: "already imported"` 付きの `skipped` になり、サマリにも理由が表示される。
 
