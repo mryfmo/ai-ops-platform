@@ -11,6 +11,7 @@ export * from "./clients/claudeAgentClient.js";
 export * from "./clients/graphClient.js";
 export * from "./clients/githubClient.js";
 export * from "./clients/pgCostGuard.js";
+export * from "./clients/pgAuditLog.js";
 export * from "./reporting/reportSchema.js";
 export * from "./reporting/reportValidation.js";
 export * from "./reporting/reportPrompt.js";

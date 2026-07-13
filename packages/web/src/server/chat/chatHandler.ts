@@ -24,7 +24,14 @@
  */
 import type { Session } from "next-auth";
 import { streamText, stepCountIs, convertToModelMessages, type LanguageModel, type UIMessage } from "ai";
-import { estimateCostUsd, DEFAULT_MODEL, sanitizeForLlmInput, type PgCostGuard } from "@aiops/shared";
+import {
+  estimateCostUsd,
+  resolveModelPrice,
+  sanitizeForLlmInput,
+  type AuditLogWriter,
+  type ModelPricingUsdPerMtok,
+  type PgCostGuard,
+} from "@aiops/shared";
 import type { PersonaResolver } from "../personaResolver";
 import { resolvePersonas, toErrorResponse } from "../reportData/dataApiSupport";
 import { buildToolsForPersona } from "./tools";
@@ -42,12 +49,15 @@ export interface ChatHandlerDeps {
   /** ANTHROPIC_API_KEY 未設定時は undefined を渡す（route.ts側の責務） */
   languageModel: LanguageModel | undefined;
   costGuard: PgCostGuard;
+  auditLog?: AuditLogWriter;
+  traceIdProvider?: () => string;
+  pricingUsdPerMtok: ModelPricingUsdPerMtok;
   messages: UIMessage[];
   pageContext?: unknown;
   maxSteps?: number;
   thinkingBudgetTokens?: number;
   /** costGuard.record()のコスト見積もりに使うモデル名（route.tsのCHAT_MODELと一致させる） */
-  modelName?: string;
+  modelName: string;
   selectedPersona?: string;
 }
 
@@ -121,10 +131,31 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
     const tools = buildToolsForPersona(persona!);
     const system = buildSystemPrompt(persona!, sanitizePageContext(deps.pageContext));
 
-    const modelName = deps.modelName ?? DEFAULT_MODEL;
+    const modelName = deps.modelName;
+    const pricing = deps.pricingUsdPerMtok;
+    if (Boolean(deps.auditLog) !== Boolean(deps.traceIdProvider)) {
+      throw new Error("E-CFG04: auditLog and traceIdProvider must be configured together");
+    }
     const sanitizedMessages = sanitizeMessages(deps.messages);
+    const at = new Date().toISOString();
+    const { price, usedFallback } = resolveModelPrice(modelName, pricing);
+    if (usedFallback && !deps.auditLog) {
+      throw new Error("E-CFG04: auditLog is required for unknown model pricing fallback");
+    }
+    if (usedFallback) {
+      const traceId = deps.traceIdProvider?.();
+      if (!traceId) throw new Error("E-CFG04: traceIdProvider is required when pricing audit is enabled");
+      await deps.auditLog!.append({
+        trace_id: traceId,
+        actor: CHAT_COST_AGENT,
+        action: "llm_unknown_model_pricing_fallback",
+        basis: "SPEC-INT-060",
+        detail: { severity: "warn", model: modelName, applied_price_usd_per_mtok: price },
+        at,
+      });
+    }
     const reservedUsage = {
-      at: new Date().toISOString(),
+      at,
       agent: CHAT_COST_AGENT,
       purpose: "view_switching",
       model: modelName,
@@ -134,6 +165,7 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
         modelName,
         estimatedMessageTokens(system, sanitizedMessages),
         DEFAULT_CHAT_ESTIMATED_OUTPUT_TOKENS,
+        pricing,
       ),
     };
     let reservationId: string;
@@ -173,7 +205,7 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
           model: modelName,
           input_tokens: inputTokens,
           output_tokens: outputTokens,
-          estimated_cost_usd: estimateCostUsd(modelName, inputTokens, outputTokens),
+          estimated_cost_usd: estimateCostUsd(modelName, inputTokens, outputTokens, pricing),
         });
         if (isRefusal) {
           throw new ChatRefusalError();
