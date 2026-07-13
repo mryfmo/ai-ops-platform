@@ -1,20 +1,21 @@
 # AI Ops Platform 製品化実装計画
 
-2026-07-11、commit `21306d8` の全体監査を基準に作成し、Plan 009でcommit `6a6c1aa`とPlan 005受入済みworking treeへ再同期した。後工程の executor は、各 plan を全文読了し、依存 plan が `DONE` であることを確認してから着手すること。推測で未記載機能を追加せず、STOP 条件に該当したら作業を止めて証拠を報告する。
+2026-07-11の全体監査を基準に作成し、2026-07-13に`main@88b3653`と推奨decisionへ再同期した。後工程のexecutorは、`docs/spec/productization-decisions.md`、Plan 010、着手する子Planの順に全文を読む。Plan 010が明示的に許可するlocal taskは、依存PlanのENV gateが未完でも実行できる。推測で未記載機能を追加せず、STOP条件に該当したら証拠を報告する。
 
 ## 実行順序と状態
 
-| Plan | Phase | Title                                                               | Priority | Effort | Depends on | Status                                                                |
-| ---- | ----- | ------------------------------------------------------------------- | -------- | ------ | ---------- | --------------------------------------------------------------------- |
-| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる             | P0       | L      | —          | DONE                                                                  |
-| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                 | P0       | L      | 001        | BLOCKED: authoritative data/identity decisions pending                |
-| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる         | P0       | L      | 002, 005   | TODO                                                                  |
-| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する             | P0       | L      | 001, 005   | TODO                                                                  |
-| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる   | P0       | L      | 001        | BLOCKED: core local accepted; sandbox adapter/tenant evidence pending |
-| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする | P0       | L      | 001, 002   | TODO                                                                  |
-| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する             | P1       | L      | 001, 002   | TODO                                                                  |
-| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる     | P0       | XL     | 001–007    | TODO                                                                  |
-| 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる             | P0       | XL     | 001        | TODO                                                                  |
+| Plan | Phase | Title                                                               | Priority | Effort | Depends on | Status                                                          |
+| ---- | ----- | ------------------------------------------------------------------- | -------- | ------ | ---------- | --------------------------------------------------------------- |
+| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる             | P0       | L      | —          | DONE                                                            |
+| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                 | P0       | L      | 001        | TODO: specification fixed; local work ready, ENV values pending |
+| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる         | P0       | L      | 002, 005   | TODO                                                            |
+| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する             | P0       | L      | 001, 005   | TODO                                                            |
+| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる   | P0       | L      | 001        | TODO: core accepted; adapter ready, tenant evidence pending     |
+| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする | P0       | L      | 001, 002   | TODO                                                            |
+| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する             | P1       | L      | 001, 002   | TODO                                                            |
+| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる     | P0       | XL     | 001–007    | TODO                                                            |
+| 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる             | P0       | XL     | 001        | TODO: Plan 010のdecision/順序を優先                             |
+| 010  | 0–7   | 推奨仕様・推奨環境で残存製品化工程を完了する                        | P0       | XL     | 001        | ACTIVE                                                          |
 
 Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
 
@@ -26,6 +27,7 @@ Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
 - Phase 3: `plans/007-*`。trust boundary、SQL側認可、Pool共有、Excel冪等性を閉じる。
 - Phase 4: `plans/008-*`。supported runtime、CI、IaC、backup/restore、HA、監視を整備する。
 - Phase 5: `plans/008-*` の実環境受入。GitHub、Microsoft 365、Anthropic、Factory、PostgreSQLを用いた証跡が揃った場合のみgo-liveを許可する。
+- Phase 6: `plans/010-*`。確定済みdecisionを適用し、Microsoft 365/Azureの実証と最終go-liveを閉じる。
 
 ## 横断実行規則
 
@@ -45,12 +47,16 @@ Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
 | ---------------------------------------------------- | ------------------------------------------------------ | ------------- |
 | `AIOPS_SANDBOX_REPO`                                 | `owner/repo` 形式の破棄可能なGitHub sandbox repository | 004, 006, 008 |
 | `AIOPS_SANDBOX_PROJECT_ID`                           | sandboxの `PJ-nnn`                                     | 002–008       |
+| `AIOPS_SANDBOX_PROJECTV2_NODE_ID`                    | 上記PJへ署名済みmappingされたProjectV2 node            | 002, 008      |
+| `AIOPS_SANDBOX_PROJECTV2_STATUS_FIELD_ID`            | Kanban列の正本となるStatus field                       | 002, 008      |
 | `AIOPS_SANDBOX_TEAM_ID` / `AIOPS_SANDBOX_CHANNEL_ID` | RSC app導入済みTeams sandbox                           | 005, 008      |
 | `AIOPS_SANDBOX_MAILBOX` / `AIOPS_SANDBOX_RECIPIENT`  | test専用Outlook mailbox/address                        | 005, 008      |
 | `TEST_DATABASE_URL`                                  | disposable PostgreSQLのみを指す接続文字列              | 001–008       |
 | `STAGING_BASE_URL`                                   | staging公開URL。production URLは禁止                   | 008           |
 
 値が欠けるplanは該当する実外部Verifyをskipせず `BLOCKED` にする。
+
+Plan 010では、仕様値は[`docs/spec/productization-decisions.md`](../docs/spec/productization-decisions.md)で確定済みとする。上表の実ID/credential/owner署名だけをENV入力として扱い、仕様未確定へ戻さない。
 
 ## 依存関係
 

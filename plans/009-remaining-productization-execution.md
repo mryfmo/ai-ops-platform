@@ -1,5 +1,11 @@
 # Plan 009: 残存製品化工程を依存ゲート順に完遂し go-live 判定を閉じる
 
+> **2026-07-13 execution note:** 未確定だった仕様値と環境選択は
+> [`docs/spec/productization-decisions.md`](../docs/spec/productization-decisions.md) と
+> [`plans/010-recommended-spec-environment-execution.md`](010-recommended-spec-environment-execution.md)
+> で確定した。以後はその2文書を先に適用する。本Planのplanned-at/current-stateは履歴であり、
+> Plan 010が上書きしていないF04-F09のtask本文だけを再利用する。
+
 > Planned at commit: `6a6c1aa`
 > Planned with working tree: Plan 005 の受入済み未コミット差分を含む
 > Executor: Codex `gpt-5.6-sol` reasoning `high` をオーケストレーターとする
@@ -23,7 +29,7 @@
 
 ## Executor instructions
 
-このPlanは後工程での推測、仕様補完、完了誤認を防ぐための正本である。executorは次を順守する。
+このPlanはPlan 010が上書きしていない残作業の詳細task ledgerである。executorは次を順守する。
 
 - [ ] 本Planを全文読了し、着手する子Plan `plans/002-*`〜`plans/008-*` も全文読了する。
 - [ ] `.agents/worklog/codex/learn/learn_index.md` と関連learnを読む。
