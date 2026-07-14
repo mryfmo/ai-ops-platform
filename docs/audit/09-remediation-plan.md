@@ -537,10 +537,10 @@ T-P0-12(実環境E2E) は HUMAN 主導。T-P0-01〜09 完了後に実施
 ### T-P1-06: 旧仕様 ID のカタログ移植 + トレーサビリティ実効性改善
 
 - 対象指摘: AUD-TRC-001, AUD-TRC-002 / High / M
-- 依存: 【HUMAN】旧仕様の原本文書（DOC-00..07 等）の提供が前提。未提供の間は 6b のみ実施可
+- 依存: 【解消済み】旧仕様の原本文書は `docs/spec/prjops/` / `docs/spec/devops/` に配置済み。6aを実施可能
 - 変更対象: `docs/spec/spec-id-catalog.md`、`packages/traceability/src/verifyTraceability.ts`、`.github/PULL_REQUEST_TEMPLATE.md`
 
-**手順:** (6a)【HUMAN 提供後】原本から REQ-001..035 / TH-001..007 / 旧 AC / 旧 SPEC-INT（SPEC-INT-080 含む）の定義文を新 ID と同じ表形式でカタログへ移植。(6b) verifyTraceability の出力ヘッダと README に「本ゲートは参照存在チェックであり実装保証ではない」を明記し、PR テンプレートのチェック項目を「根拠 ID の要求内容を満たすことをテストで示した」に変更。カタログ未定義 ID の warn 出力を追加（fail 化は P2）。
+**手順:** (6a) 配置済み原本から REQ-001..035 / TH-001..007 / 旧 AC / 旧 SPEC-INT（SPEC-INT-080 含む）の定義文を新 ID と同じ表形式でカタログへ移植。(6b) verifyTraceability の出力ヘッダと README に「本ゲートは参照存在チェックであり実装保証ではない」を明記し、PR テンプレートのチェック項目を「根拠 ID の要求内容を満たすことをテストで示した」に変更。カタログ未定義 ID の warn 出力を追加（fail 化は P2）。
 
 **完了条件 / 検証:**
 
