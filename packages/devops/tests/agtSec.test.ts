@@ -24,7 +24,7 @@ const validApp: GrantApplication = {
   existingActiveGrantForSameTarget: false,
 };
 
-describe("validateGrantApplication [SPEC-INT-032]", () => {
+describe("validateGrantApplication [DevOps:SPEC-INT-032]", () => {
   it("すべて妥当ならok", () => {
     expect(validateGrantApplication(validApp).ok).toBe(true);
   });
@@ -105,7 +105,7 @@ describe("executeGrant / revokeExpiredGrants", () => {
   });
 });
 
-describe("detectManualPermissionDrift [SPEC-INT-032 手動変更検出]", () => {
+describe("detectManualPermissionDrift [DevOps:SPEC-INT-032 手動変更検出]", () => {
   it("台帳にない権限保持者を検出する", () => {
     const drift = detectManualPermissionDrift(
       [record],

@@ -4,7 +4,7 @@
  * 根拠:
  *   - ADR-0005: Graph change notification受信時のclientState検証（環境変数GRAPH_CLIENT_STATEと
  *     定数時間比較）。不一致通知は破棄し監査ログに記録する（攻撃兆候）。
- *   - SPEC-INT-001: チャネルメッセージ通知は本文を含まないため、resourceパスからID群を抽出し
+ *   - PrjOps:SPEC-INT-001: チャネルメッセージ通知は本文を含まないため、resourceパスからID群を抽出し
  *     fetch-on-notifyで本文を取得する。
  *
  * 設計: 純粋関数のみ（HTTP・DB・時刻に依存しない）。

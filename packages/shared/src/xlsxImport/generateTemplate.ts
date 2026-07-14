@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/xlsxImport/generateTemplate.ts
  *
- * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008。
  * Excelインポート用テンプレートをCLIから生成する。import時には副作用を発生させない。
  */
 import { writeFileSync } from "node:fs";

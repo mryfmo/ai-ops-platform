@@ -1,4 +1,4 @@
--- DevOps REQ-031 / SPEC-INT-055 / SPEC-INT-081: report snapshot exact identity.
+-- DevOps:REQ-031 / SPEC-INT-055 / SPEC-INT-081: report snapshot exact identity.
 -- Existing rows predate source identity; preserve them as explicitly non-canonical legacy data.
 ALTER TABLE report_snapshots ADD COLUMN IF NOT EXISTS project_id TEXT;
 ALTER TABLE report_snapshots ADD COLUMN IF NOT EXISTS source TEXT;

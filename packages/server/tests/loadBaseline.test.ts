@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/loadBaseline.test.ts
  *
- * 根拠: REQ-018 / AC-018-1 / REQ-042 / AC-042-1。
+ * 根拠: PrjOps:REQ-018 / AC-018-1 / PrjOps:REQ-042 / PrjOps:AC-042-1。
  * 外部送信・実DBなしで配信throughputとingest→dispatch latencyの単発baselineを測る。
  */
 import { createHmac } from "node:crypto";
@@ -23,7 +23,7 @@ const ingestSecret = "load-baseline-secret-of-at-least-32-chars";
 const payload: StandardReportPayload = {
   schemaVersion: "standard-report.v2",
   reportType: "weekly-summary",
-  evidenceIds: ["REQ-018", "REQ-042"],
+  evidenceIds: ["PrjOps:REQ-018", "PrjOps:REQ-042"],
   period: { label: "2026-W29", generatedAt: "2026-07-13T00:00:00.000Z" },
   metrics: {
     completed: { value: 1, source: "test:completed", as_of: "2026-07-13T00:00:00.000Z" },
@@ -31,7 +31,7 @@ const payload: StandardReportPayload = {
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };
 
-describe("offline load baseline [AC-018-1 AC-042-1]", () => {
+describe("offline load baseline [AC-018-1 PrjOps:AC-042-1]", () => {
   it("exercises 2,000 sequential deliveries through the Graph stub without a production SLA claim", async () => {
     let mailCalls = 0;
     const startedAt = performance.now();
@@ -101,7 +101,7 @@ describe("offline load baseline [AC-018-1 AC-042-1]", () => {
     );
   });
 
-  it("pins the SLA constants to the specification [AC-018-1 AC-042-1]", () => {
+  it("pins the SLA constants to the specification [AC-018-1 PrjOps:AC-042-1]", () => {
     expect(DELIVERY_CYCLE_MAX_MS).toBe(7_200_000);
     expect(INGEST_TO_DISPATCH_MAX_MS).toBe(300_000);
   });
@@ -111,7 +111,7 @@ describe("offline load baseline [AC-018-1 AC-042-1]", () => {
     ["delivery plus one", isWithinDeliveryCycleSla, 7_200_001, false],
     ["ingest exact", isWithinIngestToDispatchSla, 300_000, true],
     ["ingest plus one", isWithinIngestToDispatchSla, 300_001, false],
-  ])("applies the deterministic SLA boundary: %s [AC-018-1 AC-042-1]", (_name, predicate, elapsedMs, expected) => {
+  ])("applies the deterministic SLA boundary: %s [AC-018-1 PrjOps:AC-042-1]", (_name, predicate, elapsedMs, expected) => {
     expect(predicate(elapsedMs)).toBe(expected);
   });
 });

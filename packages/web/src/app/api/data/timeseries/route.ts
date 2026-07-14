@@ -1,7 +1,7 @@
 /**
  * packages/web/src/app/api/data/timeseries/route.ts
  *
- * 根拠: ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-081。
+ * 根拠: ADR-0007 / REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081。
  */
 import { auth } from "../../../../auth";
 import { loadWebConfig } from "../../../../server/config";

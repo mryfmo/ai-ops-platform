@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/lib/buildClassification.ts
  *
- * 根拠: SPEC-INT-011 手順6 / REQ-001 AC-001c
+ * 根拠: SPEC-INT-011 手順6 / DevOps:REQ-001 AC-001c
  *   confidence < 0.6 の場合は classification を unknown に上書きする
  *   （過信した誤分類より不明を優先する）。LLM出力に対する決定的な後処理。
  */

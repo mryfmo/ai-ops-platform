@@ -1,10 +1,10 @@
 /**
  * packages/prjops/src/lib/idempotentDelivery.ts
  *
- * 根拠: SPEC-INT-052 冪等配信 / REQ-018 AC-018-2
+ * 根拠: PrjOps:SPEC-INT-052 冪等配信 / PrjOps:REQ-018 AC-018-2
  *   配信前に prjops-reports/delivery_log/{RPT-id}.yaml の存在を確認し、存在すればスキップ。
  *   送信成功後に記録を書く（記録失敗時は再送許容だが件名 (再送) を付与）。
- *   SPEC-EXT-023: 重複して2通届くことはない。
+ *   PrjOps:SPEC-EXT-023: 重複して2通届くことはない。
  */
 
 export interface DeliveryLogEntry {
@@ -46,7 +46,7 @@ export interface DeliveryDecision {
 }
 
 /**
- * SPEC-INT-052の冪等配信ロジック。isRetryAttempt=trueは「記録が失敗したため再送が許容される」経路
+ * PrjOps:SPEC-INT-052の冪等配信ロジック。isRetryAttempt=trueは「記録が失敗したため再送が許容される」経路
  * （記録は成功しているが呼び出し側が再試行しているケース）を表す。通常の初回送信ではfalseを渡す。
  */
 export async function decideDelivery(

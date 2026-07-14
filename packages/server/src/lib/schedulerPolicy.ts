@@ -2,7 +2,7 @@
  * packages/server/src/lib/schedulerPolicy.ts
  *
  * 根拠: ADR-0005（常駐ループの実行判定）。
- *   - DevOps SPEC-INT-040: ヘルスチェック30秒間隔 / SPEC-INT-032: JIT失効は毎分。
+ *   - DevOps:SPEC-INT-040: ヘルスチェック30秒間隔 / DevOps:SPEC-INT-032: JIT失効は毎分。
  *   - setIntervalはイベントループ遅延で累積ずれするため、setTimeout再帰+次回時刻計算で
  *     ドリフトを補正する。その判定ロジックを純粋関数として切り出し、fake timersなしでも検証可能にする。
  *

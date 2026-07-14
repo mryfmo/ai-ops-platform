@@ -1,11 +1,11 @@
 /**
  * packages/prjops/src/templates/profileReports.ts
  *
- * 根拠: SPEC-EXT-021 プロファイル別レイアウト（DOC-03 §4.5が正）。
+ * 根拠: PrjOps:SPEC-EXT-021 プロファイル別レイアウト（DOC-03 §4.5が正）。
  * 各関数はレポート本文(bodyHtml)のみを返す。ヘッダー/フッターはreportShell.tsが担当する。
- * 数値はすべて numericSpan() で data-src 属性を付与し、AGT-07の数値一致検証（SPEC-INT-051(a)）を
+ * 数値はすべて numericSpan() で data-src 属性を付与し、AGT-07の数値一致検証（PrjOps:SPEC-INT-051(a)）を
  * 成立させる。文章スロット（結論・トピック要約等）はLLM生成文字列を受け取るが、本モジュール自体は
- * 数値を一切生成しない（DOC-05 SPEC-INT-031の設計原則: 数値はコード算出、文章のみLLM）。
+ * 数値を一切生成しない（DOC-05 PrjOps:SPEC-INT-031の設計原則: 数値はコード算出、文章のみLLM）。
  */
 import type { Lang } from "@aiops/shared/language.js";
 import { statusBadge, numericSpan, escapeHtml } from "./reportShell.js";
@@ -89,7 +89,7 @@ export function renderMemberReportBody(data: MemberReportData, lang: Lang): stri
 </section>`;
 }
 
-// ---------- PRF-02 リーダー (REQ-012) ----------
+// ---------- PRF-02 リーダー (PrjOps:REQ-012) ----------
 export interface LeaderProjectRow {
   id: string;
   name: string;
@@ -250,7 +250,7 @@ export function renderExecutiveReportBody(data: ExecutiveReportData, lang: Lang)
 </section>`;
 }
 
-// ---------- PRF-05 投資元 (REQ-015) ----------
+// ---------- PRF-05 投資元 (PrjOps:REQ-015) ----------
 export interface InvestorProjectPage {
   id: string;
   name: string;

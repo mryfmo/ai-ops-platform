@@ -1,4 +1,4 @@
-# サンプルデータ: 企業マスタ（REQ-002, SPEC-INT-023）
+# サンプルデータ: 企業マスタ（PrjOps:REQ-002, SPEC-INT-023）
 # パス規約: organizations/{ORG-nnn}.yaml
 id: ORG-001
 name: 株式会社サンプル

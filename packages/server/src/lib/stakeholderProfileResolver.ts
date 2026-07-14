@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/stakeholderProfileResolver.ts
  *
- * 根拠: ADR-0005 / REQ-002（Teams発話者を関係者マスタのteams_user_idとproject assignmentへ突合する）。
+ * 根拠: ADR-0005 / PrjOps:REQ-002（Teams発話者を関係者マスタのteams_user_idとproject assignmentへ突合する）。
  */
 import { validateStakeholder, type Profile, type StakeholderInput } from "@aiops/prjops";
 

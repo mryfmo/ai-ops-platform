@@ -1,7 +1,7 @@
 /**
  * packages/web/src/server/reportData/timeseriesHandler.ts
  *
- * 根拠: ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-081.
+ * 根拠: ADR-0007 / REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081.
  * GET /api/data/timeseries のハンドラ本体。pm_events/pm_snapshotsを権限範囲で絞って期間集計する。
  */
 import type { Session } from "next-auth";

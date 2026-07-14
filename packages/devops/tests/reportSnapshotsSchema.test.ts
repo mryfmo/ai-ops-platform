@@ -1,7 +1,7 @@
 /**
  * packages/devops/tests/reportSnapshotsSchema.test.ts
  *
- * 根拠: DevOps REQ-031 / SPEC-INT-055 / SPEC-INT-081。
+ * 根拠: DevOps:REQ-031 / SPEC-INT-055 / SPEC-INT-081。
  */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";

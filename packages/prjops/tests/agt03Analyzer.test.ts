@@ -1,4 +1,4 @@
-/** 根拠: REQ-007, REQ-008, SPEC-INT-001, SPEC-INT-032, AC-008-1 */
+/** 根拠: REQ-007, REQ-008, PrjOps:SPEC-INT-001, PrjOps:SPEC-INT-032, AC-008-1 */
 import { describe, expect, it } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared/auditLog.js";
 import type { AnthropicStructuredClient, StructuredCallOptions } from "@aiops/shared/clients/anthropicClient.js";
@@ -38,8 +38,8 @@ const trigger = {
   affectedOrganizationIds: ["ORG-A", "ORG-B"],
 };
 
-describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
-  it("SPEC-INT-032: ステータス数値は決定的コードだけで算出する", () => {
+describe("AGT-03 DI結線 [REQ-007, REQ-008, PrjOps:SPEC-INT-001]", () => {
+  it("PrjOps:SPEC-INT-032: ステータス数値は決定的コードだけで算出する", () => {
     expect(
       analyzeProjectStatus({
         projectId: "PJ-101",
@@ -100,7 +100,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
     expect(dependencies.calls[0]).not.toHaveProperty("allowEscalation", true);
   });
 
-  it("SPEC-INT-001: LLMが架空数値だけを返しても理由文にも監査ログにも採用しない", async () => {
+  it("PrjOps:SPEC-INT-001: LLMが架空数値だけを返しても理由文にも監査ログにも採用しない", async () => {
     const dependencies = deps("影響額は９９９億円です。", "The impact is 999 billion dollars.");
     const outcome = await proposeEscalationIfNeeded(trigger, "ISS-001", dependencies);
 
@@ -120,7 +120,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
     expect(JSON.stringify(audit)).not.toContain("999");
   });
 
-  it("SPEC-INT-001: 漢数字数量表現を返却・監査から除去する", async () => {
+  it("PrjOps:SPEC-INT-001: 漢数字数量表現を返却・監査から除去する", async () => {
     const quantities = "懸念は一つです。課題は四つです。四つの対応があります。四箇所に影響します。";
     const dependencies = deps(`${quantities}安全な理由です。`, "Safe reason.");
 
@@ -134,7 +134,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
     }
   });
 
-  it("SPEC-INT-001: 助数詞付き漢数字を返却・監査から除去し、通常語は保持する", async () => {
+  it("PrjOps:SPEC-INT-001: 助数詞付き漢数字を返却・監査から除去し、通常語は保持する", async () => {
     const quantities =
       "遅延は二週間です。第三段階です。一度確認します。三冊あります。二部署です。四チームです。一秒です。";
     const safeTerms = "一時的な対応で一件落着し、一人前として四日市との調整を進めます。";
@@ -150,7 +150,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
     }
   });
 
-  it("SPEC-INT-001: 月・序数・比較を含む漢数字数量を返却・監査から除去する", async () => {
+  it("PrjOps:SPEC-INT-001: 月・序数・比較を含む漢数字数量を返却・監査から除去する", async () => {
     const quantities =
       "三ヶ月継続します。三か月必要です。三箇月です。二十営業日です。第五四半期です。第三号です。二点です。三種類です。四以上です。三番目です。三ページです。三拠点です。三ほどです。十分が経過しました。一人前を用意します。所要時間は十分です。料理は約一人前です。卌件です。弌件です。";
     const safeTerms =
@@ -187,7 +187,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
     }
   });
 
-  it("REQ-032 / SPEC-INT-001: secret形状の影響記述とLLM出力を送信・返却・監査しない", async () => {
+  it("REQ-032 / PrjOps:SPEC-INT-001: secret形状の影響記述とLLM出力を送信・返却・監査しない", async () => {
     const inputSecret = `sk-ant-${"a".repeat(24)}`;
     const outputSecret = `ghp_${"b".repeat(24)}`;
     const dependencies = deps(`安全な理由です。${outputSecret}`, `Safe reason. ${outputSecret}`);
@@ -204,7 +204,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
     expect(JSON.stringify(await dependencies.auditLog.readAll())).not.toContain(inputSecret);
   });
 
-  it("REQ-032 / SPEC-INT-001: compatibility secretの正規形も送信・返却・監査せず監査を完了する", async () => {
+  it("REQ-032 / PrjOps:SPEC-INT-001: compatibility secretの正規形も送信・返却・監査せず監査を完了する", async () => {
     const inputSecret = `ｓｋ－ａｎｔ－${"a".repeat(24)}`;
     const outputSecret = `ｇｈｐ＿${"b".repeat(24)}`;
     const dependencies = deps(`安全な理由です。${outputSecret}`, `Safe reason. ${outputSecret}`);
@@ -232,13 +232,13 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, SPEC-INT-001]", () => {
   it.each([
     ["nonobject", null],
     ["array", [{ reason_ja: "安全です。", reason_en: "Safe." }]],
-  ])("SPEC-INT-001 / REQ-008: %s理由出力をruntime parserで拒否する", async (_name, raw) => {
+  ])("PrjOps:SPEC-INT-001 / REQ-008: %s理由出力をruntime parserで拒否する", async (_name, raw) => {
     const dependencies = depsRaw(raw);
     await expect(proposeEscalationIfNeeded(trigger, "ISS-001", dependencies)).rejects.toThrow("E-GEN01");
     expect(await dependencies.auditLog.readAll()).toEqual([]);
   });
 
-  it("SPEC-INT-001 / REQ-008: malformed理由出力はruntime parseでfail closedにする", async () => {
+  it("PrjOps:SPEC-INT-001 / REQ-008: malformed理由出力はruntime parseでfail closedにする", async () => {
     const dependencies = deps("安全な理由です。", null);
     await expect(proposeEscalationIfNeeded(trigger, "ISS-001", dependencies)).rejects.toThrow("E-GEN01");
     expect(await dependencies.auditLog.readAll()).toEqual([]);

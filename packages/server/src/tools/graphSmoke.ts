@@ -1,5 +1,5 @@
 /**
- * 根拠: ADR-0005 / REQ-042 / SPEC-INT-069。
+ * 根拠: ADR-0005 / PrjOps:REQ-042 / SPEC-INT-069。
  * Fail-closed Microsoft Graph sandbox smoke harness.
  * Real Graph/tenant adapters stay outside this networkless orchestration core.
  */

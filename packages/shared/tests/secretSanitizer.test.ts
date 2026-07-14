@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { sanitizeSecrets, isFreeOfKnownSecrets } from "../src/secretSanitizer.js";
 
-describe("sanitizeSecrets [REQ-032, DevOps REQ-030/SPEC-INT-070]", () => {
+describe("sanitizeSecrets [REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => {
   it("GitHub personal access token を検出・マスキングする", () => {
     const input = "token: ghp_1234567890abcdefghijklmnopqrstuvwx を使ってください";
     const { sanitized, redactionCount, matchedPatterns } = sanitizeSecrets(input);

@@ -1,4 +1,4 @@
-/** 根拠: REQ-004, REQ-005, SPEC-INT-030, AC-005-1, AC-005-2 */
+/** 根拠: REQ-004, REQ-005, PrjOps:SPEC-INT-030, AC-005-1, AC-005-2 */
 import { describe, expect, it } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared/auditLog.js";
 import type { AnthropicStructuredClient, StructuredCallOptions } from "@aiops/shared/clients/anthropicClient.js";
@@ -50,7 +50,7 @@ const report: IncomingReport = {
   body: "進捗報告",
 };
 
-describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
+describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", () => {
   it("AC-005-1: 欠落時は聞き返し、構造化判断を正確に一件だけ追記監査する", async () => {
     const { deps, auditLog, calls } = harness({ ...complete, risks: null });
 
@@ -142,7 +142,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
     expect(outcome).not.toHaveProperty("lastPartial.extra");
   });
 
-  it("REQ-032 / SPEC-INT-030 E-ING01: secret形状の未知送信者を原値で照合し監査だけ無害化する", async () => {
+  it("REQ-032 / PrjOps:SPEC-INT-030 E-ING01: secret形状の未知送信者を原値で照合し監査だけ無害化する", async () => {
     const secret = `sk-ant-${"a".repeat(24)}`;
     const { deps, auditLog, lookupIdentifiers } = harness(complete, null);
 
@@ -153,7 +153,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
     expect(JSON.stringify(await auditLog.readAll())).not.toContain(secret);
   });
 
-  it("REQ-032 / SPEC-INT-030 E-ING02: secret形状の既知送信者を原値で照合し監査だけ無害化する", async () => {
+  it("REQ-032 / PrjOps:SPEC-INT-030 E-ING02: secret形状の既知送信者を原値で照合し監査だけ無害化する", async () => {
     const secret = `ghp_${"a".repeat(24)}`;
     const { deps, auditLog, lookupIdentifiers } = harness(complete);
 
@@ -168,7 +168,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
     expect(JSON.stringify(await auditLog.readAll())).not.toContain(secret);
   });
 
-  it("REQ-032 / SPEC-INT-030 E-ING01: compatibility secretを原値照合し、正規形も監査しない", async () => {
+  it("REQ-032 / PrjOps:SPEC-INT-030 E-ING01: compatibility secretを原値照合し、正規形も監査しない", async () => {
     const secret = `ｇｈｐ＿${"a".repeat(24)}`;
     const canonicalSecret = secret.normalize("NFKC");
     const { deps, auditLog, lookupIdentifiers } = harness(complete, null);
@@ -199,7 +199,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
     expect(JSON.stringify(await rejected.auditLog.readAll())).not.toContain(collision);
   });
 
-  it("SPEC-INT-020 / SPEC-INT-030: malformed構造化出力はruntime parseでfail closedにする", async () => {
+  it("PrjOps:SPEC-INT-020 / PrjOps:SPEC-INT-030: malformed構造化出力はruntime parseでfail closedにする", async () => {
     const { deps, auditLog } = harness({ ...complete, progress_pct: 101 });
     await expect(ingestOne(report, { clarifyCount: 0 }, deps)).rejects.toThrow("E-ING03");
     expect(await auditLog.readAll()).toEqual([]);
@@ -212,13 +212,13 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
     ["null body", null],
     ["array body", [complete]],
     ["non-string achievements", { ...complete, achievements: ["完了"] }],
-  ])("SPEC-INT-020 / SPEC-INT-030: %sをruntime parserで拒否する", async (_name, raw) => {
+  ])("PrjOps:SPEC-INT-020 / PrjOps:SPEC-INT-030: %sをruntime parserで拒否する", async (_name, raw) => {
     const { deps, auditLog } = harness(raw);
     await expect(ingestOne(report, { clarifyCount: 0 }, deps)).rejects.toThrow("E-ING03");
     expect(await auditLog.readAll()).toEqual([]);
   });
 
-  it("SPEC-INT-030 E-ING01: 未知の送信者はLLMを呼ばず拒否し、非秘密識別子を監査する", async () => {
+  it("PrjOps:SPEC-INT-030 E-ING01: 未知の送信者はLLMを呼ばず拒否し、非秘密識別子を監査する", async () => {
     const { deps, auditLog, calls } = harness(complete, null);
 
     await expect(ingestOne(report, { clarifyCount: 0 }, deps)).resolves.toEqual({
@@ -230,13 +230,13 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
         trace_id: "trace-agt02",
         actor: "AGT-02",
         action: "reject_unknown_sender",
-        basis: "SPEC-INT-030 E-ING01",
+        basis: "PrjOps:SPEC-INT-030 E-ING01",
         detail: { senderIdentifier: "teams-user-001" },
       }),
     ]);
   });
 
-  it("SPEC-INT-030 E-ING02: プロジェクト不明はLLMを呼ばず拒否して監査する", async () => {
+  it("PrjOps:SPEC-INT-030 E-ING02: プロジェクト不明はLLMを呼ばず拒否して監査する", async () => {
     const { deps, auditLog, calls } = harness(complete);
     const unresolved = { ...report, subject: undefined, body: "対象名なし" };
 
@@ -249,12 +249,12 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, SPEC-INT-030]", () => {
         trace_id: "trace-agt02",
         actor: "AGT-02",
         action: "reject_unresolved_project",
-        basis: "SPEC-INT-030 E-ING02",
+        basis: "PrjOps:SPEC-INT-030 E-ING02",
       }),
     ]);
   });
 
-  it("SPEC-INT-030: 対象PJは件名、本文、送信者ヒントの優先順で解決する", () => {
+  it("PrjOps:SPEC-INT-030: 対象PJは件名、本文、送信者ヒントの優先順で解決する", () => {
     expect(resolveProjectId({ ...report, body: "PJ-202" })).toBe("PJ-101");
     expect(resolveProjectId({ ...report, subject: undefined, body: "PJ-202" })).toBe("PJ-202");
     expect(resolveProjectId({ ...report, subject: undefined, body: "なし", projectIdHintFromSender: "PJ-303" })).toBe(

@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/agents/AGT05_distributor.ts
  *
- * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信 / ADR-0014 REQ-042 SPEC-INT-069 AC-042-1
+ * 根拠: PrjOps:REQ-018 配信 / PrjOps:SPEC-INT-052 冪等配信 / ADR-0014 PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1
  *   承認済み（PRF-04/05）または検証済み（PRF-01〜03）レポートを、Outlookメール（HTML添付）で
  *   各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。
  *   AC-018-1: 1配信サイクル最大2,000通が2時間以内に完了する。
@@ -38,7 +38,7 @@ export interface DistributionResult {
 
 const cardRecipientId = (recipientId: string): string => `${recipientId}#teams-card`;
 
-/** REQ-018 + SPEC-INT-052: 1件の配信対象に対する冪等配信処理（SPEC-EXT-037 レポート配信/遅延通知） */
+/** PrjOps:REQ-018 + PrjOps:SPEC-INT-052: 1件の配信対象に対する冪等配信処理（SPEC-EXT-037 レポート配信/遅延通知） */
 export async function distributeOne(
   target: DeliveryTarget,
   deps: DistributorDependencies,
@@ -112,7 +112,7 @@ export async function distributeOne(
             trace_id: deps.traceId,
             actor: "AGT-05",
             action: "deliver_card_failed",
-            basis: "REQ-031",
+            basis: "PrjOps:REQ-031",
             detail: { reportId: target.reportId, recipientId: target.recipientId, error: String(err) },
             at: new Date().toISOString(),
           });
@@ -125,7 +125,7 @@ export async function distributeOne(
       trace_id: deps.traceId,
       actor: "AGT-05",
       action: "deliver",
-      basis: "REQ-018",
+      basis: "PrjOps:REQ-018",
       detail: { reportId: target.reportId, recipientId: target.recipientId },
       at: new Date().toISOString(),
     });
@@ -135,7 +135,7 @@ export async function distributeOne(
       trace_id: deps.traceId,
       actor: "AGT-05",
       action: "deliver_failed",
-      basis: "REQ-031",
+      basis: "PrjOps:REQ-031",
       detail: { reportId: target.reportId, recipientId: target.recipientId, error: String(err) },
       at: new Date().toISOString(),
     });
@@ -162,7 +162,7 @@ export async function runDistributionCycle(
 }
 
 /**
- * REQ-003 進捗報告依頼の自動送付 / SPEC-EXT-010 報告依頼メッセージ / SPEC-EXT-030 通知一覧(依頼)。
+ * PrjOps:REQ-003 進捗報告依頼の自動送付 / PrjOps:SPEC-EXT-010 報告依頼メッセージ / PrjOps:SPEC-EXT-030 通知一覧(依頼)。
  * 毎週水曜09:00 JSTに、全activeプロジェクトの報告担当者へTeams/メールで報告依頼を送付する（TOBE-01）。
  * 件名形式: 【進捗報告依頼】{プロジェクト名} ({PJ-nnn}) {YYYY-MM-DD}週 / en: [Status Request] ...
  */
@@ -172,7 +172,7 @@ export interface ProgressReportRequestTarget {
   weekLabel: string; // YYYY-MM-DD週
   recipientEmail: string;
   lang: "ja" | "en";
-  previousSummary3Lines: string; // 前回報告の要約3行（SPEC-EXT-010）
+  previousSummary3Lines: string; // 前回報告の要約3行（PrjOps:SPEC-EXT-010）
 }
 
 export async function sendProgressReportRequests(
@@ -195,7 +195,7 @@ export async function sendProgressReportRequests(
     trace_id: deps.traceId,
     actor: "AGT-05",
     action: "send_request",
-    basis: "REQ-003",
+    basis: "PrjOps:REQ-003",
     detail: { count: targets.length },
     at: new Date().toISOString(),
   });

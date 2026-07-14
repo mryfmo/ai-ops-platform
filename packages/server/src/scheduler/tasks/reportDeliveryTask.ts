@@ -1,7 +1,7 @@
 /**
  * packages/server/src/scheduler/tasks/reportDeliveryTask.ts
  *
- * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069 / AC-042-1。
+ * 根拠: ADR-0014 / PrjOps:REQ-042 / SPEC-INT-069 / PrjOps:AC-042-1。
  * 標準report.jsonをrecipientsへOutlook/Teamsで配信する常駐server schedulerタスク。
  */
 import {
@@ -177,7 +177,7 @@ export async function deliverStandardReportToRecipients(
         trace_id: traceId,
         actor: "AGT-05",
         action: "report_delivery_recipient_skipped",
-        basis: "REQ-042 SPEC-INT-069",
+        basis: "PrjOps:REQ-042 SPEC-INT-069",
         detail: { reportId: record.reportId, reason: "invalid_recipient_id" },
         at: new Date().toISOString(),
       });
@@ -206,7 +206,7 @@ export async function deliverStandardReportToRecipients(
           trace_id: traceId,
           actor: "AGT-05",
           action: "report_delivery_recipient_skipped",
-          basis: "REQ-042 SPEC-INT-069",
+          basis: "PrjOps:REQ-042 SPEC-INT-069",
           detail: { recipientId: recipient.userId, reason: "invalid_dashboard_url" },
           at: new Date().toISOString(),
         });
@@ -308,7 +308,7 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
         trace_id: traceId,
         actor: "AGT-05",
         action: failed === 0 ? "report_delivery_cycle_completed" : "report_delivery_cycle_failed",
-        basis: "REQ-042 SPEC-INT-069 AC-042-1",
+        basis: "PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1",
         detail: { sent, skipped, failed },
         at,
       });

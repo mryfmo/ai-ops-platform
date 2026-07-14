@@ -1,7 +1,7 @@
 /**
  * packages/shared/tests/pgCostGuard.test.ts
  *
- * 根拠: SPEC-INT-060（LLM日次コスト上限$20）/ ADR-0005（llm_usage表をバッチ+Webチャットで共有、
+ * 根拠: PrjOps:SPEC-INT-060（LLM日次コスト上限$20）/ ADR-0005（llm_usage表をバッチ+Webチャットで共有、
  *   JST基準の日次リセット ASM-003、agent別サブ上限）
  */
 import { describe, it, expect } from "vitest";
@@ -68,7 +68,7 @@ describe("jstDayRange (ASM-003: JST基準)", () => {
   });
 });
 
-describe("PgCostGuard (SPEC-INT-060)", () => {
+describe("PgCostGuard (PrjOps:SPEC-INT-060)", () => {
   it("getTodaySpendUsdはJST当日範囲でSUMする", async () => {
     const { db, queries, pushRows } = makeFakeDb();
     pushRows([{ total: "12.5" }]);

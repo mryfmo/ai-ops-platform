@@ -4,7 +4,7 @@
  * 根拠: DOC-02 §5（例外・障害時のふるまい） / REQ-006
  *   エージェント処理が失敗した場合、AGT-01が同一ジョブを最大2回リトライ（間隔10分）し、
  *   3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知する。
- * SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を定義する。
+ * PrjOps:SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を定義する。
  *   T20時点ではpackages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。
  *
  * 設計方針: 本モジュールはリトライ回数・状態遷移の決定ロジックのみを純粋関数として提供する
@@ -39,7 +39,7 @@ export function decideOnJobSuccess(): OrchestratorDecision {
   return { action: "proceed" };
 }
 
-/** SPEC-INT-040: analyze→report→verify→deliver の依存順序定義（DAG）。順序を変更する場合は本配列を更新する。 */
+/** PrjOps:SPEC-INT-040: analyze→report→verify→deliver の依存順序定義（DAG）。順序を変更する場合は本配列を更新する。 */
 export const WEEKLY_JOB_DEPENDENCY_ORDER = [
   "analyze-weekly",
   "report-weekly",

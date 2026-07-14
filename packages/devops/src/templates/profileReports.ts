@@ -1,9 +1,9 @@
 /**
  * packages/devops/src/templates/profileReports.ts
  *
- * 根拠: SPEC-EXT-021 PRF-M日次 / SPEC-EXT-022 PRF-L日次 / SPEC-EXT-023 PRF-L週次 /
- *       SPEC-EXT-024 PRF-G週次 / SPEC-EXT-025 PRF-G月次
- * 数値はすべて data-src 属性付きで埋め込み、AGT-RPT検証（REQ-020 AC-020b）の対象とする。
+ * 根拠: DevOps:SPEC-EXT-021 PRF-M日次 / DevOps:SPEC-EXT-022 PRF-L日次 / DevOps:SPEC-EXT-023 PRF-L週次 /
+ *       DevOps:SPEC-EXT-024 PRF-G週次 / DevOps:SPEC-EXT-025 PRF-G月次
+ * 数値はすべて data-src 属性付きで埋め込み、AGT-RPT検証（DevOps:REQ-020 AC-020b）の対象とする。
  */
 import { escapeHtml } from "./reportShell.js";
 import type { CodingTaskActivitySummary } from "../lib/codingTaskActivity.js";
@@ -151,7 +151,7 @@ export interface ManagerPeriodData {
   codingTaskActivity?: CodingTaskActivitySummary;
 }
 
-/** SPEC-EXT-024(3): 要注意プロジェクトTop5の選定基準は「変更失敗率降順、同率はオープンSev2件数降順」で固定 */
+/** DevOps:SPEC-EXT-024(3): 要注意プロジェクトTop5の選定基準は「変更失敗率降順、同率はオープンSev2件数降順」で固定 */
 export function selectTopRiskProjects(
   projects: Array<{ projectId: string; changeFailureRatePct: number; openSev2Count: number }>,
   topN = 5,

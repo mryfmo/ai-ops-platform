@@ -24,7 +24,7 @@ function createGraphClient(
   return new GraphClient(provider, fetchImpl, baseUrl, retryOptions, nowProvider, policy);
 }
 
-describe("fetchWithBackoff [DevOps SPEC-INT-080]", () => {
+describe("fetchWithBackoff [DevOps:SPEC-INT-080]", () => {
   it("200応答は即座に返る", async () => {
     const fetchImpl: FetchLike = async () => new Response("{}", { status: 200 });
     const res = await fetchWithBackoff(fetchImpl, "https://example.test", {});
@@ -182,7 +182,7 @@ describe("fetchWithBackoff [DevOps SPEC-INT-080]", () => {
   });
 });
 
-describe("GraphClient [SPEC-EXT-010/011/012/024, REQ-018, SPEC-INT-062]", () => {
+describe("GraphClient [DevOps:SPEC-EXT-010/011/012/024, PrjOps:REQ-018, DevOps:SPEC-INT-062]", () => {
   it.each([
     ["team allowlist外", { teamId: "team-2", channelId: "channel-1" }],
     ["empty team", { teamId: "   ", channelId: "channel-1" }],

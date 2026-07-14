@@ -1,7 +1,7 @@
 /**
  * packages/server/src/http/routes/reportIngest.ts
  *
- * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069 / DevOps SPEC-INT-083 / AC-042-1。
+ * 根拠: ADR-0014 / PrjOps:REQ-042 / SPEC-INT-069 / DevOps:SPEC-INT-083 / DevOps:AC-042-1。
  * GitHub Actions report-generation.yml が生成した標準report.jsonをHMAC検証後に受け付ける。
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -82,7 +82,7 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
       trace_id: traceId,
       actor: "SERVER",
       action: inserted.created ? "report_ingested" : "report_ingest_duplicate",
-      basis: "REQ-042 SPEC-INT-069",
+      basis: "PrjOps:REQ-042 SPEC-INT-069",
       detail: { reportId: inserted.reportId, reportType: reportPayload.reportType },
       at: new Date().toISOString(),
     });

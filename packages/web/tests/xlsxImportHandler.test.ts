@@ -1,6 +1,6 @@
 /**
  * packages/web/tests/xlsxImportHandler.test.ts
- * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008 / AUD-OPM-002 / AUD-OPM-015。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008 / AUD-OPM-002 / AUD-OPM-015。
  */
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
@@ -46,7 +46,7 @@ function streamedRequest(chunks: Uint8Array[], onCancel?: () => void): Request {
   } as RequestInit & { duplex: "half" });
 }
 
-describe("Excel取込web handler [REQ-037 / SPEC-INT-063 / AC-037-1]", () => {
+describe("Excel取込web handler [REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1]", () => {
   it("未認証を401で拒否しupstreamを呼ばない", async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const response = await handleXlsxImport(request("xlsx"), deps(fetchImpl, false));

@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/data/yamlStakeholderMasterProvider.ts
  *
- * 根拠: REQ-002, SPEC-INT-022（関係者マスタ）、AC-002-1（複数プロジェクト・複数立場）。
+ * 根拠: PrjOps:REQ-002, SPEC-INT-022（関係者マスタ）、AC-002-1（複数プロジェクト・複数立場）。
  */
 import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";

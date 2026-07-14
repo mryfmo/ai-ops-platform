@@ -1,4 +1,4 @@
--- 2026-07-09 ADR-0008 / REQ-037 / SPEC-INT-063: Excelインポート台帳。
+-- 2026-07-09 ADR-0008 / REQ-037 / DevOps:SPEC-INT-063: Excelインポート台帳。
 CREATE TABLE IF NOT EXISTS import_ledger (
   source_key     TEXT PRIMARY KEY,
   target_kind    TEXT NOT NULL CHECK (target_kind IN ('issue', 'project_item', 'milestone')),

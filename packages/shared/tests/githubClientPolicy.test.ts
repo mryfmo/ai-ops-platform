@@ -1,6 +1,6 @@
 /**
  * packages/shared/tests/githubClientPolicy.test.ts
- * 根拠: DevOps SPEC-INT-080
+ * 根拠: DevOps:SPEC-INT-080
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GitHubClient, type GhFetchLike } from "../src/clients/githubClient.js";
@@ -11,7 +11,7 @@ function client(fetchImpl: GhFetchLike): GitHubClient {
   return new GitHubClient(tokenProvider, fetchImpl, undefined, { retry: { maxRetries: 1 }, timeoutMs: 1_000 });
 }
 
-describe("GitHubClient retry policy [DevOps SPEC-INT-080]", () => {
+describe("GitHubClient retry policy [DevOps:SPEC-INT-080]", () => {
   afterEach(() => vi.useRealTimers());
 
   it("Retry-After付き403は指定時間後に再試行する", async () => {

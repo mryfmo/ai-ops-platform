@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/graphNotificationValidator.test.ts
  *
- * 根拠: ADR-0005（clientState定数時間比較・resourceパスからのID抽出）/ SPEC-INT-001
+ * 根拠: ADR-0005（clientState定数時間比較・resourceパスからのID抽出）/ PrjOps:SPEC-INT-001
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -25,7 +25,7 @@ describe("isValidClientState (ADR-0005)", () => {
   });
 });
 
-describe("parseChannelMessageResource (SPEC-INT-001)", () => {
+describe("parseChannelMessageResource (PrjOps:SPEC-INT-001)", () => {
   it("ルートメッセージのIDを抽出する", () => {
     const ids = parseChannelMessageResource("teams('t-1')/channels('c-1')/messages('m-1')");
     expect(ids).toEqual({ teamId: "t-1", channelId: "c-1", messageId: "m-1" });
@@ -52,7 +52,7 @@ describe("classifyNotifications (ADR-0005)", () => {
   });
 });
 
-describe("graphNotificationDedupeKey (SPEC-INT-001)", () => {
+describe("graphNotificationDedupeKey (PrjOps:SPEC-INT-001)", () => {
   it("notification idをexact redelivery keyとして優先する", () => {
     expect(
       graphNotificationDedupeKey({

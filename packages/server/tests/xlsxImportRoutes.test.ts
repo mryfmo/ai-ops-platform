@@ -87,7 +87,7 @@ function deps(
   };
 }
 
-describe("xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1]", () => {
+describe("xlsx import routes [REQ-037, PrjOps:SPEC-INT-063, AC-037-1]", () => {
   it("GET /xlsx-import/template はxlsxを返す", async () => {
     const app = buildApp(deps());
     const res = await app.request("/xlsx-import/template", { headers: signedHeaders(Buffer.alloc(0)) });

@@ -1,12 +1,12 @@
 /**
  * packages/devops/src/agents/AGT_RPT.ts
  *
- * 根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033 / ADR-0014 REQ-042 SPEC-INT-083 AC-042-1
+ * 根拠: DevOps:REQ-020〜024 プロファイル別定期報告 / DevOps:SPEC-INT-033 / ADR-0014 DevOps:REQ-042 SPEC-INT-083 DevOps:AC-042-1
  *   数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。
- *   配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。
+ *   配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（DevOps:SPEC-EXT-026）。
  *   配信名簿はAGT-SEC管理の名簿を唯一のソースとし、配信直前に毎回読み直す（REQ-024）。
  *
- * DevOpsのプロファイル別レポート仕様（SPEC-EXT-020〜025）は構造化データの表示が中心で、
+ * DevOpsのプロファイル別レポート仕様（DevOps:SPEC-EXT-020〜025）は構造化データの表示が中心で、
  * PrjOps PRF-04のような自由文の「結論」スロットを必須としないため、本エージェントは
  * 数値集計→権限フィルタ→テンプレート合成→配信 の完全に決定的なパイプラインとして実装する
  * （LLMを一切呼び出さない。これによりAGT-RPT自体はオフライン検証環境でも完全にテスト可能）。
@@ -154,7 +154,7 @@ export function resolveActiveRecipients(recipients: RecipientRecord[], candidate
   return candidateUserIds.filter((id) => isActiveRecipient(recipients, id));
 }
 
-/** PRF-M日次レポートの配信（REQ-021） */
+/** PRF-M日次レポートの配信（DevOps:REQ-021） */
 export async function deliverMemberDailyReport(
   common: DevOpsComposeCommon,
   data: MemberDailyData,
@@ -170,7 +170,7 @@ export async function deliverMemberDailyReport(
       subject,
       html,
       action: "deliver_member_daily",
-      basis: "REQ-021",
+      basis: "DevOps:REQ-021",
     },
     deps,
   );

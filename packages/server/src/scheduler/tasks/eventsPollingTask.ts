@@ -1,7 +1,7 @@
 /**
  * packages/server/src/scheduler/tasks/eventsPollingTask.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010: webhook受信は検証後ただちにeventsテーブルへキューイングし、
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010: webhook受信は検証後ただちにeventsテーブルへキューイングし、
  *   重い処理（Graph本文取得・LLM解釈・GitHub操作）はディスパッチャが非同期に行う（本タスクがその
  *   ディスパッチャ実体。5秒間隔でstatus='queued'をポーリングする常駐ループの初の実装）。
  *
@@ -66,7 +66,7 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
         trace_id: event.traceId,
         actor: "SERVER",
         action: "event_dispatch_ignored",
-        basis: "SPEC-INT-010",
+        basis: "DevOps:SPEC-INT-010",
         detail: { eventId: event.eventId, source: event.source },
         at: now.toISOString(),
       });
@@ -92,7 +92,7 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
           : result.status === "stale"
             ? "event_dispatch_stale_failure"
             : "event_dispatch_failed",
-      basis: "SPEC-INT-010",
+      basis: "DevOps:SPEC-INT-010",
       detail: {
         eventId: event.eventId,
         source: event.source,

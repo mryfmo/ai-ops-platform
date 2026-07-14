@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/graphSubscriptionPolicy.test.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-001。Microsoft Graph v1.0 chatMessage subscription policy,
+ * 根拠: ADR-0005 / PrjOps:SPEC-INT-001。Microsoft Graph v1.0 chatMessage subscription policy,
  * checked 2026-07-11: https://learn.microsoft.com/en-us/graph/api/resources/subscription?view=graph-rest-1.0
  */
 import { describe, expect, it } from "vitest";
@@ -13,7 +13,7 @@ import {
 
 const NOW = new Date("2026-07-11T00:00:00.000Z");
 
-describe("graphSubscriptionPolicy (ADR-0005 / SPEC-INT-001)", () => {
+describe("graphSubscriptionPolicy (ADR-0005 / PrjOps:SPEC-INT-001)", () => {
   it("canonical resourceと4,320分上限内の5分buffer付きexpiryを作る", () => {
     expect(buildGraphChatMessageResource(" team-1 ", " channel-1 ")).toBe("/teams/team-1/channels/channel-1/messages");
     expect(computeGraphSubscriptionExpiration(NOW)).toBe("2026-07-13T23:55:00.000Z");

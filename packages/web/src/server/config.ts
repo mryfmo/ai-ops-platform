@@ -45,9 +45,9 @@ const webConfigSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
   ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
-  /** ページエージェントの最大toolステップ数（SPEC-INT-068）。未指定時は5。 */
+  /** ページエージェントの最大toolステップ数（PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068）。未指定時は5。 */
   PAGE_AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(10).optional(),
-  /** Anthropic extended thinkingのtoken budget（SPEC-INT-068）。未指定時は12000。 */
+  /** Anthropic extended thinkingのtoken budget（PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068）。未指定時は12000。 */
   PAGE_AGENT_THINKING_BUDGET_TOKENS: z.coerce.number().int().min(1024).max(64000).optional(),
 });
 

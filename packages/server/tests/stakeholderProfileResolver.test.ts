@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/stakeholderProfileResolver.test.ts
  *
- * 根拠: ADR-0005 / REQ-002（Teams authorAadIdを関係者マスタのteams_user_idとproject assignmentへ突合）
+ * 根拠: ADR-0005 / PrjOps:REQ-002（Teams authorAadIdを関係者マスタのteams_user_idとproject assignmentへ突合）
  */
 import { describe, expect, it } from "vitest";
 import { resolveCallerProfileFromStakeholders } from "../src/lib/stakeholderProfileResolver.js";
@@ -22,22 +22,22 @@ const stakeholders = [
   },
 ];
 
-describe("resolveCallerProfileFromStakeholders (ADR-0005 / REQ-002)", () => {
-  it("REQ-002: teams_user_idとproject assignmentからprofileを解決する", () => {
+describe("resolveCallerProfileFromStakeholders (ADR-0005 / PrjOps:REQ-002)", () => {
+  it("PrjOps:REQ-002: teams_user_idとproject assignmentからprofileを解決する", () => {
     expect(resolveCallerProfileFromStakeholders(stakeholders, "29:1a2b3c-example-teams-id", "PJ-001")).toEqual({
       profile: "PRF-02",
       reason: "matched",
     });
   });
 
-  it("REQ-002: project assignmentが無いauthorは拒否理由を返す", () => {
+  it("PrjOps:REQ-002: project assignmentが無いauthorは拒否理由を返す", () => {
     expect(resolveCallerProfileFromStakeholders(stakeholders, "29:1a2b3c-example-teams-id", "PJ-999")).toEqual({
       profile: null,
       reason: "project_assignment_not_found",
     });
   });
 
-  it("REQ-002: authorAadIdが無い場合は拒否理由を返す", () => {
+  it("PrjOps:REQ-002: authorAadIdが無い場合は拒否理由を返す", () => {
     expect(resolveCallerProfileFromStakeholders(stakeholders, null, "PJ-001")).toEqual({
       profile: null,
       reason: "missing_author_aad_id",

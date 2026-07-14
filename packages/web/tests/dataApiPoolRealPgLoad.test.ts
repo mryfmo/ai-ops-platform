@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/dataApiPoolRealPgLoad.test.ts
  *
- * 根拠: ADR-0013 / REQ-041 / SPEC-INT-068。
+ * 根拠: ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068。
  * T-P2-05是正証跡 AUD-REL-001: production route/getPoolの実PostgreSQL物理接続数を測定する。
  */
 import pg from "pg";
@@ -40,7 +40,7 @@ async function physicalConnectionCount(): Promise<number> {
   return result.rows[0]!.count;
 }
 
-describe.skipIf(!baseDatabaseUrl)("real PostgreSQL web pool load [REQ-041 SPEC-INT-068]", () => {
+describe.skipIf(!baseDatabaseUrl)("real PostgreSQL web pool load [PrjOps:REQ-041 / DevOps:REQ-041 PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
   beforeAll(async () => {
     if (!confirmDatabase) throw new Error("AIOPS_LOAD_TEST_CONFIRM_DATABASE is required");
     if (confirmDatabase !== databaseName) {

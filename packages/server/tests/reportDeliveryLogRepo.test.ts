@@ -18,7 +18,7 @@ function makeMockDb(rows: Array<Record<string, unknown>> = []) {
   return { db, calls };
 }
 
-describe("ReportDeliveryLogRepo [REQ-018, SPEC-INT-052]", () => {
+describe("ReportDeliveryLogRepo [PrjOps:REQ-018, PrjOps:SPEC-INT-052]", () => {
   it("existsはsentのみを配信済み扱いにする", async () => {
     const { db, calls } = makeMockDb([{ 1: 1 }]);
     const repo = new ReportDeliveryLogRepo(db);

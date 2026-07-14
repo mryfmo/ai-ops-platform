@@ -6,7 +6,7 @@
  *   RSC権限（ChannelMessage.Read.Group）とアプリ側フィルタ（lib/channelAuthorization.ts）の
  *   二重防御のうちアプリ側フィルタの入力を提供する。
  *
- * 2026-07-07 追記（ADR-0005 / SPEC-INT-033）: github_owner/github_repo列（MIGRATIONS。
+ * 2026-07-07 追記（ADR-0005 / PrjOps:SPEC-INT-033）: github_owner/github_repo列（MIGRATIONS。
  *   packages/devops/src/db/schema.sql参照）を追加。Teamsチャネルからの /gh pr list 等の
  *   照会コマンド（teamsConversationAgent）がprojectIdに紐づくGitHubリポジトリを解決するために使用する。
  *

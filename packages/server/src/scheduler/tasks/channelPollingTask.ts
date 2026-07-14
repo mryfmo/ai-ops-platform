@@ -2,7 +2,7 @@
  * packages/server/src/scheduler/tasks/channelPollingTask.ts
  *
  * 根拠: ADR-0005（5分間隔のdelta取得。renewSubscription失敗時のpollingフォールバック実行部）/
- *   SPEC-INT-001（フォールバックポーリング）/ REQ-030（DB保存前のsanitizeSecrets必須）。
+ *   PrjOps:SPEC-INT-001（フォールバックポーリング）/ DevOps:REQ-030（DB保存前のsanitizeSecrets必須）。
  *   graphClient.getChannelMessagesDelta()は既存実装（変更不可）。
  *
  * 設計: mode='polling'の購読を対象に、チャネル取込可否をchannelAuthorization（純粋関数）で判定した上で
@@ -248,7 +248,7 @@ async function auditRecovery(
     trace_id: deps.traceIdProvider(),
     actor: "SERVER",
     action,
-    basis: "SPEC-INT-001",
+    basis: "PrjOps:SPEC-INT-001",
     detail: { subscriptionId: sub.subscriptionId, code: failure.code, status: failure.status, recovery },
     at: now.toISOString(),
   });

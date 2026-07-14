@@ -46,7 +46,7 @@ const baseTarget: DeliveryTarget = {
   teamsTarget: { teamId: "team-1", channelId: "chan-1" },
 };
 
-describe("distributeOne [REQ-018, SPEC-INT-052]", () => {
+describe("distributeOne [PrjOps:REQ-018, PrjOps:SPEC-INT-052]", () => {
   it("初回配信は送信され、監査ログに記録される", async () => {
     const { deps, sentMails } = makeDeps();
     const outcome = await distributeOne(baseTarget, deps);
@@ -138,7 +138,7 @@ describe("runDistributionCycle [AC-018-1]", () => {
   });
 });
 
-describe("sendProgressReportRequests [REQ-003, SPEC-EXT-010/030]", () => {
+describe("sendProgressReportRequests [PrjOps:REQ-003, PrjOps:SPEC-EXT-010/030]", () => {
   it("日本語件名フォーマットで送信される", async () => {
     const { deps, sentMails } = makeDeps();
     await sendProgressReportRequests(

@@ -10,7 +10,7 @@ import {
   type ProjectVisibilityContext,
 } from "../src/lib/reportPermissionFilter.js";
 
-describe("evaluateApprovalTimer [REQ-017 AC-017-2]", () => {
+describe("evaluateApprovalTimer [PrjOps:REQ-017 AC-017-2]", () => {
   const requestedAt = "2026-07-01T09:00:00+09:00";
 
   it("23時間経過ではまだ何もしない", () => {
@@ -74,7 +74,7 @@ describe("evaluateApprovalTimer [REQ-017 AC-017-2]", () => {
   });
 });
 
-describe("decideDelivery [SPEC-INT-052, REQ-018 AC-018-2]", () => {
+describe("decideDelivery [PrjOps:SPEC-INT-052, PrjOps:REQ-018 AC-018-2]", () => {
   it("未配信ならshouldSend=true、件名接尾辞なし", async () => {
     const store = new InMemoryDeliveryLogStore();
     const r = await decideDelivery(store, "RPT-001", "ST-010", false);
@@ -105,7 +105,7 @@ describe("decideDelivery [SPEC-INT-052, REQ-018 AC-018-2]", () => {
   });
 });
 
-describe("reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)]", () => {
+describe("reportPermissionFilter [DOC-03 §4.5, PrjOps:SPEC-INT-051(b)]", () => {
   const ctx: ProjectVisibilityContext = {
     recipientStakeholderId: "ST-010",
     recipientManagedProjectIds: ["PJ-001", "PJ-002"],

@@ -1,4 +1,4 @@
-# サンプルデータ: 進捗アップデート（SPEC-INT-020）
+# サンプルデータ: 進捗アップデート（PrjOps:SPEC-INT-020）
 # パス規約: status_updates/{SU-id}.yaml （id形式: SU-{PJ-nnn}-{YYYY}-W{ww}-{seq}）
 id: SU-PJ-001-2026-W27-1
 project_id: PJ-001

@@ -1,7 +1,7 @@
 /**
  * packages/server/src/scheduler/tasks/pmSnapshotReconcileTask.ts
  *
- * 根拠: ADR-0007 / DevOps REQ-031 / SPEC-INT-081 / AC-031a.
+ * 根拠: ADR-0007 / DevOps:REQ-031 / SPEC-INT-081 / AC-031a.
  * Projects v2 webhookの取りこぼしを前提に、GraphQL current snapshotを定期保存する。
  */
 import type { AuditLogWriter } from "@aiops/shared";

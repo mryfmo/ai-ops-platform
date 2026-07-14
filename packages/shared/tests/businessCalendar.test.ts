@@ -14,7 +14,7 @@ import {
   type HolidayEntry,
 } from "../src/calendar/businessCalendar.js";
 
-// SPEC-INT-054 / OPS-09: サンプル祝日（2026年）を用いた決定的テスト
+// PrjOps:SPEC-INT-054 / OPS-09: サンプル祝日（2026年）を用いた決定的テスト
 const sampleHolidays: HolidayEntry[] = [
   { date: "2026-01-01", name_ja: "元日", verified: true },
   { date: "2026-01-12", name_ja: "成人の日", verified: true },
@@ -22,7 +22,7 @@ const sampleHolidays: HolidayEntry[] = [
 ];
 const cal = buildHolidayCalendar(sampleHolidays);
 
-describe("dayOfWeek / isWeekend [SPEC-INT-054]", () => {
+describe("dayOfWeek / isWeekend [PrjOps:SPEC-INT-054]", () => {
   it("2026-07-06 (月) は平日", () => {
     expect(dayOfWeek("2026-07-06")).toBe(1);
     expect(isWeekend("2026-07-06")).toBe(false);
@@ -33,7 +33,7 @@ describe("dayOfWeek / isWeekend [SPEC-INT-054]", () => {
   });
 });
 
-describe("isBusinessDay [SPEC-INT-054]", () => {
+describe("isBusinessDay [PrjOps:SPEC-INT-054]", () => {
   it("平日かつ祝日でない日は営業日", () => {
     expect(isBusinessDay(cal, "2026-07-06")).toBe(true);
   });
@@ -45,7 +45,7 @@ describe("isBusinessDay [SPEC-INT-054]", () => {
   });
 });
 
-describe("buildHolidayCalendarFromYaml [SPEC-INT-054]", () => {
+describe("buildHolidayCalendarFromYaml [PrjOps:SPEC-INT-054]", () => {
   it("jp_holidays.yaml形式から祝日カレンダーを構築する", () => {
     const parsed = buildHolidayCalendarFromYaml(`
 holidays:
@@ -74,7 +74,7 @@ describe("addBusinessDays [REQ-009 督促間隔: 超過当日/+2営業日/+5営�
   });
 });
 
-describe("nthBusinessDayOfMonth / isNthBusinessDayOfMonth [REQ-014/015, REQ-019, DOC-02 §2]", () => {
+describe("nthBusinessDayOfMonth / isNthBusinessDayOfMonth [REQ-014/015, DevOps:REQ-019, DOC-02 §2]", () => {
   it("2026年1月の第1営業日は01-02(元日1/1が祝日のため翌平日)", () => {
     expect(nthBusinessDayOfMonth(cal, 2026, 1, 1)).toBe("2026-01-02");
   });
@@ -100,7 +100,7 @@ describe("isQuarterStartMonth [DOC-02 §2: 四半期初月]", () => {
   });
 });
 
-describe("isBusinessHoursJst [DevOps SPEC-INT-021 factor E]", () => {
+describe("isBusinessHoursJst [DevOps:SPEC-INT-021 factor E]", () => {
   it("平日09:00は営業時間内", () => {
     expect(isBusinessHoursJst(cal, "2026-07-06", "09:00")).toBe(true);
   });

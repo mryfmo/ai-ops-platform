@@ -18,7 +18,7 @@ function makeMockDb(rows: Array<Record<string, unknown>> = []) {
   return { db, calls };
 }
 
-describe("ImportLedgerRepo [REQ-037, SPEC-INT-063]", () => {
+describe("ImportLedgerRepo [REQ-037, PrjOps:SPEC-INT-063]", () => {
   it("source_keyで既存インポートを参照する", async () => {
     const { db, calls } = makeMockDb([
       {

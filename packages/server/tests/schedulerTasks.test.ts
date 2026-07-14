@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/schedulerTasks.test.ts
  *
- * 根拠: REQ-029（3回連続不応答でフェイルセーフ、回復で解除）/ TH-007・SPEC-INT-032（JIT失効の
+ * 根拠: REQ-029（3回連続不応答でフェイルセーフ、回復で解除）/ TH-007・DevOps:SPEC-INT-032（JIT失効の
  *   台帳読込→剥奪→台帳反映）
  */
 import { describe, it, expect } from "vitest";
@@ -79,7 +79,7 @@ describe("healthcheckTask (REQ-029)", () => {
   });
 });
 
-describe("jitRevocationTask (TH-007 / SPEC-INT-032)", () => {
+describe("jitRevocationTask (TH-007 / DevOps:SPEC-INT-032)", () => {
   it("期限到来grantをGitHubから剥奪し台帳へ反映する", async () => {
     const auditLog = new InMemoryAuditLog();
     const removed: string[] = [];

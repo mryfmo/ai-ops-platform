@@ -43,21 +43,21 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.STAKEHOLDERS_DIR).toBeUndefined();
   });
 
-  it("REQ-002: STAKEHOLDERS_DIRは絶対パスだけを許可する", () => {
+  it("PrjOps:REQ-002: STAKEHOLDERS_DIRは絶対パスだけを許可する", () => {
     expect(loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "/etc/aiops/stakeholders" }).STAKEHOLDERS_DIR).toBe(
       "/etc/aiops/stakeholders",
     );
     expect(() => loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "./stakeholders" })).toThrow("E-CFG01");
   });
 
-  it("Anthropic modelとpricingの現行既定値を維持する [SPEC-INT-001 / SPEC-INT-060]", () => {
+  it("Anthropic modelとpricingの現行既定値を維持する [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]", () => {
     const config = loadConfig(validEnv);
     expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-sonnet-4-6");
     expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("claude-opus-4-8");
     expect(config.ANTHROPIC_PRICING_USD_PER_MTOK["claude-sonnet-4-6"]).toEqual({ input: 3, output: 15 });
   });
 
-  it("SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {
+  it("DevOps:SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {
     const config = loadConfig({
       ...validEnv,
       GITHUB_APP_ID: "123",
@@ -70,7 +70,7 @@ describe("loadConfig (ADR-0005)", () => {
   });
 
   it.each(["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"])(
-    "SPEC-INT-061: App設定が一部だけのときE-CFG01: %s",
+    "DevOps:SPEC-INT-061: App設定が一部だけのときE-CFG01: %s",
     (name) => {
       expect(() => loadConfig({ ...validEnv, [name]: "configured" })).toThrow("E-CFG01");
     },
@@ -81,7 +81,7 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.PORT).toBe(9090);
   });
 
-  it("Anthropic default/escalation modelを環境変数から受け取る [SPEC-INT-001 / SPEC-INT-060]", () => {
+  it("Anthropic default/escalation modelを環境変数から受け取る [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]", () => {
     const config = loadConfig({
       ...validEnv,
       ANTHROPIC_DEFAULT_MODEL: "  custom-sonnet  ",
@@ -94,17 +94,17 @@ describe("loadConfig (ADR-0005)", () => {
   });
 
   it.each(["ANTHROPIC_DEFAULT_MODEL", "ANTHROPIC_ESCALATION_MODEL"] as const)(
-    "%sの空白のみを拒否する [SPEC-INT-001 / SPEC-INT-060]",
+    "%sの空白のみを拒否する [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]",
     (key) => {
       expect(() => loadConfig({ ...validEnv, [key]: "   " })).toThrow("E-CFG01");
     },
   );
 
-  it("モデルIDの長さ上限を超える値を拒否する [SPEC-INT-001 / SPEC-INT-060]", () => {
+  it("モデルIDの長さ上限を超える値を拒否する [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]", () => {
     expect(() => loadConfig({ ...validEnv, ANTHROPIC_DEFAULT_MODEL: `m${"x".repeat(200)}` })).toThrow("E-CFG01");
   });
 
-  it("不正なpricing JSONを起動時に拒否する [SPEC-INT-060]", () => {
+  it("不正なpricing JSONを起動時に拒否する [PrjOps:SPEC-INT-060]", () => {
     expect(() =>
       loadConfig({ ...validEnv, ANTHROPIC_PRICING_USD_PER_MTOK: '{"model":{"input":-1,"output":5}}' }),
     ).toThrow("E-CFG01");

@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/loadThresholds.ts
  *
- * 根拠: REQ-018 / AC-018-1 / REQ-042 / AC-042-1。
+ * 根拠: PrjOps:REQ-018 / AC-018-1 / PrjOps:REQ-042 / PrjOps:AC-042-1。
  * 負荷測定値とSLA上限の境界判定を、外部I/Oなしの決定的コードとして定義する。
  */
 

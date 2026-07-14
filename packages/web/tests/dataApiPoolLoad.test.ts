@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/dataApiPoolLoad.test.ts
  *
- * 根拠: ADR-0013 / REQ-041 / SPEC-INT-068 / AUD-REL-001。
+ * 根拠: ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / AUD-REL-001。
  * データAPI 500連投でもprocess-wide pool constructorが増えないことを測定する。
  */
 import { performance } from "node:perf_hooks";
@@ -30,7 +30,7 @@ vi.mock("../src/auth", () => ({
 }));
 vi.mock("../src/server/config", () => ({ loadWebConfig: () => ({ DATABASE_URL: "postgresql://load-stub" }) }));
 
-describe("web data API pool load baseline [REQ-041 SPEC-INT-068]", () => {
+describe("web data API pool load baseline [PrjOps:REQ-041 / DevOps:REQ-041 PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
   beforeEach(() => {
     delete (globalThis as typeof globalThis & { __aiopsPgPool?: unknown }).__aiopsPgPool;
     poolConstructor.mockClear();

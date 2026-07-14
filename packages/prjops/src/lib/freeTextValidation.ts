@@ -1,13 +1,13 @@
 /**
  * packages/prjops/src/lib/freeTextValidation.ts
  *
- * 根拠: REQ-005 自由文の構造化 / SPEC-EXT-011, 012 / SPEC-INT-030
+ * 根拠: REQ-005 自由文の構造化 / PrjOps:SPEC-EXT-011, 012 / PrjOps:SPEC-INT-030
  *   自由文報告の6項目: ①進捗率(0-100の整数%) ②自己申告ステータス(順調/注意/危険 or Green/Yellow/Red)
  *   ③今週の実績 ④来週の予定 ⑤課題(なければ「なし」) ⑥リスク(なければ「なし」)
  *   AC-005-1: 必須6項目のうち欠落があった場合、聞き返しが自動送信される。
  *   AC-005-2: 聞き返しは最大3回。3回で充足しない場合は運用担当へエスカレーション、「不完全」フラグ。
- *   SPEC-INT-030手順3: 必須6項目の欠落判定は構造化後にコードで実施（LLMに判定させない）。
- *   SPEC-EXT-012 / SPEC-EXT-032（通知一覧の聞き返し）: 聞き返しの文面形式「不足: ②ステータス, ⑥リスク」。
+ *   PrjOps:SPEC-INT-030手順3: 必須6項目の欠落判定は構造化後にコードで実施（LLMに判定させない）。
+ *   PrjOps:SPEC-EXT-012 / PrjOps:SPEC-EXT-032（通知一覧の聞き返し）: 聞き返しの文面形式「不足: ②ステータス, ⑥リスク」。
  *
  * 設計方針: LLM構造化の出力を受け取り、完全性判定は本モジュール（決定的コード）が単独で行う。
  */
@@ -45,7 +45,7 @@ export interface CompletenessResult {
   missingFields: FieldKey[];
 }
 
-/** SPEC-INT-030手順3: 必須6項目の欠落判定（決定的、LLM不使用） */
+/** PrjOps:SPEC-INT-030手順3: 必須6項目の欠落判定（決定的、LLM不使用） */
 export function checkCompleteness(input: StructuredStatusUpdate): CompletenessResult {
   const missingFields: FieldKey[] = [];
 
@@ -70,7 +70,7 @@ export function checkCompleteness(input: StructuredStatusUpdate): CompletenessRe
   return { complete: missingFields.length === 0, missingFields };
 }
 
-/** SPEC-EXT-012: 「不足: ②ステータス, ⑥リスク」形式の聞き返しメッセージを生成する */
+/** PrjOps:SPEC-EXT-012: 「不足: ②ステータス, ⑥リスク」形式の聞き返しメッセージを生成する */
 export function formatClarificationMessage(missingFields: FieldKey[], lang: "ja" | "en" = "ja"): string {
   const ordered = FIELD_ORDER.filter((f) => missingFields.includes(f));
   if (lang === "en") {
@@ -99,7 +99,7 @@ export function decideClarificationAction(
   return { action: "clarify" };
 }
 
-/** 自己申告ステータスの表記ゆれ（順調/注意/危険 ⇔ green/yellow/red）を正規化する（SPEC-EXT-011） */
+/** 自己申告ステータスの表記ゆれ（順調/注意/危険 ⇔ green/yellow/red）を正規化する（PrjOps:SPEC-EXT-011） */
 export function normalizeSelfStatus(raw: string): SelfStatus | null {
   const t = raw.trim().toLowerCase();
   if (t === "green" || t === "順調") return "green";

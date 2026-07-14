@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/freeTextIntent.ts
  *
- * 根拠: SPEC-INT-033（定型コマンドの正規表現判定が不一致の場合のみLLMで意図解釈へフォールバック）/
+ * 根拠: PrjOps:SPEC-INT-033（定型コマンドの正規表現判定が不一致の場合のみLLMで意図解釈へフォールバック）/
  *   ADR-0005（Teamsチャネル自由文からのGitHub照会・操作意図の解釈）。
  *   packages/prjops/src/agents/AGT02_collector.ts の structureFreeText() と同一設計
  *   （AnthropicStructuredClient、tool_choice強制、温度0、sanitizeForLlmInput()適用）を踏襲する。
@@ -46,7 +46,7 @@ const SYSTEM_PROMPT =
   "gh_issue_create の場合はtitleとbodyを、code_task の場合はinstructionを抽出してください。" +
   "該当しない項目はnullとしてください。判定に自信が持てない場合は必ずunknownとしてください。";
 
-/** SPEC-INT-033: 定型コマンド不一致の自由文に対するLLM意図解釈を1回実行する */
+/** PrjOps:SPEC-INT-033: 定型コマンド不一致の自由文に対するLLM意図解釈を1回実行する */
 export async function interpretFreeTextIntent(
   llmClient: AnthropicStructuredClient,
   text: string,

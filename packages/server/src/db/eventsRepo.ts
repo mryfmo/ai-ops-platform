@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/eventsRepo.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010: webhook受信は検証後ただちにeventsテーブルへキューイングし、
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010: webhook受信は検証後ただちにeventsテーブルへキューイングし、
  *   重い処理（Graph本文取得・LLM解釈・GitHub操作）はディスパッチャが非同期に行う。
  */
 import type { PgQueryable } from "@aiops/shared";

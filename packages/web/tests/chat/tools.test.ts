@@ -2,7 +2,7 @@
  * packages/web/tests/chat/tools.test.ts
  *
  * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）/
- *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
+ *   ADR-0013 / PrjOps:REQ-041 / PrjOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。
  *   ペルソナごとに公開されるtool一覧が正しいこと（PRF-04にshowManagerSummaryが露出しない等）と、
  *   execute()のzod境界値（periodDaysが7/14/28以外は拒否）を検証する。
  *   ADR-0006 4b: showAgentActivityがPRF-G（DevOpsマネージャー）以外に露出しないことも検証する。
@@ -157,13 +157,13 @@ describe("showInvestorSummary tool（ADR-0011: investor専用）", () => {
 });
 
 describe("page agent tools（ADR-0013: Reasoning UI + Generative UI）", () => {
-  it("show_timeseriesはtimeseries ViewSpecを返す [REQ-041 / SPEC-INT-068 / AC-041-1]", async () => {
+  it("show_timeseriesはtimeseries ViewSpecを返す [PrjOps:REQ-041 / PrjOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1]", async () => {
     const tools = buildToolsForPersona(prjopsExecutive);
     const result = await tools["show_timeseries"]!.execute!({ period: "week" }, { toolCallId: "t8", messages: [] });
     expect(result).toEqual({ kind: "timeseries", period: "week" });
   });
 
-  it("show_doraとshow_burndownはマネージャーViewSpecを返す [AC-041-1]", async () => {
+  it("show_doraとshow_burndownはマネージャーViewSpecを返す [PrjOps:AC-041-1 / DevOps:AC-041-1]", async () => {
     const tools = buildToolsForPersona(devopsManager);
     await expect(tools["show_dora"]!.execute!({}, { toolCallId: "t9", messages: [] })).resolves.toEqual({
       kind: "managerSummary",

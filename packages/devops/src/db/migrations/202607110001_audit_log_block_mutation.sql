@@ -1,4 +1,4 @@
--- DevOps REQ-028 / SPEC-INT-056: block audit log mutation for every database role.
+-- DevOps:REQ-028 / SPEC-INT-056: block audit log mutation for every database role.
 
 CREATE OR REPLACE FUNCTION audit_log_block_mutation()
 RETURNS trigger

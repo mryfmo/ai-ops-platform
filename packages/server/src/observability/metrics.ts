@@ -1,7 +1,7 @@
 /**
  * packages/server/src/observability/metrics.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010。Prometheus textでqueue/task/delivery/poolの運用指標を公開する。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010。Prometheus textでqueue/task/delivery/poolの運用指標を公開する。
  */
 export interface EventQueueMetric {
   status: string;

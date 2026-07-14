@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/reportData/timeseriesHandler.test.ts
  *
- * 根拠: ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-081。
+ * 根拠: ADR-0007 / REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081。
  */
 import { describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
@@ -17,7 +17,7 @@ function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
 }
 
 describe("handleTimeseries (ADR-0007)", () => {
-  it("REQ-036 / SPEC-INT-062: persona scopeでpm_events/pm_snapshotsを絞って集計する", async () => {
+  it("REQ-036 / PrjOps:SPEC-INT-062: persona scopeでpm_events/pm_snapshotsを絞って集計する", async () => {
     const personas: ResolvedPersona[] = [
       {
         domain: "prjops",
@@ -76,7 +76,7 @@ describe("handleTimeseries (ADR-0007)", () => {
     expect(body.buckets.some((bucket: { burndownRemaining: number }) => bucket.burndownRemaining === 1)).toBe(true);
   });
 
-  it("SPEC-INT-062: personaが無ければ403を返す", async () => {
+  it("PrjOps:SPEC-INT-062: personaが無ければ403を返す", async () => {
     const res = await handleTimeseries({
       getSession: sessionWithEmail,
       resolver: resolverWith([]),

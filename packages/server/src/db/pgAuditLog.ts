@@ -2,7 +2,7 @@
  * packages/server/src/db/pgAuditLog.ts
  *
  * 根拠:
- *   - DevOps SPEC-INT-056 / REQ-028: audit_logテーブルは追記専用（INSERT/SELECTのみ。
+ *   - DevOps:SPEC-INT-056 / REQ-028: audit_logテーブルは追記専用（INSERT/SELECTのみ。
  *     UPDATE/DELETE権限はアプリロールに付与しない。schema.sqlのREVOKEコメント参照）。
  *   - ADR-0005: 常駐サーバの監査ログはPostgreSQL実装を正本とする。
  *

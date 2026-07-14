@@ -2,9 +2,9 @@
  * packages/shared/src/language.ts
  *
  * 根拠:
- *   - PrjOps ASM-002: 報告言語は受信者ごとにja/enを選択可能。既定値は国内企業=ja、海外企業=en。
+ *   - PrjOps:ASM-002: 報告言語は受信者ごとにja/enを選択可能。既定値は国内企業=ja、海外企業=en。
  *   - PrjOps DOC-05 §8: stakeholder.preferred_language未設定時は organization.country が JP なら ja、他は en。
- *   - DevOps SPEC-INT-064: 外部向け通知はja/en両言語のテンプレートを保持し、partner_companies.languageで選択。
+ *   - DevOps:SPEC-INT-064: 外部向け通知はja/en両言語のテンプレートを保持し、partner_companies.languageで選択。
  *     機械翻訳の動的生成は行わない（文言の法的・契約的な揺れを防ぐため）— 本モジュールも動的翻訳は提供しない。
  */
 
@@ -23,7 +23,7 @@ export function resolveLanguage(input: LanguageResolutionInput): Lang {
   return input.organizationCountry === "JP" ? "ja" : "en";
 }
 
-/** 定型文言テンプレート集。動的機械翻訳は行わない（SPEC-INT-064）。 */
+/** 定型文言テンプレート集。動的機械翻訳は行わない（DevOps:SPEC-INT-064）。 */
 export interface BilingualText {
   ja: string;
   en: string;

@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/templates/reportShell.ts
  *
- * 根拠: REQ-010（共通要件）/ SPEC-EXT-020（共通仕様）
+ * 根拠: PrjOps:REQ-010（共通要件）/ PrjOps:SPEC-EXT-020（共通仕様）
  *   - 自己完結型HTML（外部CSS/JS参照なし、1ファイル）。全レポートに生成日時、対象期間、
  *     レポートID、データ取得時点を明記。
  *   - 色: Green=#2e7d32, Yellow=#f9a825, Red=#c62828。色だけに依存せず文字ラベル併記。
@@ -9,7 +9,7 @@
  *   - AC-010-1: ネットワーク遮断環境のブラウザで崩れなく表示される（インラインCSSのみで実装）。
  *   - AC-010-2: 1ファイルのサイズは2MB以下。
  *
- * data-src属性: `data-src="{path}#{field}"` を数値要素に付与し、AGT-07（SPEC-INT-051(a)）が
+ * data-src属性: `data-src="{path}#{field}"` を数値要素に付与し、AGT-07（PrjOps:SPEC-INT-051(a)）が
  * 正本データとの数値一致を機械検証できるようにする。
  */
 import type { Lang } from "@aiops/shared/language.js";
@@ -37,7 +37,7 @@ export function escapeHtml(input: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** 色ラベル（色だけに依存しない文字表記併記。SPEC-EXT-020） */
+/** 色ラベル（色だけに依存しない文字表記併記。PrjOps:SPEC-EXT-020） */
 export function statusBadge(color: StatusColor, lang: Lang): string {
   const hex = STATUS_COLOR_HEX[color];
   const label = STATUS_LABEL[color][lang];
@@ -46,7 +46,7 @@ export function statusBadge(color: StatusColor, lang: Lang): string {
   )}</span>`;
 }
 
-/** 数値をdata-src属性付きで埋め込む（SPEC-INT-051(a)の検証対象） */
+/** 数値をdata-src属性付きで埋め込む（PrjOps:SPEC-INT-051(a)の検証対象） */
 export function numericSpan(path: string, field: string, displayValue: string | number): string {
   return `<span data-src="${escapeHtml(path)}#${escapeHtml(field)}">${escapeHtml(String(displayValue))}</span>`;
 }
@@ -70,7 +70,7 @@ const CONFIDENTIAL_LABEL: Record<"investor" | "internal", { ja: string; en: stri
   internal: { ja: "社外秘", en: "Internal Use Only" },
 };
 
-/** REQ-010/SPEC-EXT-020: 自己完結HTMLシェル（インラインCSSのみ、外部参照なし） */
+/** PrjOps:REQ-010/PrjOps:SPEC-EXT-020: 自己完結HTMLシェル（インラインCSSのみ、外部参照なし） */
 export function renderReportShell(opts: ReportShellOptions): string {
   const systemName = opts.lang === "ja" ? opts.systemNameJa : opts.systemNameEn;
   const confidentialHtml =

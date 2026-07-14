@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/channelPollingTask.test.ts
  *
- * 根拠: ADR-0005（5分間隔delta取得、pollingフォールバック実行部）/ REQ-030（保存前sanitizeSecrets）
+ * 根拠: ADR-0005（5分間隔delta取得、pollingフォールバック実行部）/ DevOps:REQ-030（保存前sanitizeSecrets）
  */
 import { describe, it, expect } from "vitest";
 import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
@@ -56,7 +56,7 @@ const SAMPLE_MSG: ChannelPollingGraphMessage = {
 
 const NOW = new Date("2026-07-07T00:00:00Z");
 
-describe("channelPollingTask (ADR-0005 / REQ-030)", () => {
+describe("channelPollingTask (ADR-0005 / DevOps:REQ-030)", () => {
   it("取込許可チャネルはdelta取得→sanitize→保存し、deltaLinkを更新する", async () => {
     const upserted: unknown[] = [];
     const channelMessagesRepo = {

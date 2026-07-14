@@ -47,7 +47,7 @@ function githubStub(): XlsxImportGithubClient {
   };
 }
 
-describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
+describe("xlsx import parser [REQ-037, PrjOps:SPEC-INT-063, AC-037-1]", () => {
   it("AC-037-1: テンプレートxlsxを生成してパースできる", async () => {
     const buffer = await buildXlsxImportTemplateBuffer();
     const workbook = new ExcelJS.Workbook();
@@ -223,7 +223,7 @@ describe("xlsx import parser [REQ-037, SPEC-INT-063, AC-037-1]", () => {
   });
 });
 
-describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
+describe("executeXlsxImport [REQ-037, PrjOps:SPEC-INT-063]", () => {
   it("AC-037-1: 既存source_keyをスキップし、issue bodyへimport markerを付ける", async () => {
     const ledger = new MemoryLedger();
     await ledger.insert({
@@ -254,7 +254,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].body).toContain("<!-- import:ISS-1 -->");
   });
 
-  it("SPEC-INT-063: Project v2はadd→updateの2段GraphQL相当を直列スロットリングする", async () => {
+  it("PrjOps:SPEC-INT-063: Project v2はadd→updateの2段GraphQL相当を直列スロットリングする", async () => {
     const github = githubStub();
     const sleep = vi.fn(async () => {});
     await executeXlsxImport({
@@ -284,7 +284,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     );
   });
 
-  it("SPEC-INT-063: issueのmilestoneタイトルは作成済みmilestone番号へ解決してからGitHubへ渡す", async () => {
+  it("PrjOps:SPEC-INT-063: issueのmilestoneタイトルは作成済みmilestone番号へ解決してからGitHubへ渡す", async () => {
     const github = githubStub();
     await executeXlsxImport({
       owner: "acme",
@@ -305,7 +305,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].milestone).toBe(2);
   });
 
-  it("SPEC-INT-063: 増分インポートは既存milestoneをledgerからseedして新規issueへ付与する", async () => {
+  it("PrjOps:SPEC-INT-063: 増分インポートは既存milestoneをledgerからseedして新規issueへ付与する", async () => {
     const ledger = new MemoryLedger();
     const github = githubStub();
     await executeXlsxImport({
@@ -339,7 +339,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue).mock.calls[1]?.[0].milestone).toBe(2);
   });
 
-  it("SPEC-INT-063: 数値milestone titleもリテラル番号でなく作成済み番号へ解決する", async () => {
+  it("PrjOps:SPEC-INT-063: 数値milestone titleもリテラル番号でなく作成済み番号へ解決する", async () => {
     const github = githubStub();
     await executeXlsxImport({
       owner: "acme",
@@ -357,7 +357,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue).mock.calls[0]?.[0].milestone).toBe(2);
   });
 
-  it("SPEC-INT-063: 未解決milestoneタイトルはGitHub createIssueへ送らず行エラーにする", async () => {
+  it("PrjOps:SPEC-INT-063: 未解決milestoneタイトルはGitHub createIssueへ送らず行エラーにする", async () => {
     const github = githubStub();
     const result = await executeXlsxImport({
       owner: "acme",
@@ -374,7 +374,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(result.progress[0]?.error).toContain("milestone title not resolved");
   });
 
-  it("SPEC-INT-063: pending/failed ledger行はskipせず再試行する", async () => {
+  it("PrjOps:SPEC-INT-063: pending/failed ledger行はskipせず再試行する", async () => {
     const ledger = new MemoryLedger();
     await ledger.insert({
       sourceKey: "ISS-1",
@@ -399,7 +399,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(vi.mocked(github.createIssue)).toHaveBeenCalledTimes(1);
   });
 
-  it("SPEC-INT-063: GraphQL rateLimit remainingが低ければresetAtまで待つ", async () => {
+  it("PrjOps:SPEC-INT-063: GraphQL rateLimit remainingが低ければresetAtまで待つ", async () => {
     const github = githubStub();
     vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
       remaining: 1,
@@ -421,7 +421,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(sleep).toHaveBeenCalledWith(1000);
   });
 
-  it("SPEC-INT-063: rateLimit remainingがfloorちょうどなら待たない", async () => {
+  it("PrjOps:SPEC-INT-063: rateLimit remainingがfloorちょうどなら待たない", async () => {
     const github = githubStub();
     vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
       remaining: 50,
@@ -443,7 +443,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
-  it("SPEC-INT-063: rateLimit resetAtが過去ならGitHubへ書き込まず失敗理由を残す", async () => {
+  it("PrjOps:SPEC-INT-063: rateLimit resetAtが過去ならGitHubへ書き込まず失敗理由を残す", async () => {
     const github = githubStub();
     vi.mocked(github.getGraphqlRateLimit).mockResolvedValueOnce({
       remaining: 1,
@@ -465,7 +465,7 @@ describe("executeXlsxImport [REQ-037, SPEC-INT-063]", () => {
     expect(result.progress[0]?.error).toContain("rateLimit");
   });
 
-  it("SPEC-INT-063: 台帳pending記録に失敗した行はGitHubへ書き込まず、失敗理由を残す", async () => {
+  it("PrjOps:SPEC-INT-063: 台帳pending記録に失敗した行はGitHubへ書き込まず、失敗理由を残す", async () => {
     const ledger = new MemoryLedger();
     const github = githubStub();
     vi.spyOn(ledger, "insert").mockRejectedValueOnce(new Error("ledger unavailable"));

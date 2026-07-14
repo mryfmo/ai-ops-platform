@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validateProject, validateStakeholder, validateOrganization } from "../src/lib/masterValidation.js";
 
-describe("validateProject [REQ-001 AC-001-1]", () => {
+describe("validateProject [PrjOps:REQ-001 AC-001-1]", () => {
   const validProject = {
     id: "PJ-001",
     name: "サンプル案件",
@@ -59,7 +59,7 @@ describe("validateProject [REQ-001 AC-001-1]", () => {
   });
 });
 
-describe("validateStakeholder [REQ-002 AC-002-1]", () => {
+describe("validateStakeholder [PrjOps:REQ-002 AC-002-1]", () => {
   const valid = {
     id: "ST-010",
     name: "山田太郎",
@@ -95,7 +95,7 @@ describe("validateStakeholder [REQ-002 AC-002-1]", () => {
   });
 });
 
-describe("validateOrganization [REQ-002: 企業は国内/海外区分を持つ]", () => {
+describe("validateOrganization [PrjOps:REQ-002: 企業は国内/海外区分を持つ]", () => {
   it("必須属性が揃っていればok", () => {
     const r = validateOrganization({
       id: "ORG-001",

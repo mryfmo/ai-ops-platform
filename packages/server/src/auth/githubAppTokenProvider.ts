@@ -1,7 +1,7 @@
 /**
  * packages/server/src/auth/githubAppTokenProvider.ts
  *
- * 根拠: SPEC-INT-061（GitHub App JWTからinstallation tokenを取得し、有効期限前に更新する）。
+ * 根拠: DevOps:SPEC-INT-061（GitHub App JWTからinstallation tokenを取得し、有効期限前に更新する）。
  */
 import { createSign, randomUUID } from "node:crypto";
 import { GitHubClient, type AuditLogWriter, type GhFetchLike, type GitHubTokenProvider } from "@aiops/shared";
@@ -122,7 +122,7 @@ export async function createGitHubClientForConfig(
   }
 
   if (config.GITHUB_TOKEN) {
-    // SPEC-INT-061: GitHub App移行までの暫定PAT fallback。
+    // DevOps:SPEC-INT-061: GitHub App移行までの暫定PAT fallback。
     return {
       client: new GitHubClient({ getInstallationToken: async () => config.GITHUB_TOKEN! }, options.githubFetch),
       mode: "pat",
@@ -133,7 +133,7 @@ export async function createGitHubClientForConfig(
     trace_id: (options.traceIdProvider ?? randomUUID)(),
     actor: "SERVER",
     action: "github_auth_not_configured",
-    basis: "SPEC-INT-061",
+    basis: "DevOps:SPEC-INT-061",
     detail: { reason: "GitHub App credentials and GITHUB_TOKEN are not configured" },
     at: new Date(options.now?.() ?? Date.now()).toISOString(),
   });

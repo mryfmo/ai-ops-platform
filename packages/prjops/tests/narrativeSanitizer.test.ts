@@ -5,7 +5,7 @@ import {
   stripSentencesWithNumbers,
 } from "../src/lib/narrativeSanitizer.js";
 
-describe("Unicode数値拒否 [SPEC-INT-031 / REQ-010]", () => {
+describe("Unicode数値拒否 [PrjOps:SPEC-INT-031 / PrjOps:REQ-010]", () => {
   it.each([
     ["ASCII", "1"],
     ["fullwidth", "１"],
@@ -63,13 +63,13 @@ describe("Unicode数値拒否 [SPEC-INT-031 / REQ-010]", () => {
     ["CJK two variant", "弍件"],
     ["CJK three variant", "弎件"],
     ["CJK formal two variant", "貮件"],
-  ])("SPEC-INT-031: %s numberをNFKCとUnicode categoryで拒否する", (_name, number) => {
+  ])("PrjOps:SPEC-INT-031: %s numberをNFKCとUnicode categoryで拒否する", (_name, number) => {
     expect(checkNarrativeHasNoNumbers(number).ok).toBe(false);
     expect(checkNarrativeHasNoNumbers(`安全な文${number}です。`).ok).toBe(false);
     expect(stripSentencesWithNumbers(`安全です。危険${number}です。`, "ja")).toBe("安全です。");
   });
 
-  it("SPEC-INT-031: fallback自体に数値があればfail closedにする", () => {
+  it("PrjOps:SPEC-INT-031: fallback自体に数値があればfail closedにする", () => {
     expect(() => sanitizeNarrativeWithFallback("架空の99件です。", "ja", "固定文1です。")).toThrow("E-NAR01");
   });
 
@@ -87,17 +87,17 @@ describe("Unicode数値拒否 [SPEC-INT-031 / REQ-010]", () => {
     "一方では対応を進めます。",
     "一人前になります。",
     "四日市で調整します。",
-  ])("SPEC-INT-031: 通常語の漢字を数値として誤検知しない: %s", (text) => {
+  ])("PrjOps:SPEC-INT-031: 通常語の漢字を数値として誤検知しない: %s", (text) => {
     expect(checkNarrativeHasNoNumbers(text).ok).toBe(true);
     expect(stripSentencesWithNumbers(text, "ja")).toBe(text);
   });
 
-  it.each(["二十三です。", "百二十です。"])("SPEC-INT-031: 多文字漢数字は数量文脈がなくても拒否する: %s", (text) => {
+  it.each(["二十三です。", "百二十です。"])("PrjOps:SPEC-INT-031: 多文字漢数字は数量文脈がなくても拒否する: %s", (text) => {
     expect(checkNarrativeHasNoNumbers(text).ok).toBe(false);
   });
 });
 
-describe("checkNarrativeHasNoNumbers [SPEC-INT-031]", () => {
+describe("checkNarrativeHasNoNumbers [PrjOps:SPEC-INT-031]", () => {
   it("数値を含まない文章はok", () => {
     expect(checkNarrativeHasNoNumbers("全体は概ね順調に推移しています。").ok).toBe(true);
   });

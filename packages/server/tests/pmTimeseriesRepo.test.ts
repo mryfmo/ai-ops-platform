@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PmTimeseriesRepo } from "../src/db/pmTimeseriesRepo.js";
 
-describe("PmTimeseriesRepo (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-081)", () => {
+describe("PmTimeseriesRepo (ADR-0007 / REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081)", () => {
   it("AC-036-1: pm_events raw_payloadをsanitizeして保存する", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const repo = new PmTimeseriesRepo({ query });

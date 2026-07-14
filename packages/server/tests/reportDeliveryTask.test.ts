@@ -16,7 +16,7 @@ const EMAIL_ADDRESS = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
 const payload = {
   schemaVersion: "standard-report.v2",
   reportType: "weekly-summary",
-  evidenceIds: ["REQ-042"],
+  evidenceIds: ["PrjOps:REQ-042"],
   period: { label: "2026-W28", generatedAt: "2026-07-06T00:00:00.000Z" },
   metrics: {
     completed: {
@@ -72,7 +72,7 @@ function deliveryTask(overrides: Partial<ReportDeliveryTaskDeps> = {}) {
   });
 }
 
-describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
+describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () => {
   it("FROM_MAILBOX未設定時はdisabled監査を残し、送信しない", async () => {
     const auditLog = new InMemoryAuditLog();
     const mails: unknown[] = [];
@@ -437,7 +437,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(mails).toHaveLength(1);
   });
 
-  it("REQ-042 AUD-OPM-009: 配信サイクル成功時だけ設定済みheartbeatへGETを1回送る", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 配信サイクル成功時だけ設定済みheartbeatへGETを1回送る", async () => {
     const requests: Array<{ input: string; method: string | undefined }> = [];
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
@@ -452,7 +452,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(requests).toEqual([{ input: "https://heartbeat.example.com/report-delivery", method: "GET" }]);
   });
 
-  it("REQ-042 AUD-OPM-009: 当期レポートがなければheartbeatを送らない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 当期レポートがなければheartbeatを送らない", async () => {
     let heartbeats = 0;
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
@@ -468,7 +468,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(heartbeats).toBe(0);
   });
 
-  it("REQ-042 AUD-OPM-009: 前週レポートをskipしただけならheartbeatを送らない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 前週レポートをskipしただけならheartbeatを送らない", async () => {
     let heartbeats = 0;
     const store = new InMemoryDeliveryLogStore();
     const generatedAt = "2026-06-29T00:00:00.000Z";
@@ -500,7 +500,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(heartbeats).toBe(0);
   });
 
-  it("REQ-042 AUD-OPM-009: 複数レポートを配信してもheartbeatはサイクルごとに1回", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 複数レポートを配信してもheartbeatはサイクルごとに1回", async () => {
     let mails = 0;
     let heartbeats = 0;
     const task = deliveryTask({
@@ -524,7 +524,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(heartbeats).toBe(1);
   });
 
-  it("REQ-042 AUD-OPM-009: HEARTBEAT_URL未設定時は外部通信しない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: HEARTBEAT_URL未設定時は外部通信しない", async () => {
     let requests = 0;
     const task = deliveryTask({
       fetchImpl: async () => {
@@ -538,7 +538,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(requests).toBe(0);
   });
 
-  it("REQ-042 AUD-OPM-009: 配信サイクルが例外終了した場合はheartbeatを送らない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 配信サイクルが例外終了した場合はheartbeatを送らない", async () => {
     let requests = 0;
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
@@ -554,7 +554,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
   });
 
   it.each(["Graph", "delivery-log"] as const)(
-    "REQ-042 AUD-OPM-009: %s失敗サイクルはheartbeatを送らない",
+    "PrjOps:REQ-042 AUD-OPM-009: %s失敗サイクルはheartbeatを送らない",
     async (failure) => {
       let heartbeats = 0;
       const auditLog = new InMemoryAuditLog();
@@ -590,7 +590,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     },
   );
 
-  it("REQ-042 AUD-OPM-009: 配信対象の構築に失敗した不完全サイクルはheartbeatを送らない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 配信対象の構築に失敗した不完全サイクルはheartbeatを送らない", async () => {
     let heartbeats = 0;
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
@@ -608,7 +608,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect(heartbeats).toBe(0);
   });
 
-  it("REQ-042 AUD-OPM-009: heartbeatの非2xx応答はタスク失敗として扱う", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: heartbeatの非2xx応答はタスク失敗として扱う", async () => {
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
       fetchImpl: async () => new Response(null, { status: 503 }),
@@ -617,7 +617,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     await expect(task.run(new Date("2026-07-06T00:00:00.000Z"))).rejects.toThrow("heartbeat failed: HTTP 503");
   });
 
-  it("REQ-042 AUD-OPM-009: heartbeat失敗後の同日再実行でも配信副作用は重複しない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: heartbeat失敗後の同日再実行でも配信副作用は重複しない", async () => {
     let mails = 0;
     let cards = 0;
     let heartbeats = 0;
@@ -644,7 +644,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect({ mails, cards, heartbeats }).toEqual({ mails: 1, cards: 1, heartbeats: 2 });
   });
 
-  it("REQ-042 AUD-OPM-009: メール後のカード部分失敗はheartbeatせず再実行でメールを重複しない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: メール後のカード部分失敗はheartbeatせず再実行でメールを重複しない", async () => {
     let mails = 0;
     let cards = 0;
     let heartbeats = 0;
@@ -676,7 +676,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     expect({ mails, cards, heartbeats }).toEqual({ mails: 1, cards: 2, heartbeats: 1 });
   });
 
-  it("REQ-042 AUD-OPM-009: 応答しないheartbeatは設定時間で中断する", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: 応答しないheartbeatは設定時間で中断する", async () => {
     const task = deliveryTask({
       heartbeatUrl: "https://heartbeat.example.com/report-delivery",
       heartbeatTimeoutMs: 1,
@@ -689,7 +689,7 @@ describe("reportDeliveryTask [REQ-042 SPEC-INT-069 AC-042-1]", () => {
     await expect(task.run(new Date("2026-07-06T00:00:00.000Z"))).rejects.toThrow("heartbeat request failed");
   });
 
-  it("REQ-042 AUD-OPM-009: heartbeat通信例外はcredential URLを外部へ漏らさない", async () => {
+  it("PrjOps:REQ-042 AUD-OPM-009: heartbeat通信例外はcredential URLを外部へ漏らさない", async () => {
     const secretUrl = "https://heartbeat-user:super-secret@heartbeat.example.com/report-delivery";
     const task = deliveryTask({
       heartbeatUrl: secretUrl,

@@ -1,11 +1,11 @@
 /**
  * packages/prjops/src/agents/AGT03_analyzer.ts
  *
- * 根拠: REQ-007 ステータス自動判定 / REQ-008 重要度スコアリング / SPEC-INT-001, 032
+ * 根拠: REQ-007 ステータス自動判定 / REQ-008 重要度スコアリング / PrjOps:SPEC-INT-001, 032
  *
  * 判定計算そのもの（judgeStatus, evaluateEscalationTrigger）はLLMを使わない純粋関数
  * （lib/statusJudge.ts, lib/severityProposal.ts、いずれもオフライン検証済み）。
- * LLMは「重要度引き上げ提案の理由文生成」（SPEC-INT-001の(c)）のみに用いる。
+ * LLMは「重要度引き上げ提案の理由文生成」（PrjOps:SPEC-INT-001の(c)）のみに用いる。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";

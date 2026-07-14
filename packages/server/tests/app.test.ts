@@ -2,7 +2,7 @@
  * packages/server/tests/app.test.ts
  *
  * 根拠: ADR-0005（webhook全経路の結合テスト。app.request()でポートを開かず検証）
- *   / SPEC-INT-001（validationTokenハンドシェイク）/ SPEC-INT-061（GitHub署名検証）
+ *   / PrjOps:SPEC-INT-001（validationTokenハンドシェイク）/ DevOps:SPEC-INT-061（GitHub署名検証）
  */
 import { describe, it, expect, vi } from "vitest";
 import { createHmac } from "node:crypto";
@@ -206,7 +206,7 @@ describe("browser security headers (AUD-SEC-002)", () => {
   });
 });
 
-describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
+describe("POST /webhooks/graph (PrjOps:SPEC-INT-001 / ADR-0005)", () => {
   it("validationTokenハンドシェイクはtext/plainでトークンをそのまま返す", async () => {
     const { deps } = makeDeps();
     const app = buildApp(deps);
@@ -484,7 +484,7 @@ describe("POST /webhooks/graph (SPEC-INT-001 / ADR-0005)", () => {
   });
 });
 
-describe("POST /webhooks/github (SPEC-INT-061)", () => {
+describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
   it("正しい署名でエンキューされ202", async () => {
     const { deps, githubEvents } = makeDeps();
     const app = buildApp(deps);
@@ -571,7 +571,7 @@ describe("/app/* WebUIプロキシ (ADR-0005)", () => {
     expect(await res.text()).toContain("dashboard");
   });
 
-  it("xlsx importはContent-Length超過をbody読取前に413で拒否する [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+  it("xlsx importはContent-Length超過をbody読取前に413で拒否する [REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1]", async () => {
     const { deps } = makeDeps();
     const body = new ReadableStream<Uint8Array>({
       pull(controller) {
@@ -593,7 +593,7 @@ describe("/app/* WebUIプロキシ (ADR-0005)", () => {
     expect(request.body?.locked).toBe(false);
   });
 
-  it("xlsx importはchunked超過をcancelして413にする [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+  it("xlsx importはchunked超過をcancelして413にする [REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1]", async () => {
     const { deps } = makeDeps();
     let cancelled = false;
     const chunks = [new Uint8Array(6 * 1024 * 1024), new Uint8Array(5 * 1024 * 1024)];
@@ -621,7 +621,7 @@ describe("/app/* WebUIプロキシ (ADR-0005)", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("xlsx importはexactly 10MiBをNextへ転送する [REQ-037 / SPEC-INT-063 / AC-037-1]", async () => {
+  it("xlsx importはexactly 10MiBをNextへ転送する [REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1]", async () => {
     const { deps } = makeDeps();
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
       expect((init?.body as Uint8Array).byteLength).toBe(XLSX_IMPORT_MAX_BYTES);

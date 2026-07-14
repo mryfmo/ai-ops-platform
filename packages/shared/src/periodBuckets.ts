@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/periodBuckets.ts
  *
- * 根拠: ADR-0007 / PrjOps REQ-036 / SPEC-INT-062 / DevOps REQ-031 / SPEC-INT-081.
+ * 根拠: ADR-0007 / PrjOps:REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081.
  * GitHub webhook/snapshot由来の時系列を、週/月/四半期/半年/年の表示期間へ決定的に集計する。
  */
 import { isoWeekOf } from "./ids.js";

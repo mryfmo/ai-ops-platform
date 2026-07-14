@@ -21,8 +21,8 @@ const manager: ResolvedPersona = {
   visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
 };
 
-describe("handlePersonaSelection [REQ-041 / SPEC-INT-068]", () => {
-  it("現在保有するペルソナだけをHttpOnly Cookieに保存する [REQ-041 / SPEC-INT-068]", async () => {
+describe("handlePersonaSelection [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
+  it("現在保有するペルソナだけをHttpOnly Cookieに保存する [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     const response = await handlePersonaSelection({
       getSession: session,
       resolver: resolverWith([manager]),
@@ -35,7 +35,7 @@ describe("handlePersonaSelection [REQ-041 / SPEC-INT-068]", () => {
     );
   });
 
-  it("不正申告とentitlement削除後の古い選択は403で保存しない [REQ-041 / SPEC-INT-068]", async () => {
+  it("不正申告とentitlement削除後の古い選択は403で保存しない [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     for (const resolver of [resolverWith([manager]), resolverWith([])]) {
       const response = await handlePersonaSelection({
         getSession: session,

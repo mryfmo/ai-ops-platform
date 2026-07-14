@@ -1,4 +1,4 @@
--- DevOps REQ-028 / SPEC-INT-056: loss-safe audit partition and retention-class migration.
+-- DevOps:REQ-028 / SPEC-INT-056: loss-safe audit partition and retention-class migration.
 -- The migration runner supplies one transaction; every validation failure rolls the rename/copy back.
 
 DO $$

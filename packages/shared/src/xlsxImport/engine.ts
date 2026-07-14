@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/xlsxImport/engine.ts
  *
- * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008。
  * Excelインポート行をGitHub Issue / Project v2 / Milestoneへ反映し、source_key台帳で冪等化する。
  */
 import { appendImportMarker, type ImportTargetKind } from "./template.js";

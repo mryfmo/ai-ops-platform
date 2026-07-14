@@ -1,10 +1,10 @@
 /**
  * packages/server/src/agents/teamsConversationAgent.ts
  *
- * 根拠: ADR-0005（Teams会話取込パイプライン全体のオーケストレーション層）/ SPEC-INT-001
+ * 根拠: ADR-0005（Teams会話取込パイプライン全体のオーケストレーション層）/ PrjOps:SPEC-INT-001
  *   （fetch-on-notify: 通知はresourceパスのみを含むため本文取得はGraph APIを別途呼ぶ）/
- *   SPEC-INT-033（定型コマンド正規表現判定→不一致時のみLLM意図解釈フォールバック）/
- *   REQ-030（DB保存前sanitizeSecrets必須、LLM入力前sanitizeForLlmInput必須）/
+ *   PrjOps:SPEC-INT-033（定型コマンド正規表現判定→不一致時のみLLM意図解釈フォールバック）/
+ *   DevOps:REQ-030（DB保存前sanitizeSecrets必須、LLM入力前sanitizeForLlmInput必須）/
  *   ADR-0006（code_task: コーディングタスク実行系。確認リンク発行までを担当し、
  *   workflow_dispatch自体は呼ばない。「誤発火防止のため人間の明示クリック必須」の起点）。
  *
@@ -187,7 +187,7 @@ export class TeamsConversationAgent {
         trace_id: traceId,
         actor: "SERVER",
         action: "teams_notification_unresolvable",
-        basis: "SPEC-INT-001",
+        basis: "PrjOps:SPEC-INT-001",
         detail: { resource: payload.resource },
         at: new Date().toISOString(),
       });
@@ -299,7 +299,7 @@ export class TeamsConversationAgent {
       trace_id: traceId,
       actor: `USER:${callerProfile}`,
       action: "teams_command_parsed",
-      basis: "SPEC-INT-033",
+      basis: "PrjOps:SPEC-INT-033",
       detail: { kind: parsed.command.kind, allowed: permission.allowed },
       at: new Date().toISOString(),
     });
@@ -333,7 +333,7 @@ export class TeamsConversationAgent {
       trace_id: traceId,
       actor: "SERVER",
       action: "teams_free_text_intent",
-      basis: "SPEC-INT-033",
+      basis: "PrjOps:SPEC-INT-033",
       detail: { intent: intentResult.intent, projectId: intentResult.projectId },
       at: new Date().toISOString(),
     });
@@ -491,7 +491,7 @@ export class TeamsConversationAgent {
       trace_id: traceId,
       actor: `USER:${callerProfile}`,
       action: "teams_dashboard_link_sent",
-      basis: "REQ-042 SPEC-INT-069 AC-042-1",
+      basis: "PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1",
       detail: { projectId, persona: callerProfile },
       at: new Date().toISOString(),
     });

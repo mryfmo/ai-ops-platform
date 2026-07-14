@@ -1,8 +1,8 @@
 /**
  * packages/devops/src/agents/AGT_INC.ts
  *
- * 根拠: REQ-015 一次切り分けの自動化 / REQ-016 時限エスカレーション / REQ-017 誤検知の抑制
- *   SPEC-INT-030
+ * 根拠: DevOps:REQ-015 一次切り分けの自動化 / DevOps:REQ-016 時限エスカレーション / DevOps:REQ-017 誤検知の抑制
+ *   DevOps:SPEC-INT-030
  *
  * 分類（severity_candidate等）はLLM（PROMPT-INC-01）、TH-005エスカレーション・TH-006誤検知判定は
  * 決定的ロジック（lib/thresholds.ts, lib/falsePositiveRule.ts、いずれもオフライン検証済み）。
@@ -42,7 +42,7 @@ export interface IncDependencies {
   traceId: string;
 }
 
-/** SPEC-INT-030手順2: アラート本文＋メトリクス＋類似インシデントからLLMで重大度候補を分類する */
+/** DevOps:SPEC-INT-030手順2: アラート本文＋メトリクス＋類似インシデントからLLMで重大度候補を分類する */
 export async function classifyIncident(
   alertText: string,
   recentMetricsSummary: string,
@@ -67,7 +67,7 @@ export async function classifyIncident(
   return result.value;
 }
 
-/** REQ-015: TH-004 SLA内に起票・通知する（AC-015c: sev1は候補としてのみ扱う） */
+/** DevOps:REQ-015: TH-004 SLA内に起票・通知する（AC-015c: sev1は候補としてのみ扱う） */
 export async function triageAndNotify(
   classification: IncidentClassification,
   owner: string,
@@ -119,7 +119,7 @@ export async function triageAndNotify(
     trace_id: deps.traceId,
     actor: "AGT-INC",
     action: "triage",
-    basis: "REQ-015",
+    basis: "DevOps:REQ-015",
     detail: { severityCandidate: classification.severity_candidate, effectiveSeverity, issueUrl },
     at: new Date().toISOString(),
   });
@@ -127,12 +127,12 @@ export async function triageAndNotify(
   return { issueUrl, effectiveSeverity };
 }
 
-/** REQ-016: TH-005エスカレーション判定（決定的ロジックへの委譲。SPEC-EXT-016 エスカレーション通知） */
+/** DevOps:REQ-016: TH-005エスカレーション判定（決定的ロジックへの委譲。SPEC-EXT-016 エスカレーション通知） */
 export function evaluateEscalation(input: Th005Input) {
   return evaluateTh005Escalation(input);
 }
 
-/** REQ-017: TH-006誤検知候補判定（決定的ロジックへの委譲、SPEC-INT-030手順5: LLM不使用。
+/** DevOps:REQ-017: TH-006誤検知候補判定（決定的ロジックへの委譲、DevOps:SPEC-INT-030手順5: LLM不使用。
  *  候補化時はSPEC-EXT-017 誤検知候補の確認依頼を当番メンバーへ送付する） */
 export function evaluateFalsePositiveCandidate(input: Th006Input) {
   return evaluateTh006FalsePositiveCandidate(input);

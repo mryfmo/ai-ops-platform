@@ -1,7 +1,7 @@
 /**
  * packages/server/src/tools/createGraphSubscription.ts
  *
- * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069。
+ * 根拠: ADR-0014 / PrjOps:REQ-042 / SPEC-INT-069。
  * Graph change notification購読を既存GraphTokenProvider/GraphClientで作成する管理CLI。
  */
 import { GraphClient, isAbsoluteHttpsUrl, type FetchLike, type GraphTokenProvider } from "@aiops/shared";

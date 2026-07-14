@@ -103,7 +103,7 @@ describe("parseCommand GitHub照会/コーディングタスク [ADR-0005 / ADR-
   });
 });
 
-describe("checkCommandPermission [SPEC-EXT-025 権限マトリクス]", () => {
+describe("checkCommandPermission [PrjOps:SPEC-EXT-025 権限マトリクス]", () => {
   it("action_doneはPRF-01でも許可される", () => {
     expect(checkCommandPermission("action_done", "PRF-01").allowed).toBe(true);
   });

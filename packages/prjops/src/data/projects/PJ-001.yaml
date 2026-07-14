@@ -1,4 +1,4 @@
-# サンプルデータ: プロジェクトマスタ（REQ-001, SPEC-INT-021）
+# サンプルデータ: プロジェクトマスタ（PrjOps:REQ-001, PrjOps:SPEC-INT-021）
 # パス規約: projects/{PJ-nnn}.yaml
 id: PJ-001
 name: サンプル案件A（基幹システム刷新）

@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/clients/fetchPolicy.ts
  *
- * 根拠: DevOps SPEC-INT-080 — GitHub/Graph API のタイムアウトと再試行ポリシー。
+ * 根拠: DevOps:SPEC-INT-080 — GitHub/Graph API のタイムアウトと再試行ポリシー。
  */
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;

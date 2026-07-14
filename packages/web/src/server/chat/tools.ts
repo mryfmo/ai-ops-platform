@@ -2,7 +2,7 @@
  * packages/web/src/server/chat/tools.ts
  *
  * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）/
- *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
+ *   ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。
  *   ペルソナに応じて「LLMのコンテキストに見せるtoolそのもの」を絞り込む。権限外のtoolは
  *   ToolSetに含めないため、LLMはそもそも権限外の表示を要求できない
  *   （CLAUDE.md設計原則6: 権限フィルタはデータ取得側で強制、表示層での後付けマスキングは禁止、

@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/templates/reportShell.ts
  *
- * 根拠: SPEC-EXT-020 共通仕様
+ * 根拠: DevOps:SPEC-EXT-020 共通仕様
  *   件名書式 `[DevOpsレポート][種別] YYYY-MM-DD`。本文HTMLはインラインCSSのみ使用
  *   （外部CSS・JavaScript不可）、幅640px基準の単一カラム。
  *   ヘッダーに集計期間・生成時刻（JST）・宛先プロファイル名を表示。
@@ -30,7 +30,7 @@ export interface DevOpsReportShellOptions {
   title: string;
 }
 
-/** SPEC-EXT-020: インラインCSSのみ、幅640px基準の単一カラム、自己完結HTML */
+/** DevOps:SPEC-EXT-020: インラインCSSのみ、幅640px基準の単一カラム、自己完結HTML */
 export function renderDevOpsReportShell(opts: DevOpsReportShellOptions): string {
   return `<!DOCTYPE html>
 <html lang="ja">

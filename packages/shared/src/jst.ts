@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/jst.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-060（LLM日次上限のJSTリセット）、AUD-REL-007（JST計算の集約）。
+ * 根拠: ADR-0005 / PrjOps:SPEC-INT-060（LLM日次上限のJSTリセット）、AUD-REL-007（JST計算の集約）。
  */
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;

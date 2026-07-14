@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/githubEventRouter.test.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010（GitHub webhookイベントのDevOpsエージェント振り分け）
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010（GitHub webhookイベントのDevOpsエージェント振り分け）
  */
 import { describe, expect, it } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared";
@@ -13,8 +13,8 @@ import {
   type DevopsAgentId,
 } from "../src/lib/githubEventRouter.js";
 
-describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
-  it("SPEC-INT-010: workflow_run failureはAGT_BLDへ振り分ける", () => {
+describe("githubEventRouter (ADR-0005 / DevOps:SPEC-INT-010)", () => {
+  it("DevOps:SPEC-INT-010: workflow_run failureはAGT_BLDへ振り分ける", () => {
     expect(
       selectDevopsAgentForGithubEvent({
         eventName: "workflow_run",
@@ -23,7 +23,7 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     ).toBe("AGT_BLD");
   });
 
-  it("SPEC-INT-010: deploy workflowとdeployment eventはAGT_DEPへ振り分ける", () => {
+  it("DevOps:SPEC-INT-010: deploy workflowとdeployment eventはAGT_DEPへ振り分ける", () => {
     expect(
       selectDevopsAgentForGithubEvent({
         eventName: "workflow_run",
@@ -33,11 +33,11 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(selectDevopsAgentForGithubEvent({ eventName: "deployment_status", payload: {} })).toBe("AGT_DEP");
   });
 
-  it("SPEC-INT-010: issues eventはAGT_INCへ振り分ける", () => {
+  it("DevOps:SPEC-INT-010: issues eventはAGT_INCへ振り分ける", () => {
     expect(selectDevopsAgentForGithubEvent({ eventName: "issues", payload: { action: "opened" } })).toBe("AGT_INC");
   });
 
-  it("SPEC-INT-010: handlerへ渡し、dispatch監査ログを残す", async () => {
+  it("DevOps:SPEC-INT-010: handlerへ渡し、dispatch監査ログを残す", async () => {
     const auditLog = new InMemoryAuditLog();
     const called: DevopsAgentId[] = [];
     await dispatchGithubWebhookEvent({ eventName: "pull_request", payload: { action: "opened" } }, "trace-1", {
@@ -55,7 +55,7 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(logs.some((l) => l.action === "github_event_dispatched")).toBe(true);
   });
 
-  it("SPEC-INT-010: 未対応eventはhandlerを呼ばずignored監査ログを残す", async () => {
+  it("DevOps:SPEC-INT-010: 未対応eventはhandlerを呼ばずignored監査ログを残す", async () => {
     const auditLog = new InMemoryAuditLog();
     let called = false;
     await dispatchGithubWebhookEvent({ eventName: "star", payload: {} }, "trace-2", {
@@ -77,12 +77,12 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     expect(logs.some((l) => l.action === "github_event_ignored")).toBe(true);
   });
 
-  it("SPEC-INT-010: queued payload型を判定する", () => {
+  it("DevOps:SPEC-INT-010: queued payload型を判定する", () => {
     expect(isQueuedGithubWebhookEvent({ eventName: "push", payload: {} })).toBe(true);
     expect(isQueuedGithubWebhookEvent({ eventName: "push" })).toBe(false);
   });
 
-  it("REQ-036 / SPEC-INT-062: GitHub PM webhookをpm_events向けに正規化する", () => {
+  it("REQ-036 / PrjOps:SPEC-INT-062: GitHub PM webhookをpm_events向けに正規化する", () => {
     const record = normalizePmWebhookEvent(
       {
         eventName: "projects_v2_item",
@@ -108,7 +108,7 @@ describe("githubEventRouter (ADR-0005 / SPEC-INT-010)", () => {
     });
   });
 
-  it("REQ-036 / SPEC-INT-062: projects_v2_status_updateをpm_events向けに正規化する", () => {
+  it("REQ-036 / PrjOps:SPEC-INT-062: projects_v2_status_updateをpm_events向けに正規化する", () => {
     const record = normalizePmWebhookEvent(
       {
         eventName: "projects_v2_status_update",

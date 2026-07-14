@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/graphLifecycleHandler.test.ts
  *
- * 根拠: SPEC-INT-001（Graph lifecycle: reauth/removed/missed の明示処理）。
+ * 根拠: PrjOps:SPEC-INT-001（Graph lifecycle: reauth/removed/missed の明示処理）。
  */
 import { describe, expect, it } from "vitest";
 import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
@@ -49,7 +49,7 @@ function makeDeps(sub: GraphSubscription | null = SUB) {
   return { deps, auditLog, renewed, switched, backfilled };
 }
 
-describe("handleGraphLifecycleEvent (SPEC-INT-001)", () => {
+describe("handleGraphLifecycleEvent (PrjOps:SPEC-INT-001)", () => {
   it("reauthorizationRequired はGraph renewとexpires_at更新を行う", async () => {
     const { deps, renewed } = makeDeps();
     await handleGraphLifecycleEvent(

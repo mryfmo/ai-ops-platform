@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/eventsPollingTask.test.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010（eventsテーブルのポーリングディスパッチ。1件失敗の隔離）
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010（eventsテーブルのポーリングディスパッチ。1件失敗の隔離）
  */
 import { describe, it, expect } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared";
@@ -58,7 +58,7 @@ function makeTaskDeps(repo: ReturnType<typeof makeRepoStub>, auditLog = new InMe
   };
 }
 
-describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
+describe("eventsPollingTask (ADR-0005 / DevOps:SPEC-INT-010)", () => {
   it("source=inboundのgraph通知をディスパッチしdoneにする", async () => {
     const repo = makeRepoStub([makeEvent()]);
     const dispatched: Array<{ payload: unknown; traceId: string }> = [];
@@ -99,7 +99,7 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     expect(repo.failed).toEqual(["evt-fail"]);
     expect(repo.done).toEqual(["evt-ok"]);
     const logs = await auditLog.readAll();
-    expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "SPEC-INT-010")).toBe(true);
+    expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "DevOps:SPEC-INT-010")).toBe(true);
   });
 
   it("再試行上限到達時はdead遷移を監査する", async () => {
@@ -143,7 +143,7 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     expect(called).toBe(false);
   });
 
-  it("source=githubはDevOps dispatcherへ渡してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+  it("source=githubはDevOps dispatcherへ渡してdone扱いにする (ADR-0005 / DevOps:SPEC-INT-010)", async () => {
     const repo = makeRepoStub([
       makeEvent({ source: "github", payload: { eventName: "push", payload: { ref: "main" } } }),
     ]);
@@ -163,7 +163,7 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     expect(repo.done).toEqual(["evt-1"]);
   });
 
-  it("source=monitorはDevOps monitor dispatcherへ渡してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+  it("source=monitorはDevOps monitor dispatcherへ渡してdone扱いにする (ADR-0005 / DevOps:SPEC-INT-010)", async () => {
     const repo = makeRepoStub([makeEvent({ source: "monitor", payload: { kind: "deploy_metrics" } })]);
     const dispatched: unknown[] = [];
     const task = createEventsPollingTask({
@@ -177,7 +177,7 @@ describe("eventsPollingTask (ADR-0005 / SPEC-INT-010)", () => {
     expect(repo.done).toEqual(["evt-1"]);
   });
 
-  it("未対応payloadは監査ログを残してdone扱いにする (ADR-0005 / SPEC-INT-010)", async () => {
+  it("未対応payloadは監査ログを残してdone扱いにする (ADR-0005 / DevOps:SPEC-INT-010)", async () => {
     const repo = makeRepoStub([makeEvent({ source: "github", payload: { bad: true } })]);
     const auditLog = new InMemoryAuditLog();
     const task = createEventsPollingTask(makeTaskDeps(repo, auditLog));

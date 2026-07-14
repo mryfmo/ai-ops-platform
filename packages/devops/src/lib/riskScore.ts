@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/lib/riskScore.ts
  *
- * 根拠: SPEC-INT-021 リスクスコア算出式 / REQ-011
+ * 根拠: DevOps:SPEC-INT-021 リスクスコア算出式 / DevOps:REQ-011
  *   score = min(100, round(0.3*A + 0.25*B + 0.2*C + 0.15*D + 0.1*E))
  *   A: 変更行数を0〜100に正規化（2000行以上=100、線形）
  *   B: 変更ファイルに /infra/, /migrations/, 認証関連パス(/auth/) が含まれる場合100、それ以外0
@@ -53,7 +53,7 @@ export interface RiskScoreBreakdown {
   isHighRisk: boolean;
 }
 
-/** SPEC-INT-021: 決定的なリスクスコア算出（純関数） */
+/** DevOps:SPEC-INT-021: 決定的なリスクスコア算出（純関数） */
 export function calculateRiskScore(cal: HolidayCalendar, input: RiskScoreInput): RiskScoreBreakdown {
   const A = factorA_changedLines(input.changedLinesCount);
   const B = factorB_sensitivePaths(input.changedFilePaths);

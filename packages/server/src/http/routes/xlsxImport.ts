@@ -1,7 +1,7 @@
 /**
  * packages/server/src/http/routes/xlsxImport.ts
  *
- * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008。
  * .xlsxアップロードをdry-run検証し、確認ヘッダ付きのexecuteでGitHub書き込みを行う。
  */
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
@@ -69,7 +69,7 @@ async function authenticateBuffer(
       trace_id: traceId,
       actor: "SERVER",
       action: "xlsx_import_disabled",
-      basis: "REQ-037/SPEC-INT-063",
+      basis: "REQ-037/PrjOps:SPEC-INT-063",
       detail: { reason: "XLSX_IMPORT_SECRET is not configured" },
       at: new Date().toISOString(),
     });
@@ -81,7 +81,7 @@ async function authenticateBuffer(
       trace_id: traceId,
       actor: "SERVER",
       action: "xlsx_import_rejected",
-      basis: "REQ-037/SPEC-INT-063",
+      basis: "REQ-037/PrjOps:SPEC-INT-063",
       detail: { reason: "signature verification failed" },
       at: new Date().toISOString(),
     });
@@ -100,7 +100,7 @@ async function auditSubmittedFile(
     trace_id: traceId,
     actor: "SERVER",
     action: "xlsx_import_file_submitted",
-    basis: "REQ-037/SPEC-INT-063/AUD-OPM-011",
+    basis: "REQ-037/PrjOps:SPEC-INT-063/AUD-OPM-011",
     detail: { operation, sha256: createHash("sha256").update(buffer).digest("hex") },
     at: new Date().toISOString(),
   });
@@ -158,7 +158,7 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
         trace_id: traceId,
         actor: "SERVER",
         action: "xlsx_import_repo_rejected",
-        basis: "REQ-037/SPEC-INT-063",
+        basis: "REQ-037/PrjOps:SPEC-INT-063",
         detail: { owner, repo, reason: "repository is not in XLSX_IMPORT_ALLOWED_REPOS" },
         at: new Date().toISOString(),
       });
@@ -190,7 +190,7 @@ export function registerXlsxImportRoutes(app: Hono, deps: XlsxImportRoutesDeps):
       trace_id: importRunId,
       actor: "SERVER",
       action: "xlsx_import_executed",
-      basis: "REQ-037/SPEC-INT-063",
+      basis: "REQ-037/PrjOps:SPEC-INT-063",
       detail: { importRunId, imported: result.imported, skipped: result.skipped, failed: result.failed },
       at: new Date().toISOString(),
     });

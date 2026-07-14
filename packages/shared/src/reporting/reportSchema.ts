@@ -2,9 +2,9 @@
  * packages/shared/src/reporting/reportSchema.ts
  *
  * 根拠:
- *   - PrjOps REQ-040 / SPEC-INT-067 / AC-040-1: Claude Code と Droid の標準報告は同一形式・同一粒度・
+ *   - PrjOps:REQ-040 / SPEC-INT-067 / AC-040-1: Claude Code と Droid の標準報告は同一形式・同一粒度・
  *     同一文量で生成し、根拠IDヘッダを必須にする。
- *   - DevOps SPEC-INT-082 / AC-032a: DevOps側の標準報告も同じ共通スキーマで検証する。
+ *   - DevOps:SPEC-INT-082 / AC-032a: DevOps側の標準報告も同じ共通スキーマで検証する。
  *
  * JSON SchemaはClaude Code/Droidの入口とCI検証で共有する。maxCharsはstructured outputs側で
  * 強制できないため、x-maxCharsメタデータとして保持し、reportValidation.tsで決定的に検証する。

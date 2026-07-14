@@ -7,7 +7,7 @@ import {
   type WeeklyMetricObservation,
 } from "../src/index.js";
 
-describe("periodBuckets (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-081)", () => {
+describe("periodBuckets (ADR-0007 / REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081)", () => {
   it("AC-036-1: ISO週をJSTの月曜開始で切る", () => {
     const range = resolvePeriodRange("week", "2026-07-09T12:00:00+09:00");
     expect(range).toEqual({
@@ -32,7 +32,7 @@ describe("periodBuckets (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-
     );
   });
 
-  it("SPEC-INT-062: pm_events/pm_snapshotsから決定的に集計する", () => {
+  it("PrjOps:SPEC-INT-062: pm_events/pm_snapshotsから決定的に集計する", () => {
     const result = aggregateTimeseries({
       period: "week",
       baseDate: "2026-07-09",
@@ -51,7 +51,7 @@ describe("periodBuckets (ADR-0007 / REQ-036 / SPEC-INT-062 / REQ-031 / SPEC-INT-
     expect(result.buckets.find((b) => b.bucket.id === "2026-07-06")?.burndownRemaining).toBe(1);
   });
 
-  it("SPEC-INT-062: nullのfrom/to statusは遷移として数えない", () => {
+  it("PrjOps:SPEC-INT-062: nullのfrom/to statusは遷移として数えない", () => {
     const result = aggregateTimeseries({
       period: "week",
       baseDate: "2026-07-09",

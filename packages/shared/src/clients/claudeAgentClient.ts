@@ -2,12 +2,12 @@
  * packages/shared/src/clients/claudeAgentClient.ts
  *
  * 根拠:
- *   - DevOps SPEC-INT-011 手順4: 「classificationがtest_failureまたはcompile_errorの場合のみ
+ *   - DevOps:SPEC-INT-011 手順4: 「classificationがtest_failureまたはcompile_errorの場合のみ
  *     Claude Codeを起動し、対象リポジトリのread-onlyチェックアウト上で修正diffを生成
  *     （書き込み権限を与えない。AC-002b）」
- *   - DevOps SPEC-INT-063: 「コード修正案はClaude Code（read-onlyワークスペース）」「プロンプトは
+ *   - DevOps:SPEC-INT-063: 「コード修正案はClaude Code（read-onlyワークスペース）」「プロンプトは
  *     /prompts でバージョン管理し、変更は通常のPRレビューを経る」
- *   - REQ-002 AC-002b: 修正案がリポジトリへ自動コミット・自動マージされないことをテストで確認。
+ *   - DevOps:REQ-002 AC-002b: 修正案がリポジトリへ自動コミット・自動マージされないことをテストで確認。
  *
  * パッケージ: @anthropic-ai/claude-agent-sdk（旧称 Claude Code SDK。2025年後半に改称。
  *   pnpm add @anthropic-ai/claude-agent-sdk / 認証はANTHROPIC_API_KEY環境変数）。

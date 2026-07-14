@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/freeTextIntent.test.ts
  *
- * 根拠: SPEC-INT-033（定型コマンド不一致の自由文に対するLLM意図解釈フォールバック）
+ * 根拠: PrjOps:SPEC-INT-033（定型コマンド不一致の自由文に対するLLM意図解釈フォールバック）
  */
 import { describe, it, expect } from "vitest";
 import type { AnthropicStructuredClient, StructuredCallOptions, StructuredCallResult } from "@aiops/shared";
@@ -22,7 +22,7 @@ function makeMockLlmClient(rawResponse: unknown): {
   return { client, calls };
 }
 
-describe("interpretFreeTextIntent (SPEC-INT-033)", () => {
+describe("interpretFreeTextIntent (PrjOps:SPEC-INT-033)", () => {
   it("gh_pr_list意図を分類する", async () => {
     const { client } = makeMockLlmClient({
       intent: "gh_pr_list",

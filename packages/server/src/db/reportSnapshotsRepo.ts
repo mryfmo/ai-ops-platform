@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/reportSnapshotsRepo.ts
  *
- * 根拠: DevOps REQ-031 / SPEC-INT-055 / SPEC-INT-081 / AC-031a.
+ * 根拠: DevOps:REQ-031 / SPEC-INT-055 / SPEC-INT-081 / AC-031a.
  * report_snapshotsのコード算出metricをexact identityかつhalf-open期間で永続化・取得する。
  */
 import { sanitizeSecrets, type PgQueryable, type WeeklyMetricObservation } from "@aiops/shared";

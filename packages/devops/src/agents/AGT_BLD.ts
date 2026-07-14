@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/agents/AGT_BLD.ts
  *
- * 根拠: REQ-001 ビルド失敗の自動一次調査 / REQ-002 修正案の自動生成 / SPEC-INT-011
+ * 根拠: DevOps:REQ-001 ビルド失敗の自動一次調査 / DevOps:REQ-002 修正案の自動生成 / SPEC-INT-011
  *
  * 注意: 本ファイルは @anthropic-ai/sdk（分類）と @anthropic-ai/claude-agent-sdk（診断修正案生成）に
  * 依存するため、ネットワーク遮断のオフライン検証環境では実行できない（README参照）。
@@ -60,7 +60,7 @@ export async function classifyBuildFailure(logText: string, deps: BldDependencie
     trace_id: deps.traceId,
     actor: "AGT-BLD",
     action: "classify",
-    basis: "REQ-001",
+    basis: "DevOps:REQ-001",
     detail: { classification: guarded.classification, confidence: guarded.confidence },
     at: new Date().toISOString(),
   });
@@ -90,7 +90,7 @@ export async function generateFixSuggestionIfApplicable(
     trace_id: deps.traceId,
     actor: "AGT-BLD",
     action: "generate_fix_suggestion",
-    basis: "REQ-002 AC-002b",
+    basis: "DevOps:REQ-002 AC-002b",
     detail: { hasDiff: result.diffText !== null },
     at: new Date().toISOString(),
   });

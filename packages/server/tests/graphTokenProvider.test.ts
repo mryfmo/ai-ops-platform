@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/graphTokenProvider.test.ts
  *
- * 根拠: SPEC-INT-062 / ADR-0005。MSAL application cacheへ委譲するGraph token providerを検証する。
+ * 根拠: DevOps:SPEC-INT-062 / ADR-0005。MSAL application cacheへ委譲するGraph token providerを検証する。
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -13,7 +13,7 @@ const credentials = { tenantId: "tenant", clientId: "client", clientSecret: "cli
 const expiresOn = new Date("2026-07-11T01:00:00Z");
 const now = () => new Date("2026-07-11T00:00:00Z").getTime();
 
-describe("Graph MSAL token provider [SPEC-INT-062]", () => {
+describe("Graph MSAL token provider [DevOps:SPEC-INT-062]", () => {
   it("scopeをGraph .defaultに固定し、MSAL application cacheへ逐次委譲する", async () => {
     const requests: unknown[] = [];
     const client: ConfidentialClientApplicationCompatible = {

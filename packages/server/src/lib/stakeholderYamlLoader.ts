@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/stakeholderYamlLoader.ts
  *
- * 根拠: REQ-002 / AUD-IMP-003（hardened関係者マスタをTeams認可へ結線する）。
+ * 根拠: PrjOps:REQ-002 / AUD-IMP-003（hardened関係者マスタをTeams認可へ結線する）。
  */
 import type { Profile, YamlStakeholderMasterProvider } from "@aiops/prjops";
 
@@ -12,7 +12,7 @@ export interface StakeholderMasterDecision {
   auditIntent: {
     actor: "SERVER";
     action: "stakeholder_master_not_configured";
-    basis: "REQ-002 AUD-IMP-003";
+    basis: "PrjOps:REQ-002 AUD-IMP-003";
     detail: { reason: "STAKEHOLDERS_DIR is not configured" };
   } | null;
 }
@@ -29,7 +29,7 @@ export function decideStakeholderMaster(provider: TeamsProfileProvider | null): 
     auditIntent: {
       actor: "SERVER",
       action: "stakeholder_master_not_configured",
-      basis: "REQ-002 AUD-IMP-003",
+      basis: "PrjOps:REQ-002 AUD-IMP-003",
       detail: { reason: "STAKEHOLDERS_DIR is not configured" },
     },
   };

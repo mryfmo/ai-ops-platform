@@ -6,7 +6,7 @@ import {
   toTimeseriesChartData,
 } from "../src/components/charts/chartData";
 
-describe("chartData (ADR-0009 / SPEC-INT-064 / AC-010-3)", () => {
+describe("chartData (ADR-0009 / PrjOps:SPEC-INT-064 / AC-010-3)", () => {
   it("AC-010-3: バーンダウンをRechartsのComposedChart用propsへ変換する", () => {
     expect(toBurndownChartData([{ weekLabel: "2026-W28", opened: 3, resolved: 2, remaining: 5 }])).toEqual([
       { label: "2026-W28", opened: 3, resolved: 2, remaining: 5 },

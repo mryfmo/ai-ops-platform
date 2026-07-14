@@ -1,4 +1,4 @@
-/** 根拠: REQ-037 / SPEC-INT-063 / ADR-0008。Excel取込のweb側サイズ上限。 */
+/** 根拠: REQ-037 / PrjOps:SPEC-INT-063 / ADR-0008。Excel取込のweb側サイズ上限。 */
 export const XLSX_IMPORT_MAX_BYTES = 10 * 1024 * 1024;
 
 export async function readXlsxBody(request: Request): Promise<Uint8Array<ArrayBuffer> | null> {

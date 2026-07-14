@@ -1,10 +1,10 @@
 /**
  * packages/devops/src/agents/AGT_CHG.ts
  *
- * 根拠: SPEC-INT-031 AGT-CHG 承認パッケージ生成 / REQ-010, REQ-011
+ * 根拠: DevOps:SPEC-INT-031 AGT-CHG 承認パッケージ生成 / DevOps:REQ-010, DevOps:REQ-011
  *   入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、
- *   リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。
- *   承認完了イベントを受けた場合、影響対象の関連企業へSPEC-EXT-033のリリース事前通知を送信する。
+ *   リスクスコア(DevOps:SPEC-INT-021)、ロールバック手順を組み立て、DevOps:SPEC-EXT-010カードをTeamsへ送信。
+ *   承認完了イベントを受けた場合、影響対象の関連企業へDevOps:SPEC-EXT-033のリリース事前通知を送信する。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
 import {
@@ -32,7 +32,7 @@ export interface ChgDependencies {
   cal: HolidayCalendar;
 }
 
-/** SPEC-INT-031: 差分要約(PROMPT-CHG-01、最大10行) */
+/** DevOps:SPEC-INT-031: 差分要約(PROMPT-CHG-01、最大10行) */
 export async function summarizeChangeDiff(diffText: string, deps: ChgDependencies): Promise<string[]> {
   const result = await deps.llmClient.call<{ lines: string[] }>({
     agent: "AGT-CHG",
@@ -59,7 +59,7 @@ export interface ApprovalPackage {
   decisionUrl: string;
 }
 
-/** SPEC-EXT-010: 本番デプロイ承認カードを送信する（表示項目の順序固定） */
+/** DevOps:SPEC-EXT-010: 本番デプロイ承認カードを送信する（表示項目の順序固定） */
 export async function sendApprovalCard(
   pkg: ApprovalPackage,
   channel: ChannelRef,
@@ -93,7 +93,7 @@ export async function sendApprovalCard(
     trace_id: deps.traceId,
     actor: "AGT-CHG",
     action: "send_approval_card",
-    basis: "SPEC-EXT-010",
+    basis: "DevOps:SPEC-EXT-010",
     detail: { projectName: pkg.projectName, riskScore: pkg.riskScore.score },
     at: new Date().toISOString(),
   });
@@ -110,7 +110,7 @@ const RELEASE_NOTICE_TEXT = {
     `A production release is scheduled (planned time: ${time}). Please contact your PM with any questions.`,
 };
 
-/** SPEC-EXT-033 / REQ-027（多言語通知）: 承認完了時点で影響対象企業へリリース事前通知を送信する */
+/** DevOps:SPEC-EXT-033 / REQ-027（多言語通知）: 承認完了時点で影響対象企業へリリース事前通知を送信する */
 export async function notifyPartnersOfRelease(
   targets: PartnerCompanyNotifyTarget[],
   scheduledAt: Date,
@@ -130,7 +130,7 @@ export async function notifyPartnersOfRelease(
     trace_id: deps.traceId,
     actor: "AGT-CHG",
     action: "notify_partners",
-    basis: "SPEC-EXT-033",
+    basis: "DevOps:SPEC-EXT-033",
     detail: { count: targets.length },
     at: new Date().toISOString(),
   });

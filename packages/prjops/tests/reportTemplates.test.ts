@@ -33,7 +33,7 @@ function assertSelfContainedAndClean(html: string, forbiddenTerms: string[] = []
   }
 }
 
-describe("composeMemberReport [PRF-01, SPEC-EXT-021]", () => {
+describe("composeMemberReport [PRF-01, PrjOps:SPEC-EXT-021]", () => {
   const html = composeMemberReport(common, {
     actions: [
       { id: "ACT-0001", content: "資料レビュー", due: "2026-07-08", status: "open", overdue: false },

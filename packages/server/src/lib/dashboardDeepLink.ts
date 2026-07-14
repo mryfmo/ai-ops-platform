@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/dashboardDeepLink.ts
  *
- * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069 / AC-042-1。
+ * 根拠: ADR-0014 / PrjOps:REQ-042 / SPEC-INT-069 / PrjOps:AC-042-1。
  * Outlook/Teams配信カードからWebダッシュボードへ遷移するディープリンクを生成する。
  */
 export interface DashboardDeepLinkInput {

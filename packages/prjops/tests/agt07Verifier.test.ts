@@ -3,7 +3,7 @@ import { verifyReportBeforeDelivery } from "../src/agents/AGT07_verifier.js";
 
 const cleanHtml = `<html><body><span data-src="projects/PJ-001#progress_pct">50</span></body></html>`;
 
-describe("verifyReportBeforeDelivery [REQ-019 AC-019-1]", () => {
+describe("verifyReportBeforeDelivery [PrjOps:REQ-019 AC-019-1]", () => {
   it("すべて正常ならok=true", () => {
     const r = verifyReportBeforeDelivery({
       html: cleanHtml,

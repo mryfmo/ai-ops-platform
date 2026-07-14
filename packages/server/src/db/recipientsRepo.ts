@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/recipientsRepo.ts
  *
- * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069 / AC-042-1。
+ * 根拠: ADR-0014 / PrjOps:REQ-042 / SPEC-INT-069 / PrjOps:AC-042-1。
  * 配信名簿はDBを正本とし、配信リクエストごとにactive状態を読み直す。
  */
 import type { PgQueryable } from "@aiops/shared";

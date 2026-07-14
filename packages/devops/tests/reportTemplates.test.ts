@@ -16,13 +16,13 @@ const common = {
   dateJst: "2026-07-06",
 };
 
-describe("buildSubject [SPEC-EXT-020]", () => {
+describe("buildSubject [DevOps:SPEC-EXT-020]", () => {
   it("件名書式が [DevOpsレポート][種別] YYYY-MM-DD になる", () => {
     expect(buildSubject("メンバー日次", "2026-07-06")).toBe("[DevOpsレポート][メンバー日次] 2026-07-06");
   });
 });
 
-describe("composeMemberDailyReport [SPEC-EXT-021]", () => {
+describe("composeMemberDailyReport [DevOps:SPEC-EXT-021]", () => {
   it("自己完結・クリーンなHTMLを生成する", () => {
     const { html, subject } = composeMemberDailyReport(common, {
       openPrs: [],
@@ -41,7 +41,7 @@ describe("composeMemberDailyReport [SPEC-EXT-021]", () => {
   });
 });
 
-describe("composeLeaderReport [SPEC-EXT-022/023]", () => {
+describe("composeLeaderReport [DevOps:SPEC-EXT-022/023]", () => {
   const data = {
     ciSuccessRatePct: 92.5,
     failedWorkflows: ["build-and-test"],
@@ -79,7 +79,7 @@ describe("composeLeaderReport [SPEC-EXT-022/023]", () => {
   });
 });
 
-describe("selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準]", () => {
+describe("selectTopRiskProjects [DevOps:SPEC-EXT-024(3): 固定選定基準]", () => {
   it("変更失敗率降順でソートされる", () => {
     const result = selectTopRiskProjects([
       { projectId: "PRJ-001", changeFailureRatePct: 10, openSev2Count: 1 },
@@ -104,7 +104,7 @@ describe("selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準]", () => {
   });
 });
 
-describe("composeManagerReport [SPEC-EXT-024/025]", () => {
+describe("composeManagerReport [DevOps:SPEC-EXT-024/025]", () => {
   const managerData = {
     dora: {
       deploymentFrequencyPerWeek: 12.5,
@@ -128,7 +128,7 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
     expect(html).not.toContain("権限棚卸しサマリ");
   });
 
-  it("月次レポートは権限棚卸しサマリを含む（REQ-019/023）", () => {
+  it("月次レポートは権限棚卸しサマリを含む（DevOps:REQ-019/023）", () => {
     const { html } = composeManagerReport(
       common,
       { ...managerData, permissionAudit: { totalGrants: 120, revokedThisMonth: 15, externalAccountCount: 8 } },

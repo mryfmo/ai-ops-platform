@@ -1,8 +1,8 @@
 /**
  * packages/devops/src/agents/AGT_DEP.ts
  *
- * 根拠: REQ-003 ステージング自動昇格 / REQ-010 本番デプロイの人間承認 / REQ-012 自動ロールバック
- *   SPEC-INT-020 デプロイ状態機械
+ * 根拠: DevOps:REQ-003 ステージング自動昇格 / DevOps:REQ-010 本番デプロイの人間承認 / DevOps:REQ-012 自動ロールバック
+ *   DevOps:SPEC-INT-020 デプロイ状態機械
  *
  * 決定的な判断（TH-001/TH-002/TH-003評価、状態遷移検証）はlib/配下の純粋関数に委譲し、
  * 本エージェントはGitHubClient/Graph/AuditLogとの結線のみを担当する。
@@ -29,7 +29,7 @@ export interface DeployDependencies {
   cal: HolidayCalendar;
 }
 
-/** REQ-003: TH-001充足時にステージングへ自動昇格し、Teamsチャネルへ事後通知する（AC-003b: 5分以内） */
+/** DevOps:REQ-003: TH-001充足時にステージングへ自動昇格し、Teamsチャネルへ事後通知する（AC-003b: 5分以内） */
 export async function promoteToStagingIfEligible(
   th001Input: Th001Input,
   channel: ChannelRef,
@@ -70,12 +70,12 @@ export async function promoteToStagingIfEligible(
   return true;
 }
 
-/** REQ-011/SPEC-INT-021: 承認パッケージ用のリスクスコアを計算する（AGT-CHGから呼ばれる想定の共有関数） */
+/** DevOps:REQ-011/DevOps:SPEC-INT-021: 承認パッケージ用のリスクスコアを計算する（AGT-CHGから呼ばれる想定の共有関数） */
 export function computeDeploymentRiskScore(cal: HolidayCalendar, input: RiskScoreInput): RiskScoreBreakdown {
   return calculateRiskScore(cal, input);
 }
 
-/** REQ-010: 承認完了後、本番デプロイをGitHub Actions workflow_dispatchで実行する */
+/** DevOps:REQ-010: 承認完了後、本番デプロイをGitHub Actions workflow_dispatchで実行する */
 export async function executeProdDeploy(
   from: DeployState,
   owner: string,
@@ -95,7 +95,7 @@ export async function executeProdDeploy(
     trace_id: deps.traceId,
     actor: "AGT-DEP",
     action: "prod_deploy_dispatch",
-    basis: "REQ-010",
+    basis: "DevOps:REQ-010",
     detail: { commitSha },
     at: new Date().toISOString(),
   });
@@ -107,7 +107,7 @@ export interface RollbackOutcome {
   matchedConditions?: Array<"a" | "b">;
 }
 
-/** REQ-012: TH-003充足時に自動ロールバックし、Sev2起票、Teams即時通知（2分以内, AC-012b）。
+/** DevOps:REQ-012: TH-003充足時に自動ロールバックし、Sev2起票、Teams即時通知（2分以内, AC-012b）。
  *  ユーザー視点の見え方はSPEC-EXT-040（デプロイ失敗時のロールバック通知）に対応する。
  *  承認期限切れ時の見え方はSPEC-EXT-041（別経路、TH-002タイマー）を参照。 */
 export async function monitorAndRollbackIfNeeded(

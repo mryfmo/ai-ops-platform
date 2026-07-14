@@ -1,8 +1,8 @@
 /**
  * packages/server/src/scheduler/scheduler.ts
  *
- * 根拠: ADR-0005（常駐ループ）。DevOps SPEC-INT-040（30秒ヘルスチェック）/
- *   SPEC-INT-032（毎分JIT失効）は GitHub Actions cron（実用最短5分）では実現できないため、
+ * 根拠: ADR-0005（常駐ループ）。DevOps:SPEC-INT-040（30秒ヘルスチェック）/
+ *   DevOps:SPEC-INT-032（毎分JIT失効）は GitHub Actions cron（実用最短5分）では実現できないため、
  *   本スケジューラが常駐コンテナ内で担う（ADR-0003の未充足要件の実装）。
  *
  * 設計:

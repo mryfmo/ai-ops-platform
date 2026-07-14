@@ -1,6 +1,6 @@
 -- packages/devops/src/db/schema.sql
 --
--- 根拠: DevOps DOC-INT-04 §3 データ構造（SPEC-INT-050番台）
+-- 根拠: DevOps DOC-INT-04 §3 データ構造（DevOps:SPEC-INT-050番台）
 -- データストアはRDB（PostgreSQL想定）。本ファイルは全テーブル定義の正本。
 -- 変更時は通常のPRレビューを経ること。
 
@@ -28,9 +28,9 @@ CREATE INDEX IF NOT EXISTS idx_events_next_attempt ON events (status, next_attem
 CREATE INDEX IF NOT EXISTS idx_events_claimed_at ON events (claimed_at) WHERE status = 'dispatched';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_dedupe_key ON events (dedupe_key) WHERE dedupe_key IS NOT NULL;
 
--- ADR-0007 / PrjOps SPEC-INT-062 / DevOps SPEC-INT-081: GitHub PM時系列イベント。
+-- ADR-0007 / PrjOps:SPEC-INT-062 / DevOps:SPEC-INT-081: GitHub PM時系列イベント。
 -- projects_v2_item / projects_v2_status_update / issues / pull_request / milestone / deployment webhookを正規化し、
--- raw_payloadは保存前にsanitizeSecrets()を通すこと（REQ-036 / REQ-031）。
+-- raw_payloadは保存前にsanitizeSecrets()を通すこと（REQ-036 / DevOps:REQ-031）。
 CREATE TABLE IF NOT EXISTS pm_events (
   event_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trace_id    UUID NOT NULL,
@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_pm_events_time ON pm_events (occurred_at);
 CREATE INDEX IF NOT EXISTS idx_pm_events_project_time ON pm_events (project_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_pm_events_subject ON pm_events (subject_type, subject_id);
 
--- ADR-0007 / DevOps AC-031a: 定期フルsnapshot。webhook取りこぼしreconcileの正本。
+-- ADR-0007 / DevOps:AC-031a: 定期フルsnapshot。webhook取りこぼしreconcileの正本。
 CREATE TABLE IF NOT EXISTS pm_snapshots (
   snapshot_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trace_id    UUID NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS seven_keys_snapshots (
 CREATE INDEX IF NOT EXISTS idx_seven_keys_snapshots_project_month ON seven_keys_snapshots (project_id, month);
 -- rollback: DROP TABLE seven_keys_snapshots;
 
--- SPEC-INT-020 デプロイ状態機械の値のみ許可（lib/deployStateMachine.tsのDeployState型と一致させること）
+-- DevOps:SPEC-INT-020 デプロイ状態機械の値のみ許可（lib/deployStateMachine.tsのDeployState型と一致させること）
 CREATE TABLE IF NOT EXISTS deployments (
   deploy_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id   TEXT NOT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS incidents (
 CREATE INDEX IF NOT EXISTS idx_incidents_alert_rule_id ON incidents (alert_rule_id);
 CREATE INDEX IF NOT EXISTS idx_incidents_severity ON incidents (severity);
 
--- SPEC-INT-053 権限台帳（grants）
+-- DevOps:SPEC-INT-053 権限台帳（grants）
 CREATE TABLE IF NOT EXISTS grants (
   grant_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   subject      TEXT NOT NULL,
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS grants (
 CREATE INDEX IF NOT EXISTS idx_grants_expires_at ON grants (expires_at) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_grants_subject ON grants (subject);
 
--- SPEC-INT-054 配信名簿（recipients）
+-- DevOps:SPEC-INT-054 配信名簿（recipients）
 CREATE TABLE IF NOT EXISTS recipients (
   user_id  TEXT PRIMARY KEY,
   profile  TEXT NOT NULL CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')),
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS recipients (
   teams_channel_id TEXT
 );
 
--- ADR-0014 / REQ-042 / SPEC-INT-069: 標準report受領。
+-- ADR-0014 / DevOps:REQ-042 / SPEC-INT-069: 標準report受領。
 CREATE TABLE IF NOT EXISTS standard_reports (
   report_id      TEXT PRIMARY KEY,
   schema_version TEXT NOT NULL,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS standard_reports (
 );
 CREATE INDEX IF NOT EXISTS idx_standard_reports_received ON standard_reports (received_at);
 
--- ADR-0014 / REQ-042 / SPEC-INT-069: report配信ログ。
+-- ADR-0014 / DevOps:REQ-042 / SPEC-INT-069: report配信ログ。
 CREATE TABLE IF NOT EXISTS report_delivery_log (
   report_id    TEXT NOT NULL,
   recipient_id TEXT NOT NULL,
@@ -365,7 +365,7 @@ CREATE TABLE IF NOT EXISTS project_channels (
 CREATE INDEX IF NOT EXISTS idx_project_channels_project ON project_channels (project_id);
 -- rollback: DROP TABLE project_channels;
 
--- ADR-0005: チャネル会話の写し。保存前に sanitizeSecrets() を必ず通すこと（REQ-030）。
+-- ADR-0005: チャネル会話の写し。保存前に sanitizeSecrets() を必ず通すこと（DevOps:REQ-030）。
 -- Teams側の編集/削除は last_modified_at / deleted_at で追従（物理削除しない。監査整合のため）。
 -- 保持期間: project_channels.closed_at から13か月後に当該チャネル分をDELETE（runbooks/channel-messages-purge.md）。
 CREATE TABLE IF NOT EXISTS channel_messages (
@@ -388,7 +388,7 @@ CREATE INDEX IF NOT EXISTS idx_channel_messages_channel_time ON channel_messages
 -- rollback: DROP TABLE channel_messages;
 
 -- ADR-0005: Graphサブスクリプション台帳。renew対象・プロセス再起動後の復元・deltaLink永続化の正本。
--- mode: notification=change notification受信中 / polling=renew失敗時の5分deltaフォールバック（SPEC-INT-001）
+-- mode: notification=change notification受信中 / polling=renew失敗時の5分deltaフォールバック（DevOps:SPEC-INT-001）
 CREATE TABLE IF NOT EXISTS graph_subscriptions (
   subscription_id TEXT PRIMARY KEY,
   resource        TEXT NOT NULL,
@@ -401,7 +401,7 @@ CREATE TABLE IF NOT EXISTS graph_subscriptions (
 );
 -- rollback: DROP TABLE graph_subscriptions;
 
--- ADR-0005: LLM使用量台帳（PgCostGuard。SPEC-INT-060: 日次コスト上限をバッチ+WebチャットでSYSTEM全体共有）
+-- ADR-0005: LLM使用量台帳（PgCostGuard。DevOps:SPEC-INT-060: 日次コスト上限をバッチ+WebチャットでSYSTEM全体共有）
 CREATE TABLE IF NOT EXISTS llm_usage (
   usage_id  BIGSERIAL PRIMARY KEY,
   agent     TEXT NOT NULL,
@@ -437,7 +437,7 @@ CREATE INDEX IF NOT EXISTS idx_coding_tasks_status ON coding_tasks (status);
 CREATE INDEX IF NOT EXISTS idx_coding_tasks_project ON coding_tasks (project_id);
 -- rollback: DROP TABLE coding_tasks;
 
--- ADR-0008 / REQ-037 / SPEC-INT-063: Excelインポート台帳。
+-- ADR-0008 / REQ-037 / DevOps:SPEC-INT-063: Excelインポート台帳。
 CREATE TABLE IF NOT EXISTS import_ledger (
   source_key     TEXT PRIMARY KEY,
   target_kind    TEXT NOT NULL CHECK (target_kind IN ('issue', 'project_item', 'milestone')),

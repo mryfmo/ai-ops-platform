@@ -10,7 +10,7 @@ import {
 
 const cal = buildHolidayCalendar([]);
 
-describe("factorA_changedLines [SPEC-INT-021 A]", () => {
+describe("factorA_changedLines [DevOps:SPEC-INT-021 A]", () => {
   it("0行は0", () => {
     expect(factorA_changedLines(0)).toBe(0);
   });
@@ -25,7 +25,7 @@ describe("factorA_changedLines [SPEC-INT-021 A]", () => {
   });
 });
 
-describe("factorB_sensitivePaths [SPEC-INT-021 B]", () => {
+describe("factorB_sensitivePaths [DevOps:SPEC-INT-021 B]", () => {
   it("/infra/を含めば100", () => {
     expect(factorB_sensitivePaths(["src/infra/deploy.ts"])).toBe(100);
   });
@@ -40,7 +40,7 @@ describe("factorB_sensitivePaths [SPEC-INT-021 B]", () => {
   });
 });
 
-describe("factorD_testResult [SPEC-INT-021 D]", () => {
+describe("factorD_testResult [DevOps:SPEC-INT-021 D]", () => {
   it("失敗0・カバレッジ80%以上は0", () => {
     expect(factorD_testResult(0, 80)).toBe(0);
     expect(factorD_testResult(0, 95)).toBe(0);
@@ -57,7 +57,7 @@ describe("factorD_testResult [SPEC-INT-021 D]", () => {
   });
 });
 
-describe("factorE_offHours [SPEC-INT-021 E: 平日19:00〜翌9:00・土日]", () => {
+describe("factorE_offHours [DevOps:SPEC-INT-021 E: 平日19:00〜翌9:00・土日]", () => {
   it("平日日中は0", () => {
     expect(factorE_offHours(cal, "2026-07-06", "12:00")).toBe(0);
   });

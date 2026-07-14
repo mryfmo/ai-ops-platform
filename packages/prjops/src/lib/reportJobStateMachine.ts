@@ -1,10 +1,10 @@
 /**
  * packages/prjops/src/lib/reportJobStateMachine.ts
  *
- * 根拠: SPEC-INT-026 report_job / SPEC-INT-050 承認状態遷移
+ * 根拠: SPEC-INT-026 report_job / PrjOps:SPEC-INT-050 承認状態遷移
  *   状態遷移: generated → verified → (PRF-01..03: → delivered) / (PRF-04,05: → pending_approval → approved → delivered)
  *   分岐: pending_approval → rejected（差し戻し。コメント必須）
- *   状態遷移は上記の順のみ許可（スキップ不可）[REQ-017 AC-017-1]。
+ *   状態遷移は上記の順のみ許可（スキップ不可）[PrjOps:REQ-017 AC-017-1]。
  *   AC-017-1: 承認前に配信された事例が発生しない（audit_logで機械検証可能）。
  *
  * 設計方針: 遷移表を明示的に定義し、許可されない遷移は例外を投げる（コードレベルでスキップを禁止する）。
@@ -39,7 +39,7 @@ function allowedNextStates(current: ReportStatus, profile: Profile): ReportStatu
 export class InvalidReportTransitionError extends Error {
   constructor(from: ReportStatus, to: ReportStatus, profile: Profile) {
     super(
-      `E-RPT01: invalid report_job transition ${from} -> ${to} for profile ${profile} (SPEC-INT-026/SPEC-INT-050, REQ-017 AC-017-1: skipping states is not allowed)`,
+      `E-RPT01: invalid report_job transition ${from} -> ${to} for profile ${profile} (SPEC-INT-026/PrjOps:SPEC-INT-050, PrjOps:REQ-017 AC-017-1: skipping states is not allowed)`,
     );
   }
 }

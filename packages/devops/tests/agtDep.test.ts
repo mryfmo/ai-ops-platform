@@ -40,7 +40,7 @@ function makeDeps(): {
   return { deps, cardCount, dispatchCalls, issuesCreated };
 }
 
-describe("promoteToStagingIfEligible [REQ-003, TH-001]", () => {
+describe("promoteToStagingIfEligible [DevOps:REQ-003, TH-001]", () => {
   it("TH-001充足時は昇格しTeams通知する", async () => {
     const { deps, cardCount } = makeDeps();
     const promoted = await promoteToStagingIfEligible(
@@ -68,7 +68,7 @@ describe("promoteToStagingIfEligible [REQ-003, TH-001]", () => {
   });
 });
 
-describe("executeProdDeploy [REQ-010, SPEC-INT-020]", () => {
+describe("executeProdDeploy [DevOps:REQ-010, DevOps:SPEC-INT-020]", () => {
   it("approved状態からはprod_deployingへ遷移でき、workflow_dispatchを呼ぶ", async () => {
     const { deps, dispatchCalls } = makeDeps();
     await executeProdDeploy("approved", "acme", "devops-system", "deadbeef", deps);
@@ -84,7 +84,7 @@ describe("executeProdDeploy [REQ-010, SPEC-INT-020]", () => {
   });
 });
 
-describe("monitorAndRollbackIfNeeded [REQ-012, AC-012a/b/c]", () => {
+describe("monitorAndRollbackIfNeeded [DevOps:REQ-012, AC-012a/b/c]", () => {
   const stableVersions = [
     { version: "v1.2.0", stableSince: "2026-07-01T00:00:00Z", stableDurationMinutesAsOfFailure: 100 },
   ];
