@@ -56,7 +56,7 @@ const devopsManager: ResolvedPersona = {
 const devopsMember: ResolvedPersona = {
   domain: "devops",
   profile: "PRF-M",
-  visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: [] },
+  visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: ["PJ-002"] },
 };
 
 const investor: ResolvedPersona = {
@@ -251,6 +251,29 @@ describe("show_project_board tool [PrjOps:REQ-041 / PrjOps:SPEC-INT-068]", () =>
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toMatchObject({ name: "ZodError" });
     expect(error).toMatchObject({ message: expect.stringMatching(/scope/i) });
+  });
+
+  it("PRF-Mはassigned projectだけを受理する", async () => {
+    const tool = buildToolsForPersona(devopsMember)["show_project_board"]!;
+    await expect(tool.execute!({ projectId: "PJ-002" }, { toolCallId: "board-member", messages: [] })).resolves.toEqual(
+      {
+        kind: "projectBoard",
+        projectId: "PJ-002",
+      },
+    );
+    await expect(
+      tool.execute!({ projectId: "PJ-001" }, { toolCallId: "board-member-foreign", messages: [] }),
+    ).rejects.toThrow(/scope/i);
+  });
+
+  it.each([prjopsExecutive, devopsManager])("global profileはcanonical projectIdを受理する", async (persona) => {
+    const tool = buildToolsForPersona(persona)["show_project_board"]!;
+    await expect(
+      tool.execute!({ projectId: "PJ-9999" }, { toolCallId: "board-global", messages: [] }),
+    ).resolves.toEqual({
+      kind: "projectBoard",
+      projectId: "PJ-9999",
+    });
   });
 });
 

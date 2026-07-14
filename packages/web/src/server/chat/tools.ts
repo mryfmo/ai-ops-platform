@@ -21,24 +21,30 @@
  */
 import { z } from "zod";
 import { tool, type ToolSet } from "ai";
+import { isProjectInScope as isPrjopsProjectInScope } from "@aiops/prjops";
 import type { ResolvedPersona } from "../personaResolver";
-import type { ViewSpec } from "../viewSpec";
+import { parseViewSpec, type ViewSpec } from "../viewSpec";
 
-const showExecutiveSummaryInputSchema = z.object({});
+const showExecutiveSummaryInputSchema = z.object({}).strict();
 
-const showManagerSummaryInputSchema = z.object({
-  /** バーンダウン集計期間（日数）。未指定時は呼び出し側の既定値（28日）が使われる。 */
-  periodDays: z.union([z.literal(7), z.literal(14), z.literal(28)]).optional(),
-});
+const showManagerSummaryInputSchema = z
+  .object({
+    /** バーンダウン集計期間（日数）。未指定時は呼び出し側の既定値（28日）が使われる。 */
+    periodDays: z.union([z.literal(7), z.literal(14), z.literal(28)]).optional(),
+  })
+  .strict();
 
-const showTimeseriesInputSchema = z.object({
-  period: z.enum(["week", "month", "quarter", "half", "year"]).optional(),
-});
+const showTimeseriesInputSchema = z
+  .object({
+    period: z.enum(["week", "month", "quarter", "half", "year"]),
+  })
+  .strict();
 
-const listProjectsInputSchema = z.object({});
+const listProjectsInputSchema = z.object({}).strict();
+const showProjectBoardInputSchema = z.object({ projectId: z.string() }).strict();
 
-const showAgentActivityInputSchema = z.object({});
-const showInvestorSummaryInputSchema = z.object({});
+const showAgentActivityInputSchema = z.object({}).strict();
+const showInvestorSummaryInputSchema = z.object({}).strict();
 
 /** PRF-04（PrjOps経営陣）専用: セブンキーの表示要求 */
 function buildShowExecutiveSummaryTool() {
@@ -47,7 +53,7 @@ function buildShowExecutiveSummaryTool() {
       "経営層向けセブンキーサマリー（ポートフォリオ健康度・進捗達成率・高リスク課題件数・予算消化率・スケジュール遵守率等）の表示に切り替える。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
     inputSchema: showExecutiveSummaryInputSchema,
     execute: async (): Promise<ViewSpec> => {
-      return { kind: "executiveSummary" };
+      return parseViewSpec({ kind: "executiveSummary" });
     },
   });
 }
@@ -60,7 +66,7 @@ function buildShowManagerSummaryTool() {
     inputSchema: showManagerSummaryInputSchema,
     execute: async (input): Promise<ViewSpec> => {
       const parsed = showManagerSummaryInputSchema.parse(input);
-      return { kind: "managerSummary", periodDays: parsed.periodDays };
+      return parseViewSpec({ kind: "managerSummary", periodDays: parsed.periodDays });
     },
   });
 }
@@ -72,7 +78,7 @@ function buildShowAgentActivityTool() {
       "AIコーディングエージェント（Claude Code / Droid）の稼働状況（タスクのステータス別件数・完了成功率・直近生成PR一覧）の表示に切り替える。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
     inputSchema: showAgentActivityInputSchema,
     execute: async (): Promise<ViewSpec> => {
-      return { kind: "agentActivity" };
+      return parseViewSpec({ kind: "agentActivity" });
     },
   });
 }
@@ -83,7 +89,7 @@ function buildShowInvestorSummaryTool() {
       "投資家向けKPIパッケージ（ハイライト、KPI、マイルストーン、リスク）の表示に切り替える。数値そのものはこのtoolでは返さず、本文中で数値を述べてはならない。",
     inputSchema: showInvestorSummaryInputSchema,
     execute: async (): Promise<ViewSpec> => {
-      return { kind: "investorSummary" };
+      return parseViewSpec({ kind: "investorSummary" });
     },
   });
 }
@@ -95,7 +101,7 @@ function buildShowTimeseriesTool() {
     inputSchema: showTimeseriesInputSchema,
     execute: async (input): Promise<ViewSpec> => {
       const parsed = showTimeseriesInputSchema.parse(input);
-      return { kind: "timeseries", period: parsed.period };
+      return parseViewSpec({ kind: "timeseries", period: parsed.period });
     },
   });
 }
@@ -106,7 +112,30 @@ function buildListProjectsTool() {
     description: "スコープ内のプロジェクト一覧（ID・名称のみ）の表示に切り替える。",
     inputSchema: listProjectsInputSchema,
     execute: async (): Promise<ViewSpec> => {
-      return { kind: "projectList" };
+      return parseViewSpec({ kind: "projectList" });
+    },
+  });
+}
+
+function isProjectInPersonaScope(persona: ResolvedPersona, projectId: string): boolean {
+  if (persona.domain === "devops") {
+    return persona.profile === "PRF-G" || persona.visibility.recipientAssignedProjectIds.includes(projectId);
+  }
+  return isPrjopsProjectInScope(persona.profile, projectId, persona.visibility);
+}
+
+function buildShowProjectBoardTool(persona: ResolvedPersona) {
+  return tool({
+    description:
+      "現在の利用者スコープ内にある1件のプロジェクトについて、読み取り専用Kanban表示へ切り替える。projectIdはcanonical PJ-### IDに限る。カードや件数は返さない。",
+    inputSchema: showProjectBoardInputSchema,
+    execute: async (input): Promise<ViewSpec> => {
+      const parsedInput = showProjectBoardInputSchema.parse(input);
+      const spec = parseViewSpec({ kind: "projectBoard", projectId: parsedInput.projectId });
+      if (!isProjectInPersonaScope(persona, parsedInput.projectId)) {
+        throw new Error("projectId is out of scope");
+      }
+      return spec;
     },
   });
 }
@@ -138,6 +167,7 @@ function isInvestor(persona: ResolvedPersona): boolean {
 export function buildToolsForPersona(persona: ResolvedPersona): ToolSet {
   const toolSet: ToolSet = {
     listProjects: buildListProjectsTool(),
+    show_project_board: buildShowProjectBoardTool(persona),
     show_projects_table: buildListProjectsTool(),
     show_timeseries: buildShowTimeseriesTool(),
   };

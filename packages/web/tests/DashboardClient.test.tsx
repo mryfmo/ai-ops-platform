@@ -13,14 +13,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import type { ViewSpec } from "../src/server/viewSpec";
 
 // react-dom/testUtils の act() 警告抑止（jsdom環境でのReact 19 act()サポートフラグ）
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-let capturedOnViewSpecReceived: ((spec: { kind: string; periodDays?: number }) => void) | null = null;
+let capturedOnViewSpecReceived: ((spec: ViewSpec) => void) | null = null;
 
 vi.mock("../src/components/chat/ChatPanel", () => ({
-  PageAgentPanel: (props: { onViewSpecReceived: (spec: { kind: string; periodDays?: number }) => void }) => {
+  PageAgentPanel: (props: { onViewSpecReceived: (spec: ViewSpec) => void }) => {
     capturedOnViewSpecReceived = props.onViewSpecReceived;
     return null;
   },
@@ -141,12 +142,13 @@ describe("DashboardClient（ADR-0005: onViewSpecReceivedによる再取得と表
     });
 
     await act(async () => {
-      capturedOnViewSpecReceived!({ kind: "timeseries" });
+      capturedOnViewSpecReceived!({ kind: "timeseries", period: "month" });
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/app/api/data/timeseries?"));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("period=month"));
     expect(container.textContent).toContain("時系列スナップショット");
     act(() => root.unmount());
   });

@@ -34,6 +34,7 @@ import {
 } from "@aiops/shared";
 import type { PersonaResolver, ResolvedPersona } from "../personaResolver";
 import { resolvePersonas, toErrorResponse } from "../reportData/dataApiSupport";
+import { safeParseViewSpec } from "../viewSpec";
 import { buildToolsForPersona } from "./tools";
 import { buildSystemPrompt, type PageAgentContext } from "./systemPrompt";
 
@@ -67,26 +68,6 @@ function sanitizeText(value: unknown): string | undefined {
   return typeof value === "string" ? sanitizeForLlmInput(value).sanitized : undefined;
 }
 
-function sanitizeViewSpec(raw: unknown): PageAgentContext["currentView"] {
-  if (!raw || typeof raw !== "object") return undefined;
-  const input = raw as Record<string, unknown>;
-  const kind = sanitizeText(input["kind"]);
-  if (kind === "managerSummary") {
-    const periodDays = input["periodDays"];
-    return periodDays === 7 || periodDays === 14 || periodDays === 28 ? { kind, periodDays } : { kind };
-  }
-  if (kind === "timeseries") {
-    const period = sanitizeText(input["period"]);
-    return period === "week" || period === "month" || period === "quarter" || period === "half" || period === "year"
-      ? { kind, period }
-      : { kind };
-  }
-  if (kind === "executiveSummary" || kind === "investorSummary" || kind === "projectList" || kind === "agentActivity") {
-    return { kind };
-  }
-  return undefined;
-}
-
 function sanitizePageContext(raw: unknown): PageAgentContext | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const input = raw as Record<string, unknown>;
@@ -94,7 +75,7 @@ function sanitizePageContext(raw: unknown): PageAgentContext | undefined {
     period: sanitizeText(input["period"]),
     baseDate: sanitizeText(input["baseDate"]),
     projectId: sanitizeText(input["projectId"]),
-    currentView: sanitizeViewSpec(input["view"]),
+    currentView: safeParseViewSpec(input["view"]).data,
   };
 }
 

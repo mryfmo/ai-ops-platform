@@ -31,7 +31,7 @@ import { ExecutiveSevenKeysView, type ExecutiveSevenKeysData } from "./views/Exe
 import { ManagerSummaryView, type ManagerSummaryData } from "./views/ManagerSummaryView";
 import { AgentActivityView, type AgentActivityData } from "./views/AgentActivityView";
 import { InvestorReportView, type InvestorReportData } from "./views/InvestorReportView";
-import type { ViewSpec } from "../server/viewSpec";
+import { parseViewSpec, type ViewSpec } from "../server/viewSpec";
 
 const API_BASE = "/app/api/data";
 const PERIODS: PeriodKind[] = ["week", "month", "quarter", "half", "year"];
@@ -223,16 +223,17 @@ function shiftBaseDate(selection: PeriodSelection, direction: -1 | 1): PeriodSel
 }
 
 export function DashboardClient({ initialViewSpec, initialData }: DashboardClientProps) {
+  const parsedInitialViewSpec = parseViewSpec(initialViewSpec);
   // initialViewSpecは「サーバーコンポーネントが初期表示のために選択したViewSpec」を明示するための
   // propであり、initialDataの取得元根拠として保持する（初期表示のkindとinitialData.kindは常に一致する）。
   // マウント後の再レンダリングはonViewSpecReceived経由のfetch結果（view state）のみに基づく。
   const [view, setView] = useState<DashboardData>(() => {
-    if (initialViewSpec.kind !== initialData.kind) {
+    if (parsedInitialViewSpec.kind !== initialData.kind) {
       console.warn("E-VIEW01: initialViewSpec.kind does not match initialData.kind");
     }
     return initialData;
   });
-  const [currentSpec, setCurrentSpec] = useState<ViewSpec>(initialViewSpec);
+  const [currentSpec, setCurrentSpec] = useState<ViewSpec>(parsedInitialViewSpec);
   const [periodSelection, setPeriodSelection] = useState<PeriodSelection>(() => ({
     period: "month",
     baseDate: new Date().toISOString().slice(0, 10),
@@ -242,14 +243,15 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
   const [error, setError] = useState<string | null>(null);
 
   const loadView = useCallback(
-    (spec: ViewSpec, selection: PeriodSelection, includeTimeseries: boolean) => {
+    (rawSpec: unknown, selection: PeriodSelection, includeTimeseries: boolean) => {
+      const spec = parseViewSpec(rawSpec);
       setIsLoading(true);
       setError(null);
       (async () => {
         try {
           if (spec.kind === "timeseries") {
-            const nextSelection = spec.period ? { ...selection, period: spec.period } : selection;
-            if (spec.period) setPeriodSelection(nextSelection);
+            const nextSelection = { ...selection, period: spec.period };
+            setPeriodSelection(nextSelection);
             setTimeseries(await fetchTimeseries(nextSelection, personaForView(view)));
             return;
           }
@@ -266,9 +268,11 @@ export function DashboardClient({ initialViewSpec, initialData }: DashboardClien
           } else if (spec.kind === "investorSummary") {
             const data = await fetchInvestorSummary();
             nextView = { kind: "investorSummary", data };
-          } else {
+          } else if (spec.kind === "projectList") {
             const data = await fetchProjectList();
             nextView = { kind: "projectList", data };
+          } else {
+            throw new Error("E-VIEW02: project board data endpoint is not available");
           }
           setView(nextView);
           setCurrentSpec(spec);

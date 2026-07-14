@@ -1,31 +1,46 @@
 /**
  * packages/web/src/server/viewSpec.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
- *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
- *   チャットのtool call結果として返す「どのビューを表示するか」の宣言的な仕様（ViewSpec）を定義する。
- *   CLAUDE.md設計原則2（数値・色・表はコード算出、LLMは表示パラメータのみ）に従い、
- *   LLMが決定してよいのはViewSpec（=表示するビューの種類・表示パラメータ）のみであり、
- *   実データ（数値・件数等）はこのモジュールには一切含まれない。実データの取得は
- *   ViewSpecを受け取った側（DashboardClient）が既存の /api/data/* を呼び出して行う。
- *
- * スコープ: 既存で実装済みのデータ種別（executive-summary / manager-summary / projects /
- *   agent-activity）に対応するViewSpecのみを対象とする。heatmap/dora等、reportData層に
- *   未実装のデータ種別は本タスクの対象外とし、次フェーズで追加する。
- *
- * agentActivity（ADR-0006 4b: AIコーディングエージェント稼働可視化）は現状PRF-G
- *   （DevOpsマネージャー）専用（server/chat/tools.tsのbuildToolsForPersona参照）。
+ * 根拠: ADR-0005 / ADR-0013 / PrjOps:REQ-041 / PrjOps:SPEC-INT-068 / PrjOps:AC-041-1。
+ * LLMが選べる表示宣言をstrict runtime schemaで固定し、実データ・数値・URL・HTMLの混入を拒否する。
  */
+import { z } from "zod";
 
-import type { PeriodKind } from "@aiops/shared";
+const emptyView = <T extends string>(kind: T) => z.object({ kind: z.literal(kind) }).strict();
+const canonicalProjectId = /^PJ-\d{3,}$/;
 
-/** マネージャーサマリのバーンダウン集計期間（日数）。未指定時は呼び出し側の既定値（28日）を用いる。 */
+export const viewSpecSchema = z.discriminatedUnion("kind", [
+  emptyView("executiveSummary"),
+  z
+    .object({
+      kind: z.literal("managerSummary"),
+      periodDays: z.union([z.literal(7), z.literal(14), z.literal(28)]).optional(),
+    })
+    .strict(),
+  emptyView("investorSummary"),
+  emptyView("projectList"),
+  z
+    .object({
+      kind: z.literal("timeseries"),
+      period: z.enum(["week", "month", "quarter", "half", "year"]),
+    })
+    .strict(),
+  emptyView("agentActivity"),
+  z
+    .object({
+      kind: z.literal("projectBoard"),
+      projectId: z.string().regex(canonicalProjectId, "canonical PJ-<at least 3 digits> projectId is required"),
+    })
+    .strict(),
+]);
+
+export type ViewSpec = z.infer<typeof viewSpecSchema>;
 export type ManagerSummaryPeriodDays = 7 | 14 | 28;
 
-export type ViewSpec =
-  | { kind: "executiveSummary" }
-  | { kind: "investorSummary" }
-  | { kind: "managerSummary"; periodDays?: ManagerSummaryPeriodDays }
-  | { kind: "timeseries"; period?: PeriodKind }
-  | { kind: "projectList" }
-  | { kind: "agentActivity" };
+export function parseViewSpec(value: unknown): ViewSpec {
+  return viewSpecSchema.parse(value);
+}
+
+export function safeParseViewSpec(value: unknown): ReturnType<typeof viewSpecSchema.safeParse> {
+  return viewSpecSchema.safeParse(value);
+}
