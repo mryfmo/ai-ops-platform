@@ -27,6 +27,10 @@
 
 ## Source Documents and Research
 
+- [PrjOps searchable source mirror](spec/prjops/)
+- [DevOps searchable source mirror](spec/devops/)
 - [Best Practices Research](best-practices-research.md)
 - [Research Notes](research/)
 - [Teams App Docs](teams-app/README.md)
+
+`PrjOps.zip` / `DevOps.zip` が改変しない正本で、上記2ディレクトリは検索・レビュー用の派生ミラーです。ミラーの直接編集は禁止します。更新時は先にZIP正本を置き換えてからミラーを再展開し、`pnpm run governance:check` で許可済みの14ファイル名、パス、内容ハッシュの1対1一致を確認します。不足、過剰、改名、大文字・小文字やUnicode正規化の衝突、非通常ファイル、危険なパス、内容の不一致があればCIは失敗します。ZIPと展開サイズにも上限を設け、検証処理自体のメモリ枯渇を防ぎます。

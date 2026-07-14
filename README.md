@@ -3,8 +3,9 @@
 統合14エージェント（PrjOps 7体 + DevOps 7体）による、プロジェクト運営（進捗・報告・ポートフォリオ）と
 開発・運用（CI/CD・リリース・インシデント・権限）の自動化基盤。
 
-- 元資料: `PrjOps.zip`（DOC-00〜07）、`DevOps.zip`（DOC-ANL-01〜OPS-06）、
-  提案書 `AI_PrjOps-DevOps_守屋案_20260703_vol003.pptx`
+- 元資料の正本: `docs/PrjOps.zip`（DOC-00〜07）/ `docs/DevOps.zip`（DOC-ANL-01〜OPS-06）。
+  検索・レビュー用の派生ミラーは [`docs/spec/prjops/`](./docs/spec/prjops/) /
+  [`docs/spec/devops/`](./docs/spec/devops/)
 - 対象規模: プロジェクト約50件（設計上限100件）、関連企業国内外数十社（設計上限100社）
 - 前提ツール: Claude Code / GitHub / Microsoft Teams / Outlook（PRE-01）
 

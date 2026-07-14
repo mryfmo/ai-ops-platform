@@ -6,3 +6,5 @@ coverage
 pnpm-lock.yaml
 *.tsbuildinfo
 packages/web/next-env.d.ts
+docs/spec/prjops/
+docs/spec/devops/

@@ -166,7 +166,7 @@
         "正本データからの受信者別生成とAGT-07検証・配信の本番結線",
         "月曜08:00 JST境界とN受信者N成果物の統合検証"
       ],
-      "basis": ["docs/PrjOps.zip", "docs/audit/09-remediation-plan.md"],
+      "basis": ["docs/spec/prjops/03_PRD.md", "docs/audit/09-remediation-plan.md"],
       "owner": "T-P0-11"
     },
     {
@@ -177,7 +177,7 @@
         "正本取得・受信者解決・全profile・永続化を含む本番同等経路の測定",
         "代表環境のcommit SHA・開始終了時刻・失敗0件の証跡"
       ],
-      "basis": ["docs/PrjOps.zip", "docs/audit/09-remediation-plan.md"],
+      "basis": ["docs/spec/prjops/03_PRD.md", "docs/audit/09-remediation-plan.md"],
       "owner": "P010-F06-T17"
     },
     {
@@ -194,7 +194,7 @@
         "PostgreSQL/LTR archiveのretention・権限・restore証跡"
       ],
       "basis": [
-        "docs/PrjOps.zip",
+        "docs/spec/prjops/05_内部仕様書.md",
         "docs/adr/0001-monorepo.md",
         "docs/adr/0014-integration-delivery.md",
         "docs/spec/productization-decisions.md"

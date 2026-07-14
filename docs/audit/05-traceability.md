@@ -23,16 +23,16 @@ packages/traceability（verifyTraceability.ts、spec-ids/\*.json）、docs/spec/
 
 ## 4. 個別指摘
 
-### AUD-TRC-001: 旧仕様 ID の正本定義がリポジトリ外にあり参照不能
+### AUD-TRC-001: 旧仕様 ID の正本定義がリポジトリ外にあり参照不能（原本配置は解消済み）
 
 | Severity | 工数 | 関連仕様                           | 関連指摘    |
 | -------- | ---- | ---------------------------------- | ----------- |
 | High     | M    | トレーサビリティ規律そのものの前提 | AUD-VER-006 |
 
-**現状**: REQ-001..035・TH-001..007・旧 AC・多くの SPEC-INT は、リポジトリ内では `spec-ids/{prjops,devops}.json` に**文字列として列挙されるだけ**で定義文がない。正本は authoring 時のアップロード文書（リポジトリ外、DOC-00..07 等）にあり、現環境から参照できない。実例: 本監査で違反を指摘した SPEC-INT-080 の定義文は `docs/spec/spec-id-catalog.md` に存在せず、graphClient.ts のコメント引用（「初期 30 秒、最大 15 分」）が事実上の正本になっている。
+**現状**: 監査時点では正本を参照できなかった。2026-07-14 に原本ZIPを `docs/PrjOps.zip` / `docs/DevOps.zip`、検索可能な展開物を `docs/spec/prjops/` / `docs/spec/devops/` に配置して、原本文書の参照不能は解消した。一方、REQ-001..035・TH-001..007・旧 AC・多くの SPEC-INT は `docs/spec/spec-id-catalog.md` に定義文が移植されておらず、カタログ単体で完結しない問題は残る。
 **根拠**: `packages/traceability/spec-ids/devops.json:84`、`docs/spec/spec-id-catalog.md`（SPEC-INT-080 なし、grep 確認済み）、`packages/shared/src/clients/graphClient.ts:13`
 **あるべき姿**: 全 ID の定義文がリポジトリ内（spec-id-catalog.md）で読める。コード中のコメント引用が唯一の定義であってはならない（引用が改変されても検出できない）。
-**ギャップ**: 実装が仕様に合っているかを、当のリポジトリだけでは原理的に検証できない。新規 ID（REQ-036+ 等）はカタログ化されており、二重基準になっている。
+**ギャップ**: リポジトリ内の原本との照合は可能になったが、カタログと原本を横断する必要があり、新規 ID（REQ-036+ 等）との二重基準は残る。
 **推奨対応**: 原本文書から旧 ID の定義文を spec-id-catalog.md に移植（一回きりの写経作業）。以後は「カタログにない ID は traceability が fail する」ゲートを追加。
 
 ### AUD-TRC-002: 検証が substring 出現のみで意味的整合を担保しない
