@@ -64,8 +64,8 @@ function runReportingCli(
   );
 }
 
-describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082]", () => {
-  it("根拠IDヘッダと固定スロットを検証する [AC-040-1, AC-032a]", () => {
+describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / PrjOps:SPEC-INT-067 / DevOps:SPEC-INT-082]", () => {
+  it("根拠IDヘッダと固定スロットを検証する [PrjOps:AC-040-1, DevOps:AC-032a]", () => {
     const payload = buildStandardReportPayload(
       {
         evidenceIds: ["REQ-040", "SPEC-INT-067"],
@@ -325,7 +325,7 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(client.callCount).toBe(2);
   });
 
-  it("スロット文字数超過を検出し、切詰めできる [SPEC-INT-067]", () => {
+  it("スロット文字数超過を検出し、切詰めできる [PrjOps:SPEC-INT-067]", () => {
     const overLimit = {
       ...validSlots,
       conclusion: "あ".repeat(standardReportSlotMaxChars("conclusion") + 5),
@@ -341,7 +341,7 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(countChars(truncated.slots.conclusion)).toBeLessThanOrEqual(standardReportSlotMaxChars("conclusion"));
   });
 
-  it("metricsのNaN/Infinityを拒否する [SPEC-INT-067]", () => {
+  it("metricsのNaN/Infinityを拒否する [PrjOps:SPEC-INT-067]", () => {
     const payload = buildStandardReportPayload(
       {
         evidenceIds: ["REQ-040"],
@@ -430,7 +430,7 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(errors).toContain("slots.conclusion contains ungrounded numeric value 9,999");
   });
 
-  it("文字数と切詰めは書記素クラスタを割らない [SPEC-INT-067]", () => {
+  it("文字数と切詰めは書記素クラスタを割らない [PrjOps:SPEC-INT-067]", () => {
     expect(countChars("🇯🇵👨‍👩‍👧‍👦é")).toBe(3);
     const truncated = truncateReportSlots({
       ...validSlots,
@@ -440,7 +440,7 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     expect(truncated.slots.conclusion).not.toContain("\ud83c…");
   });
 
-  it("LLMラッパーは1回リトライ後も超過なら切詰めを監査ログへ記録する [SPEC-INT-067, SPEC-INT-082]", async () => {
+  it("LLMラッパーは1回リトライ後も超過なら切詰めを監査ログへ記録する [PrjOps:SPEC-INT-067, DevOps:SPEC-INT-082]", async () => {
     const tooLong = {
       ...validSlots,
       riskSummary: "リスク".repeat(100),
@@ -493,15 +493,15 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
     ]);
   });
 
-  it("parseReportSlotsは必須スロット欠落を拒否する [AC-040-1]", () => {
+  it("parseReportSlotsは必須スロット欠落を拒否する [PrjOps:AC-040-1]", () => {
     expect(() => parseReportSlots({ conclusion: "ok" })).toThrow(/E-RPT01/);
   });
 
-  it("AC-040-1: 根拠IDヘッダが空ならE-RPT03で拒否する", () => {
+  it("PrjOps:AC-040-1: 根拠IDヘッダが空ならE-RPT03で拒否する", () => {
     expect(() => renderEvidenceHeader([])).toThrow(/E-RPT03/);
   });
 
-  it("manager-weekly / investor-quarterly reportTypeを許可する [REQ-039, SPEC-INT-066]", () => {
+  it("manager-weekly / investor-quarterly reportTypeを許可する [PrjOps:REQ-039, PrjOps:SPEC-INT-066]", () => {
     for (const reportType of ["manager-weekly", "investor-quarterly"] as const) {
       const payload = buildStandardReportPayload(
         { evidenceIds: ["REQ-039"], periodLabel: "2026-Q3", metrics: { value: 1 }, reportType },

@@ -58,9 +58,9 @@ export class InMemoryAuditLog implements AuditLogWriter {
     const detailStr = JSON.stringify(record.detail);
     const { redactionCount } = sanitizeSecrets(detailStr);
     if (redactionCount > 0) {
-      // REQ-032/030: シークレットが混入していた場合は例外を出し、呼び出し側にサニタイズを強制する
+      // PrjOps:REQ-032 / DevOps:REQ-030: シークレットが混入していた場合は例外を出し、呼び出し側にサニタイズを強制する
       throw new Error(
-        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (REQ-032/DevOps:SPEC-INT-070).`,
+        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (PrjOps:REQ-032/DevOps:SPEC-INT-070).`,
       );
     }
     const full: AuditRecord = { ...record, log_id: this.records.length + 1 };
@@ -86,7 +86,7 @@ export class JsonlAuditLog implements AuditLogWriter {
     const { redactionCount } = sanitizeSecrets(detailStr);
     if (redactionCount > 0) {
       throw new Error(
-        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (REQ-032/DevOps:SPEC-INT-070).`,
+        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (PrjOps:REQ-032/DevOps:SPEC-INT-070).`,
       );
     }
     const existing = await this.readAllFn();

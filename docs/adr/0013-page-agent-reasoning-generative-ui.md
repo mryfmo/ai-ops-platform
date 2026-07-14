@@ -23,6 +23,30 @@
 8. **数値はコード算出、LLM は表示パラメータのみ**を維持する。tool execute は ViewSpec を返すだけで、集計値や機密データを LLM に返さない。
 9. **ページコンテキストはサニタイズして注入する**。クライアント申告 persona は信用せず、サーバ側で resolve した persona を正とする。
 
+### PrjOps:REQ-041
+
+PrjOpsダッシュボードのページエージェントは、推論とtool実行状態を表示し、認可済みのViewSpecだけを実ダッシュボード表示へ反映する。数値はコードで算出し、LLMに生成させない。
+
+### PrjOps:SPEC-INT-068
+
+PrjOpsページエージェントはAI SDK v5のtyped UI message parts、`sendReasoning: true`、`streamText`、`stopWhen: stepCountIs(N)`、`prepareStep`を使用し、tool出力をViewSpecに限定する。
+
+### PrjOps:AC-041-1
+
+PrjOpsページエージェントはreasoning・step・tool状態を表示し、成功したtool出力のViewSpecをページへ反映できることをテストで示す。
+
+### DevOps:REQ-041
+
+DevOpsダッシュボードのページエージェントは、推論とtool実行状態を表示し、認可済みのViewSpecだけを実ダッシュボード表示へ反映する。数値はコードで算出し、LLMに生成させない。
+
+### DevOps:SPEC-INT-068
+
+DevOpsページエージェントはAI SDK v5のtyped UI message parts、`sendReasoning: true`、`streamText`、`stopWhen: stepCountIs(N)`、`prepareStep`を使用し、tool出力をViewSpecに限定する。
+
+### DevOps:AC-041-1
+
+DevOpsページエージェントはreasoning・step・tool状態を表示し、成功したtool出力のViewSpecをページへ反映できることをテストで示す。
+
 ## 根拠
 
 - AI SDK v5 の UI message parts は `reasoning`、`step-start`、`tool-*` の state を持つため、既存チャット UI を少ない差分でページエージェントへ拡張できる。

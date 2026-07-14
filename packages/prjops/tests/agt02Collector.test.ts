@@ -94,7 +94,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", ()
     });
   });
 
-  it("REQ-032: accepted出力はknown自由文だけを再構築・sanitizeしextraを破棄する", async () => {
+  it("PrjOps:REQ-032: accepted出力はknown自由文だけを再構築・sanitizeしextraを破棄する", async () => {
     const secret = `ghp_${"a".repeat(24)}`;
     const raw = { ...complete, achievements: `完了 ${secret}`, extra: `漏洩 ${secret}` };
     const { deps } = harness(raw);
@@ -126,7 +126,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", ()
     });
   });
 
-  it("REQ-032: escalate出力もcompat secretをsanitizeしextraを破棄する", async () => {
+  it("PrjOps:REQ-032: escalate出力もcompat secretをsanitizeしextraを破棄する", async () => {
     const secret = `ｇｈｐ＿${"a".repeat(24)}`;
     const raw = { ...complete, progress_pct: null, risks: `懸念 ${secret}`, extra: secret };
     const { deps } = harness(raw);
@@ -142,7 +142,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", ()
     expect(outcome).not.toHaveProperty("lastPartial.extra");
   });
 
-  it("REQ-032 / PrjOps:SPEC-INT-030 E-ING01: secret形状の未知送信者を原値で照合し監査だけ無害化する", async () => {
+  it("PrjOps:REQ-032 / PrjOps:SPEC-INT-030 E-ING01: secret形状の未知送信者を原値で照合し監査だけ無害化する", async () => {
     const secret = `sk-ant-${"a".repeat(24)}`;
     const { deps, auditLog, lookupIdentifiers } = harness(complete, null);
 
@@ -153,7 +153,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", ()
     expect(JSON.stringify(await auditLog.readAll())).not.toContain(secret);
   });
 
-  it("REQ-032 / PrjOps:SPEC-INT-030 E-ING02: secret形状の既知送信者を原値で照合し監査だけ無害化する", async () => {
+  it("PrjOps:REQ-032 / PrjOps:SPEC-INT-030 E-ING02: secret形状の既知送信者を原値で照合し監査だけ無害化する", async () => {
     const secret = `ghp_${"a".repeat(24)}`;
     const { deps, auditLog, lookupIdentifiers } = harness(complete);
 
@@ -168,7 +168,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", ()
     expect(JSON.stringify(await auditLog.readAll())).not.toContain(secret);
   });
 
-  it("REQ-032 / PrjOps:SPEC-INT-030 E-ING01: compatibility secretを原値照合し、正規形も監査しない", async () => {
+  it("PrjOps:REQ-032 / PrjOps:SPEC-INT-030 E-ING01: compatibility secretを原値照合し、正規形も監査しない", async () => {
     const secret = `ｇｈｐ＿${"a".repeat(24)}`;
     const canonicalSecret = secret.normalize("NFKC");
     const { deps, auditLog, lookupIdentifiers } = harness(complete, null);
@@ -182,7 +182,7 @@ describe("AGT-02 ingestOne DI結線 [REQ-004, REQ-005, PrjOps:SPEC-INT-030]", ()
     expect(audit).not.toContain(canonicalSecret);
   });
 
-  it("REQ-004 / REQ-032: redaction後に衝突する識別子もexact-key stakeholder lookupで区別する", async () => {
+  it("REQ-004 / PrjOps:REQ-032: redaction後に衝突する識別子もexact-key stakeholder lookupで区別する", async () => {
     const known = `ghp_${"a".repeat(24)}`;
     const collision = `ghp_${"b".repeat(24)}`;
     const accepted = harness(complete, "ST-SECRET", known);

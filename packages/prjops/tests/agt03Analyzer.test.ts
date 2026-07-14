@@ -187,7 +187,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, PrjOps:SPEC-INT-001]", () => {
     }
   });
 
-  it("REQ-032 / PrjOps:SPEC-INT-001: secret形状の影響記述とLLM出力を送信・返却・監査しない", async () => {
+  it("PrjOps:REQ-032 / PrjOps:SPEC-INT-001: secret形状の影響記述とLLM出力を送信・返却・監査しない", async () => {
     const inputSecret = `sk-ant-${"a".repeat(24)}`;
     const outputSecret = `ghp_${"b".repeat(24)}`;
     const dependencies = deps(`安全な理由です。${outputSecret}`, `Safe reason. ${outputSecret}`);
@@ -204,7 +204,7 @@ describe("AGT-03 DI結線 [REQ-007, REQ-008, PrjOps:SPEC-INT-001]", () => {
     expect(JSON.stringify(await dependencies.auditLog.readAll())).not.toContain(inputSecret);
   });
 
-  it("REQ-032 / PrjOps:SPEC-INT-001: compatibility secretの正規形も送信・返却・監査せず監査を完了する", async () => {
+  it("PrjOps:REQ-032 / PrjOps:SPEC-INT-001: compatibility secretの正規形も送信・返却・監査せず監査を完了する", async () => {
     const inputSecret = `ｓｋ－ａｎｔ－${"a".repeat(24)}`;
     const outputSecret = `ｇｈｐ＿${"b".repeat(24)}`;
     const dependencies = deps(`安全な理由です。${outputSecret}`, `Safe reason. ${outputSecret}`);

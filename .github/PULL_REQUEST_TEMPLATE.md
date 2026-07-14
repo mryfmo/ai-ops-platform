@@ -4,15 +4,15 @@
 
 ## 根拠となる仕様ID
 
-<!-- 該当するものをすべて列挙: REQ-xxx / SPEC-INT-xxx / SPEC-EXT-xxx / TH-xxx / AC-xxx / ADR-xxxx -->
+<!-- 該当するものを system 名前空間付きですべて列挙: PrjOps:REQ-xxx / DevOps:SPEC-INT-xxx / ADR-xxxx -->
 
 -
 
 ## チェックリスト
 
 - [ ] 新規/変更ファイルの先頭に根拠IDヘッダを記載した
-- [ ] 対応するテストを追加・更新した（describe/itタイトルに仕様IDを含む）
-- [ ] `mise run ci` がローカルでgreen（typecheck / build / test:coverage / traceability）
+- [ ] 根拠IDの要求内容を満たすことをテストで示した（describe/itタイトルにsystem名前空間付き仕様IDを含む）
+- [ ] `mise run ci` がローカルでgreen（governance / lint / traceability / format / build / typecheck / test:coverage）
 - [ ] 秘密情報（APIキー・トークン・接続文字列）が差分に含まれていない
 - [ ] 決定的ロジックは `src/lib/`（純粋関数）に配置し、agents/HTTPハンドラに埋め込んでいない
 - [ ] 外部作用（GitHub操作・メール送信・権限変更）には監査ログ記録がある

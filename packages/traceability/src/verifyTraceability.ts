@@ -9,6 +9,8 @@
  *     少なくとも1回参照されているかを確認する。
  *   - DOC-05 §11 実装完了の定義「本表の全SPEC-INTについて、対応するREQのACを検証するテストが存在し
  *     合格していること」に対応する機械チェックとして機能する。
+ *   - docs/spec/spec-id-catalog.md と spec-ids/*.json の全IDを照合し、定義・正本リンクの構造的完全性を
+ *     検証する。これは定義文の意味的正しさや要件充足を保証するものではない。
  *
  * 制約: 本スクリプトは「参照されているか（文字列一致）」のみを確認する構文的チェックであり、
  *   実装の意味的正しさまでは保証しない（意味的正しさはテストの合否で担保する。README参照）。
@@ -17,7 +19,7 @@
  *   実装コードへの直接参照を必須としない（警告のみ）。
  */
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { format as formatMarkdown } from "prettier";
 
@@ -84,6 +86,19 @@ interface ParsedReferences {
 
 const SPEC_ID_PATTERN =
   "(?:REQ|SPEC-(?:EXT|INT)|TH)-\\d{3}|AC-\\d{3}(?:-\\d+|[a-z])?|ISS-\\d{2,3}|TOBE-\\d{2}|ASM-\\d{3}";
+const SPEC_CATEGORIES = ["REQ", "SPEC-EXT", "SPEC-INT", "TH", "ISS", "TOBE", "ASM", "AC"] as const;
+type SpecCategory = (typeof SPEC_CATEGORIES)[number];
+
+const ID_PATTERN_BY_CATEGORY: Record<SpecCategory, RegExp> = {
+  REQ: /^REQ-\d{3}$/,
+  "SPEC-EXT": /^SPEC-EXT-\d{3}$/,
+  "SPEC-INT": /^SPEC-INT-\d{3}$/,
+  TH: /^TH-\d{3}$/,
+  ISS: /^ISS-\d{2,3}$/,
+  TOBE: /^TOBE-\d{2}$/,
+  ASM: /^ASM-\d{3}$/,
+  AC: /^AC-\d{3}(?:-\d+|[a-z])?$/,
+};
 
 function indexedIds(index: SpecIndex): Set<string> {
   return new Set(
@@ -94,6 +109,38 @@ function indexedIds(index: SpecIndex): Set<string> {
       )
       .flatMap(([, ids]) => ids),
   );
+}
+
+function specIndexFailures(indexes: SpecIndex[]): string[] {
+  const failures = new Set<string>();
+  const seenSystems = new Set<string>();
+  for (const index of indexes) {
+    if (!(["PrjOps", "DevOps"] as const).includes(index.system as "PrjOps" | "DevOps")) {
+      failures.add(`invalid spec index system: ${index.system}`);
+    }
+    if (seenSystems.has(index.system)) failures.add(`duplicate spec index system: ${index.system}`);
+    seenSystems.add(index.system);
+
+    const seenIds = new Map<string, string>();
+    for (const [key, value] of Object.entries(index)) {
+      if (key === "system" || key === "dispositions") continue;
+      if (!SPEC_CATEGORIES.includes(key as SpecCategory) || !Array.isArray(value)) {
+        failures.add(`invalid spec index category: ${index.system}:${key}`);
+        continue;
+      }
+      const category = key as SpecCategory;
+      for (const id of value) {
+        if (typeof id !== "string" || !ID_PATTERN_BY_CATEGORY[category].test(id)) {
+          failures.add(`spec index category mismatch: ${index.system}:${String(id)} under ${category}`);
+          continue;
+        }
+        const previous = seenIds.get(id);
+        if (previous) failures.add(`duplicate spec index ID: ${index.system}:${id} under ${previous}/${category}`);
+        else seenIds.set(id, category);
+      }
+    }
+  }
+  return [...failures].sort();
 }
 
 function parseReferences(
@@ -198,6 +245,7 @@ export function collectFailureMessages(
   adrFailures: string[],
   referenceFailures: string[] = [],
   dispositionFailures: string[] = [],
+  catalogFailures: string[] = [],
 ): string[] {
   const mandatory = results.filter((result) => ["REQ", "SPEC-INT", "TH"].includes(result.category));
   return [
@@ -206,7 +254,217 @@ export function collectFailureMessages(
     ...adrFailures.map((id) => `ADR reference missing file: ${id}`),
     ...referenceFailures,
     ...dispositionFailures,
+    ...catalogFailures,
   ];
+}
+
+function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
+  const catalogFile = join(repoRoot, "docs", "spec", "spec-id-catalog.md");
+  let text: string;
+  try {
+    text = readFileSync(catalogFile, "utf8");
+  } catch {
+    return ["spec ID catalog missing: docs/spec/spec-id-catalog.md"];
+  }
+
+  const failures = new Set<string>();
+  const expectedBySystem = new Map(indexes.map((index) => [index.system, indexedIds(index)]));
+  const seen = new Map<string, number>();
+  const sectionPattern = /^## (PrjOps|DevOps)\s*$/gm;
+  const sections = [...text.matchAll(sectionPattern)];
+  const canonicalPattern = new RegExp(`^(PrjOps|DevOps):(${SPEC_ID_PATTERN})$`);
+  const resolvedRepoRoot = resolve(repoRoot);
+  const expectedMirrorSource: Record<string, Partial<Record<SpecCategory, string>>> = {
+    PrjOps: {
+      REQ: "prjops/03_PRD.md",
+      "SPEC-EXT": "prjops/04_外部仕様書.md",
+      "SPEC-INT": "prjops/05_内部仕様書.md",
+      ISS: "prjops/01_現状分析_AS-IS.md",
+      TOBE: "prjops/02_将来プロセス設計_TO-BE.md",
+      ASM: "prjops/00_README_文書体系と共通定義.md",
+      AC: "prjops/03_PRD.md",
+    },
+    DevOps: {
+      REQ: "devops/02_PRD.md",
+      "SPEC-EXT": "devops/03_外部仕様書.md",
+      "SPEC-INT": "devops/04_内部仕様書.md",
+      TH: "devops/01_現状分析と再設計.md",
+      ISS: "devops/01_現状分析と再設計.md",
+      AC: "devops/02_PRD.md",
+    },
+  };
+
+  const categoryForId = (id: string): string => {
+    if (id.startsWith("SPEC-EXT-")) return "SPEC-EXT";
+    if (id.startsWith("SPEC-INT-")) return "SPEC-INT";
+    return id.split("-")[0]!;
+  };
+
+  const fragmentSpan = (file: string, fragment: string): string | undefined => {
+    const sourceText = readFileSync(file, "utf8");
+    const sourceLines = sourceText.split("\n");
+    const lineFragment = /^L(\d+)(?:-L(\d+))?$/.exec(fragment);
+    if (lineFragment) {
+      const start = Number(lineFragment[1]);
+      const end = Number(lineFragment[2] ?? lineFragment[1]);
+      if (start < 1 || end < start || end > sourceLines.length) return undefined;
+      return sourceLines.slice(start - 1, end).join("\n");
+    }
+    const heading = sourceLines.find(
+      (line) =>
+        /^#{1,6}\s/.test(line) &&
+        line
+          .replace(/^#{1,6}\s+/, "")
+          .replace(/[`*_]/g, "")
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}\s-]/gu, "")
+          .trim()
+          .replace(/\s+/g, "-") === fragment.toLowerCase(),
+    );
+    return heading;
+  };
+
+  const spanDefinesId = (span: string, system: string, id: string): boolean => {
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![A-Za-z0-9_-])(?:${system}:)?${escaped}(?![A-Za-z0-9_-])`).test(span);
+  };
+
+  const spanStartsDefinition = (span: string, id: string): boolean => {
+    const firstLine =
+      span
+        .split("\n")
+        .find((line) => line.trim())
+        ?.trim() ?? "";
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const boundary = "(?=\\s|[|:：(（]|$)";
+    const ids = [...firstLine.matchAll(new RegExp(`(?<![A-Za-z0-9_-])(${SPEC_ID_PATTERN})(?![A-Za-z0-9_-])`, "g"))].map(
+      (match) => match[1]!,
+    );
+    const isSoleId = ids.length === 1 && ids[0] === id;
+    if (/^#{1,6}\s+/.test(firstLine)) return ids[0] === id;
+    if (new RegExp(`^[-*]\\s+(?:\\*\\*)?${escaped}(?:\\*\\*)?${boundary}`).test(firstLine)) return true;
+
+    const boldTitle = /^\*\*([^*]+)\*\*/.exec(firstLine)?.[1] ?? /共通仕様\s+\*\*([^*]+)\*\*/.exec(firstLine)?.[1];
+    if (boldTitle && spanDefinesId(boldTitle, "", id)) return true;
+
+    if (firstLine.startsWith("|")) {
+      if (isSoleId) return true;
+      return firstLine
+        .slice(1, firstLine.endsWith("|") ? -1 : undefined)
+        .split("|")
+        .some((cell) => new RegExp(`^(?:\\*\\*)?${escaped}(?:\\*\\*)?${boundary}`).test(cell.trim()));
+    }
+    return false;
+  };
+
+  for (const system of ["PrjOps", "DevOps"]) {
+    const count = sections.filter((section) => section[1] === system).length;
+    if (count !== 1) failures.add(`catalog system section count: ${system}=${count}`);
+  }
+
+  for (const [position, section] of sections.entries()) {
+    const sectionSystem = section[1]!;
+    const start = section.index! + section[0].length;
+    const end = sections[position + 1]?.index ?? text.length;
+    let category = "";
+    for (const line of text.slice(start, end).split("\n")) {
+      if (line.startsWith("### ")) {
+        const categoryHeading = /^### (REQ|SPEC-EXT|SPEC-INT|TH|ISS|TOBE|ASM|AC)\s*$/.exec(line);
+        category = categoryHeading?.[1] ?? "";
+        continue;
+      }
+      if (!line.startsWith("|")) continue;
+      const cells = line
+        .slice(1, line.endsWith("|") ? -1 : undefined)
+        .split("|")
+        .map((cell) => cell.trim());
+      const token = cells[0]?.replace(/^`|`$/g, "") ?? "";
+      if (token === "ID" || /^-+$/.test(token)) continue;
+      if (!token.match(/(?:REQ|SPEC-|TH-|AC-|ISS-|TOBE-|ASM-)/)) continue;
+      if (cells.length !== 4) {
+        failures.add(`malformed catalog row: ${token}`);
+        continue;
+      }
+
+      const canonical = canonicalPattern.exec(token);
+      if (!canonical) {
+        failures.add(`malformed catalog ID: ${token}`);
+        continue;
+      }
+      const [, rowSystem, id] = canonical;
+      seen.set(token, (seen.get(token) ?? 0) + 1);
+      if (rowSystem !== sectionSystem) {
+        failures.add(`wrong catalog system: ${token} under ${sectionSystem}`);
+      }
+      if (!expectedBySystem.get(rowSystem!)?.has(id!)) {
+        failures.add(`unknown catalog ID: ${token}`);
+      }
+      if (category !== categoryForId(id!)) {
+        failures.add(`catalog category mismatch: ${token} under ${category || "unclassified"}`);
+      }
+
+      const definition = cells[1] ?? "";
+      if (!definition || /^(?:—|-|TBD|TODO)$/i.test(definition)) {
+        failures.add(`catalog definition missing: ${token}`);
+      } else if (!/[\p{L}\p{N}]/u.test(definition.replace(/\[[^\]]*\]\([^)]+\)/g, ""))) {
+        failures.add(`catalog definition is only a link: ${token}`);
+      }
+      const source = cells[2] ?? "";
+      const localLinks = [...source.matchAll(/\]\(([^)]+)\)/g)]
+        .map((match) => match[1]!)
+        .filter((target) => !/^[a-z]+:/i.test(target));
+      if (localLinks.length === 0) failures.add(`catalog source missing: ${token}`);
+      for (const target of localLinks) {
+        const [path, fragment] = target.split("#", 2);
+        const resolved = resolve(dirname(catalogFile), path!);
+        if (resolved !== resolvedRepoRoot && !resolved.startsWith(`${resolvedRepoRoot}${sep}`)) {
+          failures.add(`catalog source outside repository: ${token}`);
+          continue;
+        }
+        if (!statSyncSafe(resolved)) {
+          failures.add(`catalog source missing: ${token}`);
+          continue;
+        }
+        const normalizedSourcePath = relative(dirname(catalogFile), resolved).split(sep).join("/");
+        const mirrorPath = /^(prjops|devops)\/.+\.md$/.test(normalizedSourcePath) ? normalizedSourcePath : undefined;
+        if (mirrorPath) {
+          const expectedPath = expectedMirrorSource[rowSystem!]![categoryForId(id!) as SpecCategory];
+          if (mirrorPath !== expectedPath) {
+            failures.add(`catalog source document mismatch: ${token}`);
+            continue;
+          }
+          if (!fragment) {
+            failures.add(`catalog source fragment missing: ${token}`);
+            continue;
+          }
+        }
+        if (fragment) {
+          const span = fragmentSpan(resolved, fragment);
+          if (!span) {
+            failures.add(`catalog source fragment missing: ${token}`);
+            continue;
+          }
+          const explicitIdAnchor = /^(?:prjops|devops)(?:req|spec-|ac)/.test(fragment.toLowerCase());
+          if (mirrorPath && !spanStartsDefinition(span, id!)) {
+            failures.add(`catalog source does not define: ${token}`);
+          } else if (explicitIdAnchor && !spanDefinesId(span, rowSystem!, id!)) {
+            failures.add(`catalog source does not define: ${token}`);
+          }
+        }
+      }
+    }
+  }
+
+  for (const [canonical, count] of seen) {
+    if (count > 1) failures.add(`duplicate catalog ID: ${canonical}`);
+  }
+  for (const index of indexes) {
+    for (const id of indexedIds(index)) {
+      const canonical = `${index.system}:${id}`;
+      if (!seen.has(canonical)) failures.add(`catalog ID missing: ${canonical}`);
+    }
+  }
+  return [...failures].sort();
 }
 
 function dispositionFailures(repoRoot: string, index: SpecIndex): string[] {
@@ -423,6 +681,8 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     collidingIds,
     new Set([join(traceabilityDir, "tests", "verifyTraceability.test.ts")]),
   );
+  const indexGuardFailures = specIndexFailures([prjopsIndex, devopsIndex]);
+  const catalogGuardFailures = catalogFailures(repoRoot, [prjopsIndex, devopsIndex]);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsIndex.system, prjopsReferences, collidingIds),
@@ -465,9 +725,11 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
       `- 根拠ヘッダ不足: ${basisHeaderFailures(repoRoot).join(", ") || "—"}`,
       `- 存在しないADR参照: ${adrReferenceFailures(repoRoot).join(", ") || "—"}`,
       `- 名前空間参照不正: ${namespaceFailures.join(", ") || "—"}`,
+      `- 仕様IDインデックス不正: ${indexGuardFailures.join(", ") || "—"}`,
       `- disposition不正: ${
         [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)].join(", ") || "—"
       }`,
+      `- 仕様IDカタログ不正: ${catalogGuardFailures.join(", ") || "—"}`,
       "",
     ].join("\n"),
     { parser: "markdown" },
@@ -485,6 +747,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     adrReferenceFailures(repoRoot),
     namespaceFailures,
     [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],
+    [...indexGuardFailures, ...catalogGuardFailures],
   );
   const errorMessage =
     failures.length > 0 ? `E-TRACE01: トレーサビリティ検証に失敗しました: ${failures.join(", ")}` : undefined;
@@ -495,7 +758,10 @@ export async function runTraceabilityCli(options: TraceabilityCliOptions = {}): 
   const result = await runTraceability(options);
   (options.stdout ?? console.log)(result.report);
   if (result.errorMessage) (options.stderr ?? console.error)(`\n${result.errorMessage}`);
-  else (options.stdout ?? console.log)("\nOK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。");
+  else
+    (options.stdout ?? console.log)(
+      "\nOK: 仕様IDカタログが完全で、全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。",
+    );
   return result.exitCode;
 }
 

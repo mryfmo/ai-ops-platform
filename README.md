@@ -63,6 +63,10 @@ mise run traceability        # 仕様トレーサビリティ検証
 mise run ci                  # 上記をCIと同順序で一括実行
 ```
 
+`mise run traceability` は [`docs/spec/spec-id-catalog.md`](./docs/spec/spec-id-catalog.md) の完全性と、
+仕様IDが source/test に参照されていることを構文的に検証する。この合格は要件どおりの振る舞いや
+受け入れ基準の充足を証明しないため、各要件のテスト結果と実環境証跡を別途確認すること。
+
 ### コミット前の秘密情報スキャン
 
 CI と同じ [gitleaks 8.30.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1) をインストールし、
