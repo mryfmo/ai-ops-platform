@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { sanitizeSecrets, isFreeOfKnownSecrets } from "../src/secretSanitizer.js";
 
-describe("sanitizeSecrets [REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => {
+describe("sanitizeSecrets [PrjOps:REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => {
   it("GitHub personal access token を検出・マスキングする", () => {
     const input = "token: ghp_1234567890abcdefghijklmnopqrstuvwx を使ってください";
     const { sanitized, redactionCount, matchedPatterns } = sanitizeSecrets(input);
@@ -49,7 +49,7 @@ describe("sanitizeSecrets [REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => 
     expect(isFreeOfKnownSecrets("key=" + "ghp_" + "a".repeat(36))).toBe(false);
   });
 
-  it("REQ-032: compatibility文字をNFKC正規化してからsecretを除去する", () => {
+  it("PrjOps:REQ-032: compatibility文字をNFKC正規化してからsecretを除去する", () => {
     const secret = `ｇｈｐ＿${"a".repeat(24)}`;
     const canonicalSecret = secret.normalize("NFKC");
 
@@ -62,14 +62,14 @@ describe("sanitizeSecrets [REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => 
     expect(isFreeOfKnownSecrets(secret)).toBe(false);
   });
 
-  it("REQ-032: compatibility secretだけを除去し、周囲の原文は正規化せず保持する", () => {
+  it("PrjOps:REQ-032: compatibility secretだけを除去し、周囲の原文は正規化せず保持する", () => {
     const secret = `ｇｈｐ＿${"a".repeat(24)}`;
     const input = `ﬃ/安全①:${secret}:プロジェクトＡ`;
 
     expect(sanitizeSecrets(input).sanitized).toBe("ﬃ/安全①:***REDACTED:github_pat***:プロジェクトＡ");
   });
 
-  it("REQ-032: GitHub App tokenをgithub_patより先に固有分類する", () => {
+  it("PrjOps:REQ-032: GitHub App tokenをgithub_patより先に固有分類する", () => {
     const secret = `ghs_${"a".repeat(24)}`;
     const result = sanitizeSecrets(secret);
 
@@ -77,7 +77,7 @@ describe("sanitizeSecrets [REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => 
     expect(result.matchedPatterns).toEqual(["github_app_token"]);
   });
 
-  it("REQ-032: combining・surrogate・expanded glyphの周囲を保ったまま複数secretを除去する", () => {
+  it("PrjOps:REQ-032: combining・surrogate・expanded glyphの周囲を保ったまま複数secretを除去する", () => {
     const compatSecret = `ｇｈｐ＿${"a".repeat(24)}`;
     const appSecret = `ghs_${"b".repeat(24)}`;
     const input = `😀e\u0301ﬃ/${compatSecret}/安全①/${appSecret}/𠮷`;
@@ -90,7 +90,7 @@ describe("sanitizeSecrets [REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]", () => 
     });
   });
 
-  it("REQ-032: 多数のcompatibility secretを実用的な短時間で線形処理する", () => {
+  it("PrjOps:REQ-032: 多数のcompatibility secretを実用的な短時間で線形処理する", () => {
     const secret = `ｇｈｐ＿${"a".repeat(24)}`;
     const input = `😀e\u0301ﬃ|${Array.from({ length: 200 }, () => secret).join("|安全①|")}|プロジェクトＡ`;
     const result = sanitizeSecrets(input);

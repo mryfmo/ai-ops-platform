@@ -21,6 +21,14 @@
 - RAG表示は色だけに依存せず、ラベル、形状、パターンなど第2チャネルを併用する。
 - KPI、表、チャートの数値はtabular figuresを使い、桁の揃いを優先する。
 
+### PrjOps:SPEC-INT-064
+
+WebのチャートはRecharts 3のclient componentとして実装する。RAGは色に加えてラベル・形状・パターンの第2チャネルを持ち、KPI・表・チャートの数値にはtabular figuresを使用する。
+
+### PrjOps:AC-010-3
+
+Rechartsを使用する画面は、チャートと同じ数値を読める表またはKPIとして表示し、RAGを色以外でも識別でき、サーバーコンポーネントからRechartsを直接描画しないことをテストで示す。
+
 ## 根拠
 
 - Recharts 3は、React 19/Next 15前提で現実的に採用できる候補の中で、アクセシビリティ、メンテナンス状況、Tailwind v4との整合のバランスが最も良い。

@@ -15,12 +15,32 @@ const missingAdr = (number: number): string => `ADR-${number}`;
 
 interface FixtureOptions {
   prjopsReqs?: string[];
+  prjopsSpecInts?: string[];
   devopsReqs?: string[];
+  prjopsSystem?: string;
+  devopsSystem?: string;
+  catalogText?: string;
   sourceText?: string;
   traceabilitySourceText?: string;
   traceabilityTestText?: string;
   traceabilityOtherTestText?: string;
   prjopsDispositions?: unknown[];
+}
+
+function fixtureCatalog(prjopsReqs: string[], devopsReqs: string[]): string {
+  const section = (system: string, ids: string[]) =>
+    [
+      `## ${system}`,
+      "",
+      "### REQ",
+      "",
+      "| ID | Definition | Canonical source | Representative implementation/tests |",
+      "| --- | --- | --- | --- |",
+      ...ids.map(
+        (id) => `| \`${system}:${id}\` | Fixture definition for ${id}. | [ADR-0004](../adr/0004-toolchain.md) | — |`,
+      ),
+    ].join("\n");
+  return ["# Spec ID Catalog", "", section("PrjOps", prjopsReqs), "", section("DevOps", devopsReqs), ""].join("\n");
 }
 
 function fixture(options: FixtureOptions | string[] = {}): string {
@@ -38,20 +58,22 @@ function fixture(options: FixtureOptions | string[] = {}): string {
     "packages/server/src",
     "packages/web/src",
     "docs/adr",
+    "docs/spec",
   ]) {
     mkdirSync(join(root, dir), { recursive: true });
   }
   writeFileSync(
     join(root, "packages/traceability/spec-ids/prjops.json"),
     JSON.stringify({
-      system: "PrjOps",
+      system: normalized.prjopsSystem ?? "PrjOps",
       REQ: normalized.prjopsReqs ?? [],
+      "SPEC-INT": normalized.prjopsSpecInts ?? [],
       dispositions: normalized.prjopsDispositions,
     }),
   );
   writeFileSync(
     join(root, "packages/traceability/spec-ids/devops.json"),
-    JSON.stringify({ system: "DevOps", REQ: normalized.devopsReqs ?? [] }),
+    JSON.stringify({ system: normalized.devopsSystem ?? "DevOps", REQ: normalized.devopsReqs ?? [] }),
   );
   if (normalized.sourceText !== undefined) {
     writeFileSync(join(root, "packages/shared/src/references.ts"), normalized.sourceText);
@@ -69,6 +91,10 @@ function fixture(options: FixtureOptions | string[] = {}): string {
     writeFileSync(join(root, "packages/traceability/tests/other.test.ts"), normalized.traceabilityOtherTestText);
   }
   writeFileSync(join(root, "docs/adr/0004-toolchain.md"), "# ADR-0004\n");
+  writeFileSync(
+    join(root, "docs/spec/spec-id-catalog.md"),
+    normalized.catalogText ?? fixtureCatalog(normalized.prjopsReqs ?? [], normalized.devopsReqs ?? []),
+  );
   return root;
 }
 
@@ -115,6 +141,299 @@ describe("traceability CLI negative paths [ADR-0004 / AUD-VER-007]", () => {
     const result = await runFailure(root);
     expect(result.stderr).not.toContain(ignoredId);
     expect(result.stderr).toContain(detectedId);
+  });
+});
+
+describe("spec ID index guard [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("rejects a duplicate ID in an index category [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001", "REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("duplicate spec index ID: PrjOps:REQ-001 under REQ/REQ");
+  });
+
+  it("rejects an ID stored under a mismatched index category [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsSpecInts: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("spec index category mismatch: PrjOps:REQ-001 under SPEC-INT");
+  });
+
+  it("rejects duplicate system names across index files [DevOps:AC-033a]", async () => {
+    const result = await runFailure(fixture({ devopsSystem: "PrjOps" }));
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("duplicate spec index system: PrjOps");
+  });
+
+  it("rejects an unknown index system [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(fixture({ prjopsSystem: "Other" }));
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("invalid spec index system: Other");
+  });
+});
+
+describe("spec ID catalog guard [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("rejects an indexed ID missing from the catalog [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog([], []),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog ID missing: PrjOps:REQ-001");
+  });
+
+  it("rejects a duplicate catalog row [PrjOps:AC-043-1]", async () => {
+    const row = "| `PrjOps:REQ-001` | Fixture definition for REQ-001. | [ADR-0004](../adr/0004-toolchain.md) | — |";
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []).replace(row, `${row}\n${row}`),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("duplicate catalog ID: PrjOps:REQ-001");
+  });
+
+  it("rejects an ID cataloged under the wrong system [PrjOps:AC-043-1 / DevOps:AC-033a]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog([], ["REQ-001"]).replace("DevOps:REQ-001", "PrjOps:REQ-001"),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("wrong catalog system: PrjOps:REQ-001 under DevOps");
+  });
+
+  it("rejects a catalog row absent from the system index [DevOps:AC-033a]", async () => {
+    const result = await runFailure(
+      fixture({
+        devopsReqs: ["REQ-002"],
+        sourceText: "/** 根拠: DevOps:REQ-002 */\nexport {};\n",
+        catalogText: fixtureCatalog([], ["REQ-002", "REQ-999"]),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("unknown catalog ID: DevOps:REQ-999");
+  });
+
+  it("rejects an empty definition and a missing canonical source [DevOps:AC-033a]", async () => {
+    const result = await runFailure(
+      fixture({
+        devopsReqs: ["REQ-002"],
+        sourceText: "/** 根拠: DevOps:REQ-002 */\nexport {};\n",
+        catalogText: fixtureCatalog([], ["REQ-002"]).replace(
+          "| `DevOps:REQ-002` | Fixture definition for REQ-002. | [ADR-0004](../adr/0004-toolchain.md) | — |",
+          "| `DevOps:REQ-002` | — | [Missing](missing.md) | — |",
+        ),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog definition missing: DevOps:REQ-002");
+    expect(result.stderr).toContain("catalog source missing: DevOps:REQ-002");
+  });
+
+  it("rejects a category that disagrees with the ID prefix [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []).replace("### REQ", "### AC"),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog category mismatch: PrjOps:REQ-001 under AC");
+  });
+
+  it("rejects a definition that contains only a link [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []).replace(
+          "Fixture definition for REQ-001.",
+          "[ADR-0004](../adr/0004-toolchain.md)",
+        ),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog definition is only a link: PrjOps:REQ-001");
+  });
+
+  it("rejects a canonical source outside the repository [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []).replace(
+          "[ADR-0004](../adr/0004-toolchain.md)",
+          "[outside](/etc/hosts)",
+        ),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source outside repository: PrjOps:REQ-001");
+  });
+
+  it("rejects a source fragment that does not exist [DevOps:AC-033a]", async () => {
+    const result = await runFailure(
+      fixture({
+        devopsReqs: ["REQ-002"],
+        sourceText: "/** 根拠: DevOps:REQ-002 */\nexport {};\n",
+        catalogText: fixtureCatalog([], ["REQ-002"]).replace(
+          "../adr/0004-toolchain.md",
+          "../adr/0004-toolchain.md#L999",
+        ),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source fragment missing: DevOps:REQ-002");
+  });
+
+  it("rejects one broken source even when another source exists [DevOps:AC-033a]", async () => {
+    const result = await runFailure(
+      fixture({
+        devopsReqs: ["REQ-002"],
+        sourceText: "/** 根拠: DevOps:REQ-002 */\nexport {};\n",
+        catalogText: fixtureCatalog([], ["REQ-002"]).replace(
+          "[ADR-0004](../adr/0004-toolchain.md)",
+          "[ADR-0004](../adr/0004-toolchain.md), [Missing](missing.md)",
+        ),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source missing: DevOps:REQ-002");
+  });
+
+  it("rejects a row with an unencoded table separator [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []).replace(
+          "Fixture definition for REQ-001.",
+          "Fixture | definition for REQ-001.",
+        ),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("malformed catalog row: PrjOps:REQ-001");
+  });
+
+  it("resets category context at an unknown level-three heading [PrjOps:AC-043-1]", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        catalogText: fixtureCatalog(["REQ-001"], []).replace("### REQ\n", "### REQ\n\n### Notes\n"),
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog category mismatch: PrjOps:REQ-001 under unclassified");
+  });
+
+  it("rejects a mirror source span that defines another ID [PrjOps:AC-043-1]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      catalogText: fixtureCatalog(["REQ-001"], []).replace("../adr/0004-toolchain.md", "prjops/03_PRD.md#L1"),
+    });
+    mkdirSync(join(root, "docs/spec/prjops"), { recursive: true });
+    writeFileSync(join(root, "docs/spec/prjops/03_PRD.md"), "REQ-999 another requirement\n");
+
+    const result = await runFailure(root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source does not define: PrjOps:REQ-001");
+  });
+
+  it("rejects a mirror source document that disagrees with the ID category [PrjOps:AC-043-1]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      catalogText: fixtureCatalog(["REQ-001"], []).replace("../adr/0004-toolchain.md", "prjops/04_外部仕様書.md#L1"),
+    });
+    mkdirSync(join(root, "docs/spec/prjops"), { recursive: true });
+    writeFileSync(join(root, "docs/spec/prjops/04_外部仕様書.md"), "REQ-001 wrong document\n");
+
+    const result = await runFailure(root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source document mismatch: PrjOps:REQ-001");
+  });
+
+  it("normalizes a relative mirror path before enforcing its source rules [PrjOps:AC-043-1]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      catalogText: fixtureCatalog(["REQ-001"], []).replace("../adr/0004-toolchain.md", "./prjops/03_PRD.md"),
+    });
+    mkdirSync(join(root, "docs/spec/prjops"), { recursive: true });
+    writeFileSync(join(root, "docs/spec/prjops/03_PRD.md"), "**REQ-001 definition**\n");
+
+    const result = await runFailure(root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source fragment missing: PrjOps:REQ-001");
+  });
+
+  it("rejects a source span that only mentions the target ID [PrjOps:AC-043-1]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      catalogText: fixtureCatalog(["REQ-001"], []).replace("../adr/0004-toolchain.md", "prjops/03_PRD.md#L1"),
+    });
+    mkdirSync(join(root, "docs/spec/prjops"), { recursive: true });
+    writeFileSync(join(root, "docs/spec/prjops/03_PRD.md"), "REQ-999 definition merely references REQ-001\n");
+
+    const result = await runFailure(root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source does not define: PrjOps:REQ-001");
+  });
+
+  it.each([
+    ["heading", "### REQ-999 definition merely references REQ-001\n"],
+    ["table row", "| REQ-999 | definition merely references REQ-001 |\n"],
+  ])("rejects a %s whose primary definition is another ID [PrjOps:AC-043-1]", async (_kind, canonicalText) => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      catalogText: fixtureCatalog(["REQ-001"], []).replace("../adr/0004-toolchain.md", "prjops/03_PRD.md#L1"),
+    });
+    mkdirSync(join(root, "docs/spec/prjops"), { recursive: true });
+    writeFileSync(join(root, "docs/spec/prjops/03_PRD.md"), canonicalText);
+
+    const result = await runFailure(root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("catalog source does not define: PrjOps:REQ-001");
   });
 });
 

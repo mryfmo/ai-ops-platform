@@ -25,7 +25,7 @@ export class PgAuditLog implements AuditLogWriter {
     const { redactionCount } = sanitizeSecrets(detail);
     if (redactionCount > 0) {
       throw new Error(
-        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (REQ-032/DevOps:SPEC-INT-070).`,
+        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (PrjOps:REQ-032/DevOps:SPEC-INT-070).`,
       );
     }
     const res = await this.db.query(

@@ -35,7 +35,7 @@ describe("InMemoryAuditLog [PrjOps:REQ-020, PrjOps:SPEC-INT-053/056]", () => {
     expect((log as unknown as { delete?: unknown }).delete).toBeUndefined();
   });
 
-  it("シークレットを含む詳細情報は書き込み拒否される（REQ-032連携）", async () => {
+  it("シークレットを含む詳細情報は書き込み拒否される（PrjOps:REQ-032連携）", async () => {
     const log = new InMemoryAuditLog();
     await expect(
       log.append({
