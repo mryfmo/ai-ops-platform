@@ -1,7 +1,9 @@
 /**
  * packages/prjops/src/templates/profileReports.ts
  *
- * 根拠: PrjOps:SPEC-EXT-021 プロファイル別レイアウト（DOC-03 §4.5が正）。
+ * 根拠: PrjOps:REQ-011 / PrjOps:SPEC-EXT-021 プロファイル別レイアウト（DOC-03 §4.5が正）。
+ * PrjOps:REQ-011のうち、PRF-01本人のアクション期限順・参加プロジェクト色表示を担当する。
+ * 月曜08:00起動、受信者別データ取得、AGT-07検証・配信への本番結線は本モジュールの責務外。
  * 各関数はレポート本文(bodyHtml)のみを返す。ヘッダー/フッターはreportShell.tsが担当する。
  * 数値はすべて numericSpan() で data-src 属性を付与し、AGT-07の数値一致検証（PrjOps:SPEC-INT-051(a)）を
  * 成立させる。文章スロット（結論・トピック要約等）はLLM生成文字列を受け取るが、本モジュール自体は

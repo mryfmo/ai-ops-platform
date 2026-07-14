@@ -1,8 +1,9 @@
 /**
  * packages/prjops/src/lib/idempotentDelivery.ts
  *
- * 根拠: PrjOps:SPEC-INT-052 冪等配信 / PrjOps:REQ-018 AC-018-2
- *   配信前に prjops-reports/delivery_log/{RPT-id}.yaml の存在を確認し、存在すればスキップ。
+ * 根拠: PrjOps:SPEC-INT-010 / PrjOps:SPEC-INT-052 冪等配信 / PrjOps:REQ-018 PrjOps:AC-018-2
+ *   PrjOps:SPEC-INT-010原仕様のprjops-reports物理リポジトリはADR-0001/ADR-0014/DEC-SPEC-004により
+ *   PostgreSQL/archiveのDeliveryLogStore境界へ置換された。配信前にrecordの存在を確認し、存在すればスキップ。
  *   送信成功後に記録を書く（記録失敗時は再送許容だが件名 (再送) を付与）。
  *   PrjOps:SPEC-EXT-023: 重複して2通届くことはない。
  */

@@ -1,7 +1,9 @@
 /**
  * packages/prjops/src/data/yamlStakeholderMasterProvider.ts
  *
- * 根拠: PrjOps:REQ-002, SPEC-INT-022（関係者マスタ）、AC-002-1（複数プロジェクト・複数立場）。
+ * 根拠: PrjOps:REQ-002, PrjOps:SPEC-INT-010, PrjOps:SPEC-INT-022（関係者マスタ）、
+ * PrjOps:AC-002-1（複数プロジェクト・複数立場）。PrjOps:SPEC-INT-010のprjops-data論理境界をDIで維持するが、
+ * productionのpinned SHA取得とrepository権限の環境証跡は後続のprovider/ENV gateで検証する。
  */
 import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";

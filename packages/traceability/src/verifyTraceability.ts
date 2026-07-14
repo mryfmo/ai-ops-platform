@@ -34,6 +34,20 @@ interface SpecIndex {
   TOBE?: string[];
   ASM?: string[];
   AC?: string[];
+  dispositions?: ImplementationDisposition[];
+}
+
+type ImplementationDispositionStatus = "partial" | "superseded";
+
+interface ImplementationDisposition {
+  id: string;
+  status: ImplementationDispositionStatus;
+  completed: string[];
+  remaining?: string[];
+  superseded_by?: string[];
+  retained_obligations?: string[];
+  basis: string[];
+  owner: string;
 }
 
 function loadSpecIndex(file: string): SpecIndex {
@@ -74,7 +88,10 @@ const SPEC_ID_PATTERN =
 function indexedIds(index: SpecIndex): Set<string> {
   return new Set(
     Object.entries(index)
-      .filter((entry): entry is [string, string[]] => entry[0] !== "system" && Array.isArray(entry[1]))
+      .filter(
+        (entry): entry is [string, string[]] =>
+          entry[0] !== "system" && entry[0] !== "dispositions" && Array.isArray(entry[1]),
+      )
       .flatMap(([, ids]) => ids),
   );
 }
@@ -180,6 +197,7 @@ export function collectFailureMessages(
   basisFailures: string[],
   adrFailures: string[],
   referenceFailures: string[] = [],
+  dispositionFailures: string[] = [],
 ): string[] {
   const mandatory = results.filter((result) => ["REQ", "SPEC-INT", "TH"].includes(result.category));
   return [
@@ -187,7 +205,62 @@ export function collectFailureMessages(
     ...basisFailures.map((file) => `basis header missing: ${file}`),
     ...adrFailures.map((id) => `ADR reference missing file: ${id}`),
     ...referenceFailures,
+    ...dispositionFailures,
   ];
+}
+
+function dispositionFailures(repoRoot: string, index: SpecIndex): string[] {
+  const failures: string[] = [];
+  const known = indexedIds(index);
+  const seen = new Set<string>();
+  for (const disposition of index.dispositions ?? []) {
+    const canonical = `${index.system}:${disposition.id}`;
+    if (!known.has(disposition.id)) failures.push(`unknown disposition ID: ${canonical}`);
+    if (seen.has(disposition.id)) failures.push(`duplicate disposition ID: ${canonical}`);
+    seen.add(disposition.id);
+    if (!(["partial", "superseded"] as const).includes(disposition.status)) {
+      failures.push(`invalid disposition status: ${canonical}`);
+    }
+    const requiredArrays: Array<[string, string[] | undefined]> = [
+      ["completed", disposition.completed],
+      ["basis", disposition.basis],
+    ];
+    if (disposition.status === "superseded") {
+      requiredArrays.push(
+        ["superseded_by", disposition.superseded_by],
+        ["retained_obligations", disposition.retained_obligations],
+      );
+    } else {
+      requiredArrays.push(["remaining", disposition.remaining]);
+    }
+    for (const [field, values] of requiredArrays) {
+      if (
+        !Array.isArray(values) ||
+        values.length === 0 ||
+        values.some((value) => typeof value !== "string" || !value.trim())
+      ) {
+        failures.push(`invalid disposition ${field}: ${canonical}`);
+      }
+    }
+    if (typeof disposition.owner !== "string" || !disposition.owner.trim()) {
+      failures.push(`invalid disposition owner: ${canonical}`);
+    }
+    for (const path of Array.isArray(disposition.basis) ? disposition.basis : []) {
+      const resolved = resolve(repoRoot, path);
+      if (!resolved.startsWith(`${resolve(repoRoot)}${sep}`) || !statSyncSafe(resolved)) {
+        failures.push(`disposition basis missing: ${path}`);
+      }
+    }
+  }
+  return failures;
+}
+
+function statSyncSafe(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 }
 
 function checkCategory(
@@ -240,9 +313,31 @@ function formatResults(systemName: string, results: CategoryResult[]): string {
   const lines: string[] = [
     `## ${systemName}`,
     "",
-    ...markdownTable(["カテゴリ", "総数", "実装参照あり", "テスト参照あり", "実装参照なし"], rows),
+    ...markdownTable(["カテゴリ", "総数", "source参照あり", "テスト参照あり", "source参照なし"], rows),
   ];
   return lines.join("\n");
+}
+
+function formatDispositions(indexes: SpecIndex[]): string {
+  const rows = indexes.flatMap((index) =>
+    (index.dispositions ?? []).map((item) => [
+      `${index.system}:${item.id}`,
+      item.status,
+      item.superseded_by?.join("<br>") ?? "—",
+      item.completed.join("<br>"),
+      (item.status === "superseded" ? item.retained_obligations : item.remaining)?.join("<br>") ?? "—",
+      item.basis.join("<br>"),
+      item.owner,
+    ]),
+  );
+  if (rows.length === 0) return "";
+  return [
+    "## Implementation Dispositions",
+    "",
+    "この表はsource参照の存在と要件完了を分離する。`partial`は未完了、`superseded`は原仕様を置換済みだが保持義務の完了を意味せず、greenの完成証明ではない。",
+    "",
+    ...markdownTable(["ID", "状態", "置換先", "実装済み範囲", "未完了・保持義務", "根拠", "Owner"], rows),
+  ].join("\n");
 }
 
 function basisHeaderFailures(repoRoot: string): string[] {
@@ -354,7 +449,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
       "",
       `生成日時: ${(options.now ?? new Date()).toISOString()}`,
       "",
-      "凡例: 「実装参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。",
+      "凡例: 「source参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。",
       "「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。",
       "注記: 参照の存在は構文上の接続だけを示し、要件の振る舞いを検証した証明ではありません。",
       "ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装コードへの直接参照を必須としない（参考値）。",
@@ -363,11 +458,16 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
       "",
       formatResults("DevOps", devopsResults),
       "",
+      formatDispositions([prjopsIndex, devopsIndex]),
+      "",
       "## Traceability Guards",
       "",
       `- 根拠ヘッダ不足: ${basisHeaderFailures(repoRoot).join(", ") || "—"}`,
       `- 存在しないADR参照: ${adrReferenceFailures(repoRoot).join(", ") || "—"}`,
       `- 名前空間参照不正: ${namespaceFailures.join(", ") || "—"}`,
+      `- disposition不正: ${
+        [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)].join(", ") || "—"
+      }`,
       "",
     ].join("\n"),
     { parser: "markdown" },
@@ -384,6 +484,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     basisHeaderFailures(repoRoot),
     adrReferenceFailures(repoRoot),
     namespaceFailures,
+    [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],
   );
   const errorMessage =
     failures.length > 0 ? `E-TRACE01: トレーサビリティ検証に失敗しました: ${failures.join(", ")}` : undefined;

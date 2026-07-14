@@ -153,5 +153,53 @@
     "AC-041-1",
     "AC-042-1",
     "AC-043-1"
+  ],
+  "dispositions": [
+    {
+      "id": "REQ-011",
+      "status": "partial",
+      "completed": [
+        "PRF-01本人のアクション期限順・参加プロジェクト色表示",
+        "参加プロジェクトと本人課題の取得側フィルタ"
+      ],
+      "remaining": [
+        "正本データからの受信者別生成とAGT-07検証・配信の本番結線",
+        "月曜08:00 JST境界とN受信者N成果物の統合検証"
+      ],
+      "basis": ["docs/PrjOps.zip", "docs/audit/09-remediation-plan.md"],
+      "owner": "T-P0-11"
+    },
+    {
+      "id": "REQ-030",
+      "status": "partial",
+      "completed": ["外部I/Oなしの100案件・2,000受信者 分析→個別生成→AGT-07検証baseline"],
+      "remaining": [
+        "正本取得・受信者解決・全profile・永続化を含む本番同等経路の測定",
+        "代表環境のcommit SHA・開始終了時刻・失敗0件の証跡"
+      ],
+      "basis": ["docs/PrjOps.zip", "docs/audit/09-remediation-plan.md"],
+      "owner": "P010-F06-T17"
+    },
+    {
+      "id": "SPEC-INT-010",
+      "status": "superseded",
+      "superseded_by": ["ADR-0001", "DEC-SPEC-001", "DEC-SPEC-004", "ADR-0014"],
+      "completed": [
+        "prjops-systemをai-ops-platform monorepoのpackages/prjopsへ置換",
+        "prjops-dataとreport archiveを注入可能な論理境界として分離"
+      ],
+      "retained_obligations": [
+        "private prjops-data repositoryとmachine account/PRF-03書込制御",
+        "immutable 40-character SHAでのproduction読込と環境証跡",
+        "PostgreSQL/LTR archiveのretention・権限・restore証跡"
+      ],
+      "basis": [
+        "docs/PrjOps.zip",
+        "docs/adr/0001-monorepo.md",
+        "docs/adr/0014-integration-delivery.md",
+        "docs/spec/productization-decisions.md"
+      ],
+      "owner": "P010-F02-T01..T14"
+    }
   ]
 }

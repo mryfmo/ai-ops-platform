@@ -68,7 +68,7 @@ timezone: Asia/Tokyo
 `;
 }
 
-describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, SPEC-INT-022]", () => {
+describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, PrjOps:SPEC-INT-022]", () => {
   it("fixtureからemailに一致する全プロファイルと可視範囲を解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const provider = new YamlStakeholderMasterProvider(fixtureDirectory);
 

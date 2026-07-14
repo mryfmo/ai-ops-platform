@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runTraceabilityCli } from "../src/verifyTraceability.js";
+import { runTraceability, runTraceabilityCli } from "../src/verifyTraceability.js";
 
 const fixtures: string[] = [];
 const missingAdr = (number: number): string => `ADR-${number}`;
@@ -20,6 +20,7 @@ interface FixtureOptions {
   traceabilitySourceText?: string;
   traceabilityTestText?: string;
   traceabilityOtherTestText?: string;
+  prjopsDispositions?: unknown[];
 }
 
 function fixture(options: FixtureOptions | string[] = {}): string {
@@ -42,7 +43,11 @@ function fixture(options: FixtureOptions | string[] = {}): string {
   }
   writeFileSync(
     join(root, "packages/traceability/spec-ids/prjops.json"),
-    JSON.stringify({ system: "PrjOps", REQ: normalized.prjopsReqs ?? [] }),
+    JSON.stringify({
+      system: "PrjOps",
+      REQ: normalized.prjopsReqs ?? [],
+      dispositions: normalized.prjopsDispositions,
+    }),
   );
   writeFileSync(
     join(root, "packages/traceability/spec-ids/devops.json"),
@@ -110,6 +115,166 @@ describe("traceability CLI negative paths [ADR-0004 / AUD-VER-007]", () => {
     const result = await runFailure(root);
     expect(result.stderr).not.toContain(ignoredId);
     expect(result.stderr).toContain(detectedId);
+  });
+});
+
+describe("implementation dispositions [PrjOps:SPEC-INT-070]", () => {
+  it("renders partial scope and remaining obligations without treating a source reference as completion", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      prjopsDispositions: [
+        {
+          id: "REQ-001",
+          status: "partial",
+          completed: ["deterministic renderer"],
+          remaining: ["production scheduler"],
+          basis: ["docs/adr/0004-toolchain.md"],
+          owner: "TASK-001",
+        },
+      ],
+    });
+
+    const result = await runTraceability({ repoRoot: root, writeOutput: false });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.report).toContain("Implementation Dispositions");
+    expect(result.report).toContain("PrjOps:REQ-001");
+    expect(result.report).toContain("partial");
+    expect(result.report).toContain("production scheduler");
+  });
+
+  it("rejects a disposition for an ID outside the catalog", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsDispositions: [
+          {
+            id: "REQ-999",
+            status: "partial",
+            completed: ["x"],
+            remaining: ["y"],
+            basis: ["docs/adr/0004-toolchain.md"],
+            owner: "TASK-001",
+          },
+        ],
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("unknown disposition ID: PrjOps:REQ-999");
+  });
+
+  it("renders superseded specifications with their replacement and retained obligations", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+      prjopsDispositions: [
+        {
+          id: "REQ-001",
+          status: "superseded",
+          completed: ["replacement boundary"],
+          superseded_by: ["ADR-0004"],
+          retained_obligations: ["external environment evidence"],
+          basis: ["docs/adr/0004-toolchain.md"],
+          owner: "TASK-002",
+        },
+      ],
+    });
+
+    const result = await runTraceability({ repoRoot: root, writeOutput: false });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.report).toContain("superseded");
+    expect(result.report).toContain("ADR-0004");
+    expect(result.report).toContain("external environment evidence");
+    expect(result.report).not.toContain("実装参照あり");
+  });
+
+  it("rejects a disposition whose evidence path is missing", async () => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        prjopsDispositions: [
+          {
+            id: "REQ-001",
+            status: "superseded",
+            completed: ["replacement selected"],
+            superseded_by: ["ADR-0004"],
+            retained_obligations: ["external repository"],
+            basis: ["docs/adr/missing.md"],
+            owner: "TASK-001",
+          },
+        ],
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("disposition basis missing: docs/adr/missing.md");
+  });
+
+  it.each([
+    [
+      "duplicate ID",
+      [
+        {
+          id: "REQ-001",
+          status: "partial",
+          completed: ["x"],
+          remaining: ["y"],
+          basis: ["docs/adr/0004-toolchain.md"],
+          owner: "TASK-001",
+        },
+        {
+          id: "REQ-001",
+          status: "partial",
+          completed: ["x"],
+          remaining: ["y"],
+          basis: ["docs/adr/0004-toolchain.md"],
+          owner: "TASK-002",
+        },
+      ],
+      "duplicate disposition ID: PrjOps:REQ-001",
+    ],
+    [
+      "invalid status",
+      [
+        {
+          id: "REQ-001",
+          status: "implemented",
+          completed: ["x"],
+          remaining: ["y"],
+          basis: ["docs/adr/0004-toolchain.md"],
+          owner: "TASK-001",
+        },
+      ],
+      "invalid disposition status: PrjOps:REQ-001",
+    ],
+    [
+      "empty required field",
+      [
+        {
+          id: "REQ-001",
+          status: "partial",
+          completed: ["x"],
+          remaining: [],
+          basis: ["docs/adr/0004-toolchain.md"],
+          owner: "TASK-001",
+        },
+      ],
+      "invalid disposition remaining: PrjOps:REQ-001",
+    ],
+  ])("rejects %s", async (_name, dispositions, expected) => {
+    const result = await runFailure(
+      fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: "/** 根拠: PrjOps:REQ-001 */\nexport {};\n",
+        prjopsDispositions: dispositions as unknown[],
+      }),
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(expected);
   });
 });
 
