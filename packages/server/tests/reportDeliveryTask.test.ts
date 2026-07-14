@@ -14,11 +14,17 @@ import type { StandardReportRecord } from "../src/db/standardReportsRepo.js";
 const EMAIL_ADDRESS = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
 
 const payload = {
-  schemaVersion: "standard-report.v1",
+  schemaVersion: "standard-report.v2",
   reportType: "weekly-summary",
   evidenceIds: ["REQ-042"],
   period: { label: "2026-W28", generatedAt: "2026-07-06T00:00:00.000Z" },
-  metrics: { completed: 1 },
+  metrics: {
+    completed: {
+      value: 1,
+      source: "code:report-delivery-test",
+      as_of: "2026-07-06T00:00:00.000Z",
+    },
+  },
   slots: {
     conclusion: "Alice finished InternalPhoenix migration",
     riskSummary: "InternalPhoenix risk remains",

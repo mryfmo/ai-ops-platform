@@ -10,7 +10,33 @@
  * 強制できないため、x-maxCharsメタデータとして保持し、reportValidation.tsで決定的に検証する。
  */
 
-export const STANDARD_REPORT_SCHEMA_VERSION = "standard-report.v1";
+/** v2 requires metric evidence objects. v1 numeric metrics are rejected rather than guessed or upgraded. */
+export const STANDARD_REPORT_SCHEMA_VERSION = "standard-report.v2";
+export const LEGACY_STANDARD_REPORT_SCHEMA_VERSION = "standard-report.v1";
+
+export const REPORT_METRIC_UNAVAILABLE_REASONS = [
+  "missing_current",
+  "missing_previous",
+  "scope_mismatch",
+  "source_error",
+] as const;
+
+export type ReportMetricUnavailableReason = (typeof REPORT_METRIC_UNAVAILABLE_REASONS)[number];
+
+export interface MeasuredReportMetric {
+  value: number;
+  source: string;
+  as_of: string;
+}
+
+export interface UnavailableReportMetric {
+  value: null;
+  unavailable_reason: ReportMetricUnavailableReason;
+  source: string;
+  as_of: string;
+}
+
+export type StandardReportMetric = MeasuredReportMetric | UnavailableReportMetric;
 
 export const STANDARD_REPORT_SLOT_SPECS = [
   { key: "conclusion", title: "結論", maxChars: 180 },
@@ -30,7 +56,7 @@ export interface StandardReportPayload {
     label: string;
     generatedAt: string;
   };
-  metrics: Record<string, number>;
+  metrics: Record<string, StandardReportMetric>;
   slots: StandardReportSlots;
 }
 
@@ -56,7 +82,7 @@ function slotProperties(): Record<StandardReportSlotKey, Record<string, unknown>
 
 export const STANDARD_REPORT_JSON_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://aiops.local/schemas/standard-report.v1.json",
+  $id: "https://aiops.local/schemas/standard-report.v2.json",
   title: "AI Ops Standard Agent Report",
   type: "object",
   additionalProperties: false,
@@ -76,13 +102,37 @@ export const STANDARD_REPORT_JSON_SCHEMA = {
       required: ["label", "generatedAt"],
       properties: {
         label: { type: "string" },
-        generatedAt: { type: "string" },
+        generatedAt: { type: "string", format: "date-time" },
       },
     },
     metrics: {
       type: "object",
-      additionalProperties: { type: "number" },
-      description: "コード算出済みの数値。LLMはここを生成しない。",
+      additionalProperties: {
+        oneOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["value", "source", "as_of"],
+            properties: {
+              value: { type: "number" },
+              source: { type: "string", minLength: 1, pattern: "^\\S(?:.*\\S)?$" },
+              as_of: { type: "string", format: "date-time" },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["value", "unavailable_reason", "source", "as_of"],
+            properties: {
+              value: { type: "null" },
+              unavailable_reason: { enum: REPORT_METRIC_UNAVAILABLE_REASONS },
+              source: { type: "string", minLength: 1, pattern: "^\\S(?:.*\\S)?$" },
+              as_of: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      description: "コード算出済みのmeasured/unavailable metric。LLMはここを生成しない。",
     },
     slots: {
       type: "object",

@@ -21,11 +21,13 @@ import {
 const recipientCount = 2_000;
 const ingestSecret = "load-baseline-secret-of-at-least-32-chars";
 const payload: StandardReportPayload = {
-  schemaVersion: "standard-report.v1",
+  schemaVersion: "standard-report.v2",
   reportType: "weekly-summary",
   evidenceIds: ["REQ-018", "REQ-042"],
   period: { label: "2026-W29", generatedAt: "2026-07-13T00:00:00.000Z" },
-  metrics: { completed: 1 },
+  metrics: {
+    completed: { value: 1, source: "test:completed", as_of: "2026-07-13T00:00:00.000Z" },
+  },
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };
 

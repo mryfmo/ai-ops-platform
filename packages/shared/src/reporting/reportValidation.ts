@@ -4,6 +4,8 @@
  * 根拠: REQ-040 / SPEC-INT-067 / SPEC-INT-082。
  */
 import {
+  LEGACY_STANDARD_REPORT_SCHEMA_VERSION,
+  REPORT_METRIC_UNAVAILABLE_REASONS,
   STANDARD_REPORT_SCHEMA_VERSION,
   standardReportSlotKeys,
   standardReportSlotMaxChars,
@@ -23,6 +25,11 @@ export interface ReportSlotNumericFinding {
 }
 
 const NUMBER_PATTERN = /\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|\d+(?:\.\d+)?%?/g;
+const ISO_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+const REPORT_KEYS = ["schemaVersion", "reportType", "evidenceIds", "period", "metrics", "slots"];
+const PERIOD_KEYS = ["label", "generatedAt"];
+const MEASURED_METRIC_KEYS = ["value", "source", "as_of"];
+const UNAVAILABLE_METRIC_KEYS = ["value", "unavailable_reason", "source", "as_of"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -129,14 +136,87 @@ function validateSlotsShapeOnly(slots: unknown): ReportValidationResult {
       errors.push(`slots.${key} must be a non-empty string`);
     }
   }
+  for (const key of Object.keys(slots)) {
+    if (!standardReportSlotKeys().includes(key as StandardReportSlotKey)) errors.push(`slots.${key} is not allowed`);
+  }
   return { ok: errors.length === 0, errors };
+}
+
+function validateAllowedKeys(value: Record<string, unknown>, allowed: string[], path: string, errors: string[]): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) errors.push(`${path}${key} is not allowed`);
+  }
+}
+
+export function isIsoDateTime(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = ISO_DATE_TIME_PATTERN.exec(value);
+  if (!match || !Number.isFinite(Date.parse(value))) return false;
+  const [yearText, monthText, dayText, hourText, minuteText, secondText, offsetHourText, offsetMinuteText] =
+    match.slice(1);
+  const [year, month, day, hour, minute, second, offsetHour, offsetMinute] = [
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+    offsetHourText ?? "0",
+    offsetMinuteText ?? "0",
+  ].map(Number);
+  const calendarDate = new Date(Date.UTC(year!, month! - 1, day!));
+  return (
+    calendarDate.getUTCFullYear() === year &&
+    calendarDate.getUTCMonth() === month! - 1 &&
+    calendarDate.getUTCDate() === day &&
+    hour! <= 23 &&
+    minute! <= 59 &&
+    second! <= 59 &&
+    offsetHour! <= 23 &&
+    offsetMinute! <= 59
+  );
+}
+
+function validateMetric(name: string, metric: unknown): string[] {
+  const path = `metrics.${name}`;
+  if (!isRecord(metric)) return [`${path} must be a measured or unavailable metric object`];
+  const errors: string[] = [];
+  const unavailable = metric.value === null;
+  validateAllowedKeys(metric, unavailable ? UNAVAILABLE_METRIC_KEYS : MEASURED_METRIC_KEYS, `${path}.`, errors);
+  if (!unavailable && (typeof metric.value !== "number" || !Number.isFinite(metric.value))) {
+    errors.push(`${path}.value must be a finite number or null`);
+  }
+  if (unavailable && !REPORT_METRIC_UNAVAILABLE_REASONS.includes(metric.unavailable_reason as never)) {
+    errors.push(`${path}.unavailable_reason must be ${REPORT_METRIC_UNAVAILABLE_REASONS.join(", ")}`);
+  }
+  if (
+    typeof metric.source !== "string" ||
+    metric.source.trim().length === 0 ||
+    metric.source !== metric.source.trim()
+  ) {
+    errors.push(`${path}.source must be a non-empty stable source id`);
+  }
+  if (!isIsoDateTime(metric.as_of)) errors.push(`${path}.as_of must be an ISO-8601 date-time with timezone`);
+  return errors;
+}
+
+function measuredMetricValues(metrics: Record<string, unknown>): Record<string, number> {
+  const values: Record<string, number> = {};
+  for (const [key, metric] of Object.entries(metrics)) {
+    if (isRecord(metric) && typeof metric.value === "number" && Number.isFinite(metric.value))
+      values[key] = metric.value;
+  }
+  return values;
 }
 
 export function validateStandardReportPayload(payload: unknown): ReportValidationResult {
   const errors: string[] = [];
   if (!isRecord(payload)) return { ok: false, errors: ["payload must be an object"] };
 
-  if (payload.schemaVersion !== STANDARD_REPORT_SCHEMA_VERSION) {
+  validateAllowedKeys(payload, REPORT_KEYS, "", errors);
+  if (payload.schemaVersion === LEGACY_STANDARD_REPORT_SCHEMA_VERSION) {
+    errors.push("legacy standard-report.v1 numeric metrics are unsupported; regenerate as standard-report.v2");
+  } else if (payload.schemaVersion !== STANDARD_REPORT_SCHEMA_VERSION) {
     errors.push(`schemaVersion must be ${STANDARD_REPORT_SCHEMA_VERSION}`);
   }
   if (
@@ -157,16 +237,25 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
   if (!isRecord(payload.period)) {
     errors.push("period must be an object");
   } else {
+    validateAllowedKeys(payload.period, PERIOD_KEYS, "period.", errors);
     if (typeof payload.period.label !== "string" || payload.period.label.trim().length === 0) {
       errors.push("period.label must be a non-empty string");
     }
-    if (typeof payload.period.generatedAt !== "string" || payload.period.generatedAt.trim().length === 0) {
-      errors.push("period.generatedAt must be a non-empty string");
-    }
+    if (!isIsoDateTime(payload.period.generatedAt))
+      errors.push("period.generatedAt must be an ISO-8601 date-time with timezone");
   }
 
-  if (!isRecord(payload.metrics) || Object.values(payload.metrics).some((value) => !Number.isFinite(value))) {
-    errors.push("metrics must be an object of finite numbers");
+  if (!isRecord(payload.metrics)) {
+    errors.push("metrics must be an object of measured or unavailable metrics");
+  } else {
+    for (const [name, metric] of Object.entries(payload.metrics)) {
+      if (name.trim().length === 0) errors.push("metric name must be non-empty");
+      if (typeof metric === "number") {
+        errors.push(`metrics.${name} uses a legacy numeric metric; source and as_of evidence are required`);
+      } else {
+        errors.push(...validateMetric(name, metric));
+      }
+    }
   }
 
   const slotResult = validateSlots(payload.slots);
@@ -176,7 +265,7 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
       isRecord(payload.period) && typeof payload.period.label === "string" ? [payload.period.label] : [];
     const findings = findUngroundedSlotNumbers(
       payload.slots as StandardReportSlots,
-      payload.metrics as Record<string, number>,
+      measuredMetricValues(payload.metrics),
       ignoredLiterals,
     );
     for (const finding of findings) {

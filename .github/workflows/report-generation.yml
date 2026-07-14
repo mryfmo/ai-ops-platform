@@ -54,7 +54,7 @@ jobs:
           pnpm exec tsx packages/shared/src/reporting/printReportSlotsSchema.ts > standard-report-slots.schema.json
           pnpm exec tsx packages/shared/src/reporting/calculateReportMetrics.ts > standard-report.metrics.json
           pnpm exec tsx packages/shared/src/reporting/validateReportJson.ts <<'JSON'
-          {"schemaVersion":"standard-report.v1","reportType":"weekly-summary","evidenceIds":["REQ-040"],"period":{"label":"dry-run","generatedAt":"dry-run"},"metrics":{"completed":0},"slots":{"conclusion":"dry-run","riskSummary":"dry-run","nextActions":"dry-run"}}
+          {"schemaVersion":"standard-report.v2","reportType":"weekly-summary","evidenceIds":["REQ-040"],"period":{"label":"dry-run","generatedAt":"2026-01-01T00:00:00.000Z"},"metrics":{"completed":{"value":0,"source":"code:workflow-dry-run","as_of":"2026-01-01T00:00:00.000Z"}},"slots":{"conclusion":"dry-run","riskSummary":"dry-run","nextActions":"dry-run"}}
           JSON
 
       - name: Generate report with Claude Code
