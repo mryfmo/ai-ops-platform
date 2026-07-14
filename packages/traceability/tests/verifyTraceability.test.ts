@@ -108,6 +108,7 @@ describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", 
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("REQ-001");
+    expect(result.stderr).toContain("packages/shared/src/references.ts");
   });
 
   it("does not let a DevOps reference satisfy the PrjOps catalog [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
@@ -133,6 +134,7 @@ describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", 
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("PrjOps :REQ-001");
+    expect(result.stderr).toContain("packages/shared/src/references.ts");
   });
 
   it("accepts explicit references to the same ID in both systems [PrjOps:AC-043-1 / DevOps:AC-033a]", async () => {
@@ -157,5 +159,134 @@ describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", 
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("PrjOps:REQ-999");
+  });
+
+  it("rejects an unknown namespace without treating its suffix as bare evidence [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: Other:REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Other:REQ-001");
+  });
+
+  it("does not match a longer identifier by prefix [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: PrjOps:REQ-0010 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("malformed canonical reference: PrjOps:REQ-0010");
+  });
+
+  it("keeps a non-colliding bare reference valid during migration [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it.each([
+    "PrjOps::REQ-001",
+    "PrjOps:::REQ-001",
+    "PrjOps:::::REQ-001",
+    "PrjOps/REQ-001",
+    "PrjOps/////REQ-001",
+    "PrjOps     REQ-001",
+  ])("rejects non-canonical known-system separators in %s [PrjOps:SPEC-INT-070]", async (reference) => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: `/** 根拠: ${reference} */\nexport {};\n`,
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(reference);
+  });
+
+  it.each(["PrjOps:REQ-001_suffix", "_REQ-001"])(
+    "does not count an underscore-affixed token in %s [PrjOps:SPEC-INT-070]",
+    async (reference) => {
+      const root = fixture({
+        prjopsReqs: ["REQ-001"],
+        sourceText: `/** 根拠: ${reference} */\nexport {};\n`,
+      });
+
+      const result = await runFailure(root);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("PrjOps:REQ-001");
+    },
+  );
+
+  it("treats a unique ID after a YAML key as bare migration evidence [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "const metadata = `basis: REQ-001`;\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("reports a canonical-looking invalid ID even with an empty catalog [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      sourceText: "/** 根拠: PrjOps:REQ-ABC */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("malformed canonical reference: PrjOps:REQ-ABC");
+    expect(result.stderr).toContain("packages/shared/src/references.ts");
+  });
+
+  it("ignores ordinary colon-delimited code tokens [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      sourceText: 'import { join } from "node:path";\nconst css = "margin:0";\nconst time = "HH:mm";\n',
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("does not treat unrelated syntax after a system-named variable as a namespace [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "const PrjOps = {}; // REQ-001\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("rejects repeated colons after an unknown system [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      sourceText: "/** 根拠: Other::REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("unknown traceability system: Other::REQ-001");
   });
 });
