@@ -2,22 +2,22 @@
  * packages/shared/src/clients/graphClient.ts
  *
  * 根拠:
- *   - DevOps REQ-026 Teams/Outlook連携: 通知・承認はTeams（アダプティブカード）、定期報告・棚卸しは
+ *   - DevOps:REQ-026 Teams/Outlook連携: 通知・承認はTeams（アダプティブカード）、定期報告・棚卸しは
  *     Outlook（Microsoft Graph API）で行う。AC-026a: 承認カードのボタン操作が監査ログに操作者IDと
  *     共に記録される（呼び出し側のagents層がAADユーザーIDをauditLogへ記録する）。
- *   - PrjOps SPEC-INT-001: Microsoft連携はMicrosoft Graph API（アプリケーション権限）。
+ *   - PrjOps:SPEC-INT-001: Microsoft連携はMicrosoft Graph API（アプリケーション権限）。
  *     Teams: チャネルメッセージ送受信・Adaptive Card。Outlook: sendMail・受信はメールボックスの
  *     サブスクリプション（change notification）＋5分間隔のポーリングをフォールバックとする。
- *   - DevOps SPEC-INT-062: Teamsアダプティブカード送信・アクション受信（カード操作者のAADユーザーIDを
+ *   - DevOps:SPEC-INT-062: Teamsアダプティブカード送信・アクション受信（カード操作者のAADユーザーIDを
  *     監査ログに記録）、sendMailによるHTMLメール配信。
- *   - DevOps SPEC-INT-080: GitHub/Graph APIレート制限（429）は指数バックオフ（初期30秒、最大15分）。
+ *   - DevOps:SPEC-INT-080: GitHub/Graph APIレート制限（429）は指数バックオフ（初期30秒、最大15分）。
  *
  * 実装上の重要な制約（公式ドキュメントに基づく設計判断）:
  *   - Microsoft Graph v1.0 Teams chatMessage change notification（resource-specific contract、
  *     2026-07-11確認）は最大4,320分で、1時間超にはlifecycleNotificationUrlが必須である。
  *     更新に失敗すると通知が silent に失われるため、本クライアントは
  *     renewSubscription() の呼び出し失敗を例外として上位（スケジューラ）に伝播し、
- *     フォールバックのポーリング（5分間隔、SPEC-INT-001）へ切り替えられるようにする。
+ *     フォールバックのポーリング（5分間隔、PrjOps:SPEC-INT-001）へ切り替えられるようにする。
  *   - 429応答時は Retry-After ヘッダを尊重しつつ指数バックオフ＋ジッタを行う
  *     （出典: Microsoft Learn "Teams webhooks and connectors" throttling guidance）。
  *
@@ -323,7 +323,7 @@ export class GraphClient {
     return date.toUTCString() === value ? value : null;
   }
 
-  /** TeamsチャネルへAdaptive Cardを送信する（SPEC-EXT-010〜012, 024） */
+  /** TeamsチャネルへAdaptive Cardを送信する（DevOps:SPEC-EXT-010〜012, 024） */
   async sendAdaptiveCard(input: SendTeamsMessageInput): Promise<{ messageId: string }> {
     const teamId = this.assertAllowedTeam(input.target?.teamId);
     const channelId = input.target?.channelId?.trim();
@@ -347,7 +347,7 @@ export class GraphClient {
     return { messageId: json.id };
   }
 
-  /** Outlook sendMail（REQ-018, SPEC-INT-062, 2000通/2時間 REQ-018 AC-018-1の呼び出し元） */
+  /** Outlook sendMail（PrjOps:REQ-018, DevOps:SPEC-INT-062, 2000通/2時間 PrjOps:REQ-018 AC-018-1の呼び出し元） */
   async sendMail(input: SendMailInput): Promise<void> {
     const fromMailbox = this.assertAllowedFromMailbox(input.fromMailbox);
     const headers = await this.authHeaders();
@@ -499,7 +499,7 @@ export class GraphClient {
   }
 
   /**
-   * チャネルメッセージのdelta取得（ADR-0005: pollingフォールバック SPEC-INT-001 とバックフィル用）。
+   * チャネルメッセージのdelta取得（ADR-0005: pollingフォールバック PrjOps:SPEC-INT-001 とバックフィル用）。
    * @odata.nextLink が尽きるまでページングし、最後の @odata.deltaLink を返す。
    * 戻りのdeltaLinkは graph_subscriptions.delta_link に永続化し、次回呼び出しで渡すこと。
    * 注: deltaはルートメッセージ中心に返る。返信の完全な補完が必要な場合は listMessageReplies を併用する。

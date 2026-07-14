@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/githubEventRouter.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010（eventsテーブルのGitHub webhookイベントをDevOpsエージェントへ振り分ける）。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010（eventsテーブルのGitHub webhookイベントをDevOpsエージェントへ振り分ける）。
  */
 import type { AuditLogWriter } from "@aiops/shared";
 import type { PmEventRecordInput, PmTimeseriesRepo, PmSubjectType } from "../db/pmTimeseriesRepo.js";
@@ -212,7 +212,7 @@ export async function dispatchGithubWebhookEvent(
       trace_id: traceId,
       actor: "SERVER",
       action: "github_event_ignored",
-      basis: "SPEC-INT-010",
+      basis: "DevOps:SPEC-INT-010",
       detail: { eventName: event.eventName },
       at: new Date().toISOString(),
     });
@@ -224,7 +224,7 @@ export async function dispatchGithubWebhookEvent(
     trace_id: traceId,
     actor: "SERVER",
     action: "github_event_dispatched",
-    basis: "SPEC-INT-010",
+    basis: "DevOps:SPEC-INT-010",
     detail: { eventName: event.eventName, targetAgent },
     at: new Date().toISOString(),
   });

@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/grantsRepo.ts
  *
- * 根拠: DevOps SPEC-INT-053（grants台帳）/ SPEC-INT-032（毎分のJIT失効判定の入力・結果反映）。
+ * 根拠: DevOps:SPEC-INT-053（grants台帳）/ DevOps:SPEC-INT-032（毎分のJIT失効判定の入力・結果反映）。
  *   grantsテーブルの target 列は "owner/repo" 形式で保持し、AGT_SECのGrantRecord
  *   （targetOwner/targetRepo）へ分解して渡す。
  */

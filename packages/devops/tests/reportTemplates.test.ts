@@ -16,13 +16,13 @@ const common = {
   dateJst: "2026-07-06",
 };
 
-describe("buildSubject [SPEC-EXT-020]", () => {
+describe("buildSubject [DevOps:SPEC-EXT-020]", () => {
   it("件名書式が [DevOpsレポート][種別] YYYY-MM-DD になる", () => {
     expect(buildSubject("メンバー日次", "2026-07-06")).toBe("[DevOpsレポート][メンバー日次] 2026-07-06");
   });
 });
 
-describe("composeMemberDailyReport [SPEC-EXT-021]", () => {
+describe("composeMemberDailyReport [DevOps:SPEC-EXT-021]", () => {
   it("自己完結・クリーンなHTMLを生成する", () => {
     const { html, subject } = composeMemberDailyReport(common, {
       openPrs: [],
@@ -41,7 +41,7 @@ describe("composeMemberDailyReport [SPEC-EXT-021]", () => {
   });
 });
 
-describe("composeLeaderReport [SPEC-EXT-022/023]", () => {
+describe("composeLeaderReport [DevOps:SPEC-EXT-022/023]", () => {
   const data = {
     ciSuccessRatePct: 92.5,
     failedWorkflows: ["build-and-test"],
@@ -79,7 +79,7 @@ describe("composeLeaderReport [SPEC-EXT-022/023]", () => {
   });
 });
 
-describe("selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準]", () => {
+describe("selectTopRiskProjects [DevOps:SPEC-EXT-024(3): 固定選定基準]", () => {
   it("変更失敗率降順でソートされる", () => {
     const result = selectTopRiskProjects([
       { projectId: "PRJ-001", changeFailureRatePct: 10, openSev2Count: 1 },
@@ -104,7 +104,7 @@ describe("selectTopRiskProjects [SPEC-EXT-024(3): 固定選定基準]", () => {
   });
 });
 
-describe("composeManagerReport [SPEC-EXT-024/025]", () => {
+describe("composeManagerReport [DevOps:SPEC-EXT-024/025]", () => {
   const managerData = {
     dora: {
       deploymentFrequencyPerWeek: 12.5,
@@ -112,10 +112,10 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
       changeFailureRatePct: 8.3,
       failedDeploymentRecoveryTimeHours: 1.5,
       deltaVsPrevWeek: {
-        deploymentFrequency: 1,
-        leadTime: -0.5,
-        changeFailureRate: -1.2,
-        mttr: 0,
+        deploymentFrequency: { value: 1, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
+        leadTime: { value: -0.5, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
+        changeFailureRate: { value: -1.2, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
+        mttr: { value: 0, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
       },
     },
     sev1And2: [],
@@ -128,7 +128,7 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
     expect(html).not.toContain("権限棚卸しサマリ");
   });
 
-  it("月次レポートは権限棚卸しサマリを含む（REQ-019/023）", () => {
+  it("月次レポートは権限棚卸しサマリを含む（DevOps:REQ-019/023）", () => {
     const { html } = composeManagerReport(
       common,
       { ...managerData, permissionAudit: { totalGrants: 120, revokedThisMonth: 15, externalAccountCount: 8 } },
@@ -175,6 +175,64 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
       "週次",
     );
     expect(html).toContain("データなし");
+  });
+
+  it("DevOps:SPEC-INT-081: unavailable deltaは0/NaN/null文字列でなく固定「未取得」と表示する", () => {
+    const unavailable = {
+      value: null,
+      unavailable_reason: "missing_previous",
+      source: "github",
+      as_of: "2026-07-13T00:00:00+09:00",
+    } as const;
+    const { html } = composeManagerReport(
+      common,
+      {
+        ...managerData,
+        dora: {
+          ...managerData.dora,
+          deltaVsPrevWeek: {
+            deploymentFrequency: unavailable,
+            leadTime: unavailable,
+            changeFailureRate: unavailable,
+            mttr: unavailable,
+          },
+        },
+      },
+      "週次",
+    );
+    expect(html.match(/<td>未取得<\/td>/g)).toHaveLength(4);
+    expect(html).not.toMatch(/<td>(?:0|NaN|null)<\/td>/);
+  });
+
+  it("DevOps:SPEC-INT-081: measured型へnon-finite値が混入してもHTMLへ出力しない", () => {
+    const invalidMeasured = {
+      value: Number.POSITIVE_INFINITY,
+      source: "dora",
+      as_of: "2026-07-13T00:00:00+09:00",
+    };
+    const { html } = composeManagerReport(
+      common,
+      {
+        ...managerData,
+        dora: {
+          ...managerData.dora,
+          deploymentFrequencyPerWeek: Number.POSITIVE_INFINITY,
+          medianLeadTimeHours: Number.NaN,
+          changeFailureRatePct: Number.NEGATIVE_INFINITY,
+          failedDeploymentRecoveryTimeHours: Number.POSITIVE_INFINITY,
+          deltaVsPrevWeek: {
+            deploymentFrequency: invalidMeasured,
+            leadTime: invalidMeasured,
+            changeFailureRate: invalidMeasured,
+            mttr: invalidMeasured,
+          },
+        },
+      },
+      "週次",
+    );
+    expect(html.match(/<td>未取得<\/td>/g)).toHaveLength(8);
+    expect(html).not.toContain("Infinity");
+    expect(html).not.toContain("NaN");
   });
 
   it("自己完結・クリーンなHTML", () => {

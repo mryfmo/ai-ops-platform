@@ -45,8 +45,8 @@ function response(
   };
 }
 
-describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-030]", () => {
-  it("marks stable system and tool definitions for prompt caching and records cache usage [SPEC-INT-030 / SPEC-INT-060]", async () => {
+describe("AnthropicStructuredClient parameter handling [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-030]", () => {
+  it("marks stable system and tool definitions for prompt caching and records cache usage [PrjOps:SPEC-INT-030 / PrjOps:SPEC-INT-060]", async () => {
     const create = vi.fn().mockResolvedValue(
       response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }], "tool_use", {
         input_tokens: 10,
@@ -82,7 +82,7 @@ describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-
     expect(guard.getRecords()[0]).toMatchObject({ cache_creation_input_tokens: 8, cache_read_input_tokens: 4 });
   });
 
-  it("reserves the cache-creation premium before a cached request [SPEC-INT-030 / SPEC-INT-060]", async () => {
+  it("reserves the cache-creation premium before a cached request [PrjOps:SPEC-INT-030 / PrjOps:SPEC-INT-060]", async () => {
     const create = vi
       .fn()
       .mockResolvedValue(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
@@ -123,7 +123,7 @@ describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-
     );
   });
 
-  it("configured escalation capability omits temperature without model-name inference [SPEC-INT-001 / SPEC-INT-030]", async () => {
+  it("configured escalation capability omits temperature without model-name inference [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-030]", async () => {
     const create = vi
       .fn()
       .mockResolvedValueOnce(response([{ type: "text", text: "not a tool" }], "end_turn"))
@@ -162,7 +162,7 @@ describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-
     expect(shouldSendTemperature("tier-critical", "tier-critical")).toBe(false);
   });
 
-  it("stop_reason=refusal is surfaced as AnthropicRefusalError, not E-ING03 [SPEC-INT-030]", async () => {
+  it("stop_reason=refusal is surfaced as AnthropicRefusalError, not E-ING03 [PrjOps:SPEC-INT-030]", async () => {
     const create = vi.fn().mockResolvedValue(response([], "refusal"));
     const client = new AnthropicStructuredClient(
       { messages: { create } } as unknown as Anthropic,
@@ -185,7 +185,7 @@ describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-
     ).rejects.toBeInstanceOf(AnthropicRefusalError);
   });
 
-  it("failed attempts reconcile their reservation to zero before retrying [SPEC-INT-030 / SPEC-INT-060]", async () => {
+  it("failed attempts reconcile their reservation to zero before retrying [PrjOps:SPEC-INT-030 / PrjOps:SPEC-INT-060]", async () => {
     const create = vi
       .fn()
       .mockRejectedValueOnce(new Error("transient"))
@@ -219,8 +219,8 @@ describe("AnthropicStructuredClient parameter handling [SPEC-INT-001 / SPEC-INT-
   });
 });
 
-describe("AnthropicStructuredClient configured pricing [SPEC-INT-001 / SPEC-INT-060]", () => {
-  it("uses custom rates without auditing a known model [SPEC-INT-001 / SPEC-INT-060]", async () => {
+describe("AnthropicStructuredClient configured pricing [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]", () => {
+  it("uses custom rates without auditing a known model [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]", async () => {
     const create = vi
       .fn()
       .mockResolvedValue(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
@@ -250,7 +250,7 @@ describe("AnthropicStructuredClient configured pricing [SPEC-INT-001 / SPEC-INT-
     expect(await auditLog.readAll()).toEqual([]);
   });
 
-  it("uses highest configured price and warn audit for an unknown model [SPEC-INT-060]", async () => {
+  it("uses highest configured price and warn audit for an unknown model [PrjOps:SPEC-INT-060]", async () => {
     const create = vi
       .fn()
       .mockResolvedValue(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
@@ -280,7 +280,7 @@ describe("AnthropicStructuredClient configured pricing [SPEC-INT-001 / SPEC-INT-
     });
   });
 
-  it("fails before reservation or model call when unknown fallback has no audit sink [SPEC-INT-060]", async () => {
+  it("fails before reservation or model call when unknown fallback has no audit sink [PrjOps:SPEC-INT-060]", async () => {
     const create = vi.fn();
     const guard = new InMemoryCostGuard();
     const client = new AnthropicStructuredClient({ messages: { create } } as unknown as Anthropic, guard, {
@@ -306,7 +306,7 @@ describe("AnthropicStructuredClient configured pricing [SPEC-INT-001 / SPEC-INT-
     expect(guard.getRecords()).toEqual([]);
   });
 
-  it("fails before reservation or model call when unknown audit append fails [SPEC-INT-060]", async () => {
+  it("fails before reservation or model call when unknown audit append fails [PrjOps:SPEC-INT-060]", async () => {
     const create = vi.fn();
     const guard = new InMemoryCostGuard();
     const append = vi.fn().mockRejectedValue(new Error("audit unavailable"));
@@ -336,7 +336,7 @@ describe("AnthropicStructuredClient configured pricing [SPEC-INT-001 / SPEC-INT-
     expect(guard.getRecords()).toEqual([]);
   });
 
-  it("audits an unknown model once across retries [SPEC-INT-060]", async () => {
+  it("audits an unknown model once across retries [PrjOps:SPEC-INT-060]", async () => {
     const create = vi
       .fn()
       .mockRejectedValueOnce(new Error("transient"))
@@ -369,10 +369,10 @@ describe("AnthropicStructuredClient configured pricing [SPEC-INT-001 / SPEC-INT-
   });
 });
 
-describe("LLM pricing and token validation [SPEC-INT-060]", () => {
+describe("LLM pricing and token validation [PrjOps:SPEC-INT-060]", () => {
   const pricing = validateModelPricingUsdPerMtok({ exact: { input: 2, output: 10 }, high: { input: 7, output: 35 } });
 
-  it("resolves exact and unknown models deterministically [SPEC-INT-060]", () => {
+  it("resolves exact and unknown models deterministically [PrjOps:SPEC-INT-060]", () => {
     expect(resolveModelPrice("exact", pricing)).toEqual({ price: { input: 2, output: 10 }, usedFallback: false });
     expect(resolveModelPrice("unknown", pricing)).toEqual({ price: { input: 7, output: 35 }, usedFallback: true });
     expect(resolveModelPrice("constructor", pricing)).toEqual({ price: { input: 7, output: 35 }, usedFallback: true });
@@ -386,7 +386,7 @@ describe("LLM pricing and token validation [SPEC-INT-060]", () => {
     ["Infinity", { model: { input: 1, output: Number.POSITIVE_INFINITY } }],
     ["surrounding model whitespace", { " model": { input: 1, output: 1 } }],
     ["unknown field", { model: { input: 1, output: 1, cached: 1 } }],
-  ])("rejects %s pricing [SPEC-INT-060]", (_name, value) => {
+  ])("rejects %s pricing [PrjOps:SPEC-INT-060]", (_name, value) => {
     expect(() => validateModelPricingUsdPerMtok(value)).toThrow("E-CFG03");
   });
 
@@ -396,11 +396,11 @@ describe("LLM pricing and token validation [SPEC-INT-060]", () => {
     ["NaN input", Number.NaN, 0],
     ["Infinity output", 0, Number.POSITIVE_INFINITY],
     ["unsafe integer", Number.MAX_SAFE_INTEGER + 1, 0],
-  ])("rejects invalid token count: %s [SPEC-INT-060]", (_name, input, output) => {
+  ])("rejects invalid token count: %s [PrjOps:SPEC-INT-060]", (_name, input, output) => {
     expect(() => estimateCostUsd("exact", input, output, pricing)).toThrow("E-COST02");
   });
 
-  it("rejects duplicate keys, oversized JSON, and excessive model count [SPEC-INT-060]", () => {
+  it("rejects duplicate keys, oversized JSON, and excessive model count [PrjOps:SPEC-INT-060]", () => {
     for (const raw of [
       '{"model":{"input":1,"input":2,"output":3}}',
       '{"model":{"input":1,"output":2},"model":{"input":3,"output":4}}',
@@ -419,20 +419,20 @@ describe("LLM pricing and token validation [SPEC-INT-060]", () => {
     expect(() => parseModelPricingUsdPerMtokJson(JSON.stringify(tooMany))).toThrow("E-CFG03");
   });
 
-  it("parses and deeply freezes a valid table once at the config boundary [SPEC-INT-060]", () => {
+  it("parses and deeply freezes a valid table once at the config boundary [PrjOps:SPEC-INT-060]", () => {
     const parsed = parseModelPricingUsdPerMtokJson('{"model":{"input":1,"output":2}}');
     expect(Object.isFrozen(parsed)).toBe(true);
     expect(Object.isFrozen(parsed["model"])).toBe(true);
   });
 
-  it("fails closed when arithmetic would produce a non-finite cost [SPEC-INT-060]", () => {
+  it("fails closed when arithmetic would produce a non-finite cost [PrjOps:SPEC-INT-060]", () => {
     const extreme = validateModelPricingUsdPerMtok({ model: { input: Number.MAX_VALUE, output: 1 } });
     expect(() => estimateCostUsd("model", Number.MAX_SAFE_INTEGER, 0, extreme)).toThrow("E-COST02");
     const underflow = validateModelPricingUsdPerMtok({ model: { input: Number.MIN_VALUE, output: Number.MIN_VALUE } });
     expect(() => estimateCostUsd("model", 1, 1, underflow)).toThrow("E-COST02");
   });
 
-  it("rejects an invalid call model before audit or reservation [SPEC-INT-060]", async () => {
+  it("rejects an invalid call model before audit or reservation [PrjOps:SPEC-INT-060]", async () => {
     const auditLog = new InMemoryAuditLog();
     const guard = new InMemoryCostGuard();
     const client = new AnthropicStructuredClient({ messages: { create: vi.fn() } } as unknown as Anthropic, guard, {
@@ -457,7 +457,7 @@ describe("LLM pricing and token validation [SPEC-INT-060]", () => {
     expect(await auditLog.readAll()).toEqual([]);
   });
 
-  it("rejects invalid constructor pricing before audit or reservation [SPEC-INT-060]", async () => {
+  it("rejects invalid constructor pricing before audit or reservation [PrjOps:SPEC-INT-060]", async () => {
     const auditLog = new InMemoryAuditLog();
     const guard = new InMemoryCostGuard();
     expect(
@@ -473,7 +473,7 @@ describe("LLM pricing and token validation [SPEC-INT-060]", () => {
     expect(await auditLog.readAll()).toEqual([]);
   });
 
-  it("rejects one-sided audit configuration [SPEC-INT-060]", () => {
+  it("rejects one-sided audit configuration [PrjOps:SPEC-INT-060]", () => {
     expect(
       () =>
         new AnthropicStructuredClient(

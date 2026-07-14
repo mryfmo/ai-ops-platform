@@ -2,14 +2,14 @@
  * packages/shared/src/calendar/businessCalendar.ts
  *
  * 根拠:
- *   - PrjOps SPEC-INT-054（営業日カレンダー。「第n営業日」判定の唯一の根拠）
+ *   - PrjOps:SPEC-INT-054（営業日カレンダー。「第n営業日」判定の唯一の根拠）
  *   - PrjOps DOC-02 §2（月次=毎月第1営業日、四半期=四半期初月第3営業日）
- *   - DevOps SPEC-INT-033（AGT-RPTの営業日判定）、SPEC-INT-021 factor E（営業時間外判定）
+ *   - DevOps:SPEC-INT-033（AGT-RPTの営業日判定）、DevOps:SPEC-INT-021 factor E（営業時間外判定）
  *
  * 設計方針:
  *   - すべて純粋関数。祝日データ（HolidayCalendar）を明示的に注入することで、
  *     同一入力に対し常に同一出力を返す決定的な実装とする
- *     （PrjOps REQ-007 AC-007-1 および DevOps REQ-011 AC-011a と同じ設計原則を踏襲）。
+ *     （PrjOps:REQ-007 AC-007-1 および DevOps:REQ-011 AC-011a と同じ設計原則を踏襲）。
  *   - 日付は "YYYY-MM-DD" のJSTカレンダー日として扱う。ホストのタイムゾーンに依存しないよう、
  *     日付演算はすべて Date.UTC を「タイムゾーン中立な日数カウンタ」として使う。
  */
@@ -79,7 +79,7 @@ export function isJpHoliday(cal: HolidayCalendar, dateStr: string): boolean {
   return cal.holidays.has(dateStr);
 }
 
-/** 営業日 = 土日でなく、かつ祝日カレンダーに存在しない日（SPEC-INT-054） */
+/** 営業日 = 土日でなく、かつ祝日カレンダーに存在しない日（PrjOps:SPEC-INT-054） */
 export function isBusinessDay(cal: HolidayCalendar, dateStr: string): boolean {
   return !isWeekend(dateStr) && !isJpHoliday(cal, dateStr);
 }
@@ -121,7 +121,7 @@ export function addBusinessDays(cal: HolidayCalendar, dateStr: string, n: number
 
 /**
  * year-month の 第n営業日 を返す（PrjOps DOC-02: 月次配信=第1営業日 / 四半期=初月第3営業日、
- * DevOps SPEC-INT-033: 月次棚卸し=第1営業日 REQ-019）。
+ * DevOps:SPEC-INT-033: 月次棚卸し=第1営業日 DevOps:REQ-019）。
  * month は 1-12。
  */
 export function nthBusinessDayOfMonth(cal: HolidayCalendar, year: number, month: number, n: number): string {
@@ -157,7 +157,7 @@ export function isQuarterStartMonth(dateStr: string): boolean {
 }
 
 /**
- * JSTの営業時間内かどうかを判定する（DevOps SPEC-INT-021 factor E）。
+ * JSTの営業時間内かどうかを判定する（DevOps:SPEC-INT-021 factor E）。
  * 定義: 営業時間外 = 平日19:00〜翌9:00、または土日・祝日終日。
  * @param dateStr YYYY-MM-DD (JST calendar date)
  * @param hhmm "HH:mm" (JST, 24時間表記)

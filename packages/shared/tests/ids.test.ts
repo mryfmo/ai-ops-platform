@@ -10,7 +10,7 @@ describe("ID formatting/validation [DOC-00 §6]", () => {
     expect(formatProjectId(123)).toBe("PJ-123");
   });
 
-  it("status_update ID (SPEC-INT-020) を正しく生成・検証する", () => {
+  it("status_update ID (PrjOps:SPEC-INT-020) を正しく生成・検証する", () => {
     const id = formatStatusUpdateId("PJ-001", 2026, 27, 1);
     expect(id).toBe("SU-PJ-001-2026-W27-1");
     expect(isValidId("statusUpdate", id)).toBe(true);

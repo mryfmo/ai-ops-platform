@@ -7,11 +7,13 @@ import { standardReportId } from "../src/db/standardReportsRepo.js";
 
 const secret = "report-ingest-secret-of-at-least-32-chars";
 const payload: StandardReportPayload = {
-  schemaVersion: "standard-report.v1",
+  schemaVersion: "standard-report.v2",
   reportType: "weekly-summary",
-  evidenceIds: ["REQ-042"],
+  evidenceIds: ["PrjOps:REQ-042"],
   period: { label: "2026-W28", generatedAt: "2026-07-06T00:00:00.000Z" },
-  metrics: { completed: 1 },
+  metrics: {
+    completed: { value: 1, source: "test:completed", as_of: "2026-07-06T00:00:00.000Z" },
+  },
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };
 
@@ -46,7 +48,7 @@ function makeApp(opts: { failsafe?: boolean } = {}) {
   return { app, auditLog, inserts, delivered };
 }
 
-describe("POST /reports/ingest [REQ-042 SPEC-INT-069 SPEC-INT-083 AC-042-1]", () => {
+describe("POST /reports/ingest [PrjOps:REQ-042 SPEC-INT-069 SPEC-INT-083 PrjOps:AC-042-1 / DevOps:AC-042-1]", () => {
   it("HMAC不正は401", async () => {
     const { app, inserts } = makeApp();
     const res = await app.request("/reports/ingest", {
@@ -67,6 +69,20 @@ describe("POST /reports/ingest [REQ-042 SPEC-INT-069 SPEC-INT-083 AC-042-1]", ()
       body: raw,
     });
     expect(res.status).toBe(422);
+  });
+
+  it("legacy v1 numeric metricsは422で保存しない", async () => {
+    const { app, inserts } = makeApp();
+    const legacy = { ...payload, schemaVersion: "standard-report.v1", metrics: { completed: 1 } };
+    const raw = JSON.stringify(legacy);
+    const res = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(raw) },
+      body: raw,
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ details: expect.arrayContaining([expect.stringMatching(/legacy/i)]) });
+    expect(inserts).toHaveLength(0);
   });
 
   it("正常系は保存して配信パイプラインへ渡す", async () => {

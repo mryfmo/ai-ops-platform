@@ -1,7 +1,7 @@
 /**
  * packages/devops/tests/auditSchema.test.ts
  *
- * 根拠: DevOps REQ-028 / SPEC-INT-056。監査ログの追記専用・保持区分・partition migrationを検証する。
+ * 根拠: DevOps:REQ-028 / SPEC-INT-056。監査ログの追記専用・保持区分・partition migrationを検証する。
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

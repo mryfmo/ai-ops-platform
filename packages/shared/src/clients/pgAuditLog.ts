@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/clients/pgAuditLog.ts
  *
- * 根拠: DevOps SPEC-INT-056 / REQ-028（PostgreSQL audit_log は追記専用）。
+ * 根拠: DevOps:SPEC-INT-056 / REQ-028（PostgreSQL audit_log は追記専用）。
  */
 import { sanitizeSecrets } from "../secretSanitizer.js";
 import { validateReasonRequirement, type AuditLogWriter, type AuditRecord } from "../auditLog.js";
@@ -25,7 +25,7 @@ export class PgAuditLog implements AuditLogWriter {
     const { redactionCount } = sanitizeSecrets(detail);
     if (redactionCount > 0) {
       throw new Error(
-        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (REQ-032/SPEC-INT-070).`,
+        `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (REQ-032/DevOps:SPEC-INT-070).`,
       );
     }
     const res = await this.db.query(

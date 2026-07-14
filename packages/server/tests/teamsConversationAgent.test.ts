@@ -1,9 +1,9 @@
 /**
  * packages/server/tests/teamsConversationAgent.test.ts
  *
- * 根拠: ADR-0005（会話取込→コマンド/自由文解釈→GitHub照会→Teams返信の結線）/ SPEC-INT-001
- *   （resourceパース、fetch-on-notify）/ SPEC-INT-033（コマンド優先・自由文フォールバック）/
- *   REQ-030（保存前sanitizeSecrets）/ ADR-0006（code_task: 確認リンク発行のみ、dispatchWorkflow不呼び出し）
+ * 根拠: ADR-0005（会話取込→コマンド/自由文解釈→GitHub照会→Teams返信の結線）/ PrjOps:SPEC-INT-001
+ *   （resourceパース、fetch-on-notify）/ PrjOps:SPEC-INT-033（コマンド優先・自由文フォールバック）/
+ *   DevOps:REQ-030（保存前sanitizeSecrets）/ ADR-0006（code_task: 確認リンク発行のみ、dispatchWorkflow不呼び出し）
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -156,7 +156,7 @@ function makeHarness(
   return { agent, auditLog, upserted, replies, ghCalls, codingTaskInserts, channel, message };
 }
 
-describe("TeamsConversationAgent: resourceパース (SPEC-INT-001)", () => {
+describe("TeamsConversationAgent: resourceパース (PrjOps:SPEC-INT-001)", () => {
   it("resource文字列からteamId/channelId/messageIdを抽出して処理する", async () => {
     const h = makeHarness();
     await h.agent.handleNotification(makeNotification(), "trace-1");
@@ -173,7 +173,7 @@ describe("TeamsConversationAgent: resourceパース (SPEC-INT-001)", () => {
   });
 });
 
-describe("TeamsConversationAgent: 権限チェック拒否 (SPEC-INT-033)", () => {
+describe("TeamsConversationAgent: 権限チェック拒否 (PrjOps:SPEC-INT-033)", () => {
   it("PRF-01は/gh issue createを拒否され、返信で通知される", async () => {
     const h = makeHarness({
       message: { content: '/gh issue create PJ-001 "タイトル" 本文:"詳細"' },
@@ -193,7 +193,7 @@ describe("TeamsConversationAgent: 権限チェック拒否 (SPEC-INT-033)", () =
     expect(logs.some((l) => l.action === "teams_message_rejected")).toBe(true);
   });
 
-  it("関係者マスタ未設定でも会話保存を継続し、コマンドを拒否+監査する (REQ-002 ADR-0005)", async () => {
+  it("関係者マスタ未設定でも会話保存を継続し、コマンドを拒否+監査する (PrjOps:REQ-002 ADR-0005)", async () => {
     const h = makeHarness({ message: { content: "/gh pr list PJ-001" }, callerProfile: null });
     await h.agent.handleNotification(makeNotification(), "trace-4b");
     expect(h.upserted).toHaveLength(1);
@@ -254,7 +254,7 @@ describe("TeamsConversationAgent: GitHub照会成功 (ADR-0005)", () => {
     expect(logs.every((l) => l.action !== "teams_code_task_deferred")).toBe(true);
   });
 
-  it("/code fix のinstructionはdispatch前にLLM入力用サニタイズを通す (DevOps REQ-030)", async () => {
+  it("/code fix のinstructionはdispatch前にLLM入力用サニタイズを通す (DevOps:REQ-030)", async () => {
     const h = makeHarness({
       message: { content: '/code fix PJ-001 "キー sk-ant-abcdefghijklmnopqrstuvwxyz を除去"' },
       callerProfile: "PRF-02",
@@ -263,7 +263,7 @@ describe("TeamsConversationAgent: GitHub照会成功 (ADR-0005)", () => {
     expect(h.codingTaskInserts[0]!.instruction).toBe("キー ***REDACTED:anthropic_api_key*** を除去");
   });
 
-  it("/dashboard はpersona付きWebUIディープリンクカードを返信する (REQ-042 SPEC-INT-069 AC-042-1)", async () => {
+  it("/dashboard はpersona付きWebUIディープリンクカードを返信する (PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1)", async () => {
     const h = makeHarness({ message: { content: "/dashboard" }, callerProfile: "PRF-02" });
     await h.agent.handleNotification(makeNotification(), "trace-dashboard");
     expect(h.replies[0]!.content).toContain("ダッシュボード");
@@ -273,7 +273,7 @@ describe("TeamsConversationAgent: GitHub照会成功 (ADR-0005)", () => {
   });
 });
 
-describe("TeamsConversationAgent: 自由文フォールバック (SPEC-INT-033)", () => {
+describe("TeamsConversationAgent: 自由文フォールバック (PrjOps:SPEC-INT-033)", () => {
   it("スラッシュで始まらない文はLLM意図解釈を試み、gh_pr_listならPR一覧を返す", async () => {
     const llmClient = makeMockLlmClient({
       intent: "gh_pr_list",
@@ -329,7 +329,7 @@ describe("TeamsConversationAgent: 監査ログ記録", () => {
     expect(h.upserted).toHaveLength(1);
   });
 
-  it("保存前にsanitizeSecretsを通す (REQ-030)", async () => {
+  it("保存前にsanitizeSecretsを通す (DevOps:REQ-030)", async () => {
     const h = makeHarness({ message: { content: "token ghp_abcdefghijklmnopqrst0123" } });
     await h.agent.handleNotification(makeNotification(), "trace-15");
     expect(h.upserted[0]!.content).toContain("***REDACTED:github_pat***");

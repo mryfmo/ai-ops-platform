@@ -33,7 +33,7 @@ function assertSelfContainedAndClean(html: string, forbiddenTerms: string[] = []
   }
 }
 
-describe("composeMemberReport [PRF-01, SPEC-EXT-021]", () => {
+describe("composeMemberReport [PRF-01, PrjOps:REQ-011, PrjOps:SPEC-EXT-021]", () => {
   const html = composeMemberReport(common, {
     actions: [
       { id: "ACT-0001", content: "資料レビュー", due: "2026-07-08", status: "open", overdue: false },
@@ -47,6 +47,9 @@ describe("composeMemberReport [PRF-01, SPEC-EXT-021]", () => {
   });
   it("期限超過アクションの行に overdue クラスが付く", () => {
     expect(html).toContain('class="overdue"');
+  });
+  it("PrjOps:REQ-011: 自分のアクションを期限の早い順に表示する", () => {
+    expect(html.indexOf("ACT-0002")).toBeLessThan(html.indexOf("ACT-0001"));
   });
   it("0件セクションでも「本日はありません」が表示される（0件でもセクション省略しない）", () => {
     const emptyHtml = composeMemberReport(common, { actions: [], projects: [] });

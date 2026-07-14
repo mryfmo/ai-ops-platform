@@ -1,11 +1,11 @@
 /**
  * packages/shared/tests/fetchPolicy.test.ts
- * 根拠: DevOps SPEC-INT-080
+ * 根拠: DevOps:SPEC-INT-080
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTimeout, type FetchLike } from "../src/clients/fetchPolicy.js";
 
-describe("withTimeout [DevOps SPEC-INT-080]", () => {
+describe("withTimeout [DevOps:SPEC-INT-080]", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();

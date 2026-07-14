@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/githubAppTokenProvider.test.ts
  *
- * 根拠: SPEC-INT-061。GitHub App JWTとinstallation tokenの取得・更新を検証する。
+ * 根拠: DevOps:SPEC-INT-061。GitHub App JWTとinstallation tokenの取得・更新を検証する。
  */
 import { generateKeyPairSync, verify } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
@@ -25,7 +25,7 @@ function decodePart(jwt: string, index: number): Record<string, unknown> {
   return JSON.parse(Buffer.from(jwt.split(".")[index]!, "base64url").toString("utf8")) as Record<string, unknown>;
 }
 
-describe("GitHub App token provider [SPEC-INT-061]", () => {
+describe("GitHub App token provider [DevOps:SPEC-INT-061]", () => {
   it("RS256 JWTを正しいclaimsで署名し、GitHubのinstallation token API契約を守る", async () => {
     const fetchImpl = vi.fn(async (input: string, init?: RequestInit) => {
       const jwt = String((init?.headers as Record<string, string>).Authorization).slice("Bearer ".length);

@@ -47,7 +47,7 @@ describe("handleProjects（権限外403）", () => {
 });
 
 describe("handleProjects（正当なセッション: データ返却）", () => {
-  it("選択した2番目のペルソナをAPIでも使用する [REQ-041 / SPEC-INT-068]", async () => {
+  it("選択した2番目のペルソナをAPIでも使用する [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     const personas: ResolvedPersona[] = [
       {
         domain: "prjops",

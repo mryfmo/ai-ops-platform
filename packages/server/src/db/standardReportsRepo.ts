@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/standardReportsRepo.ts
  *
- * 根拠: ADR-0014 / REQ-042 / SPEC-INT-069 / AC-042-1。
+ * 根拠: ADR-0014 / PrjOps:REQ-042 / SPEC-INT-069 / PrjOps:AC-042-1。
  * CIで生成された標準 report.json を検証後に永続化し、再送を冪等に扱う。
  */
 import { createHash } from "node:crypto";

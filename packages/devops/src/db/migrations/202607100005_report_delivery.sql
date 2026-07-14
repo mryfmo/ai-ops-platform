@@ -1,4 +1,4 @@
--- 2026-07-09 ADR-0014 / REQ-042 / SPEC-INT-069: 統合配信の標準report受領・配信ログ。
+-- 2026-07-09 ADR-0014 / DevOps:REQ-042 / SPEC-INT-069: 統合配信の標準report受領・配信ログ。
 ALTER TABLE recipients DROP CONSTRAINT IF EXISTS recipients_profile_check;
 ALTER TABLE recipients ADD CONSTRAINT recipients_profile_check CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')) NOT VALID;
 ALTER TABLE recipients ADD COLUMN IF NOT EXISTS persona TEXT CHECK (persona IN ('member', 'leader', 'global-manager', 'manager', 'executive', 'investor'));

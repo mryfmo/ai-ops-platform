@@ -5,9 +5,9 @@
  * LLM生成slotsにコード算出metricsを注入し、retry後相当の最終防衛として超過slotを切り詰める。
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { buildStandardReportPayload } from "./reportGenerator.js";
+import { buildStandardReportPayloadFromMetrics } from "./reportGenerator.js";
 import { parseReportSlots, truncateReportSlots, validateStandardReportPayload } from "./reportValidation.js";
-import type { StandardReportType } from "./reportSchema.js";
+import type { StandardReportMetric, StandardReportType } from "./reportSchema.js";
 
 const [slotsPath, metricsPath] = process.argv.slice(2);
 if (!slotsPath || !metricsPath) {
@@ -23,14 +23,15 @@ if (truncated.truncatedKeys.length > 0) {
   );
 }
 
-const payload = buildStandardReportPayload(
+const payload = buildStandardReportPayloadFromMetrics(
   {
     evidenceIds: (process.env["REPORT_EVIDENCE_IDS"] ?? "REQ-040").split(",").filter(Boolean),
     periodLabel: process.env["PERIOD_LABEL"] ?? "scheduled weekly period",
     reportType: (process.env["REPORT_TYPE"] as StandardReportType | undefined) ?? "weekly-summary",
-    metrics: JSON.parse(readFileSync(metricsPath, "utf8")) as Record<string, number>,
+    metrics: JSON.parse(readFileSync(metricsPath, "utf8")) as Record<string, StandardReportMetric>,
   },
   truncated.slots,
+  process.env["REPORT_GENERATED_AT"] ?? new Date().toISOString(),
 );
 const validation = validateStandardReportPayload(payload);
 if (!validation.ok) throw new Error(`E-RPT02: invalid finalized report: ${validation.errors.join("; ")}`);

@@ -2,7 +2,7 @@
  * packages/server/src/db/graphSubscriptionsRepo.ts
  *
  * 根拠: ADR-0005（Graphサブスクリプション台帳。renew対象・プロセス再起動後の復元・deltaLink永続化の正本）/
- *   SPEC-INT-001（チャネルメッセージ通知はfetch-on-notify。renewSubscription失敗時は
+ *   PrjOps:SPEC-INT-001（チャネルメッセージ通知はfetch-on-notify。renewSubscription失敗時は
  *   5分間隔ポーリング(mode='polling')へフォールバックする）。
  *
  * 設計: 既存Repo（channelMessagesRepo.ts / projectChannelsRepo.ts）と同じPgQueryable注入パターン。

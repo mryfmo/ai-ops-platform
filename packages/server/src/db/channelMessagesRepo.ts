@@ -1,11 +1,11 @@
 /**
  * packages/server/src/db/channelMessagesRepo.ts
  *
- * 根拠: ADR-0005（チャネル会話の写し channel_messages）/ REQ-030。
+ * 根拠: ADR-0005（チャネル会話の写し channel_messages）/ DevOps:REQ-030。
  *   - created → INSERT / updated → content・last_modified_at 更新 / deleted → deleted_at セット。
  *     物理DELETEは行わない（監査整合。保持期間の削除は runbooks/channel-messages-purge.md の運用）。
  *   - content の sanitizeSecrets() は「保存前に呼び出し側（agents/teamsConversationAgent）が行う」責務分担
- *     （REQ-030 の (a) DB保存前サニタイズ。本Repoは永続化のみを担う）。
+ *     （DevOps:REQ-030 の (a) DB保存前サニタイズ。本Repoは永続化のみを担う）。
  */
 import type { PgQueryable } from "@aiops/shared";
 

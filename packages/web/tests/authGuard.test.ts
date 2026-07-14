@@ -87,7 +87,7 @@ describe("requirePersona（ADR-0005: 該当ペルソナなしのハンドリン�
     expect(result).toEqual(personas);
   });
 
-  it("申告ペルソナが現在の保有ペルソナに無ければ403にする [REQ-041 / SPEC-INT-068]", async () => {
+  it("申告ペルソナが現在の保有ペルソナに無ければ403にする [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     const personas: ResolvedPersona[] = [
       {
         domain: "devops",
@@ -102,14 +102,14 @@ describe("requirePersona（ADR-0005: 該当ペルソナなしのハンドリン�
     });
   });
 
-  it("entitlement削除後の古い選択も毎回再解決して403にする [REQ-041 / SPEC-INT-068]", async () => {
+  it("entitlement削除後の古い選択も毎回再解決して403にする [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     const resolver: PersonaResolver = { resolveByEmail: async () => [] };
     await expect(requirePersona("user@example.com", resolver, undefined, "devops:PRF-G")).rejects.toBeInstanceOf(
       ForbiddenError,
     );
   });
 
-  it("選択省略時は先頭、正当な選択時は該当ペルソナを返す [REQ-041 / SPEC-INT-068]", () => {
+  it("選択省略時は先頭、正当な選択時は該当ペルソナを返す [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
     const personas: ResolvedPersona[] = [
       {
         domain: "devops",
@@ -126,7 +126,7 @@ describe("requirePersona（ADR-0005: 該当ペルソナなしのハンドリン�
     expect(personaKey(selectPersona(personas, "devops:PRF-G"))).toBe("devops:PRF-G");
   });
 
-  it("API requestの選択Cookieを読み取る [REQ-041 / SPEC-INT-068]", () => {
+  it("API requestの選択Cookieを読み取る [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
     const request = new Request("https://example.test/app/api/data/projects", {
       headers: { cookie: "other=x; aiops-persona=devops:PRF-G" },
     });

@@ -2,7 +2,7 @@
  * packages/web/src/server/chat/systemPrompt.ts
  *
  * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
- *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
+ *   ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。
  *   ペルソナ情報を埋め込んだシステムプロンプトを生成する純粋関数。
  *   CLAUDE.md設計原則2（数値・色・表はコード算出、LLMは文章スロット/表示パラメータのみ）に
  *   従い、「数値を本文で述べず必ずtoolで表示する」ことを明記する。

@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/graphSubscriptionPolicy.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-001。Microsoft Graph v1.0 chatMessage subscription policy,
+ * 根拠: ADR-0005 / PrjOps:SPEC-INT-001。Microsoft Graph v1.0 chatMessage subscription policy,
  * checked 2026-07-11:
  * https://learn.microsoft.com/en-us/graph/api/resources/subscription?view=graph-rest-1.0
  * https://learn.microsoft.com/en-us/graph/teams-changenotifications-chatmessage

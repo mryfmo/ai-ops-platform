@@ -1,9 +1,9 @@
 /**
  * packages/prjops/src/lib/approvalTimer.ts
  *
- * 根拠: REQ-017 承認ゲート / AC-017-2 / SPEC-INT-050 / SPEC-EXT-038（承認依頼/承認督促の通知一覧項目）
+ * 根拠: PrjOps:REQ-017 承認ゲート / AC-017-2 / PrjOps:SPEC-INT-050 / SPEC-EXT-038（承認依頼/承認督促の通知一覧項目）
  *   承認期限24時間超過で代理承認者へ、さらに24時間で配信保留のまま遅延通知（DOC-02 §4）。
- *   SPEC-INT-050: 24h/48h判定は track-daily とは別の毎時ジョブで行う。
+ *   PrjOps:SPEC-INT-050: 24h/48h判定は track-daily とは別の毎時ジョブで行う。
  */
 
 const HOUR_MS = 60 * 60 * 1000;

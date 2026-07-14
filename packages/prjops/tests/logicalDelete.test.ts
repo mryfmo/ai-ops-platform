@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validateLogicalDeleteRequest, applyLogicalDelete } from "../src/lib/logicalDelete.js";
 
-describe("validateLogicalDeleteRequest [SPEC-INT-027, REQ-021 AC-021-1]", () => {
+describe("validateLogicalDeleteRequest [SPEC-INT-027, PrjOps:REQ-021 AC-021-1]", () => {
   it("PRF-03かつ理由ありなら許可される", () => {
     const r = validateLogicalDeleteRequest({ requesterProfile: "PRF-03", deleteReason: "重複登録のため" });
     expect(r.allowed).toBe(true);

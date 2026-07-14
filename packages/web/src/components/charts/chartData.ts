@@ -1,7 +1,7 @@
 /**
  * packages/web/src/components/charts/chartData.ts
  *
- * 根拠: ADR-0009 / SPEC-INT-064 / AC-010-3。
+ * 根拠: ADR-0009 / PrjOps:SPEC-INT-064 / AC-010-3。
  * Rechartsへ渡すprops形状を表示層の外で決定する純粋関数。
  */
 import type { TimeseriesAggregate } from "@aiops/shared";

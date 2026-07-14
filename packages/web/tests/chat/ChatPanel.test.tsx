@@ -47,6 +47,31 @@ function setupContainer(): { container: HTMLDivElement; root: Root } {
   return { container, root };
 }
 
+function finishWithToolOutput(
+  toolName: string,
+  output: unknown,
+): { onViewSpecReceived: ReturnType<typeof vi.fn>; root: Root } {
+  mockUseChat.mockReturnValue({ messages: [], sendMessage: vi.fn(), status: "ready" });
+  const onViewSpecReceived = vi.fn();
+  const { root } = setupContainer();
+  act(() => {
+    root.render(<ChatPanel onViewSpecReceived={onViewSpecReceived} />);
+  });
+  const options = mockUseChat.mock.calls[0]?.[0] as { onFinish: (arg: unknown) => void };
+  act(() => {
+    options.onFinish({
+      message: {
+        id: "a-boundary",
+        role: "assistant",
+        parts: [
+          { type: `tool-${toolName}`, toolCallId: "call-boundary", state: "output-available", input: {}, output },
+        ],
+      },
+    });
+  });
+  return { onViewSpecReceived, root };
+}
+
 beforeEach(() => {
   mockUseChat.mockReset();
 });
@@ -204,6 +229,48 @@ describe("ChatPanel（ADR-0005: tool結果受信でonViewSpecReceivedを呼ぶ�
     expect(onViewSpecReceived).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
+
+  it.each([
+    ["unknown kind", "showExecutiveSummary", { kind: "unknown" }],
+    ["embedded data", "listProjects", { kind: "projectList", data: [{ id: "PJ-001" }] }],
+    ["embedded metrics", "showExecutiveSummary", { kind: "executiveSummary", metrics: { progress: 99 } }],
+    ["embedded labels", "listProjects", { kind: "projectList", labels: ["secret"] }],
+    ["embedded URL", "listProjects", { kind: "projectList", url: "https://example.invalid" }],
+    ["embedded HTML", "listProjects", { kind: "projectList", html: "<img src=x onerror=alert(1)>" }],
+    ["arbitrary unknown key", "showAgentActivity", { kind: "agentActivity", unexpected: true }],
+    ["missing period", "show_timeseries", { kind: "timeseries" }],
+    ["invalid period", "show_timeseries", { kind: "timeseries", period: "day" }],
+    ["invalid periodDays", "showManagerSummary", { kind: "managerSummary", periodDays: 10 }],
+    ["invalid projectId", "show_project_board", { kind: "projectBoard", projectId: "../foreign" }],
+  ])(
+    "strict ViewSpec境界は%sを固定アクションへ渡さない [PrjOps:REQ-041 / PrjOps:SPEC-INT-068]",
+    (_caseName, toolName, output) => {
+      const { onViewSpecReceived, root } = finishWithToolOutput(toolName, output);
+      expect(onViewSpecReceived).not.toHaveBeenCalled();
+      act(() => root.unmount());
+    },
+  );
+
+  it.each([
+    ["showExecutiveSummary", "showExecutiveSummary", { kind: "executiveSummary" }],
+    ["showManagerSummary", "showManagerSummary", { kind: "managerSummary", periodDays: 14 }],
+    ["showInvestorSummary", "showInvestorSummary", { kind: "investorSummary" }],
+    ["listProjects", "listProjects", { kind: "projectList" }],
+    ["show_timeseries/week", "show_timeseries", { kind: "timeseries", period: "week" }],
+    ["show_timeseries/month", "show_timeseries", { kind: "timeseries", period: "month" }],
+    ["show_timeseries/quarter", "show_timeseries", { kind: "timeseries", period: "quarter" }],
+    ["show_timeseries/half", "show_timeseries", { kind: "timeseries", period: "half" }],
+    ["show_timeseries/year", "show_timeseries", { kind: "timeseries", period: "year" }],
+    ["showAgentActivity", "showAgentActivity", { kind: "agentActivity" }],
+    ["show_project_board", "show_project_board", { kind: "projectBoard", projectId: "PJ-001" }],
+  ])(
+    "strict ViewSpec境界は有効な%s出力を受理する [PrjOps:REQ-041 / PrjOps:SPEC-INT-068]",
+    (_caseName, toolName, output) => {
+      const { onViewSpecReceived, root } = finishWithToolOutput(toolName, output);
+      expect(onViewSpecReceived).toHaveBeenCalledWith(output);
+      act(() => root.unmount());
+    },
+  );
 
   it("入力欄が空のとき送信ボタンが無効化される", () => {
     mockUseChat.mockReturnValue({ messages: [], sendMessage: vi.fn(), status: "ready" });

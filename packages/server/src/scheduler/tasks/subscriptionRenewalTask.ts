@@ -1,7 +1,7 @@
 /**
  * packages/server/src/scheduler/tasks/subscriptionRenewalTask.ts
  *
- * 根拠: ADR-0005（30分間隔のGraphサブスクリプション更新）/ SPEC-INT-001（renewSubscription失敗時は
+ * 根拠: ADR-0005（30分間隔のGraphサブスクリプション更新）/ PrjOps:SPEC-INT-001（renewSubscription失敗時は
  *   5分間隔ポーリング(mode='polling')へフォールバックする。フォールバック未実装だったループの実装）。
  *   graphClient.renewSubscription()はE-SUB02を投げる契約（既存実装。変更不可）。
  *
@@ -51,7 +51,7 @@ export function createSubscriptionRenewalTask(deps: SubscriptionRenewalTaskDeps)
               trace_id: deps.traceIdProvider(),
               actor: "SERVER",
               action: "graph_subscription_renewal_failed",
-              basis: "SPEC-INT-001",
+              basis: "PrjOps:SPEC-INT-001",
               detail: {
                 subscriptionId: sub.subscriptionId,
                 ...graphSubscriptionErrorDetail(err),
@@ -66,7 +66,7 @@ export function createSubscriptionRenewalTask(deps: SubscriptionRenewalTaskDeps)
               trace_id: deps.traceIdProvider(),
               actor: "SERVER",
               action: "graph_subscription_renewal_row_failed",
-              basis: "SPEC-INT-001",
+              basis: "PrjOps:SPEC-INT-001",
               detail: {
                 subscriptionId: sub.subscriptionId,
                 ...graphSubscriptionErrorDetail(error),

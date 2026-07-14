@@ -2,16 +2,16 @@
  * packages/shared/src/clients/githubClient.ts
  *
  * 根拠:
- *   - DevOps REQ-025 GitHub連携: リポジトリイベント(push, workflow_run, PR)をWebhookで受信し、
- *     Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはSPEC-INT-010のディスパッチ
+ *   - DevOps:REQ-025 GitHub連携: リポジトリイベント(push, workflow_run, PR)をWebhookで受信し、
+ *     Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはDevOps:SPEC-INT-010のディスパッチ
  *     60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。
- *   - PrjOps SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。
- *   - DevOps SPEC-INT-061: GitHub App認証（installation token）。Webhook購読: push, pull_request,
+ *   - PrjOps:SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。
+ *   - DevOps:SPEC-INT-061: GitHub App認証（installation token）。Webhook購読: push, pull_request,
  *     workflow_run, issues。API操作: Issue/PRコメント作成、workflow_dispatch、権限付与API、監査ログ取得。
- *   - DevOps SPEC-INT-020: 本番デプロイ実行はGitHub Actionsのdeploy-prodワークフローを
+ *   - DevOps:SPEC-INT-020: 本番デプロイ実行はGitHub Actionsのdeploy-prodワークフローを
  *     workflow_dispatchで起動する方式。当該ワークフローはエージェントのサービスアカウントのみが
  *     起動できるようGitHub Environments保護ルールで制限する（AC-010a）。
- *   - REQ-033: 正本リポジトリへの書込はエージェント用マシンアカウントとPRF-03のみ。
+ *   - PrjOps:REQ-033: 正本リポジトリへの書込はエージェント用マシンアカウントとPRF-03のみ。
  *
  * Webhook署名検証: GitHubはWebhookペイロードに対しHMAC-SHA256署名（X-Hub-Signature-256）を付与する。
  * 受信側での検証はGitHub公式ドキュメントが必須のセキュリティ対策として明記しており、本クライアントは
@@ -65,7 +65,7 @@ export interface CreateIssueCommentInput {
   owner: string;
   repo: string;
   issueOrPrNumber: number;
-  body: string; // SPEC-EXT-001形式のMarkdown等
+  body: string; // DevOps:SPEC-EXT-001形式のMarkdown等
 }
 
 export interface CreateIssueInput {
@@ -139,7 +139,7 @@ export class GitHubClient {
     };
   }
 
-  /** SPEC-EXT-001 ビルド失敗PRコメント / SPEC-EXT-015 インシデントIssue本文への追記等 */
+  /** DevOps:SPEC-EXT-001 ビルド失敗PRコメント / SPEC-EXT-015 インシデントIssue本文への追記等 */
   async createIssueComment(input: CreateIssueCommentInput): Promise<void> {
     const headers = await this.headers();
     const res = await this.fetch(
@@ -162,7 +162,7 @@ export class GitHubClient {
     return { number: json.number, htmlUrl: json.html_url };
   }
 
-  /** REQ-037 / SPEC-INT-063: ExcelインポートからMilestoneを作成する。 */
+  /** REQ-037 / PrjOps:SPEC-INT-063: ExcelインポートからMilestoneを作成する。 */
   async createMilestone(input: CreateMilestoneInput): Promise<{ number: number; htmlUrl: string; nodeId?: string }> {
     const headers = await this.headers();
     const res = await this.fetch(`${this.baseUrl}/repos/${input.owner}/${input.repo}/milestones`, {
@@ -284,7 +284,7 @@ export class GitHubClient {
   }
 
   /**
-   * 本番デプロイ実行（SPEC-INT-020）。当該ワークフローは呼び出し元のGitHub App/サービスアカウントに
+   * 本番デプロイ実行（DevOps:SPEC-INT-020）。当該ワークフローは呼び出し元のGitHub App/サービスアカウントに
    * のみ実行権限が付与されるようEnvironments保護ルールで制限すること（本クライアントはAPI呼び出しのみ担当）。
    */
   async dispatchWorkflow(input: WorkflowDispatchInput): Promise<void> {
@@ -311,7 +311,7 @@ export class GitHubClient {
     return text.slice(-MAX_BYTES);
   }
 
-  /** リポジトリ/Environmentへの権限付与（DevOps AGT-SEC, SPEC-INT-053 grants） */
+  /** リポジトリ/Environmentへの権限付与（DevOps AGT-SEC, DevOps:SPEC-INT-053 grants） */
   async putCollaboratorPermission(
     owner: string,
     repo: string,

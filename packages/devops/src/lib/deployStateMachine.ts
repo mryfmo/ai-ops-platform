@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/lib/deployStateMachine.ts
  *
- * 根拠: SPEC-INT-020 AGT-DEP デプロイ状態機械
+ * 根拠: DevOps:SPEC-INT-020 AGT-DEP デプロイ状態機械
  *   pending → staging_deployed →（承認要求）approval_requested → approved → prod_deploying → monitoring → stable
  *   分岐: approval_requested → rejected | expired（TH-002）、monitoring → rolling_back → rolled_back（TH-003）
  *   「これ以外の遷移を実装してはならない」と明記されているため、許可リストを厳格に定義する。
@@ -36,7 +36,9 @@ const TRANSITIONS: Record<DeployState, DeployState[]> = {
 
 export class InvalidDeployTransitionError extends Error {
   constructor(from: DeployState, to: DeployState) {
-    super(`E-DEP02: invalid deployment transition ${from} -> ${to} (SPEC-INT-020: これ以外の遷移を実装してはならない)`);
+    super(
+      `E-DEP02: invalid deployment transition ${from} -> ${to} (DevOps:SPEC-INT-020: これ以外の遷移を実装してはならない)`,
+    );
   }
 }
 

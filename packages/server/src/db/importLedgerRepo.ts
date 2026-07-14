@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/importLedgerRepo.ts
  *
- * 根拠: REQ-037 / SPEC-INT-063 / ADR-0008。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / ADR-0008。
  * Excelインポートの冪等性をsource_keyで担保する台帳。追記/参照のみで扱う。
  */
 import type { ImportLedger, ImportLedgerEntry, PgQueryable } from "@aiops/shared";

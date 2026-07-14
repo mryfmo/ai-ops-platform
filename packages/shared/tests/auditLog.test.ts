@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { InMemoryAuditLog, validateReasonRequirement, findTraceChain } from "../src/auditLog.js";
 import { PgAuditLog } from "../src/clients/pgAuditLog.js";
 
-describe("InMemoryAuditLog [REQ-020, SPEC-INT-053/056]", () => {
+describe("InMemoryAuditLog [PrjOps:REQ-020, PrjOps:SPEC-INT-053/056]", () => {
   it("追記した順にlog_idが採番される", async () => {
     const log = new InMemoryAuditLog();
     const r1 = await log.append({
@@ -58,7 +58,7 @@ describe("PgAuditLog PostgreSQL boundary [REQ-028, SPEC-INT-056]", () => {
       trace_id: traceId,
       actor: "AGT-04",
       action: "llm_unknown_model_pricing_fallback",
-      basis: "SPEC-INT-060",
+      basis: "PrjOps:SPEC-INT-060",
       detail: { model: "unknown" },
       at: "2026-07-13T00:00:00Z",
     });
@@ -67,7 +67,7 @@ describe("PgAuditLog PostgreSQL boundary [REQ-028, SPEC-INT-056]", () => {
   });
 });
 
-describe("validateReasonRequirement [REQ-021 AC-021-1]", () => {
+describe("validateReasonRequirement [PrjOps:REQ-021 AC-021-1]", () => {
   it("status_overrideは理由必須", () => {
     expect(() => validateReasonRequirement("status_override", undefined)).toThrow(/E-AUD01/);
     expect(() => validateReasonRequirement("status_override", "")).toThrow(/E-AUD01/);
@@ -83,7 +83,14 @@ describe("findTraceChain [AC-020-1: 数値の根拠まで遡れる]", () => {
     const log = new InMemoryAuditLog();
     await log.append({ trace_id: "t1", actor: "AGT-02", action: "ingest", basis: "REQ-004", detail: {}, at: "x" });
     await log.append({ trace_id: "t2", actor: "AGT-03", action: "judge", basis: "REQ-007", detail: {}, at: "y" });
-    await log.append({ trace_id: "t1", actor: "AGT-04", action: "generate", basis: "REQ-010", detail: {}, at: "z" });
+    await log.append({
+      trace_id: "t1",
+      actor: "AGT-04",
+      action: "generate",
+      basis: "PrjOps:REQ-010",
+      detail: {},
+      at: "z",
+    });
     const all = await log.readAll();
     const chain = findTraceChain(all, "t1");
     expect(chain.map((r) => r.action)).toEqual(["ingest", "generate"]);

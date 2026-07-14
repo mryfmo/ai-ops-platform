@@ -1,8 +1,8 @@
 /**
  * packages/shared/src/ids.ts
  *
- * 根拠: PrjOps DOC-00 §6（ID体系）、SPEC-INT-020/021/024/025/026（各IDフォーマット）、
- *       DevOps SPEC-INT-010（trace_id）、SPEC-EXT-001（trace_id末尾表記）。
+ * 根拠: PrjOps DOC-00 §6（ID体系）、PrjOps:SPEC-INT-020/021/024/025/026（各IDフォーマット）、
+ *       DevOps:SPEC-INT-010（trace_id）、DevOps:SPEC-EXT-001（trace_id末尾表記）。
  *
  * 設計方針: IDは一度発行したら再利用しない（DOC-00 §6）。本モジュールは
  *   (a) フォーマット検証（正規表現ベース、決定的）
@@ -47,15 +47,15 @@ function pad(n: number, width: number): string {
   return String(n).padStart(width, "0");
 }
 
-/** PJ-nnn 形式（REQ-001） */
+/** PJ-nnn 形式（PrjOps:REQ-001） */
 export function formatProjectId(seq: number): string {
   return `PJ-${pad(seq, 3)}`;
 }
-/** ST-nnn 形式（REQ-002） */
+/** ST-nnn 形式（PrjOps:REQ-002） */
 export function formatStakeholderId(seq: number): string {
   return `ST-${pad(seq, 3)}`;
 }
-/** ORG-nnn 形式（REQ-002） */
+/** ORG-nnn 形式（PrjOps:REQ-002） */
 export function formatOrganizationId(seq: number): string {
   return `ORG-${pad(seq, 3)}`;
 }
@@ -73,7 +73,7 @@ export function formatRiskId(seq: number): string {
 }
 
 /**
- * SU-{PJ-nnn}-{YYYY}-W{ww}-{seq} 形式（SPEC-INT-020）。
+ * SU-{PJ-nnn}-{YYYY}-W{ww}-{seq} 形式（PrjOps:SPEC-INT-020）。
  * seq: 同一週の版番号。最新のみ有効（REQ-004 AC-004-2）。
  */
 export function formatStatusUpdateId(projectId: string, isoYear: number, isoWeek: number, seq: number): string {
@@ -93,21 +93,21 @@ export function formatReportId(profile: string, scope: string, period: string, r
 export function formatDevOpsProjectId(seq: number): string {
   return `PRJ-${pad(seq, 3)}`;
 }
-/** DevOps: INC-nnn（SPEC-INT-052） */
+/** DevOps: INC-nnn（DevOps:SPEC-INT-052） */
 export function formatIncidentId(seq: number): string {
   return `INC-${pad(seq, 4)}`;
 }
-/** DevOps: GRANT-nnn（SPEC-INT-053） */
+/** DevOps: GRANT-nnn（DevOps:SPEC-INT-053） */
 export function formatGrantId(seq: number): string {
   return `GRANT-${pad(seq, 4)}`;
 }
-/** DevOps: DEP-nnn（SPEC-INT-051） */
+/** DevOps: DEP-nnn（DevOps:SPEC-INT-051） */
 export function formatDeployId(seq: number): string {
   return `DEP-${pad(seq, 4)}`;
 }
 
 /**
- * trace_id (UUIDv4)。DevOps SPEC-INT-010（イベント受信時に採番し全出力に伝搬）、
+ * trace_id (UUIDv4)。DevOps:SPEC-INT-010（イベント受信時に採番し全出力に伝搬）、
  * PrjOps AGT-07監査ログのレコード相関にも使用する。
  */
 export function newTraceId(): string {

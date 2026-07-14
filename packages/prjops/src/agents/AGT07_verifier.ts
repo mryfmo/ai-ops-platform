@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/agents/AGT07_verifier.ts
  *
- * 根拠: REQ-019 配信前検証 / SPEC-INT-051
+ * 根拠: PrjOps:REQ-019 配信前検証 / PrjOps:SPEC-INT-051
  *   AGT-07は配信前に次を機械検証する:
  *   (a) レポート内数値と正本データの一致
  *   (b) 閲覧権限違反の不在
@@ -9,7 +9,7 @@
  *   (d) 宛先とレポート対象者の一致
  *   AC-019-1: (a)〜(d)のいずれかがNGのレポートは配信されず、NG理由コード付きで運用担当へ通知される
  *   （SPEC-EXT-039 検証NG・障害通知）。
- *   SPEC-INT-061エラーコード: E-VER0A〜0D 検証NG(a〜d)
+ *   PrjOps:SPEC-INT-061エラーコード: E-VER0A〜0D 検証NG(a〜d)
  */
 import {
   checkNoPlaceholders,
@@ -35,7 +35,7 @@ export interface VerifyReportResult {
   details: string[];
 }
 
-/** REQ-019 / SPEC-INT-051: 配信前の4種の機械検証をすべて実行する */
+/** PrjOps:REQ-019 / PrjOps:SPEC-INT-051: 配信前の4種の機械検証をすべて実行する */
 export function verifyReportBeforeDelivery(input: VerifyReportInput): VerifyReportResult {
   const failureCodes: VerificationFailureCode[] = [];
   const details: string[] = [];
@@ -67,7 +67,7 @@ export function verifyReportBeforeDelivery(input: VerifyReportInput): VerifyRepo
     details.push(`宛先不一致: intended=${input.intendedRecipientEmail}, actual=${input.actualToEmail}`);
   }
 
-  // 付随チェック（REQ-010 AC-010-1/2。専用の失敗コードはないためV-Cに含める）
+  // 付随チェック（PrjOps:REQ-010 AC-010-1/2。専用の失敗コードはないためV-Cに含める）
   if (!checkFileSizeWithinLimit(input.html)) {
     failureCodes.push("V-C");
     details.push("ファイルサイズが2MBを超過");

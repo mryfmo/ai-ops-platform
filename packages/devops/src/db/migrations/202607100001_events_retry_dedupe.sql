@@ -1,4 +1,4 @@
--- 2026-07-10 ADR-0005 / SPEC-INT-010: eventsキューのretry/DLQ/lease回収とwebhook冪等キー。
+-- 2026-07-10 ADR-0005 / DevOps:SPEC-INT-010: eventsキューのretry/DLQ/lease回収とwebhook冪等キー。
 -- attempts/next_attempt_atは失敗イベントの指数backoff再試行、claimed_atはdispatched lease回収、
 -- dedupe_keyはGitHub X-GitHub-Delivery / Graph message id の重複投入防止に使う。
 ALTER TABLE events ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;

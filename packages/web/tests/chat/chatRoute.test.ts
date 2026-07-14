@@ -2,7 +2,7 @@
  * packages/web/tests/chat/chatRoute.test.ts
  *
  * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
- *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。POST /api/chat の
+ *   ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。POST /api/chat の
  *   handleChat（server/chat/chatHandler.ts）を、ai/test の MockLanguageModelV2 で
  *   tool call合成をモックしてテストする（ネットワーク不要）。
  *   未認証401・権限外403・ANTHROPIC_API_KEY未設定時503・コスト超過429を検証する。
@@ -137,7 +137,7 @@ describe("handleChat（権限外403）", () => {
     expect(res.status).toBe(403);
   });
 
-  it("改ざんした選択ペルソナを403にする [REQ-041 / SPEC-INT-068]", async () => {
+  it("改ざんした選択ペルソナを403にする [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
@@ -180,7 +180,7 @@ describe("handleChat（コスト超過429）", () => {
 });
 
 describe("handleChat（正当なセッション: ストリーミング応答）", () => {
-  it("ダッシュボードと同じ選択ペルソナをchat promptへ反映する [REQ-041 / SPEC-INT-068]", async () => {
+  it("ダッシュボードと同じ選択ペルソナをchat promptへ反映する [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     let prompt = "";
     const model = new MockLanguageModelV2({
       doStream: async (options) => {
@@ -213,7 +213,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
     expect(res.body).not.toBeNull();
   });
 
-  it("Reasoning UI用にAnthropic thinking providerOptionsを設定し、sendReasoning付きUI streamを返す [REQ-041 / SPEC-INT-068 / AC-041-1]", async () => {
+  it("Reasoning UI用にAnthropic thinking providerOptionsを設定し、sendReasoning付きUI streamを返す [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1]", async () => {
     let seenProviderOptions: unknown;
     let seenTemperature: unknown;
     const model = new MockLanguageModelV2({
@@ -272,7 +272,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
 });
 
 describe("buildSystemPrompt（ADR-0013: ページコンテキスト注入）", () => {
-  it("解決済みpersonaとページ状態を含める [REQ-041 / SPEC-INT-068 / AC-041-1]", () => {
+  it("解決済みpersonaとページ状態を含める [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1]", () => {
     const prompt = buildSystemPrompt(prjopsExecutive, {
       period: "week",
       baseDate: "2026-07-09",
@@ -285,8 +285,8 @@ describe("buildSystemPrompt（ADR-0013: ページコンテキスト注入）", (
   });
 });
 
-describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]", () => {
-  it("unknown fallbackはaudit sink未注入なら予約前にfail-closedする [SPEC-INT-060]", async () => {
+describe("handleChat costGuard reservation and configured pricing [PrjOps:SPEC-INT-060]", () => {
+  it("unknown fallbackはaudit sink未注入なら予約前にfail-closedする [PrjOps:SPEC-INT-060]", async () => {
     const query = vi.fn();
     const res = await handleTestChat({
       getSession: sessionWithEmail,
@@ -302,7 +302,7 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("unknown fallbackはaudit append失敗時も予約前にfail-closedする [SPEC-INT-060]", async () => {
+  it("unknown fallbackはaudit append失敗時も予約前にfail-closedする [PrjOps:SPEC-INT-060]", async () => {
     const query = vi.fn();
     const append = vi.fn().mockRejectedValue(new Error("audit unavailable"));
     const res = await handleTestChat({
@@ -322,7 +322,7 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("未知モデルの保守的料金をwarn監査し、実UUIDをPostgreSQL境界へ渡す [SPEC-INT-060]", async () => {
+  it("未知モデルの保守的料金をwarn監査し、実UUIDをPostgreSQL境界へ渡す [PrjOps:SPEC-INT-060]", async () => {
     const traceId = "550e8400-e29b-41d4-a716-446655440000";
     const queries: Array<{ text: string; params: unknown[] | undefined }> = [];
     const db: PgQueryable = {
@@ -361,7 +361,7 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
     });
   });
 
-  it("known modelは監査せず、ストリーミング前予約と完了後照合を行う [SPEC-INT-060]", async () => {
+  it("known modelは監査せず、ストリーミング前予約と完了後照合を行う [PrjOps:SPEC-INT-060]", async () => {
     const queries: Array<{ text: string; params: unknown[] | undefined }> = [];
     const db: PgQueryable = {
       query: vi.fn(async (text: string, params?: unknown[]) => {
@@ -413,7 +413,7 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
     expect(queries.some((q) => q.text.includes("INSERT INTO audit_log"))).toBe(false);
   });
 
-  it("ストリーム途中エラーでも予約行を残し、未記録にしない [SPEC-INT-060]", async () => {
+  it("ストリーム途中エラーでも予約行を残し、未記録にしない [PrjOps:SPEC-INT-060]", async () => {
     const queries: Array<{ text: string; params: unknown[] | undefined }> = [];
     const db: PgQueryable = {
       query: vi.fn(async (text: string, params?: unknown[]) => {
@@ -450,7 +450,7 @@ describe("handleChat costGuard reservation and configured pricing [SPEC-INT-060]
     expect(queries.some((q) => q.text.includes("UPDATE llm_usage"))).toBe(false);
   });
 
-  it("refusal相当のfinishReasonを通常完了として扱わない [SPEC-INT-060]", async () => {
+  it("refusal相当のfinishReasonを通常完了として扱わない [PrjOps:SPEC-INT-060]", async () => {
     const model = new MockLanguageModelV2({
       doStream: async () => ({
         stream: new ReadableStream({

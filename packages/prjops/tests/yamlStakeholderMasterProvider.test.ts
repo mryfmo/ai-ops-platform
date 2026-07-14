@@ -1,5 +1,5 @@
 /**
- * 根拠: REQ-002, SPEC-INT-022
+ * 根拠: PrjOps:REQ-002, SPEC-INT-022
  */
 import { constants } from "node:fs";
 import {
@@ -68,8 +68,8 @@ timezone: Asia/Tokyo
 `;
 }
 
-describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
-  it("fixtureからemailに一致する全プロファイルと可視範囲を解決する [REQ-002, SPEC-INT-022]", async () => {
+describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, PrjOps:SPEC-INT-022]", () => {
+  it("fixtureからemailに一致する全プロファイルと可視範囲を解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const provider = new YamlStakeholderMasterProvider(fixtureDirectory);
 
     await expect(provider.findByEmail("yamada@example.com")).resolves.toEqual([
@@ -95,7 +95,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     await expect(provider.findByEmail("unknown@example.com")).resolves.toEqual([]);
   });
 
-  it("同じhardened scanからTeams userとprojectのprofileを解決する [REQ-002, SPEC-INT-022]", async () => {
+  it("同じhardened scanからTeams userとprojectのprofileを解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-010") });
     const provider = new YamlStakeholderMasterProvider("/data/stakeholders", fs);
 
@@ -104,7 +104,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     await expect(provider.findProfileByTeamsUserId(null, "PJ-001")).resolves.toBeNull();
   });
 
-  it("ST-1000以降を読み、emailをtrim+casefoldして比較・出力する [REQ-002, SPEC-INT-022]", async () => {
+  it("ST-1000以降を読み、emailをtrim+casefoldして比較・出力する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const { fs } = fakeFs({ "ST-1000.yaml": yaml("ST-1000", "  YAMADA@Example.COM  ") });
     const records = await new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail(
       " Yamada@example.COM ",
@@ -115,7 +115,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     ]);
   });
 
-  it("PRF-01〜05を権限集約せず対応する可視範囲へ写像する [REQ-002, SPEC-INT-022]", async () => {
+  it("PRF-01〜05を権限集約せず対応する可視範囲へ写像する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const assignments = [
       ["PJ-001", "PRF-01"],
       ["PJ-002", "PRF-02"],
@@ -137,7 +137,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     });
   });
 
-  it("無関係ファイルだけを無視し、stakeholderらしい不正yaml名はfail closedにする [REQ-002]", async () => {
+  it("無関係ファイルだけを無視し、stakeholderらしい不正yaml名はfail closedにする [PrjOps:REQ-002]", async () => {
     const unrelated = fakeFs({ "ST-010.yaml": validYaml }, ["README.md", "ORG-001.yaml", "ST-010.yml", "ST-010.yaml"]);
     await new YamlStakeholderMasterProvider("/data/stakeholders", unrelated.fs).findByEmail("yamada@example.com");
     expect(unrelated.open).toHaveBeenCalledTimes(1);
@@ -149,7 +149,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     expect(malformed.open).not.toHaveBeenCalled();
   });
 
-  it("open(O_RDONLY|O_NOFOLLOW)した同一handleをstat/read/closeしswapを参照しない [REQ-002]", async () => {
+  it("open(O_RDONLY|O_NOFOLLOW)した同一handleをstat/read/closeしswapを参照しない [PrjOps:REQ-002]", async () => {
     let directoryTarget = validYaml;
     const captured = directoryTarget;
     const close = vi.fn(async () => undefined);
@@ -177,7 +177,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("nofollow open失敗、非通常file、invalid YAMLを拒否し、取得済handleは必ずcloseする [REQ-002]", async () => {
+  it("nofollow open失敗、非通常file、invalid YAMLを拒否し、取得済handleは必ずcloseする [PrjOps:REQ-002]", async () => {
     const symlinkFs: StakeholderMasterFileSystem = {
       realpath: vi.fn(async (path) => path),
       lstat: vi.fn(async () => ({ dev: 1, ino: 1, isDirectory: () => true })),
@@ -203,7 +203,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     expect(invalid.close).toHaveBeenCalledOnce();
   });
 
-  it("全fileをscanしnormalized emailが異なるST IDに重複したらfail closedにする [REQ-002]", async () => {
+  it("全fileをscanしnormalized emailが異なるST IDに重複したらfail closedにする [PrjOps:REQ-002]", async () => {
     const { fs, open } = fakeFs({
       "ST-010.yaml": yaml("ST-010", " User@Example.com "),
       "ST-011.yaml": yaml("ST-011", "user@example.COM"),
@@ -215,7 +215,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     expect(open).toHaveBeenCalledTimes(2);
   });
 
-  it("異なるST IDでteams_user_idが重複したら認可をfail closedにする [REQ-002]", async () => {
+  it("異なるST IDでteams_user_idが重複したら認可をfail closedにする [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({
       "ST-010.yaml": yaml("ST-010"),
       "ST-011.yaml": yaml("ST-011", "other@example.com").replace("teams-ST-011", "teams-ST-010"),
@@ -226,7 +226,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     ).rejects.toThrow(/duplicate teams user id.*teams-ST-010.*ST-010.*ST-011/i);
   });
 
-  it("Unicode正規等価なemailが異なるST IDに重複したらfail closedにする [REQ-002]", async () => {
+  it("Unicode正規等価なemailが異なるST IDに重複したらfail closedにする [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({
       "ST-010.yaml": yaml("ST-010", "usér@example.com"),
       "ST-011.yaml": yaml("ST-011", "use\u0301r@example.com"),
@@ -246,7 +246,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     ["whitespace stakeholder", "ST-010.yaml", yaml('" ST-010 "')],
     ["whitespace organization", "ST-010.yaml", yaml("ST-010").replace("ORG-001", '" ORG-001 "')],
     ["whitespace project", "ST-010.yaml", yaml("ST-010").replace("PJ-001", '" PJ-001 "')],
-  ])("canonical ID/trimmed nonempty違反(%s)を拒否する [REQ-002]", async (_case, filename, content) => {
+  ])("canonical ID/trimmed nonempty違反(%s)を拒否する [PrjOps:REQ-002]", async (_case, filename, content) => {
     const { fs } = fakeFs({ [filename]: content });
     await expect(
       new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
@@ -264,14 +264,14 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
       "  - project_id: PJ-001\n    profile: PRF-01\n  - project_id: PJ-001\n    profile: PRF-02",
       /conflicting stakeholder assignment/i,
     ],
-  ])("assignment ambiguity(%s)をfail closedにする [REQ-002]", async (_case, assignments, message) => {
+  ])("assignment ambiguity(%s)をfail closedにする [PrjOps:REQ-002]", async (_case, assignments, message) => {
     const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-010", "yamada@example.com", assignments) });
     await expect(
       new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
     ).rejects.toThrow(message);
   });
 
-  it("filename/id不一致を拒否する [REQ-002]", async () => {
+  it("filename/id不一致を拒否する [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-011") });
     await expect(
       new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
@@ -279,14 +279,14 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
   });
 
   it.each(["data/stakeholders", "/data/../stakeholders"])(
-    "relative/non-canonical configured directory(%s)をscan前に拒否する [REQ-002]",
+    "relative/non-canonical configured directory(%s)をscan前に拒否する [PrjOps:REQ-002]",
     (directory) => {
       const { fs } = fakeFs({ "ST-010.yaml": validYaml });
       expect(() => new YamlStakeholderMasterProvider(directory, fs)).toThrow(/absolute canonical path/i);
     },
   );
 
-  it("configured pathがdirectoryでなければ拒否する [REQ-002]", async () => {
+  it("configured pathがdirectoryでなければ拒否する [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({ "ST-010.yaml": validYaml });
     fs.lstat = vi.fn(async () => ({ dev: 1, ino: 1, isDirectory: () => false }));
     await expect(
@@ -294,7 +294,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
     ).rejects.toThrow(/not a directory/i);
   });
 
-  it("実FSでconfigured directory symlinkをAからBへ差し替えても拒否する [REQ-002]", async () => {
+  it("実FSでconfigured directory symlinkをAからBへ差し替えても拒否する [PrjOps:REQ-002]", async () => {
     const root = await mkdtemp(join(await realpath(tmpdir()), "aiops-stakeholder-boundary-"));
     const first = join(root, "a");
     const second = join(root, "b");
@@ -342,7 +342,7 @@ describe("YamlStakeholderMasterProvider [REQ-002, SPEC-INT-022]", () => {
   it.each([
     [2, 10],
     [1, 11],
-  ])("scan中にnon-symlink directory identityが変わったら結果を破棄する (%s/%s) [REQ-002]", async (dev, ino) => {
+  ])("scan中にnon-symlink directory identityが変わったら結果を破棄する (%s/%s) [PrjOps:REQ-002]", async (dev, ino) => {
     const fixture = fakeFs({ "ST-010.yaml": validYaml });
     fixture.fs.lstat = vi
       .fn()

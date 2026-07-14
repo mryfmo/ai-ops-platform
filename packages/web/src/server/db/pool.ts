@@ -1,7 +1,7 @@
 /**
  * packages/web/src/server/db/pool.ts
  *
- * 根拠: ADR-0013 / REQ-041 / SPEC-INT-068 / AUD-REL-001。Next.js の HMR を
+ * 根拠: ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / AUD-REL-001。Next.js の HMR を
  * またいで PostgreSQL pool をプロセス単位で再利用し、route ごとの接続プール増殖を防ぐ。
  */
 import pg from "pg";

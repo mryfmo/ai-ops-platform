@@ -1,6 +1,6 @@
 /**
  * packages/prjops/src/templates/index.ts
- * REQ-010〜016（REQ-016: 多言語生成。ja/en切り替えでcommon.langを指定するだけで全プロファイルが
+ * PrjOps:REQ-010〜016（PrjOps:REQ-016: 多言語生成。ja/en切り替えでcommon.langを指定するだけで全プロファイルが
  * 対応する。AC-016-1: 同一データから生成したja版とen版で数値・色判定が完全一致することは
  * reportTemplates.test.tsの「英語版レポート」テストで検証済み）を満たす完成レポートHTMLを
  * 組み立てるエントリポイント。

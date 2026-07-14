@@ -9,7 +9,7 @@ import {
 
 const ctx: DevOpsVisibilityContext = { recipientUserId: "U-010", recipientAssignedProjectIds: ["PRJ-001"] };
 
-describe("isProjectInScope [REQ-021/022/023]", () => {
+describe("isProjectInScope [DevOps:REQ-021/022/023]", () => {
   it("PRF-Gは全プロジェクトが対象", () => {
     expect(isProjectInScope("PRF-G", "PRJ-999", ctx)).toBe(true);
   });
@@ -19,7 +19,7 @@ describe("isProjectInScope [REQ-021/022/023]", () => {
   });
 });
 
-describe("filterOwnPrsForMember [REQ-021 AC-021b]", () => {
+describe("filterOwnPrsForMember [DevOps:REQ-021 AC-021b]", () => {
   it("自分がauthorまたはreviewerのPRのみ残る", () => {
     const prs = [
       { id: "PR-1", authorUserId: "U-010" },
@@ -31,7 +31,7 @@ describe("filterOwnPrsForMember [REQ-021 AC-021b]", () => {
   });
 });
 
-describe("aggregateStalePrsByTaskType [SPEC-EXT-022(5): 個人名を含まない集計]", () => {
+describe("aggregateStalePrsByTaskType [DevOps:SPEC-EXT-022(5): 個人名を含まない集計]", () => {
   it("48時間以上滞留したものをタスク種別別に集計する", () => {
     const prs = [
       { taskType: "レビュー待ち", authorUserId: "U-010", hoursStale: 50 },

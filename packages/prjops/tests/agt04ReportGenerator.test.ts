@@ -1,7 +1,14 @@
-/** 根拠: REQ-010, SPEC-INT-031, AC-010-1 */
-import { describe, expect, it } from "vitest";
+/** 根拠: PrjOps:REQ-010, PrjOps:SPEC-INT-031, PrjOps:AC-010-1, DEC-SPEC-007 */
+import { InMemoryAuditLog } from "@aiops/shared/auditLog.js";
 import type { AnthropicStructuredClient, StructuredCallOptions } from "@aiops/shared/clients/anthropicClient.js";
-import { generateExecutiveConclusionLines, generateExecutiveReport } from "../src/agents/AGT04_reportGenerator.js";
+import { describe, expect, it } from "vitest";
+import {
+  generateExecutiveConclusionLines,
+  generateExecutiveReport,
+  generateProfileNarratives,
+  NARRATIVE_SLOTS_BY_PROFILE,
+  type NarrativeProfile,
+} from "../src/agents/AGT04_reportGenerator.js";
 
 function llmRaw(raw: unknown): AnthropicStructuredClient & { calls: StructuredCallOptions<unknown>[] } {
   const calls: StructuredCallOptions<unknown>[] = [];
@@ -19,180 +26,158 @@ function llmRaw(raw: unknown): AnthropicStructuredClient & { calls: StructuredCa
   } as unknown as AnthropicStructuredClient & { calls: StructuredCallOptions<unknown>[] };
 }
 
-function llm(lines: unknown) {
-  return llmRaw({ lines });
+const expectedSlots = {
+  "PRF-01": ["own_progress_summary", "own_next_action"],
+  "PRF-02": ["project_health_summary", "delivery_risk_summary"],
+  "PRF-03": ["portfolio_summary", "escalation_summary"],
+  "PRF-04": ["executive_summary", "decision_request_summary"],
+  "PRF-05": ["investor_highlight", "investor_risk_outlook"],
+} as const;
+
+function audit(traceId: string) {
+  return { auditLog: new InMemoryAuditLog(), traceId };
 }
 
-const narrativeInput = {
-  colorDistribution: { green: 4, yellow: 2, red: 1 },
-  topRiskProjectSummaries: ["納期上の懸念あり"],
-};
+describe("AGT-04 profile narrative slots [DEC-SPEC-007]", () => {
+  it("DEC-SPEC-007: PRF-01..05のexact 10 slotsをdata tableからschema/runtimeへ適用する", async () => {
+    expect(NARRATIVE_SLOTS_BY_PROFILE).toEqual(expectedSlots);
 
-describe("AGT-04 DI結線 [REQ-010, SPEC-INT-031, AC-010-1]", () => {
-  it("SPEC-INT-031: 数値を含む文だけを除去し、安全な文章を残す", async () => {
-    const result = await generateExecutiveConclusionLines(
-      llm(["全体は安定しています。架空の99件があります。", "重点課題を確認します。", "対応を継続します。"]),
-      narrativeInput,
-    );
+    for (const [profile, slots] of Object.entries(expectedSlots)) {
+      const client = llmRaw({ [slots[0]]: "状況は安定しています。", [slots[1]]: "対応を継続します。" });
+      const result = await generateProfileNarratives(
+        client,
+        { profile: profile as NarrativeProfile, sourceSummaries: ["根拠情報"] },
+        audit(`trace-${profile}`),
+      );
 
-    expect(result).toEqual(["全体は安定しています。", "重点課題を確認します。", "対応を継続します。"]);
-    expect(JSON.stringify(result)).not.toContain("99");
-  });
-
-  it("SPEC-INT-031: 漢数字数量表現を結論返却から除去する", async () => {
-    const result = await generateExecutiveConclusionLines(
-      llm(["懸念は一つです。安全です。", "課題は四つです。四つの対応があります。", "四箇所に影響します。"]),
-      narrativeInput,
-    );
-
-    expect(result[0]).toBe("安全です。");
-    for (const quantity of ["一つ", "四つ", "四つの", "四箇所"]) {
-      expect(result.join("")).not.toContain(quantity);
+      expect(Object.keys(result.slots)).toEqual(slots);
+      expect(result.warnings).toEqual([]);
+      expect(client.calls[0]?.inputSchema).toMatchObject({
+        additionalProperties: false,
+        properties: Object.fromEntries(slots.map((slot) => [slot, { type: "string" }])),
+      });
+      expect(Object.keys((client.calls[0]?.inputSchema as { properties: object }).properties)).toEqual(slots);
     }
   });
 
-  it("SPEC-INT-031: 助数詞付き漢数字を結論返却から除去し、通常語は保持する", async () => {
-    const safeTerms = "一時的な対応で一件落着し、一人前として四日市との調整を進めます。";
-    const result = await generateExecutiveConclusionLines(
-      llm([
-        `遅延は二週間です。第三段階です。${safeTerms}`,
-        "一度確認します。三冊あります。二部署です。",
-        "四チームです。一秒です。",
-      ]),
-      narrativeInput,
-    );
-
-    expect(result[0]).toBe(safeTerms);
-    for (const quantity of ["二週間", "第三段階", "一度", "三冊", "二部署", "四チーム", "一秒"]) {
-      expect(result.join("")).not.toContain(quantity);
-    }
+  it("DEC-SPEC-007: 許可外slotをruntimeで拒否し監査へも流さない", async () => {
+    const evidence = audit("trace-extra");
+    await expect(
+      generateProfileNarratives(
+        llmRaw({ own_progress_summary: "安定しています。", own_next_action: "継続します。", extra: "禁止" }),
+        { profile: "PRF-01", sourceSummaries: [] },
+        evidence,
+      ),
+    ).rejects.toThrow("E-GEN01");
+    expect(await evidence.auditLog.readAll()).toEqual([]);
   });
 
-  it("SPEC-INT-031: 月・序数・比較を含む漢数字数量を結論返却から除去する", async () => {
-    const safeTerms =
-      "一方で十分かつ万全な体制を整え、万一に備えて八百屋と一時的に調整し、一件落着後は一人前として四日市との調整を担当します。";
-    const result = await generateExecutiveConclusionLines(
-      llm([
-        `三ヶ月継続します。三か月必要です。三箇月です。${safeTerms}`,
-        "二十営業日です。第五四半期です。第三号です。",
-        "二点です。三種類です。四以上です。三番目です。三ページです。三拠点です。三ほどです。十分が経過しました。一人前を用意します。所要時間は十分です。料理は約一人前です。卌件です。弌件です。",
-      ]),
-      narrativeInput,
+  it.each([
+    ["ASCII", "架空の99件です。"],
+    ["full-width", "架空の９９件です。"],
+    ["Arabic-Indic", "架空の٩件です。"],
+    ["circled", "架空の⑨件です。"],
+    ["CJK", "懸念は三件です。"],
+  ])("DEC-SPEC-007: %s数字を含むslot全体を空にしてwarning evidenceを返す", async (_name, value) => {
+    const evidence = audit(`trace-number-${_name}`);
+    const result = await generateProfileNarratives(
+      llmRaw({ project_health_summary: value, delivery_risk_summary: "対応を継続します。" }),
+      { profile: "PRF-02", sourceSummaries: [] },
+      evidence,
     );
 
-    expect(result[0]).toBe(safeTerms);
-    for (const quantity of [
-      "三ヶ月",
-      "三か月",
-      "三箇月",
-      "二十営業日",
-      "第五四半期",
-      "第三号",
-      "二点",
-      "三種類",
-      "四以上",
-      "三番目",
-      "三ページ",
-      "三拠点",
-      "三ほど",
-      "十分が経過",
-      "一人前を用意",
-      "所要時間は十分です",
-      "料理は約一人前です",
-      "卌件",
-      "弌件",
-    ]) {
-      expect(result.join("")).not.toContain(quantity);
-    }
+    expect(result.slots).toEqual({ project_health_summary: "", delivery_risk_summary: "対応を継続します。" });
+    expect(result.warnings).toEqual([{ slot: "project_health_summary", reason: "number" }]);
+    expect(JSON.stringify(await evidence.auditLog.readAll())).not.toContain(value);
   });
 
-  it("SPEC-INT-031: LLMの行数不足時は固定文で補完する", async () => {
-    await expect(generateExecutiveConclusionLines(llm(["懸念を確認しています。"]), narrativeInput)).resolves.toEqual([
-      "懸念を確認しています。",
-      "重点課題への対応を進めます。",
-      "必要な意思決定を適時行います。",
+  it("DEC-SPEC-007: 入出力secretを漏らさず、出力slotを空にする", async () => {
+    const inputSecret = `sk-ant-${"a".repeat(24)}`;
+    const outputSecret = `ｇｈｐ＿${"b".repeat(24)}`;
+    const evidence = audit("trace-secret");
+    const client = llmRaw({ investor_highlight: `安全です。${outputSecret}`, investor_risk_outlook: "注視します。" });
+    const result = await generateProfileNarratives(
+      client,
+      { profile: "PRF-05", sourceSummaries: [`根拠。${inputSecret}`] },
+      evidence,
+    );
+
+    expect(client.calls[0]?.user).not.toContain(inputSecret);
+    expect(client.calls[0]?.user).toContain("***REDACTED:anthropic_api_key***");
+    expect(result.slots.investor_highlight).toBe("");
+    expect(result.warnings).toEqual([{ slot: "investor_highlight", reason: "secret" }]);
+    const visible = JSON.stringify({ result, audit: await evidence.auditLog.readAll() });
+    expect(visible).not.toContain(outputSecret);
+    expect(visible).not.toContain(outputSecret.normalize("NFKC"));
+  });
+
+  it("DEC-SPEC-007: missing/empty slotを空のまま保持し、両方のwarningを監査へ追記する", async () => {
+    const evidence = audit("trace-empty");
+    const result = await generateProfileNarratives(
+      llmRaw({ portfolio_summary: "  " }),
+      { profile: "PRF-03", sourceSummaries: [] },
+      evidence,
+    );
+
+    expect(result.slots).toEqual({ portfolio_summary: "", escalation_summary: "" });
+    expect(result.warnings).toEqual([
+      { slot: "portfolio_summary", reason: "empty" },
+      { slot: "escalation_summary", reason: "missing" },
+    ]);
+    expect(await evidence.auditLog.readAll()).toEqual([
+      expect.objectContaining({
+        action: "narrative_slot_warning",
+        basis: "DEC-SPEC-007",
+        detail: { profile: "PRF-03", warnings: result.warnings },
+      }),
     ]);
   });
 
-  it.each([
-    ["all numeric", ["架空の①件です。", "影響は١件です。", "進捗はⅣです。"]],
-    ["mixed empty", ["安全な結論です。架空の99件です。", "", "   "]],
-    ["under", ["安全な結論です。"]],
-    ["over", ["先頭です。", "次です。", "最後です。", "余分です。"]],
-  ])("SPEC-INT-031: %s出力も正確に安全な非空三行へ正規化する", async (_name, lines) => {
-    const result = await generateExecutiveConclusionLines(llm(lines), narrativeInput);
-    expect(result).toHaveLength(3);
-    expect(result.every((line) => line.trim().length > 0)).toBe(true);
-    expect(result.join("")).not.toMatch(/\p{N}/u);
-    if (_name === "over") expect(result).toEqual(["先頭です。", "次です。", "最後です。"]);
+  it("DEC-SPEC-007: warning監査に失敗した場合は結果を返さずfail closedにする", async () => {
+    await expect(
+      generateProfileNarratives(
+        llmRaw({ portfolio_summary: "" }),
+        { profile: "PRF-03", sourceSummaries: [] },
+        {
+          traceId: "trace-audit-failure",
+          auditLog: {
+            append: async () => {
+              throw new Error("audit unavailable");
+            },
+            readAll: async () => [],
+          },
+        },
+      ),
+    ).rejects.toThrow("audit unavailable");
   });
 
-  it("SPEC-INT-031 / REQ-010: structured client契約を渡してparseを実行する", async () => {
-    const client = llm(["先頭です。", "次です。", "最後です。"]);
-    await generateExecutiveConclusionLines(client, narrativeInput);
-    expect(client.calls[0]).toMatchObject({
-      agent: "AGT-04",
-      purpose: "executive_conclusion",
-      maxAttempts: 2,
-      user: expect.stringContaining("納期上の懸念あり"),
-      inputSchema: expect.objectContaining({ required: ["lines"] }),
-    });
-    expect(client.calls[0]).not.toHaveProperty("allowEscalation", true);
+  it.each([null, [], "invalid"])("DEC-SPEC-007: non-object tool outputをruntimeで拒否する", async (raw) => {
+    await expect(
+      generateProfileNarratives(llmRaw(raw), { profile: "PRF-01", sourceSummaries: [] }, audit("trace-invalid")),
+    ).rejects.toThrow("E-GEN01");
   });
 
-  it("REQ-032 / SPEC-INT-031: secret形状のsummaryとLLM出力を送信・返却しない", async () => {
-    const inputSecret = `sk-ant-${"a".repeat(24)}`;
-    const outputSecret = `ghp_${"b".repeat(24)}`;
-    const client = llm([`安全です。${outputSecret}`, "重点課題を確認します。", "対応を継続します。"]);
-    const result = await generateExecutiveConclusionLines(client, {
-      ...narrativeInput,
-      topRiskProjectSummaries: [`納期懸念。${inputSecret}`],
-    });
-
-    expect(client.calls[0]?.user).not.toContain(inputSecret);
-    expect(client.calls[0]?.user).toContain("***REDACTED:anthropic_api_key***");
-    expect(JSON.stringify(result)).not.toContain(outputSecret);
-  });
-
-  it("REQ-032 / SPEC-INT-031: compatibility secretの正規形も送信・返却しない", async () => {
-    const inputSecret = `ｓｋ－ａｎｔ－${"a".repeat(24)}`;
-    const outputSecret = `ｇｈｐ＿${"b".repeat(24)}`;
-    const client = llm([`安全です。${outputSecret}`, "重点課題を確認します。", "対応を継続します。"]);
-
-    const result = await generateExecutiveConclusionLines(client, {
-      ...narrativeInput,
-      topRiskProjectSummaries: [`納期懸念。${inputSecret}`],
-    });
-
-    expect(client.calls[0]?.user).not.toContain(inputSecret);
-    expect(client.calls[0]?.user).not.toContain(inputSecret.normalize("NFKC"));
-    expect(client.calls[0]?.user).toContain("***REDACTED:anthropic_api_key***");
-    expect(JSON.stringify(result)).not.toContain(outputSecret);
-    expect(JSON.stringify(result)).not.toContain(outputSecret.normalize("NFKC"));
-  });
-
-  it("SPEC-INT-031: summaryが空ならコード定義の安全な入力fallbackを使う", async () => {
-    const client = llm(["全体を注視します。", "重点課題を確認します。", "対応を継続します。"]);
-    await generateExecutiveConclusionLines(client, { ...narrativeInput, topRiskProjectSummaries: [] });
-    expect(client.calls[0]?.user).toBe("Redプロジェクトの状況: 特筆すべき懸念なし");
-  });
-
-  it.each([
-    ["nonobject", null],
-    ["array", [["安全です。", "確認します。", "継続します。"]]],
-  ])("SPEC-INT-031 / REQ-010: %s結論出力をruntime parserで拒否する", async (_name, raw) => {
-    await expect(generateExecutiveConclusionLines(llmRaw(raw), narrativeInput)).rejects.toThrow("E-GEN01");
-  });
-
-  it("SPEC-INT-031 / REQ-010: malformed結論出力はruntime parseでfail closedにする", async () => {
-    await expect(generateExecutiveConclusionLines(llm(["安全です。", null]), narrativeInput)).rejects.toThrow(
-      "E-GEN01",
+  it("DEC-SPEC-007: 旧executive入口もlinesを生成せずPRF-04の2 slotsだけを使う", async () => {
+    const client = llmRaw({ executive_summary: "全体を注視します。", decision_request_summary: "判断を求めます。" });
+    const result = await generateExecutiveConclusionLines(
+      client,
+      { colorDistribution: { green: 4, yellow: 2, red: 1 }, topRiskProjectSummaries: ["納期上の懸念あり"] },
+      audit("trace-executive"),
     );
+
+    expect(result).toEqual({
+      conclusionLines: ["全体を注視します。", "判断を求めます。", ""],
+      warnings: [],
+    });
+    expect(Object.keys((client.calls[0]?.inputSchema as { properties: object }).properties)).toEqual(
+      expectedSlots["PRF-04"],
+    );
+    expect(client.calls[0]?.inputSchema).not.toHaveProperty("properties.lines");
   });
 
-  it("AC-010-1: コード算出した色別数値slotをLLM文章から変更させない", async () => {
+  it("PrjOps:AC-010-1: LLMの無効文章を捨て、コード算出した色別数値を維持する", async () => {
     const html = await generateExecutiveReport(
-      llm(["全体を注視します。架空の999件です。", "対応を継続します。", "課題を確認します。"]),
+      llmRaw({ executive_summary: "架空の999件です。", decision_request_summary: "判断を求めます。" }),
       {
         reportId: "RPT-PRF-04-2026-M07",
         periodLabel: "2026年7月",
@@ -201,9 +186,10 @@ describe("AGT-04 DI結線 [REQ-010, SPEC-INT-031, AC-010-1]", () => {
         lang: "ja",
         contactLine: "PrjOps運用窓口",
       },
-      narrativeInput,
+      { colorDistribution: { green: 4, yellow: 2, red: 1 }, topRiskProjectSummaries: [] },
       [],
       "前月比は安定",
+      audit("trace-report"),
     );
 
     expect(html).toContain('data-src="portfolio#color_green_count">4</span>');

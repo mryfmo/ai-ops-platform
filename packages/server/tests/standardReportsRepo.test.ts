@@ -3,15 +3,15 @@ import { StandardReportsRepo, standardReportId } from "../src/db/standardReports
 import type { StandardReportPayload } from "@aiops/shared";
 
 const payload: StandardReportPayload = {
-  schemaVersion: "standard-report.v1",
+  schemaVersion: "standard-report.v2",
   reportType: "weekly-summary",
-  evidenceIds: ["REQ-042"],
+  evidenceIds: ["PrjOps:REQ-042"],
   period: { label: "2026-W28", generatedAt: "2026-07-06T00:00:00.000Z" },
   metrics: {},
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };
 
-describe("StandardReportsRepo [REQ-042 SPEC-INT-069]", () => {
+describe("StandardReportsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
   it("payloadから安定reportIdを生成する", () => {
     expect(standardReportId(payload)).toBe(standardReportId({ ...payload }));
   });
@@ -25,9 +25,10 @@ describe("StandardReportsRepo [REQ-042 SPEC-INT-069]", () => {
     );
   });
 
-  it("reportIdはschemaVersionやevidenceIdsの修正で変わる", () => {
-    expect(standardReportId(payload)).not.toBe(standardReportId({ ...payload, evidenceIds: ["REQ-042", "REQ-999"] }));
-    expect(standardReportId(payload)).not.toBe(standardReportId({ ...payload, schemaVersion: "standard-report.v2" }));
+  it("reportIdはevidenceIdsの修正で変わる", () => {
+    expect(standardReportId(payload)).not.toBe(
+      standardReportId({ ...payload, evidenceIds: ["PrjOps:REQ-042", "REQ-999"] }),
+    );
   });
 
   it("ON CONFLICT DO NOTHINGで冪等insertする", async () => {

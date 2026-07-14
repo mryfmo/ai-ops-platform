@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { RecipientsRepo } from "../src/db/recipientsRepo.js";
 
-describe("RecipientsRepo [REQ-042 SPEC-INT-069]", () => {
+describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
   it("配信用recipientをDBから読み直す", async () => {
     const repo = new RecipientsRepo({
       query: async () => ({

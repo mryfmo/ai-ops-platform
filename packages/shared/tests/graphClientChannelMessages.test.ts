@@ -2,7 +2,7 @@
  * packages/shared/tests/graphClientChannelMessages.test.ts
  *
  * 根拠: ADR-0005（チャネルメッセージ読取・返信・delta取得・clientState環境変数化）
- *   / SPEC-INT-001（pollingフォールバックのdelta取得）
+ *   / PrjOps:SPEC-INT-001（pollingフォールバックのdelta取得）
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -122,7 +122,7 @@ describe("GraphClient.getChannelMessage (ADR-0005)", () => {
   });
 });
 
-describe("GraphClient.getChannelMessagesDelta (SPEC-INT-001 pollingフォールバック)", () => {
+describe("GraphClient.getChannelMessagesDelta (PrjOps:SPEC-INT-001 pollingフォールバック)", () => {
   it.each([
     ["external origin", "https://evil.example/steal"],
     ["credentials", `https://user:pass@graph.microsoft.com/v1.0/teams/team-1/channels/chan-1/messages/delta`],
@@ -441,7 +441,7 @@ describe("GraphClient.sendAdaptiveCard (SPEC-INT-069)", () => {
   });
 });
 
-describe("GraphClient.createSubscription (ADR-0005 / SPEC-INT-001)", () => {
+describe("GraphClient.createSubscription (ADR-0005 / PrjOps:SPEC-INT-001)", () => {
   it("resource-specific contractのexact payloadを送りGraph expiryを返す", async () => {
     const bodies: string[] = [];
     const fetchImpl: FetchLike = async (_url, init) => {

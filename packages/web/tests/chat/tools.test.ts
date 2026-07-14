@@ -2,7 +2,7 @@
  * packages/web/tests/chat/tools.test.ts
  *
  * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替。capability-basedなtool露出）/
- *   ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。
+ *   ADR-0013 / PrjOps:REQ-041 / PrjOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。
  *   ペルソナごとに公開されるtool一覧が正しいこと（PRF-04にshowManagerSummaryが露出しない等）と、
  *   execute()のzod境界値（periodDaysが7/14/28以外は拒否）を検証する。
  *   ADR-0006 4b: showAgentActivityがPRF-G（DevOpsマネージャー）以外に露出しないことも検証する。
@@ -28,7 +28,7 @@ const prjopsManager: ResolvedPersona = {
   profile: "PRF-03",
   visibility: {
     recipientStakeholderId: "STK-MGR",
-    recipientManagedProjectIds: [],
+    recipientManagedProjectIds: ["PJ-001"],
     recipientAssignedProjectIds: [],
     recipientParticipatingProjectIds: [],
     investedProjectIds: [],
@@ -56,7 +56,7 @@ const devopsManager: ResolvedPersona = {
 const devopsMember: ResolvedPersona = {
   domain: "devops",
   profile: "PRF-M",
-  visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: [] },
+  visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: ["PJ-002"] },
 };
 
 const investor: ResolvedPersona = {
@@ -77,6 +77,7 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
     expect(Object.keys(tools).sort()).toEqual([
       "listProjects",
       "showExecutiveSummary",
+      "show_project_board",
       "show_projects_table",
       "show_seven_keys",
       "show_timeseries",
@@ -90,6 +91,7 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
       "showManagerSummary",
       "show_burndown",
       "show_dora",
+      "show_project_board",
       "show_projects_table",
       "show_timeseries",
     ]);
@@ -103,6 +105,7 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
       "showManagerSummary",
       "show_burndown",
       "show_dora",
+      "show_project_board",
       "show_projects_table",
       "show_timeseries",
     ]);
@@ -111,11 +114,13 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
   it("その他のペルソナ（PRF-01, PRF-M）には共通toolのみを公開する", () => {
     expect(Object.keys(buildToolsForPersona(prjopsMember)).sort()).toEqual([
       "listProjects",
+      "show_project_board",
       "show_projects_table",
       "show_timeseries",
     ]);
     expect(Object.keys(buildToolsForPersona(devopsMember)).sort()).toEqual([
       "listProjects",
+      "show_project_board",
       "show_projects_table",
       "show_timeseries",
     ]);
@@ -126,6 +131,7 @@ describe("buildToolsForPersona（ADR-0005: capability-basedなtool露出）", ()
       "listProjects",
       "showInvestorSummary",
       "show_investor_kpis",
+      "show_project_board",
       "show_projects_table",
       "show_timeseries",
     ]);
@@ -151,13 +157,13 @@ describe("showInvestorSummary tool（ADR-0011: investor専用）", () => {
 });
 
 describe("page agent tools（ADR-0013: Reasoning UI + Generative UI）", () => {
-  it("show_timeseriesはtimeseries ViewSpecを返す [REQ-041 / SPEC-INT-068 / AC-041-1]", async () => {
+  it("show_timeseriesはtimeseries ViewSpecを返す [PrjOps:REQ-041 / PrjOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1]", async () => {
     const tools = buildToolsForPersona(prjopsExecutive);
     const result = await tools["show_timeseries"]!.execute!({ period: "week" }, { toolCallId: "t8", messages: [] });
     expect(result).toEqual({ kind: "timeseries", period: "week" });
   });
 
-  it("show_doraとshow_burndownはマネージャーViewSpecを返す [AC-041-1]", async () => {
+  it("show_doraとshow_burndownはマネージャーViewSpecを返す [PrjOps:AC-041-1 / DevOps:AC-041-1]", async () => {
     const tools = buildToolsForPersona(devopsManager);
     await expect(tools["show_dora"]!.execute!({}, { toolCallId: "t9", messages: [] })).resolves.toEqual({
       kind: "managerSummary",
@@ -214,5 +220,76 @@ describe("listProjects tool（ADR-0005: 全ペルソナ共通）", () => {
     const tools = buildToolsForPersona(prjopsMember);
     const result = await tools["listProjects"]!.execute!({}, { toolCallId: "t5", messages: [] });
     expect(result).toEqual({ kind: "projectList" });
+  });
+});
+
+describe("show_project_board tool [PrjOps:REQ-041 / PrjOps:SPEC-INT-068]", () => {
+  it("scope内のcanonical projectIdだけをprojectBoard ViewSpecとして返す", async () => {
+    const tool = buildToolsForPersona(prjopsManager)["show_project_board"];
+    expect(tool).toBeDefined();
+    await expect(tool!.execute!({ projectId: "PJ-001" }, { toolCallId: "board-1", messages: [] })).resolves.toEqual({
+      kind: "projectBoard",
+      projectId: "PJ-001",
+    });
+  });
+
+  it.each(["../foreign", "PRJ-0001", "all"])("malformed projectId %sをZod境界で拒否する", async (projectId) => {
+    const tool = buildToolsForPersona(prjopsManager)["show_project_board"];
+    expect(tool).toBeDefined();
+    await expect(tool!.execute!({ projectId }, { toolCallId: "board-invalid", messages: [] })).rejects.toMatchObject({
+      name: "ZodError",
+    });
+  });
+
+  it("canonicalでもscope外のprojectIdを拒否する", async () => {
+    const tool = buildToolsForPersona(prjopsManager)["show_project_board"];
+    expect(tool).toBeDefined();
+    const error = await tool!.execute!(
+      { projectId: "PJ-999" },
+      { toolCallId: "board-out-of-scope", messages: [] },
+    ).catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toMatchObject({ name: "ZodError" });
+    expect(error).toMatchObject({ message: expect.stringMatching(/scope/i) });
+  });
+
+  it("PRF-Mはassigned projectだけを受理する", async () => {
+    const tool = buildToolsForPersona(devopsMember)["show_project_board"]!;
+    await expect(tool.execute!({ projectId: "PJ-002" }, { toolCallId: "board-member", messages: [] })).resolves.toEqual(
+      {
+        kind: "projectBoard",
+        projectId: "PJ-002",
+      },
+    );
+    await expect(
+      tool.execute!({ projectId: "PJ-001" }, { toolCallId: "board-member-foreign", messages: [] }),
+    ).rejects.toThrow(/scope/i);
+  });
+
+  it.each([prjopsExecutive, devopsManager])("global profileはcanonical projectIdを受理する", async (persona) => {
+    const tool = buildToolsForPersona(persona)["show_project_board"]!;
+    await expect(
+      tool.execute!({ projectId: "PJ-9999" }, { toolCallId: "board-global", messages: [] }),
+    ).resolves.toEqual({
+      kind: "projectBoard",
+      projectId: "PJ-9999",
+    });
+  });
+});
+
+describe("show_timeseries period contract [PrjOps:REQ-041 / PrjOps:SPEC-INT-068]", () => {
+  it.each(["week", "month", "quarter", "half", "year"] as const)("period=%sを受理する", async (period) => {
+    const tool = buildToolsForPersona(prjopsManager)["show_timeseries"]!;
+    await expect(tool.execute!({ period }, { toolCallId: `period-${period}`, messages: [] })).resolves.toEqual({
+      kind: "timeseries",
+      period,
+    });
+  });
+
+  it("period欠落を拒否する", async () => {
+    const tool = buildToolsForPersona(prjopsManager)["show_timeseries"]!;
+    await expect(tool.execute!({}, { toolCallId: "period-missing", messages: [] })).rejects.toMatchObject({
+      name: "ZodError",
+    });
   });
 });

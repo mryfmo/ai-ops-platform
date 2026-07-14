@@ -1,8 +1,8 @@
 name: deploy-prod
-# 根拠: DevOps SPEC-INT-020「本番デプロイ実行はGitHub Actionsのdeploy-prodワークフローを
+# 根拠: DevOps:SPEC-INT-020「本番デプロイ実行はGitHub Actionsのdeploy-prodワークフローを
 #   workflow_dispatchで起動する方式とし、当該ワークフローはエージェントのサービスアカウントのみが
 #   起動できるようGitHub Environments保護ルールで制限する（AC-010a）」。
-#   SPEC-INT-060: エージェント停止時、人間はこのワークフローを手動workflow_dispatchで起動できる。
+#   DevOps:SPEC-INT-060: エージェント停止時、人間はこのワークフローを手動workflow_dispatchで起動できる。
 #   この場合Environments保護ルールの必須レビュアー（リーダー以上）承認が代替の人間承認として機能する。
 #
 # 運用上の重要事項（GitHub Environments設定はリポジトリ設定で行うため、このファイル自体には
@@ -38,4 +38,4 @@ jobs:
           echo "Deploying ref=${{ inputs.rollback == 'true' && inputs.target_version || inputs.commit_sha }} rollback=${{ inputs.rollback }}"
       - name: 15分監視ウィンドウの起動をイベントバスへ通知（TH-003監視の起点）
         run: |
-          echo "monitoring window start notified to event bus (SPEC-INT-020)"
+          echo "monitoring window start notified to event bus (DevOps:SPEC-INT-020)"

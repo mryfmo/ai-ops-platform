@@ -1,12 +1,12 @@
 /**
  * packages/prjops/src/agents/AGT02_collector.ts
  *
- * 根拠: REQ-004 マルチチャネル取り込み / REQ-005 自由文の構造化 / SPEC-INT-030
+ * 根拠: REQ-004 マルチチャネル取り込み / REQ-005 自由文の構造化 / PrjOps:SPEC-INT-030
  *
- * パイプライン（SPEC-INT-030）:
+ * パイプライン（PrjOps:SPEC-INT-030）:
  *   1. 受信 → 発信者をstakeholderマスタと突合。不一致は運用担当へ通知し破棄（E-ING01）。
  *   2. 対象PJ特定: 件名のPJ-nnn → 本文中のPJ-nnn → 発信者の担当PJが1件ならそれ、の優先順（E-ING02）。
- *   3. LLM構造化: 温度0、SPEC-INT-020スキーマへのJSON出力を強制。必須6項目の欠落判定はコードで実施。
+ *   3. LLM構造化: 温度0、PrjOps:SPEC-INT-020スキーマへのJSON出力を強制。必須6項目の欠落判定はコードで実施。
  *   4. 欠落あり→聞き返し送信（上限3, REQ-005）。充足→YAMLコミット→受理通知。
  *      1件あたりの処理タイムアウトは10分、LLM呼び出しは最大2回。
  *
@@ -26,7 +26,7 @@ import {
   type ClarificationState,
 } from "../lib/freeTextValidation.js";
 
-// AGT-02が強制するツール入力スキーマ（SPEC-INT-020のstatus_updateスキーマに対応）
+// AGT-02が強制するツール入力スキーマ（PrjOps:SPEC-INT-020のstatus_updateスキーマに対応）
 export const STRUCTURING_TOOL_SCHEMA = {
   type: "object",
   properties: {
@@ -109,7 +109,7 @@ export type CollectorOutcome =
 
 const PJ_ID_RE = /PJ-\d{3,}/;
 
-/** SPEC-INT-030 手順2: 対象PJ特定（件名→本文→発信者の担当PJ、の優先順） */
+/** PrjOps:SPEC-INT-030 手順2: 対象PJ特定（件名→本文→発信者の担当PJ、の優先順） */
 export function resolveProjectId(report: IncomingReport): string | null {
   if (report.subject) {
     const m = report.subject.match(PJ_ID_RE);
@@ -121,7 +121,7 @@ export function resolveProjectId(report: IncomingReport): string | null {
   return null;
 }
 
-/** SPEC-INT-030 手順3: LLM構造化を1回実行する（呼び出し側で最大2回のリトライ制御を行う） */
+/** PrjOps:SPEC-INT-030 手順3: LLM構造化を1回実行する（呼び出し側で最大2回のリトライ制御を行う） */
 export async function structureFreeText(
   llmClient: AnthropicStructuredClient,
   reportBody: string,
@@ -139,8 +139,8 @@ export async function structureFreeText(
     toolDescription: "抽出した進捗報告の構造化データを返す",
     inputSchema: STRUCTURING_TOOL_SCHEMA,
     parse: parseStructuredStatusUpdate,
-    maxAttempts: 2, // SPEC-INT-030: LLM呼び出しは最大2回
-    allowEscalation: true, // (a)自由文構造化のみ昇格対象（SPEC-INT-001）
+    maxAttempts: 2, // PrjOps:SPEC-INT-030: LLM呼び出しは最大2回
+    allowEscalation: true, // (a)自由文構造化のみ昇格対象（PrjOps:SPEC-INT-001）
   });
   return result.value;
 }
@@ -163,7 +163,7 @@ export async function ingestOne(
       trace_id: deps.traceId,
       actor: "AGT-02",
       action: "reject_unknown_sender",
-      basis: "SPEC-INT-030 E-ING01",
+      basis: "PrjOps:SPEC-INT-030 E-ING01",
       detail: { senderIdentifier: safeSenderIdentifier },
       at: new Date().toISOString(),
     });
@@ -177,7 +177,7 @@ export async function ingestOne(
       trace_id: deps.traceId,
       actor: "AGT-02",
       action: "reject_unresolved_project",
-      basis: "SPEC-INT-030 E-ING02",
+      basis: "PrjOps:SPEC-INT-030 E-ING02",
       detail: { senderIdentifier: safeSenderIdentifier },
       at: new Date().toISOString(),
     });

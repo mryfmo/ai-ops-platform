@@ -5,7 +5,7 @@ import {
   parseCreateSubscriptionArgs,
 } from "../src/tools/createGraphSubscription.js";
 
-describe("createGraphSubscription CLI [REQ-042 SPEC-INT-069]", () => {
+describe("createGraphSubscription CLI [PrjOps:REQ-042 SPEC-INT-069]", () => {
   it("production clientはallowlist外teamをtoken/fetch前に拒否する", async () => {
     let tokenRequested = false;
     let fetched = false;

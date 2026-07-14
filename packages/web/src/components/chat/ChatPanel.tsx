@@ -21,7 +21,7 @@ import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
 import { Card } from "../ui/Card";
 import { Skeleton } from "../ui/Skeleton";
-import type { ViewSpec } from "../../server/viewSpec";
+import { safeParseViewSpec, type ViewSpec } from "../../server/viewSpec";
 
 const KNOWN_VIEW_TOOL_NAMES = [
   "showExecutiveSummary",
@@ -30,6 +30,7 @@ const KNOWN_VIEW_TOOL_NAMES = [
   "showInvestorSummary",
   "listProjects",
   "show_timeseries",
+  "show_project_board",
   "show_seven_keys",
   "show_dora",
   "show_investor_kpis",
@@ -44,10 +45,8 @@ function isViewToolName(name: string): name is ViewToolName {
 
 /** tool呼び出し名からViewSpecへ変換する（execute側の戻り値をそのままViewSpecとして採用する）。 */
 function toViewSpec(_toolName: ViewToolName, output: unknown): ViewSpec | null {
-  if (output && typeof output === "object" && "kind" in output) {
-    return output as ViewSpec;
-  }
-  return null;
+  const parsed = safeParseViewSpec(output);
+  return parsed.success ? parsed.data : null;
 }
 
 function extractText(message: UIMessage): string {
@@ -63,6 +62,7 @@ function viewLabel(spec: ViewSpec): string {
   if (spec.kind === "investorSummary") return "Investor KPIs";
   if (spec.kind === "agentActivity") return "Agent activity";
   if (spec.kind === "timeseries") return "Timeseries";
+  if (spec.kind === "projectBoard") return "Project board";
   return "Projects";
 }
 

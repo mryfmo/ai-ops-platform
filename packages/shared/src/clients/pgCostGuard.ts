@@ -2,7 +2,7 @@
  * packages/shared/src/clients/pgCostGuard.ts
  *
  * 根拠:
- *   - SPEC-INT-060: LLM日次コスト上限（既定$20、PRF-03が変更可）。
+ *   - PrjOps:SPEC-INT-060: LLM日次コスト上限（既定$20、PRF-03が変更可）。
  *   - ADR-0005: 常駐サーバ（WebUIチャット）とバッチエージェントが同一のコスト台帳を共有するため、
  *     プロセス内メモリ（InMemoryCostGuard）ではなくPostgreSQLのllm_usage表を正本とする。
  *     日次判定はJST基準（ASM-003）。agent別サブ上限（例: WEB-CHAT $10）を任意設定できる。
@@ -33,7 +33,7 @@ export interface PgConnectable extends PgQueryable {
 }
 
 export interface PgCostGuardOptions {
-  /** 日次上限USD（既定 $20。SPEC-INT-060） */
+  /** 日次上限USD（既定 $20。PrjOps:SPEC-INT-060） */
   dailyLimitUsd?: number;
   /** agent名ごとの日次サブ上限USD（例: { "WEB-CHAT": 10 }）。全体上限とは独立に適用される */
   perAgentDailyLimitUsd?: Record<string, number>;
@@ -185,7 +185,7 @@ export class PgCostGuard implements CostGuard {
 
   /**
    * 呼び出し前チェック: 全体上限とagent別サブ上限の両方を検査する。
-   * 超過時は E-COST01 例外（SPEC-INT-060）。呼び出し側（/api/chat 等）は429に変換する。
+   * 超過時は E-COST01 例外（PrjOps:SPEC-INT-060）。呼び出し側（/api/chat 等）は429に変換する。
    */
   async assertWithinBudget(agent: string): Promise<void> {
     const total = await this.getTodaySpendUsd();

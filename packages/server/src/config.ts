@@ -5,7 +5,7 @@
  *   - ADR-0005: 常駐サーバの環境変数はzodで起動時にfail-fastパースする。
  *     GRAPH_CLIENT_STATE（Graph change notificationのclientState検証値）を新設し、
  *     graphClient.tsの固定値ハードコードを廃止する。
- *   - SPEC-INT-060: 外部通信allowlist（api.anthropic.com / graph.microsoft.com / api.github.com）。
+ *   - PrjOps:SPEC-INT-060: 外部通信allowlist（api.anthropic.com / graph.microsoft.com / api.github.com）。
  *   - ADR-0006: CODING_TASK_CALLBACK_SECRETは.github/workflows/coding-task.ymlが
  *     POST /internal/coding-tasks/:taskId/callback を呼ぶ際のBearer認証シークレット。
  */
@@ -88,13 +88,13 @@ const baseConfigSchema = z.object({
   ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
   ANTHROPIC_ESCALATION_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_ESCALATION_MODEL),
   ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
-  /** REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
+  /** PrjOps:REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
   STAKEHOLDERS_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
-  /** SPEC-INT-061: GitHub App認証。App系3変数はsuperRefineでall-or-noneを強制する。 */
+  /** DevOps:SPEC-INT-061: GitHub App認証。App系3変数はsuperRefineでall-or-noneを強制する。 */
   GITHUB_APP_ID: z.string().trim().min(1).optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().trim().min(1).optional(),
   GITHUB_APP_INSTALLATION_ID: z.string().trim().min(1).optional(),
-  /** SPEC-INT-061: GitHub App移行までの暫定PAT fallback。 */
+  /** DevOps:SPEC-INT-061: GitHub App移行までの暫定PAT fallback。 */
   GITHUB_TOKEN: z.string().trim().min(1).optional(),
   /** ADR-0007: Projects v2 reconcile対象。未設定時はreconcileを監査ログ付きで無効化する。 */
   GITHUB_PROJECT_NODE_ID: z.string().optional(),

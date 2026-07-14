@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/lib/statusJudge.ts
  *
- * 根拠: REQ-007 ステータス自動判定 / SPEC-INT-032
+ * 根拠: REQ-007 ステータス自動判定 / PrjOps:SPEC-INT-032
  *
  * 判定基準（REQ-007から一字一句変更せず実装する）:
  *   - 危険(Red):  終了予定日超過、または 進捗率が計画線比▲15ポイント以上、または「危険」課題が1件以上
@@ -11,7 +11,7 @@
  *
  * AC-007-1: 同一入力に対する判定結果は常に同一である（LLMの裁量を挟まない決定的計算）。
  *   → 本関数はLLM呼び出しを一切行わない純粋関数として実装する。
- * SPEC-INT-032: 単体テストで境界値（▲5.0 / ▲15.0ポイント、超過0日/1日）を固定する。
+ * PrjOps:SPEC-INT-032: 単体テストで境界値（▲5.0 / ▲15.0ポイント、超過0日/1日）を固定する。
  *
  * 「危険」課題の定義: REQ-008の重要度(severity: high|medium|low)のうち high を「危険」課題として扱う
  * （PrjOps文書群には課題自体に"危険"というenum値は定義されておらず、REQ-007本文が参照する
@@ -44,7 +44,7 @@ export interface StatusJudgeInput {
   startDate: string;
   endDate: string;
   asOfDate: string;
-  progressPct: number; // 0-100の整数（SPEC-INT-020 progress_pct）
+  progressPct: number; // 0-100の整数（PrjOps:SPEC-INT-020 progress_pct）
   highSeverityOpenIssueCount: number; // REQ-008 severity=high かつ status=open の課題件数
   overdueActionCount: number; // 期限超過（status=open かつ due < asOfDate）のアクション件数
 }
@@ -57,12 +57,12 @@ export interface StatusJudgeResult {
   reasons: string[]; // 適用された判定根拠（監査ログのbasisに使用）
 }
 
-/** REQ-007 / SPEC-INT-032: judge(project, latest_update, issues, actions) -> color 相当の純粋関数 */
+/** REQ-007 / PrjOps:SPEC-INT-032: judge(project, latest_update, issues, actions) -> color 相当の純粋関数 */
 export function judgeStatus(input: StatusJudgeInput): StatusJudgeResult {
   const planLinePct = computePlanLinePct(input.startDate, input.endDate, input.asOfDate);
   const gapPoints = input.progressPct - planLinePct;
   // 「終了予定日超過」の境界: asOfDateがendDateと同日はまだ超過していない（0日超過は非超過）。
-  // asOfDateがendDateの翌日以降で初めて超過とみなす（超過0日/1日の境界値をSPEC-INT-032どおり固定）。
+  // asOfDateがendDateの翌日以降で初めて超過とみなす（超過0日/1日の境界値をPrjOps:SPEC-INT-032どおり固定）。
   const isOverdue = toEpochDay(input.asOfDate) > toEpochDay(input.endDate);
 
   const reasons: string[] = [];

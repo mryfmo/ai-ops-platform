@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/eventsRepo.test.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-010（eventsキューの at-least-once 再試行、DLQ、dedupe）。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-010（eventsキューの at-least-once 再試行、DLQ、dedupe）。
  */
 import { describe, expect, it } from "vitest";
 import type { PgQueryable } from "@aiops/shared";
@@ -55,7 +55,7 @@ function makeTransactionalMockDb(
   return { db, calls, wasReleased: () => released, releaseError: () => releaseError };
 }
 
-describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
+describe("EventsRepo retry and dedupe (DevOps:SPEC-INT-010)", () => {
   it("enqueue: dedupe_key がある場合は ON CONFLICT DO NOTHING で重複投入しない", async () => {
     const { db, calls } = makeMockDb([{ event_id: "evt-1" }]);
     const repo = new EventsRepo(db);
@@ -320,7 +320,7 @@ describe("EventsRepo retry and dedupe (SPEC-INT-010)", () => {
   });
 });
 
-describe("decideEventDisposition (SPEC-INT-010)", () => {
+describe("decideEventDisposition (DevOps:SPEC-INT-010)", () => {
   const now = new Date("2026-07-10T00:00:00Z");
 
   it("queued/delayed は next_attempt_at 到来後だけclaimする", () => {

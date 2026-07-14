@@ -1,9 +1,9 @@
 /**
  * packages/prjops/src/lib/reportPermissionFilter.ts
  *
- * 根拠: DOC-03 §4.5（プロファイル別要件・閲覧権限）, SPEC-EXT-021（プロファイル別レイアウト）,
+ * 根拠: DOC-03 §4.5（プロファイル別要件・閲覧権限）, PrjOps:SPEC-EXT-021（プロファイル別レイアウト）,
  *   AC-011〜015共通-1: 各プロファイルのレポートに「非表示」と定めた情報が一切含まれない
- *   （AGT-07が配信前に機械チェック。SPEC-INT-051）。
+ *   （AGT-07が配信前に機械チェック。PrjOps:SPEC-INT-051）。
  *
  * 閲覧権限（DOC-03 §4.5より）:
  *   PRF-01: 自分に関わる情報のみ。他者の課題は非表示
@@ -14,7 +14,7 @@
  *
  * 本モジュールは「どのプロジェクト/課題/個人名をレポート対象データに含めてよいか」を決定的に判定する。
  * テンプレート層はこのフィルタを通過したデータのみを描画に用いる（禁止語彙の後付け除去には頼らない設計。
- * SPEC-EXT-026「配信名簿はAGT-SEC管理の名簿を唯一のソースとする」と同じ「事前フィルタ」思想）。
+ * PrjOps:SPEC-EXT-026「配信名簿はAGT-SEC管理の名簿を唯一のソースとする」と同じ「事前フィルタ」思想）。
  */
 
 import type { Profile } from "./reportJobStateMachine.js";
@@ -92,7 +92,7 @@ export function filterIssuesForProfile(
     }));
 }
 
-/** 社内固有語（部門名・社内システム名等）のリストに基づく除去対象語の判定（PRF-05向け, SPEC-INT-051(b)） */
+/** 社内固有語（部門名・社内システム名等）のリストに基づく除去対象語の判定（PRF-05向け, PrjOps:SPEC-INT-051(b)） */
 export function buildForbiddenTermsForProfile(
   profile: ReportAudience,
   personalNames: string[],

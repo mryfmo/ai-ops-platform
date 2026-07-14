@@ -3,7 +3,7 @@ import { InMemoryAuditLog } from "@aiops/shared";
 import { createPmSnapshotReconcileTask } from "../src/scheduler/tasks/pmSnapshotReconcileTask.js";
 import type { PmTimeseriesRepo } from "../src/db/pmTimeseriesRepo.js";
 
-describe("pmSnapshotReconcileTask (ADR-0007 / REQ-031 / SPEC-INT-081)", () => {
+describe("pmSnapshotReconcileTask (ADR-0007 / DevOps:REQ-031 / SPEC-INT-081)", () => {
   it("AC-031a: rateLimit残量が少ない場合は保存せずskip監査ログを残す", async () => {
     const auditLog = new InMemoryAuditLog();
     const saved: unknown[] = [];

@@ -139,7 +139,7 @@ export function ManagerSummaryView({ data, domain }: ManagerSummaryViewProps) {
 
       <ChartContainer
         title="バーンダウンチャート（残件数の週次推移）"
-        description={`${TICKET_LABEL[domain]}の新規/解消/残件数を週次で集計`}
+        description="速報値（インシデント台帳の作成・終了時刻から算出）"
       >
         <BurndownComposedChart data={toBurndownChartData(data.burndown)} />
         <DataTable columns={burndownColumns} rows={data.burndown} rowKey={(r) => r.weekLabel} />

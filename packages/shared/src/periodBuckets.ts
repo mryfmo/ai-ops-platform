@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/periodBuckets.ts
  *
- * 根拠: ADR-0007 / PrjOps REQ-036 / SPEC-INT-062 / DevOps REQ-031 / SPEC-INT-081.
+ * 根拠: ADR-0007 / PrjOps:REQ-036 / PrjOps:SPEC-INT-062 / DevOps:REQ-031 / SPEC-INT-081.
  * GitHub webhook/snapshot由来の時系列を、週/月/四半期/半年/年の表示期間へ決定的に集計する。
  */
 import { isoWeekOf } from "./ids.js";
@@ -62,6 +62,50 @@ export interface TimeseriesAggregate {
     deployments: number;
   };
 }
+
+export type WeeklyMetricUnavailableReason = "missing_current" | "missing_previous" | "scope_mismatch" | "source_error";
+
+export interface WeeklyMetricObservation {
+  projectId: string | null;
+  scope: string;
+  key: string;
+  value: number;
+  observedAt: string;
+  asOf?: string;
+  source: string;
+}
+
+export interface WeeklyMetricSelector {
+  projectId: string | null;
+  scope: string;
+  key: string;
+  source: string;
+}
+
+export type WeeklyMetricValue =
+  | { value: number; source: string; as_of: string }
+  | { value: null; unavailable_reason: WeeklyMetricUnavailableReason; source: string; as_of: string };
+
+export interface WeeklyMetricComparison {
+  period: {
+    current: Pick<PeriodRange, "start" | "end">;
+    previous: Pick<PeriodRange, "start" | "end">;
+  };
+  current: WeeklyMetricValue;
+  previous: WeeklyMetricValue;
+  delta_vs_previous_week: WeeklyMetricValue;
+}
+
+export const DORA_WEEKLY_METRIC_CONTRACT = {
+  scope: "global",
+  source: "code:dora-summary",
+  keys: {
+    deploymentFrequency: "deployment_frequency_per_week",
+    leadTime: "median_lead_time_hours",
+    changeFailureRate: "change_failure_rate_pct",
+    mttr: "failed_deployment_recovery_time_hours",
+  },
+} as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -207,5 +251,103 @@ export function aggregateTimeseries(input: {
       milestoneCompleted: buckets.reduce((sum, bucket) => sum + bucket.milestoneCompleted, 0),
       deployments: buckets.reduce((sum, bucket) => sum + bucket.deployments, 0),
     },
+  };
+}
+
+function unavailableWeeklyMetric(
+  reason: WeeklyMetricUnavailableReason,
+  source: string,
+  asOf: string,
+): WeeklyMetricValue {
+  return { value: null, unavailable_reason: reason, source, as_of: asOf };
+}
+
+/** DEC-SPEC-007: JSTの各週[start,end)にある同一project/scope/key/sourceのlast valid finite値だけを比較する。 */
+export function compareWeeklyMetric(input: {
+  baseDate: string;
+  selector: WeeklyMetricSelector;
+  observations: WeeklyMetricObservation[];
+  sourceError?: boolean;
+}): WeeklyMetricComparison {
+  const current = resolvePeriodRange("week", input.baseDate);
+  const currentStart = parseJstDate(current.start);
+  const previous = { start: toJstIso(addDays(currentStart, -7)), end: current.start };
+
+  const valueInRange = (
+    start: string,
+    end: string,
+    missingReason: "missing_current" | "missing_previous",
+  ): WeeklyMetricValue => {
+    const startMs = Date.parse(start);
+    const endMs = Date.parse(end);
+    const sameIdentity = input.observations.filter(
+      (item) =>
+        item.projectId === input.selector.projectId &&
+        item.key === input.selector.key &&
+        item.source === input.selector.source &&
+        startMs <= Date.parse(item.observedAt) &&
+        Date.parse(item.observedAt) < endMs,
+    );
+    const exact = sameIdentity.filter((item) => item.scope === input.selector.scope);
+    const rankedValid = exact
+      .filter(
+        (item) =>
+          Number.isFinite(item.value) &&
+          Number.isFinite(Date.parse(item.observedAt)) &&
+          (item.asOf === undefined || Number.isFinite(Date.parse(item.asOf))),
+      )
+      .sort(
+        (a, b) =>
+          Date.parse(b.observedAt) - Date.parse(a.observedAt) ||
+          Date.parse(b.asOf ?? b.observedAt) - Date.parse(a.asOf ?? a.observedAt),
+      );
+    const lastValid = rankedValid[0];
+    const topValues = lastValid
+      ? new Set(
+          rankedValid
+            .filter(
+              (item) =>
+                Date.parse(item.observedAt) === Date.parse(lastValid.observedAt) &&
+                Date.parse(item.asOf ?? item.observedAt) === Date.parse(lastValid.asOf ?? lastValid.observedAt),
+            )
+            .map((item) => item.value),
+        )
+      : new Set<number>();
+    if (topValues.size > 1) {
+      return unavailableWeeklyMetric("source_error", input.selector.source, lastValid?.asOf ?? end);
+    }
+    if (lastValid)
+      return { value: lastValid.value, source: lastValid.source, as_of: lastValid.asOf ?? lastValid.observedAt };
+    if (input.sourceError || exact.length > 0) {
+      return unavailableWeeklyMetric("source_error", input.selector.source, end);
+    }
+    if (sameIdentity.length > 0) {
+      return unavailableWeeklyMetric("scope_mismatch", input.selector.source, end);
+    }
+    return unavailableWeeklyMetric(missingReason, input.selector.source, end);
+  };
+
+  const currentValue = valueInRange(current.start, current.end, "missing_current");
+  const previousValue = valueInRange(previous.start, previous.end, "missing_previous");
+  let delta: WeeklyMetricValue;
+  if ("unavailable_reason" in currentValue) {
+    delta = unavailableWeeklyMetric(currentValue.unavailable_reason, currentValue.source, currentValue.as_of);
+  } else if ("unavailable_reason" in previousValue) {
+    delta = unavailableWeeklyMetric(previousValue.unavailable_reason, previousValue.source, previousValue.as_of);
+  } else {
+    const difference = currentValue.value - previousValue.value;
+    delta = Number.isFinite(difference)
+      ? { value: difference, source: input.selector.source, as_of: currentValue.as_of }
+      : unavailableWeeklyMetric("source_error", input.selector.source, currentValue.as_of);
+  }
+
+  return {
+    period: {
+      current: { start: current.start, end: current.end },
+      previous,
+    },
+    current: currentValue,
+    previous: previousValue,
+    delta_vs_previous_week: delta,
   };
 }

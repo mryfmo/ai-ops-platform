@@ -1,7 +1,7 @@
 /**
  * packages/devops/tests/agtHumanReviewCards.test.ts
  *
- * 根拠: SPEC-EXT-010 / REQ-015 / AC-015c（Graphカードの人間レビュー導線）
+ * 根拠: DevOps:SPEC-EXT-010 / DevOps:REQ-015 / AC-015c（Graphカードの人間レビュー導線）
  */
 import { describe, expect, it } from "vitest";
 import { InMemoryAuditLog, buildHolidayCalendar } from "@aiops/shared";
@@ -23,7 +23,7 @@ function approvalPackage(decisionUrl: string) {
   };
 }
 
-describe("sendApprovalCard [SPEC-EXT-010]", () => {
+describe("sendApprovalCard [DevOps:SPEC-EXT-010]", () => {
   it("reviewed decision URLを唯一のOpenUrl actionとして送る", async () => {
     const cards: AdaptiveCardPayload[] = [];
     const deps: ChgDependencies = {
@@ -90,7 +90,7 @@ describe("sendApprovalCard [SPEC-EXT-010]", () => {
   );
 });
 
-describe("triageAndNotify [REQ-015 AC-015c]", () => {
+describe("triageAndNotify [DevOps:REQ-015 AC-015c]", () => {
   it("Sev1候補は作成済みIssue URLを人間レビューOpenUrlに使う", async () => {
     const cards: AdaptiveCardPayload[] = [];
     const issueUrl = "https://github.com/acme/repo/issues/7";

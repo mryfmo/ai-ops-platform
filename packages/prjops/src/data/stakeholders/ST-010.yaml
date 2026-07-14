@@ -1,4 +1,4 @@
-# サンプルデータ: 関係者マスタ（REQ-002, SPEC-INT-022）
+# サンプルデータ: 関係者マスタ（PrjOps:REQ-002, SPEC-INT-022）
 # パス規約: stakeholders/{ST-nnn}.yaml
 id: ST-010
 name: 山田太郎

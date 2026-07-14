@@ -1,7 +1,7 @@
 /**
  * packages/server/src/auth/graphTokenProvider.ts
  *
- * 根拠: SPEC-INT-062 / ADR-0005（Microsoft Graph アプリケーション権限 client credentials flow）。
+ * 根拠: DevOps:SPEC-INT-062 / ADR-0005（Microsoft Graph アプリケーション権限 client credentials flow）。
  * MSAL Nodeのapplication token cacheへ委譲し、wrapperは同時取得だけをsingle-flightする。
  */
 import type { GraphTokenProvider } from "@aiops/shared";

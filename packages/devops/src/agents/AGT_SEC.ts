@@ -1,12 +1,12 @@
 /**
  * packages/devops/src/agents/AGT_SEC.ts
  *
- * 根拠: REQ-018 JIT権限付与と自動失効 / REQ-019 月次棚卸し / SPEC-INT-032 / SPEC-INT-053
+ * 根拠: DevOps:REQ-018 JIT権限付与と自動失効 / DevOps:REQ-019 月次棚卸し / DevOps:SPEC-INT-032 / DevOps:SPEC-INT-053
  *   妥当性チェック（決定的ロジック）: 申請者の所属プロジェクト一致、理由テキスト非空、
  *   同一対象への有効な既存権限なし、TH-007上限以内の期間。いずれか不成立で申請を差し戻す。
  *   JIT失効: スケジューラが毎分、expires_at <= now の権限を剥奪する。
  *   手動変更を検出した場合は差分をSev3インシデントとして起票する。
- *   外部企業アカウントに関する見え方はSPEC-EXT-030(障害通知)/031(障害受付)/032(アクセス権の見え方、
+ *   外部企業アカウントに関する見え方はDevOps:SPEC-EXT-030(障害通知)/031(障害受付)/032(アクセス権の見え方、
  *   期限7日前の更新案内)に対応する。権限不足時の見え方はSPEC-EXT-043。
  */
 import type { GitHubClient } from "@aiops/shared/clients/githubClient.js";
@@ -33,7 +33,7 @@ export interface ValidationOutcome {
   maxAllowedMs: number;
 }
 
-/** SPEC-INT-032 妥当性チェック（決定的ロジック、LLM不使用） */
+/** DevOps:SPEC-INT-032 妥当性チェック（決定的ロジック、LLM不使用） */
 export function validateGrantApplication(app: GrantApplication): ValidationOutcome {
   const errors: string[] = [];
 
@@ -82,7 +82,7 @@ export async function executeGrant(record: GrantRecord, approvedBy: string, deps
     trace_id: deps.traceId,
     actor: "AGT-SEC",
     action: "grant",
-    basis: "REQ-018",
+    basis: "DevOps:REQ-018",
     detail: { grantId: record.grantId, subject: record.subject, approvedBy, expiresAt: record.expiresAt },
     at: new Date().toISOString(),
   });

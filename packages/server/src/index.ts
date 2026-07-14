@@ -4,7 +4,7 @@
  * 根拠: ADR-0005（常駐サーバのcomposition root）。
  *   config読込（fail-fast）→ DI組立 → 常駐スケジューラ起動 → HTTP待受 → SIGTERMでgraceful shutdown。
  *
- * SPEC-INT-061: GitHub App JWT署名→installation token交換を標準とし、移行用PATを暫定許容する。
+ * DevOps:SPEC-INT-061: GitHub App JWT署名→installation token交換を標準とし、移行用PATを暫定許容する。
  *   いずれも未設定ならGitHub outboundを無効化し、起動時に1回監査する。
  *
  * 2026-07-07 追記（ステップ#8/#9）: 購読管理（subscriptionRenewalTask/channelPollingTask）、
@@ -107,6 +107,7 @@ export * from "./db/projectChannelsRepo.js";
 export * from "./db/channelMessagesRepo.js";
 export * from "./db/codingTasksRepo.js";
 export * from "./db/pmTimeseriesRepo.js";
+export * from "./db/reportSnapshotsRepo.js";
 export * from "./db/importLedgerRepo.js";
 export * from "./db/sevenKeysSnapshotsRepo.js";
 export * from "./db/recipientsRepo.js";
@@ -217,7 +218,7 @@ export async function main(
           trace_id: traceId,
           actor: "AGT-DEP",
           action: "github_event_received",
-          basis: "SPEC-INT-020",
+          basis: "DevOps:SPEC-INT-020",
           detail: { eventName: event.eventName },
           at: new Date().toISOString(),
         });
@@ -227,7 +228,7 @@ export async function main(
           trace_id: traceId,
           actor: "AGT-INC",
           action: "github_event_received",
-          basis: "SPEC-INT-030",
+          basis: "DevOps:SPEC-INT-030",
           detail: { eventName: event.eventName },
           at: new Date().toISOString(),
         });
@@ -366,7 +367,7 @@ export async function main(
                 trace_id: traceId,
                 actor: "AGT-DEP",
                 action: "monitor_event_received",
-                basis: "SPEC-INT-020",
+                basis: "DevOps:SPEC-INT-020",
                 detail: { hasPayload: payload !== null && payload !== undefined },
                 at: new Date().toISOString(),
               });

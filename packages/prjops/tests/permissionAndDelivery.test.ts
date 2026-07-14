@@ -10,7 +10,7 @@ import {
   type ProjectVisibilityContext,
 } from "../src/lib/reportPermissionFilter.js";
 
-describe("evaluateApprovalTimer [REQ-017 AC-017-2]", () => {
+describe("evaluateApprovalTimer [PrjOps:REQ-017 AC-017-2]", () => {
   const requestedAt = "2026-07-01T09:00:00+09:00";
 
   it("23時間経過ではまだ何もしない", () => {
@@ -74,7 +74,7 @@ describe("evaluateApprovalTimer [REQ-017 AC-017-2]", () => {
   });
 });
 
-describe("decideDelivery [SPEC-INT-052, REQ-018 AC-018-2]", () => {
+describe("decideDelivery [PrjOps:SPEC-INT-010, PrjOps:SPEC-INT-052, PrjOps:REQ-018 AC-018-2]", () => {
   it("未配信ならshouldSend=true、件名接尾辞なし", async () => {
     const store = new InMemoryDeliveryLogStore();
     const r = await decideDelivery(store, "RPT-001", "ST-010", false);
@@ -105,7 +105,7 @@ describe("decideDelivery [SPEC-INT-052, REQ-018 AC-018-2]", () => {
   });
 });
 
-describe("reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)]", () => {
+describe("reportPermissionFilter [DOC-03 §4.5, PrjOps:REQ-011, PrjOps:SPEC-INT-051(b)]", () => {
   const ctx: ProjectVisibilityContext = {
     recipientStakeholderId: "ST-010",
     recipientManagedProjectIds: ["PJ-001", "PJ-002"],
@@ -114,7 +114,7 @@ describe("reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)]", () => {
     investedProjectIds: ["PJ-002"],
   };
 
-  it("PRF-01は参加プロジェクトのみ対象範囲", () => {
+  it("PrjOps:REQ-011: PRF-01は参加プロジェクトのみ対象範囲", () => {
     expect(isProjectInScope("PRF-01", "PJ-001", ctx)).toBe(true);
     expect(isProjectInScope("PRF-01", "PJ-002", ctx)).toBe(false);
   });
@@ -141,7 +141,7 @@ describe("reportPermissionFilter [DOC-03 §4.5, SPEC-INT-051(b)]", () => {
     expect(canShowIssueDetail("PRF-05")).toBe(false);
   });
 
-  it("filterIssuesForProfile: PRF-01は自分の課題のみ", () => {
+  it("PrjOps:REQ-011: filterIssuesForProfileはPRF-01本人の課題だけを残す", () => {
     const issues = [
       { projectId: "PJ-001", ownerStakeholderId: "ST-010", detail: "自分の課題" },
       { projectId: "PJ-001", ownerStakeholderId: "ST-999", detail: "他者の課題" },

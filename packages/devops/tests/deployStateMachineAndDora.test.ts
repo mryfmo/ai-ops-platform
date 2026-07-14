@@ -13,7 +13,7 @@ import {
   calculateDoraSummary,
 } from "../src/lib/doraMetrics.js";
 
-describe("deployStateMachine [SPEC-INT-020]", () => {
+describe("deployStateMachine [DevOps:SPEC-INT-020]", () => {
   it("正常な遷移列はすべて許可される", () => {
     expect(canTransitionDeploy("pending", "staging_deployed")).toBe(true);
     expect(canTransitionDeploy("staging_deployed", "approval_requested")).toBe(true);

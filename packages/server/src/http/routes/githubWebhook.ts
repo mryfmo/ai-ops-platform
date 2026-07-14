@@ -2,7 +2,7 @@
  * packages/server/src/http/routes/githubWebhook.ts
  *
  * 根拠:
- *   - DevOps SPEC-INT-061 / REQ-025: GitHub webhook（push, pull_request, workflow_run, issues）受信。
+ *   - DevOps:SPEC-INT-061 / REQ-025: GitHub webhook（push, pull_request, workflow_run, issues）受信。
  *     署名検証（X-Hub-Signature-256, HMAC-SHA256）はGitHub公式が必須とするセキュリティ対策であり、
  *     既存 verifyGithubWebhookSignature（タイミング攻撃対策済み）を再利用する。
  *   - ADR-0005: 検証済みイベントは events テーブルへ source='github' でエンキューして即202。
@@ -36,7 +36,7 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
         trace_id: traceId,
         actor: "SERVER",
         action: "github_webhook_rejected",
-        basis: "SPEC-INT-061",
+        basis: "DevOps:SPEC-INT-061",
         detail: { reason: "signature verification failed", event: c.req.header("x-github-event") ?? null },
         at: new Date().toISOString(),
       });
@@ -58,7 +58,7 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
         trace_id: traceId,
         actor: "SERVER",
         action: "github_webhook_missing_delivery_id",
-        basis: "SPEC-INT-061",
+        basis: "DevOps:SPEC-INT-061",
         detail: { event: eventName },
         at: new Date().toISOString(),
       });
@@ -72,7 +72,7 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
         trace_id: traceId,
         actor: "SERVER",
         action: "github_webhook_duplicate",
-        basis: "SPEC-INT-061",
+        basis: "DevOps:SPEC-INT-061",
         detail: { event: eventName, deliveryId },
         at: new Date().toISOString(),
       });

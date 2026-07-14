@@ -6,7 +6,7 @@ import {
   normalizeSelfStatus,
 } from "../src/lib/freeTextValidation.js";
 
-describe("checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3]", () => {
+describe("checkCompleteness [REQ-005 AC-005-1, PrjOps:SPEC-INT-030手順3]", () => {
   const complete = {
     progress_pct: 62,
     self_status: "yellow" as const,
@@ -59,7 +59,7 @@ describe("checkCompleteness [REQ-005 AC-005-1, SPEC-INT-030手順3]", () => {
   });
 });
 
-describe("formatClarificationMessage [SPEC-EXT-012]", () => {
+describe("formatClarificationMessage [PrjOps:SPEC-EXT-012]", () => {
   it("「不足: ②ステータス, ⑥リスク」形式で出力する", () => {
     const msg = formatClarificationMessage(["self_status", "risks"]);
     expect(msg).toBe("不足: ②ステータス, ⑥リスク");
@@ -85,7 +85,7 @@ describe("decideClarificationAction [AC-005-2]", () => {
   });
 });
 
-describe("normalizeSelfStatus [SPEC-EXT-011 表記ゆれ吸収]", () => {
+describe("normalizeSelfStatus [PrjOps:SPEC-EXT-011 表記ゆれ吸収]", () => {
   it("日本語表記を正規化する", () => {
     expect(normalizeSelfStatus("順調")).toBe("green");
     expect(normalizeSelfStatus("注意")).toBe("yellow");

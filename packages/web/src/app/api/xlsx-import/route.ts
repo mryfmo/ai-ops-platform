@@ -1,4 +1,4 @@
-/** 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。認証済みExcel取込プロキシ。 */
+/** 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008。認証済みExcel取込プロキシ。 */
 import { auth } from "../../../auth";
 import { loadWebConfig } from "../../../server/config";
 import { handleXlsxImport } from "../../../server/xlsxImportHandler";

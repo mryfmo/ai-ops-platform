@@ -2,7 +2,7 @@
  * packages/server/tests/scheduler.test.ts
  *
  * 根拠: ADR-0005（常駐スケジューラ: 間隔実行・エラー隔離・graceful shutdown）
- *   / SPEC-INT-040（30秒）/ SPEC-INT-032（毎分）の呼び出しループ
+ *   / DevOps:SPEC-INT-040（30秒）/ DevOps:SPEC-INT-032（毎分）の呼び出しループ
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared";

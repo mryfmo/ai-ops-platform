@@ -1,11 +1,11 @@
 /**
  * packages/devops/src/lib/reportPermissionFilter.ts
  *
- * 根拠: SPEC-EXT-021/022/024（プロファイル別レイアウト）, SPEC-EXT-026（閲覧権限）
- *   REQ-021 PRF-M: 本人の担当分のみ（他人の個人別データは含めない）
+ * 根拠: DevOps:SPEC-EXT-021/022/024（プロファイル別レイアウト）, DevOps:SPEC-EXT-026（閲覧権限）
+ *   DevOps:REQ-021 PRF-M: 本人の担当分のみ（他人の個人別データは含めない）
  *   REQ-022 PRF-L: 担当プロジェクトのみ。メンバー別ではなくタスク種別別の滞留状況
  *   REQ-023 PRF-G: 全50プロジェクト横断
- *   SPEC-EXT-022 PRF-L日次(5): 滞留状況はメンバー個人名別の集計を表示しない
+ *   DevOps:SPEC-EXT-022 PRF-L日次(5): 滞留状況はメンバー個人名別の集計を表示しない
  */
 
 export type Profile = "PRF-M" | "PRF-L" | "PRF-G";
@@ -15,7 +15,7 @@ export interface DevOpsVisibilityContext {
   recipientAssignedProjectIds: string[];
 }
 
-/** REQ-021/022: プロジェクトが受信者の対象範囲に含まれるか */
+/** DevOps:REQ-021/022: プロジェクトが受信者の対象範囲に含まれるか */
 export function isProjectInScope(profile: Profile, projectId: string, ctx: DevOpsVisibilityContext): boolean {
   if (profile === "PRF-G") return true;
   if (profile === "PRF-L") return ctx.recipientAssignedProjectIds.includes(projectId);
@@ -28,7 +28,7 @@ export interface PrLike {
   reviewerUserId?: string;
 }
 
-/** REQ-021 AC-021b: 他メンバーの個人別タスクデータが含まれない（自分のPRのみ） */
+/** DevOps:REQ-021 AC-021b: 他メンバーの個人別タスクデータが含まれない（自分のPRのみ） */
 export function filterOwnPrsForMember(prs: PrLike[], recipientUserId: string): PrLike[] {
   return prs.filter((pr) => pr.authorUserId === recipientUserId || pr.reviewerUserId === recipientUserId);
 }
@@ -39,7 +39,7 @@ export interface StalePrLike {
   hoursStale: number;
 }
 
-/** SPEC-EXT-022(5): 滞留状況はタスク種別別に集計し、メンバー個人名別の集計は表示しない。 */
+/** DevOps:SPEC-EXT-022(5): 滞留状況はタスク種別別に集計し、メンバー個人名別の集計は表示しない。 */
 export function aggregateStalePrsByTaskType(
   prs: StalePrLike[],
   staleThresholdHours = 48,

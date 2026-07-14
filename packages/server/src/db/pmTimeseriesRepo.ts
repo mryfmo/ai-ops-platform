@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/pmTimeseriesRepo.ts
  *
- * 根拠: ADR-0007 / PrjOps SPEC-INT-062 / DevOps SPEC-INT-081.
+ * 根拠: ADR-0007 / PrjOps:SPEC-INT-062 / DevOps:SPEC-INT-081.
  * GitHub PM webhookイベントと定期snapshotを蓄積する薄いPostgreSQL repo。
  */
 import { sanitizeSecrets, type PgQueryable } from "@aiops/shared";

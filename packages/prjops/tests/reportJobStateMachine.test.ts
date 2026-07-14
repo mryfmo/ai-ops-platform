@@ -45,7 +45,7 @@ describe("canTransitionReport [SPEC-INT-026 状態遷移]", () => {
   });
 });
 
-describe("assertReportTransition [REQ-017 AC-017-1]", () => {
+describe("assertReportTransition [PrjOps:REQ-017 AC-017-1]", () => {
   it("不正な遷移は例外を投げる", () => {
     expect(() => assertReportTransition("generated", "delivered", "PRF-04")).toThrow(/E-RPT01/);
   });

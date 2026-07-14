@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { verifyGithubWebhookSignature, GitHubClient, type GhFetchLike } from "../src/clients/githubClient.js";
 
-describe("verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ対策]", () => {
+describe("verifyGithubWebhookSignature [DevOps:SPEC-INT-061 セキュリティ対策]", () => {
   const secret = "test-webhook-secret";
   const payload = JSON.stringify({ action: "completed", workflow_run: { conclusion: "failure" } });
 
@@ -35,7 +35,7 @@ describe("verifyGithubWebhookSignature [DevOps SPEC-INT-061 セキュリティ�
   });
 });
 
-describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
+describe("GitHubClient [DevOps:SPEC-INT-061, REQ-025/033]", () => {
   function makeFakeFetch(responses: Array<{ status: number; body?: unknown }>): {
     fetch: GhFetchLike;
     calls: Array<{ url: string; init?: RequestInit }>;
@@ -53,7 +53,7 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
 
   const tokenProvider = { getInstallationToken: async () => "fake-installation-token" };
 
-  it("createIssueComment はPRコメントAPIをPOSTで呼ぶ（SPEC-EXT-001）", async () => {
+  it("createIssueComment はPRコメントAPIをPOSTで呼ぶ（DevOps:SPEC-EXT-001）", async () => {
     const { fetch: fetchImpl, calls } = makeFakeFetch([{ status: 201 }]);
     const client = new GitHubClient(tokenProvider, fetchImpl);
     await client.createIssueComment({
@@ -82,7 +82,7 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
     expect(result.number).toBe(7);
   });
 
-  it("createMilestone はMilestone APIをPOSTで呼ぶ（REQ-037/SPEC-INT-063）", async () => {
+  it("createMilestone はMilestone APIをPOSTで呼ぶ（REQ-037/PrjOps:SPEC-INT-063）", async () => {
     const { fetch: fetchImpl, calls } = makeFakeFetch([
       { status: 201, body: { number: 3, html_url: "https://github.com/acme/x/milestone/3", node_id: "M_3" } },
     ]);
@@ -99,7 +99,7 @@ describe("GitHubClient [SPEC-INT-061, REQ-025/033]", () => {
     expect(calls[0]!.init?.body).toContain("due_on");
   });
 
-  it("Project v2 itemはadd→updateをGraphQLで呼べる（REQ-037/SPEC-INT-063）", async () => {
+  it("Project v2 itemはadd→updateをGraphQLで呼べる（REQ-037/PrjOps:SPEC-INT-063）", async () => {
     const { fetch: fetchImpl, calls } = makeFakeFetch([
       { status: 200, body: { data: { addProjectV2ItemById: { item: { id: "PVTI_1" } } } } },
       { status: 200, body: { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: "PVTI_1" } } } } },

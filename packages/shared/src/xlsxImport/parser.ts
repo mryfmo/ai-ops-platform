@@ -1,7 +1,7 @@
 /**
  * packages/shared/src/xlsxImport/parser.ts
  *
- * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008。
  * Excelインポート入力を検証し、GitHub APIに渡す前に既知シークレットをサニタイズする。
  */
 import ExcelJS from "exceljs";

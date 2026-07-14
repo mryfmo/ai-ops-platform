@@ -166,6 +166,16 @@ const managerData: ManagerSummaryData = {
 };
 
 describe("ManagerSummaryView（ADR-0005: マネージャーサマリ+バーンダウン）", () => {
+  it("DEC-SPEC-007: incident burndownの固定速報labelをmanager summaryだけに表示する", () => {
+    const label = "速報値（インシデント台帳の作成・終了時刻から算出）";
+
+    expect(JSON.stringify(ManagerSummaryView({ data: managerData, domain: "devops" }))).toContain(label);
+    expect(JSON.stringify(ManagerSummaryView({ data: managerData, domain: "prjops" }))).toContain(label);
+    expect(JSON.stringify(ExecutiveSevenKeysView({ data: executiveData }))).not.toContain(label);
+    expect(JSON.stringify(InvestorReportView({ data: investorData }))).not.toContain(label);
+    expect(JSON.stringify(AgentActivityView({ data: agentActivityData }))).not.toContain(label);
+  });
+
   it("AC-010-3: 総プロジェクト数・総チケット数・残チケット数を表示する", () => {
     const el = ManagerSummaryView({ data: managerData, domain: "prjops" });
     // <p>{count}件</p> はJSX上 children=[count, "件"] の配列になる

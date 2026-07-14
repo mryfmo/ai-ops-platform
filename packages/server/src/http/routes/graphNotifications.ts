@@ -2,7 +2,7 @@
  * packages/server/src/http/routes/graphNotifications.ts
  *
  * 根拠:
- *   - ADR-0005 / SPEC-INT-001: Graph change notification受信。
+ *   - ADR-0005 / PrjOps:SPEC-INT-001: Graph change notification受信。
  *     (1) サブスクリプション作成時のvalidationTokenハンドシェイクは10秒以内にtext/plainで応答必須。
  *     (2) 通知本文は各要素のclientStateを検証し、不一致は破棄+監査ログ（攻撃兆候）。
  *     (3) 受理した通知はeventsテーブルへ source='inbound' でエンキューして即202
@@ -55,7 +55,7 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
         trace_id: traceId,
         actor: "SERVER",
         action: "graph_lifecycle_disabled",
-        basis: "SPEC-INT-001",
+        basis: "PrjOps:SPEC-INT-001",
         detail: { lifecycleEvent: event.lifecycleEvent, subscriptionId: event.subscriptionId },
         at: new Date().toISOString(),
       });
@@ -65,7 +65,7 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
         trace_id: traceId,
         actor: "SERVER",
         action: "graph_lifecycle_failed",
-        basis: "SPEC-INT-001",
+        basis: "PrjOps:SPEC-INT-001",
         detail: {
           lifecycleEvent: event.lifecycleEvent,
           subscriptionId: event.subscriptionId,
@@ -121,7 +121,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           trace_id: traceId,
           actor: "SERVER",
           action: "graph_notification_missing_dedupe_key",
-          basis: "SPEC-INT-001",
+          basis: "PrjOps:SPEC-INT-001",
           detail: { subscriptionId: notification.subscriptionId ?? null, changeType: notification.changeType ?? null },
           at: new Date().toISOString(),
         });
@@ -144,7 +144,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           trace_id: traceId,
           actor: "SERVER",
           action: "graph_notification_duplicate",
-          basis: "SPEC-INT-001",
+          basis: "PrjOps:SPEC-INT-001",
           detail: { messageId, subscriptionId: notification.subscriptionId ?? null },
           at: new Date().toISOString(),
         });

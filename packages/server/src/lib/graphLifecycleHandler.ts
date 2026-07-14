@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/graphLifecycleHandler.ts
  *
- * 根拠: SPEC-INT-001 / Microsoft Graph lifecycle notifications。
+ * 根拠: PrjOps:SPEC-INT-001 / Microsoft Graph lifecycle notifications。
  * lifecycle通知は通常のmessage通知と違い、キュー投入ではなく購読台帳のrenew/fallback/backfillを即時起動する。
  */
 import { graphSubscriptionErrorDetail, type AuditLogWriter } from "@aiops/shared";
@@ -31,7 +31,7 @@ export async function handleGraphLifecycleEvent(
       trace_id: traceId,
       actor: "SERVER",
       action: "graph_lifecycle_unhandled",
-      basis: "SPEC-INT-001",
+      basis: "PrjOps:SPEC-INT-001",
       detail: { lifecycleEvent: event.lifecycleEvent, reason: "subscriptionId is missing" },
       at: now.toISOString(),
     });
@@ -44,7 +44,7 @@ export async function handleGraphLifecycleEvent(
       trace_id: traceId,
       actor: "SERVER",
       action: "graph_lifecycle_unhandled",
-      basis: "SPEC-INT-001",
+      basis: "PrjOps:SPEC-INT-001",
       detail: {
         lifecycleEvent: event.lifecycleEvent,
         subscriptionId: event.subscriptionId,
@@ -67,7 +67,7 @@ export async function handleGraphLifecycleEvent(
         trace_id: traceId,
         actor: "SERVER",
         action: "graph_lifecycle_reauthorization_failed",
-        basis: "SPEC-INT-001",
+        basis: "PrjOps:SPEC-INT-001",
         detail: {
           subscriptionId: sub.subscriptionId,
           ...graphSubscriptionErrorDetail(error),
@@ -81,7 +81,7 @@ export async function handleGraphLifecycleEvent(
       trace_id: traceId,
       actor: "SERVER",
       action: "graph_lifecycle_reauthorized",
-      basis: "SPEC-INT-001",
+      basis: "PrjOps:SPEC-INT-001",
       detail: { subscriptionId: sub.subscriptionId },
       at: now.toISOString(),
     });
@@ -95,7 +95,7 @@ export async function handleGraphLifecycleEvent(
       trace_id: traceId,
       actor: "SERVER",
       action: "graph_subscription_removed",
-      basis: "SPEC-INT-001",
+      basis: "PrjOps:SPEC-INT-001",
       detail: {
         subscriptionId: sub.subscriptionId,
         recovery: "polling_backfill_and_automatic_replacement",
@@ -110,7 +110,7 @@ export async function handleGraphLifecycleEvent(
     trace_id: traceId,
     actor: "SERVER",
     action: "graph_lifecycle_missed_backfilled",
-    basis: "SPEC-INT-001",
+    basis: "PrjOps:SPEC-INT-001",
     detail: { subscriptionId: sub.subscriptionId },
     at: now.toISOString(),
   });

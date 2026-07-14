@@ -1,4 +1,4 @@
-/** ADR-0005 / REQ-042 / SPEC-INT-069: fail-closed Microsoft Graph sandbox smoke harness tests. */
+/** ADR-0005 / PrjOps:REQ-042 / SPEC-INT-069: fail-closed Microsoft Graph sandbox smoke harness tests. */
 import { mkdir, mkdtemp, readFile, readdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -88,7 +88,7 @@ function policyFor(args: Awaited<ReturnType<typeof validArgs>>, overrides = {}) 
   };
 }
 
-describe("Graph sandbox smoke harness [ADR-0005 REQ-042 SPEC-INT-069]", () => {
+describe("Graph sandbox smoke harness [ADR-0005 PrjOps:REQ-042 SPEC-INT-069]", () => {
   beforeEach(() => vi.stubEnv("AIOPS_GRAPH_SMOKE_ENABLED", "true"));
   afterEach(() => vi.unstubAllEnvs());
 

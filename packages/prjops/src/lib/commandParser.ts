@@ -1,14 +1,14 @@
 /**
  * packages/prjops/src/lib/commandParser.ts
  *
- * 根拠: SPEC-EXT-014 Teamsコマンド / SPEC-INT-033 コマンドパーサ
+ * 根拠: SPEC-EXT-014 Teamsコマンド / PrjOps:SPEC-INT-033 コマンドパーサ
  *   本システム宛のTeamsメッセージで次の定型コマンドを受け付ける（PRF-02以上）:
  *     /action add PJ-nnn "{内容}" @担当者 期限:YYYY-MM-DD  — アクション登録
  *     /action done ACT-nnn                                 — アクション完了
  *     /issue close ISSUE-nnn 理由:"{...}"                  — 課題クローズ（PRF-02のみ）
  *     /status override PJ-nnn {Green|Yellow|Red} 理由:"{...}" — 機械判定の上書き（PRF-02のみ、理由必須）
  *   コマンド不正時は正しい書式例を返す。
- *   SPEC-INT-033: 正規表現で定型コマンドを先に判定し、不一致の場合のみLLMで意図解釈→確認カード。
+ *   PrjOps:SPEC-INT-033: 正規表現で定型コマンドを先に判定し、不一致の場合のみLLMで意図解釈→確認カード。
  *   権限チェックは実行直前にstakeholderマスタで行う。
  *
  * 追加根拠（ADR-0005 / ADR-0006）: Teamsチャネルからの GitHub照会・操作コマンドと
@@ -56,7 +56,7 @@ const RE_GH_ISSUE_CREATE = /^\/gh\s+issue\s+create\s+(PJ-\d{3,})\s+"([^"]+)"\s+�
 const RE_CODE_TASK = /^\/code\s+fix\s+(PJ-\d{3,})\s+"([^"]+)"\s*$/;
 
 /**
- * 定型コマンドの正規表現マッチのみを行う（SPEC-INT-033手順1）。
+ * 定型コマンドの正規表現マッチのみを行う（PrjOps:SPEC-INT-033手順1）。
  * 一致しない場合は ok:false + どのコマンド系統に近いかのusageHintを返す。
  * どの系統にも該当しない自然文は呼び出し側でLLM意図解釈へフォールバックする。
  */
@@ -134,7 +134,7 @@ export function parseCommand(text: string): ParseResult {
 // レポート閲覧専用のペルソナでTeamsコマンド実行の対象外とするため（型がPRF-01〜03に限定されている理由）。
 const PROFILE_REQUIREMENTS: Record<ParsedCommand["kind"], ReadonlyArray<"PRF-01" | "PRF-02" | "PRF-03">> = {
   action_add: ["PRF-02", "PRF-03"],
-  action_done: ["PRF-01", "PRF-02", "PRF-03"], // 完了のみは本人担当分についてPRF-01も可（SPEC-EXT-025の権限マトリクス）
+  action_done: ["PRF-01", "PRF-02", "PRF-03"], // 完了のみは本人担当分についてPRF-01も可（PrjOps:SPEC-EXT-025の権限マトリクス）
   issue_close: ["PRF-02", "PRF-03"],
   status_override: ["PRF-02", "PRF-03"],
   gh_pr_list: ["PRF-01", "PRF-02", "PRF-03"], // 照会系はPRF-01も可（ADR-0005）
@@ -148,7 +148,7 @@ export interface PermissionCheckResult {
   deniedMessage?: string;
 }
 
-/** SPEC-EXT-025 権限マトリクスに基づく実行直前チェック */
+/** PrjOps:SPEC-EXT-025 権限マトリクスに基づく実行直前チェック */
 export function checkCommandPermission(
   kind: ParsedCommand["kind"],
   callerProfile: "PRF-01" | "PRF-02" | "PRF-03" | "PRF-04" | "PRF-05",

@@ -1,8 +1,15 @@
 import { describe, it, expect } from "vitest";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { InMemoryAuditLog } from "../src/auditLog.js";
 import {
   buildStandardReportPayload,
+  buildStandardReportPayloadFromMetrics,
   countChars,
+  createReportSlotsToolSchema,
   findUngroundedSlotNumbers,
   generateReportSlots,
   parseReportSlots,
@@ -17,7 +24,7 @@ import type { StructuredCallOptions, StructuredCallResult } from "../src/clients
 
 class StubReportClient implements ReportStructuredClient {
   private calls = 0;
-  constructor(private readonly outputs: StandardReportSlots[]) {}
+  constructor(private readonly outputs: unknown[]) {}
 
   async call<T>(_opts: StructuredCallOptions<T>): Promise<StructuredCallResult<T>> {
     const value = this.outputs[Math.min(this.calls, this.outputs.length - 1)];
@@ -41,6 +48,22 @@ const validSlots: StandardReportSlots = {
   nextActions: "未完了レビューを確認します。",
 };
 
+const tsxImport = createRequire(import.meta.url).resolve("tsx");
+
+function runReportingCli(
+  script: "calculateReportMetrics.ts" | "finalizeReportJson.ts",
+  args: string[] = [],
+  env: NodeJS.ProcessEnv = {},
+  cwd = process.cwd(),
+): string {
+  const { REPORT_COMPLETED: _completed, REPORT_BLOCKED: _blocked, ...cleanEnv } = process.env;
+  return execFileSync(
+    process.execPath,
+    ["--import", tsxImport, resolve(process.cwd(), "src/reporting", script), ...args],
+    { cwd, env: { ...cleanEnv, ...env }, encoding: "utf8" },
+  );
+}
+
 describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082]", () => {
   it("根拠IDヘッダと固定スロットを検証する [AC-040-1, AC-032a]", () => {
     const payload = buildStandardReportPayload(
@@ -53,7 +76,253 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
       "2026-07-09T16:00:00+09:00",
     );
     expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+    expect(payload.schemaVersion).toBe("standard-report.v2");
+    expect(payload.metrics.completed).toEqual({
+      value: 3,
+      source: "code:standard-report-generator:completed",
+      as_of: "2026-07-09T16:00:00+09:00",
+    });
     expect(renderEvidenceHeader(payload.evidenceIds)).toContain("REQ-040");
+  });
+
+  it("measured 0とunavailableを別契約として受理する [DEC-SPEC-007]", () => {
+    const base = buildStandardReportPayload(
+      { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: { completed: 0 } },
+      validSlots,
+      "2026-07-09T16:00:00+09:00",
+    );
+    const unavailable = {
+      ...base,
+      metrics: {
+        completed: {
+          value: null,
+          unavailable_reason: "missing_current",
+          source: "snapshot:completed",
+          as_of: "2026-07-09T16:00:00+09:00",
+        },
+      },
+    };
+
+    expect(validateStandardReportPayload(base)).toEqual({ ok: true, errors: [] });
+    expect(validateStandardReportPayload(unavailable)).toEqual({ ok: true, errors: [] });
+    expect(base.metrics.completed).not.toEqual(unavailable.metrics.completed);
+  });
+
+  it.each(["missing_current", "missing_previous", "scope_mismatch", "source_error"] as const)(
+    "exact unavailable_reason=%sを受理する [DEC-SPEC-007]",
+    (unavailable_reason) => {
+      const payload = {
+        ...buildStandardReportPayload(
+          { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: {} },
+          validSlots,
+          "2026-07-09T16:00:00Z",
+        ),
+        metrics: {
+          completed: {
+            value: null,
+            unavailable_reason,
+            source: "snapshot:completed",
+            as_of: "2026-07-09T16:00:00Z",
+          },
+        },
+      };
+      expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+    },
+  );
+
+  it.each([
+    ["NaN", { value: Number.NaN, source: "snapshot:completed", as_of: "2026-07-09T16:00:00Z" }],
+    ["Infinity", { value: Number.POSITIVE_INFINITY, source: "snapshot:completed", as_of: "2026-07-09T16:00:00Z" }],
+    ["missing reason", { value: null, source: "snapshot:completed", as_of: "2026-07-09T16:00:00Z" }],
+    [
+      "invalid reason",
+      { value: null, unavailable_reason: "unknown", source: "snapshot:completed", as_of: "2026-07-09T16:00:00Z" },
+    ],
+    ["missing source", { value: 1, as_of: "2026-07-09T16:00:00Z" }],
+    ["blank source", { value: 1, source: " ", as_of: "2026-07-09T16:00:00Z" }],
+    ["padded source", { value: 1, source: " snapshot:completed ", as_of: "2026-07-09T16:00:00Z" }],
+    ["missing as_of", { value: 1, source: "snapshot:completed" }],
+    ["non-ISO as_of", { value: 1, source: "snapshot:completed", as_of: "2026-07-09" }],
+    ["invalid ISO calendar date", { value: 1, source: "snapshot:completed", as_of: "2026-02-30T16:00:00Z" }],
+    [
+      "unknown metric key",
+      { value: 1, source: "snapshot:completed", as_of: "2026-07-09T16:00:00Z", label: "not allowed" },
+    ],
+  ])("invalid metric evidenceを拒否する: %s [DEC-SPEC-007]", (_caseName, metric) => {
+    const payload = {
+      ...buildStandardReportPayload(
+        { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: {} },
+        validSlots,
+        "2026-07-09T16:00:00Z",
+      ),
+      metrics: { completed: metric },
+    };
+    expect(validateStandardReportPayload(payload).ok).toBe(false);
+  });
+
+  it("unknown top-level/period keyを拒否する [DEC-SPEC-007]", () => {
+    const payload = buildStandardReportPayload(
+      { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: { completed: 1 } },
+      validSlots,
+      "2026-07-09T16:00:00Z",
+    );
+    expect(validateStandardReportPayload({ ...payload, html: "<b>unsafe</b>" }).ok).toBe(false);
+    expect(
+      validateStandardReportPayload({ ...payload, period: { ...payload.period, url: "https://invalid" } }).ok,
+    ).toBe(false);
+  });
+
+  it.each(["not-iso", "2026-07-09", "2026-02-30T16:00:00Z"])(
+    "period.generatedAtの非ISO日時を拒否する: %s [DEC-SPEC-007]",
+    (generatedAt) => {
+      const payload = buildStandardReportPayload(
+        { evidenceIds: ["REQ-040"], periodLabel: "2026-W28", metrics: {} },
+        validSlots,
+        generatedAt,
+      );
+      expect(validateStandardReportPayload(payload).errors).toContain(
+        "period.generatedAt must be an ISO-8601 date-time with timezone",
+      );
+    },
+  );
+
+  it("JSON schemaもperiod.generatedAtをdate-timeに制約する [DEC-SPEC-007]", async () => {
+    const { STANDARD_REPORT_JSON_SCHEMA } = await import("../src/reporting/reportSchema.js");
+    expect(STANDARD_REPORT_JSON_SCHEMA.properties.period.properties.generatedAt).toMatchObject({
+      type: "string",
+      format: "date-time",
+    });
+  });
+
+  it("build pathはコード由来unavailable metricを変更せず保持する [DEC-SPEC-007]", () => {
+    const unavailable = {
+      value: null,
+      unavailable_reason: "missing_current",
+      source: "env:REPORT_COMPLETED",
+      as_of: "2026-07-09T16:00:00Z",
+    } as const;
+    const payload = buildStandardReportPayloadFromMetrics(
+      {
+        evidenceIds: ["REQ-040"],
+        periodLabel: "2026-W28",
+        metrics: { completed: unavailable },
+      },
+      validSlots,
+      "2026-07-09T16:00:00Z",
+    );
+    expect(payload.metrics.completed).toEqual(unavailable);
+    expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("calculate CLIは欠損値をunavailable、明示0をmeasuredとして出力する [DEC-SPEC-007]", () => {
+    const asOf = "2026-07-09T16:00:00Z";
+    const missing = JSON.parse(runReportingCli("calculateReportMetrics.ts", [], { REPORT_AS_OF: asOf }));
+    expect(missing.completed).toEqual({
+      value: null,
+      unavailable_reason: "missing_current",
+      source: "env:REPORT_COMPLETED",
+      as_of: asOf,
+    });
+    const measured = JSON.parse(
+      runReportingCli("calculateReportMetrics.ts", [], { REPORT_COMPLETED: "0", REPORT_AS_OF: asOf }),
+    );
+    expect(measured.completed).toEqual({
+      value: 0,
+      source: "env:REPORT_COMPLETED",
+      as_of: asOf,
+    });
+  });
+
+  it("calculate→finalize CLIはunavailable evidenceを保持しLLM slotsからmetricsを受けない [DEC-SPEC-007]", () => {
+    const workDir = mkdtempSync(resolve(tmpdir(), "reporting-cli-"));
+    try {
+      const asOf = "2026-07-09T16:00:00Z";
+      const metricsPath = resolve(workDir, "metrics.json");
+      const slotsPath = resolve(workDir, "slots.json");
+      writeFileSync(metricsPath, runReportingCli("calculateReportMetrics.ts", [], { REPORT_AS_OF: asOf }));
+      writeFileSync(slotsPath, JSON.stringify(validSlots));
+      const payload = JSON.parse(
+        runReportingCli(
+          "finalizeReportJson.ts",
+          [slotsPath, metricsPath],
+          { PERIOD_LABEL: "2026-W28", REPORT_GENERATED_AT: asOf },
+          workDir,
+        ),
+      );
+      expect(payload.metrics.completed).toEqual({
+        value: null,
+        unavailable_reason: "missing_current",
+        source: "env:REPORT_COMPLETED",
+        as_of: asOf,
+      });
+      expect(payload.slots).toEqual(validSlots);
+      expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("finalize CLIはlegacy numeric metricsを証拠付きへ再ラップしない [DEC-SPEC-007]", () => {
+    const workDir = mkdtempSync(resolve(tmpdir(), "reporting-cli-legacy-"));
+    try {
+      const metricsPath = resolve(workDir, "metrics.json");
+      const slotsPath = resolve(workDir, "slots.json");
+      writeFileSync(metricsPath, JSON.stringify({ completed: 0 }));
+      writeFileSync(slotsPath, JSON.stringify(validSlots));
+      const result = spawnSync(
+        process.execPath,
+        ["--import", tsxImport, resolve(process.cwd(), "src/reporting/finalizeReportJson.ts"), slotsPath, metricsPath],
+        {
+          cwd: workDir,
+          env: {
+            ...process.env,
+            PERIOD_LABEL: "2026-W28",
+            REPORT_GENERATED_AT: "2026-07-09T16:00:00Z",
+          },
+          encoding: "utf8",
+        },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/legacy numeric metric/);
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("legacy v1 numeric metricsを推測変換せず明示的に拒否する [DEC-SPEC-007]", () => {
+    const legacy = {
+      schemaVersion: "standard-report.v1",
+      reportType: "weekly-summary",
+      evidenceIds: ["REQ-040"],
+      period: { label: "2026-W28", generatedAt: "2026-07-09T16:00:00Z" },
+      metrics: { completed: 0 },
+      slots: validSlots,
+    };
+    expect(validateStandardReportPayload(legacy)).toEqual({
+      ok: false,
+      errors: expect.arrayContaining([expect.stringMatching(/legacy.*v1.*unsupported/i)]),
+    });
+  });
+
+  it("LLM slots境界はmetricsとunknown keyを受理しない [DEC-SPEC-007]", () => {
+    expect(createReportSlotsToolSchema()).not.toHaveProperty("properties.metrics");
+    expect(() => parseReportSlots({ ...validSlots, metrics: { completed: 99 } })).toThrow(/E-RPT01/);
+  });
+
+  it("DI clientがparseを無視してmetricsを返しても両試行後にfail-closedする [DEC-SPEC-007]", async () => {
+    const injected = { ...validSlots, metrics: { completed: 99 } };
+    const client = new StubReportClient([injected, injected]);
+    await expect(
+      generateReportSlots({
+        traceId: "trace-injected-metrics",
+        actor: "AGT-04",
+        client,
+        evidenceIds: ["REQ-040"],
+        periodLabel: "2026-W28",
+        metrics: { completed: 1 },
+      }),
+    ).rejects.toThrow(/E-RPT01|invalid report slots/);
+    expect(client.callCount).toBe(2);
   });
 
   it("スロット文字数超過を検出し、切詰めできる [SPEC-INT-067]", () => {
@@ -83,6 +352,21 @@ describe("standard report schema validation [REQ-040, SPEC-INT-067, SPEC-INT-082
       "2026-07-09T16:00:00+09:00",
     );
     expect(validateStandardReportPayload(payload).ok).toBe(false);
+  });
+
+  it("LLM呼出し前に非finite metricを拒否する [DEC-SPEC-007]", async () => {
+    const client = new StubReportClient([validSlots]);
+    await expect(
+      generateReportSlots({
+        traceId: "trace-invalid-metric",
+        actor: "AGT-04",
+        client,
+        evidenceIds: ["REQ-040"],
+        periodLabel: "2026-W28",
+        metrics: { completed: Number.NaN },
+      }),
+    ).rejects.toThrow(/E-RPT05/);
+    expect(client.callCount).toBe(0);
   });
 
   it("文章スロットにmetricsへ存在しない数値が混入したら拒否する [C-1]", () => {

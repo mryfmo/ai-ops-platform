@@ -2,15 +2,15 @@
  * packages/shared/src/clients/anthropicClient.ts
  *
  * 根拠:
- *   - PrjOps SPEC-INT-001: LLMを使う処理は (a)自由文の構造化(AGT-02) (b)レポート要約文生成(AGT-04)
+ *   - PrjOps:SPEC-INT-001: LLMを使う処理は (a)自由文の構造化(AGT-02) (b)レポート要約文生成(AGT-04)
  *     (c)重要度引き上げ提案の理由文生成(AGT-03) の3つに限定。既定モデル claude-sonnet-4-6、
  *     (a)で3回連続構造化失敗時のみ claude-opus-4-8 に昇格して1回再試行。
- *   - PrjOps SPEC-INT-030: LLM構造化は温度0、スキーマへのJSON出力を強制。1件あたりLLM呼び出しは最大2回。
- *   - DevOps SPEC-INT-011/030/031/033: 分類・要約はClaude API（構造化JSON出力）。
- *   - DevOps SPEC-INT-070: LLMへの入力からシークレットパターンを除去するサニタイザを共通ライブラリとして実装。
- *   - PrjOps REQ-035 データ所在: 外部送信されるデータは Anthropic API・Microsoft Graph・GitHub に限定する
+ *   - PrjOps:SPEC-INT-030: LLM構造化は温度0、スキーマへのJSON出力を強制。1件あたりLLM呼び出しは最大2回。
+ *   - DevOps:SPEC-INT-011/030/031/033: 分類・要約はClaude API（構造化JSON出力）。
+ *   - DevOps:SPEC-INT-070: LLMへの入力からシークレットパターンを除去するサニタイザを共通ライブラリとして実装。
+ *   - PrjOps:REQ-035 データ所在: 外部送信されるデータは Anthropic API・Microsoft Graph・GitHub に限定する
  *     （外部通信allowlist: api.anthropic.com, graph.microsoft.com, github.com/api.github.com のみ。
- *     SPEC-INT-060）。本クライアントが通信するホストは api.anthropic.com のみであり、この制約に従う。
+ *     PrjOps:SPEC-INT-060）。本クライアントが通信するホストは api.anthropic.com のみであり、この制約に従う。
  *
  * 実装方式: Anthropic Messages APIの「ツール強制（tool_choice: {type: "tool", name}）」パターンで
  * 構造化JSON出力を保証する。これはAnthropic公式SDK（@anthropic-ai/sdk）が現在サポートする
@@ -45,7 +45,7 @@ export interface CostGuard {
   reserve(usage: LlmUsageRecord): Promise<string>;
   /** 予約済み行を実コストへ照合する */
   reconcileReservation(reservationId: string, usage: LlmUsageRecord): Promise<void>;
-  /** 日次上限（既定 $20。SPEC-INT-060。PRF-03が設定ファイルで変更可） */
+  /** 日次上限（既定 $20。PrjOps:SPEC-INT-060。PRF-03が設定ファイルで変更可） */
   dailyLimitUsd: number;
 }
 
@@ -235,7 +235,9 @@ export function estimateCostUsd(
 
 export class DailyCostLimitExceededError extends Error {
   constructor(spend: number, limit: number) {
-    super(`E-COST01: daily LLM spend $${spend.toFixed(2)} would exceed limit $${limit.toFixed(2)} (SPEC-INT-060)`);
+    super(
+      `E-COST01: daily LLM spend $${spend.toFixed(2)} would exceed limit $${limit.toFixed(2)} (PrjOps:SPEC-INT-060)`,
+    );
   }
 }
 
@@ -255,7 +257,7 @@ export interface StructuredCallOptions<T> {
   toolDescription: string;
   inputSchema: Record<string, unknown>; // Anthropic tool input_schema (JSON Schema)
   parse: (raw: unknown) => T; // zod等でのランタイム再検証
-  maxAttempts?: number; // 既定2（SPEC-INT-030）
+  maxAttempts?: number; // 既定2（PrjOps:SPEC-INT-030）
   allowEscalation?: boolean; // (a)自由文構造化のみtrue。3回連続失敗時にESCALATION_MODELへ昇格し1回再試行
   model?: string;
 }
@@ -313,7 +315,7 @@ export class AnthropicStructuredClient {
     const totalRounds = opts.allowEscalation ? maxAttempts + 1 : maxAttempts; // +1 for escalation retry
     for (let i = 0; i < totalRounds; i++) {
       attempts += 1;
-      // 昇格判定: (a)自由文構造化で、通常試行をすべて使い切った直後の1回のみOpusへ昇格（SPEC-INT-001）
+      // 昇格判定: (a)自由文構造化で、通常試行をすべて使い切った直後の1回のみOpusへ昇格（PrjOps:SPEC-INT-001）
       if (opts.allowEscalation && i === maxAttempts) {
         currentModel = this.clientOptions.escalationModel;
       }
@@ -330,7 +332,7 @@ export class AnthropicStructuredClient {
           trace_id: traceId,
           actor: opts.agent,
           action: "llm_unknown_model_pricing_fallback",
-          basis: "SPEC-INT-060",
+          basis: "PrjOps:SPEC-INT-060",
           detail: { severity: "warn", model: currentModel, applied_price_usd_per_mtok: price },
           at: new Date().toISOString(),
         });

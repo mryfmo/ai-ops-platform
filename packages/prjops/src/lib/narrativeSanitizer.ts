@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/lib/narrativeSanitizer.ts
  *
- * 根拠: SPEC-INT-031 レポート生成（AGT-04）
+ * 根拠: PrjOps:SPEC-INT-031 レポート生成（AGT-04）
  *   「数値・色・表はすべてコードで算出しテンプレートへ埋め込む。LLMは『結論3行』『トピック要約』等の
  *    文章スロットのみ生成し、数値を含む文はLLM出力から採用しない（数値はコード算出値をプレースホルダで
  *    埋める）→ AGT-07の数値一致検証を成立させるための設計判断。」
@@ -38,7 +38,7 @@ export interface NarrativeCheckResult {
   suspiciousNumbers: string[];
 }
 
-/** LLM生成テキストに数値らしき文字列が含まれていないかを検査する（SPEC-INT-031設計原則の機械的強制） */
+/** LLM生成テキストに数値らしき文字列が含まれていないかを検査する（PrjOps:SPEC-INT-031設計原則の機械的強制） */
 export function checkNarrativeHasNoNumbers(text: string): NarrativeCheckResult {
   const masked = maskSafeCjkLexemes(text);
   const normalized = maskSafeCjkLexemes(text.normalize("NFKC"));

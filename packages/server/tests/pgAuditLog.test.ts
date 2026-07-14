@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/pgAuditLog.test.ts
  *
- * 根拠: DevOps REQ-028 / SPEC-INT-056。PostgreSQL監査ログの保持区分と追記専用契約を検証する。
+ * 根拠: DevOps:REQ-028 / SPEC-INT-056。PostgreSQL監査ログの保持区分と追記専用契約を検証する。
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

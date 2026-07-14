@@ -20,7 +20,7 @@ describe("decideOnJobFailure [DOC-02 §5: 最大2回リトライ、3回目でエ
   });
 });
 
-describe("nextJobInSequence [SPEC-INT-040: analyze→report→verify→deliver]", () => {
+describe("nextJobInSequence [PrjOps:SPEC-INT-040: analyze→report→verify→deliver]", () => {
   it("順序どおりに次のジョブを返す", () => {
     expect(nextJobInSequence("analyze-weekly")).toBe("report-weekly");
     expect(nextJobInSequence("report-weekly")).toBe("verify-weekly");

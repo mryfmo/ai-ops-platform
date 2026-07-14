@@ -1,7 +1,7 @@
 /**
  * packages/web/src/server/xlsxImportHandler.ts
  *
- * 根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008 / AUD-OPM-002 / AUD-OPM-015。
+ * 根拠: REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1 / ADR-0008 / AUD-OPM-002 / AUD-OPM-015。
  * 認証済みブラウザから受けたxlsxを、秘密を公開せずHMAC署名して常駐サーバーへ転送する。
  */
 import { createHmac } from "node:crypto";

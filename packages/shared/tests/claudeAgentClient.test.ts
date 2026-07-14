@@ -1,7 +1,7 @@
 /**
  * packages/shared/tests/claudeAgentClient.test.ts
  *
- * 根拠: REQ-002 AC-002b / SPEC-INT-011。Claude Agent SDKをread-onlyで使う安全契約を検証する。
+ * 根拠: DevOps:REQ-002 AC-002b / SPEC-INT-011。Claude Agent SDKをread-onlyで使う安全契約を検証する。
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

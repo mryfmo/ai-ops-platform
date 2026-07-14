@@ -2,10 +2,10 @@
  * packages/prjops/src/lib/masterValidation.ts
  *
  * 根拠:
- *   - REQ-001 プロジェクトマスタ: 名称、担当リーダー(PRF-02)、担当マネージャー(PRF-03)、参加企業ID一覧、
+ *   - PrjOps:REQ-001 プロジェクトマスタ: 名称、担当リーダー(PRF-02)、担当マネージャー(PRF-03)、参加企業ID一覧、
  *     開始日、終了予定日、報告頻度（週次固定）、状態(active/suspended/closed)。
  *     AC-001-1: 属性が1つでも欠けたプロジェクト登録はエラーになり、欠落属性名がエラーメッセージに含まれる。
- *   - REQ-002 関係者・企業マスタ（SPEC-INT-022 stakeholder / SPEC-INT-023 organization）:
+ *   - PrjOps:REQ-002 関係者・企業マスタ（SPEC-INT-022 stakeholder / SPEC-INT-023 organization）:
  *     氏名、所属企業ID、プロファイル(PRF-01〜05)、メールアドレス、TeamsユーザーID(任意)、
  *     優先言語(ja/en)、タイムゾーン。企業は国内/海外区分を持つ。
  *     AC-002-1: 1人の関係者は複数プロジェクトに異なる立場で参加できる。
@@ -53,7 +53,7 @@ function isEmpty(v: unknown): boolean {
   return false;
 }
 
-/** REQ-001 AC-001-1: 欠落属性を検出し、属性名を含むエラーメッセージを返す */
+/** PrjOps:REQ-001 AC-001-1: 欠落属性を検出し、属性名を含むエラーメッセージを返す */
 export function validateProject(input: ProjectInput): ValidationResult {
   const missingFields = REQUIRED_PROJECT_FIELDS.filter((f) => isEmpty(input[f]));
   const errors: string[] = [];
@@ -103,7 +103,7 @@ const REQUIRED_STAKEHOLDER_FIELDS: Array<keyof StakeholderInput> = [
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** REQ-002: 関係者マスタ検証。AC-002-1: 複数プロジェクトに異なる立場で参加できることを許容する（重複禁止はしない） */
+/** PrjOps:REQ-002: 関係者マスタ検証。AC-002-1: 複数プロジェクトに異なる立場で参加できることを許容する（重複禁止はしない） */
 export function validateStakeholder(input: StakeholderInput): ValidationResult {
   const missingFields = REQUIRED_STAKEHOLDER_FIELDS.filter((f) => isEmpty(input[f]));
   const errors: string[] = [];

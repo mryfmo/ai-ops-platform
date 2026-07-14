@@ -1,7 +1,7 @@
 /**
  * packages/prjops/src/lib/logicalDelete.ts
  *
- * 根拠: SPEC-INT-027 削除 / REQ-021 上書き・介入の記録 / AC-021-1
+ * 根拠: SPEC-INT-027 削除 / PrjOps:REQ-021 上書き・介入の記録 / AC-021-1
  *   「物理削除禁止。deleted: true の論理削除のみ。操作可能者はPRF-03、delete_reason必須」
  *   「理由未入力の上書き・削除操作はUIレベルで完了できない」
  *
@@ -30,7 +30,7 @@ export function validateLogicalDeleteRequest(req: LogicalDeleteRequest): Logical
     errors.push("この操作にはPRF-03権限が必要です（SPEC-INT-027）");
   }
   if (!req.deleteReason || req.deleteReason.trim().length === 0) {
-    errors.push("delete_reasonは必須です（REQ-021 AC-021-1）");
+    errors.push("delete_reasonは必須です（PrjOps:REQ-021 AC-021-1）");
   }
   return { allowed: errors.length === 0, errors };
 }

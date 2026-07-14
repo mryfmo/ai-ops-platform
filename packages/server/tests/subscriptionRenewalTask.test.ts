@@ -1,7 +1,7 @@
 /**
  * packages/server/tests/subscriptionRenewalTask.test.ts
  *
- * 根拠: ADR-0005（30分間隔のサブスクリプション更新）/ SPEC-INT-001（renew失敗=E-SUB02時のpollingフォールバック）
+ * 根拠: ADR-0005（30分間隔のサブスクリプション更新）/ PrjOps:SPEC-INT-001（renew失敗=E-SUB02時のpollingフォールバック）
  */
 import { describe, it, expect } from "vitest";
 import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
@@ -43,7 +43,7 @@ function makeRepoStub(subs: GraphSubscription[]) {
 
 const NOW = new Date("2026-07-07T00:00:00.000Z"); // sub-1 expires in 5min < 10min threshold
 
-describe("subscriptionRenewalTask (ADR-0005 / SPEC-INT-001)", () => {
+describe("subscriptionRenewalTask (ADR-0005 / PrjOps:SPEC-INT-001)", () => {
   it("期限切れ間近のnotification購読をrenewし、成功時はexpires_atを更新する", async () => {
     const repo = makeRepoStub([makeSub()]);
     const auditLog = new InMemoryAuditLog();
@@ -87,7 +87,9 @@ describe("subscriptionRenewalTask (ADR-0005 / SPEC-INT-001)", () => {
     await task.run(NOW);
     expect(repo.switched).toEqual([{ id: "sub-1", mode: "polling" }]);
     const logs = await auditLog.readAll();
-    expect(logs.some((l) => l.action === "graph_subscription_renewal_failed" && l.basis === "SPEC-INT-001")).toBe(true);
+    expect(
+      logs.some((l) => l.action === "graph_subscription_renewal_failed" && l.basis === "PrjOps:SPEC-INT-001"),
+    ).toBe(true);
     expect(logs[0]!.detail).not.toHaveProperty("error");
     expect(logs[0]!.detail).toMatchObject({ code: "E-SUB02", status: 404 });
     expect(JSON.stringify(logs)).not.toContain("secret body");

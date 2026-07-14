@@ -1,7 +1,7 @@
 /**
  * packages/server/src/scheduler/tasks/healthcheckTask.ts
  *
- * 根拠: DevOps SPEC-INT-040（AGT-ORCHヘルスチェック30秒間隔）/ REQ-029（3回連続不応答で
+ * 根拠: DevOps:SPEC-INT-040（AGT-ORCHヘルスチェック30秒間隔）/ REQ-029（3回連続不応答で
  *   フェイルセーフ発動。許可操作=権限失効・通知送信のみ、禁止=自動デプロイ・自動クローズ・権限付与）。
  *   判定は既存純粋関数 AGT_ORCH.evaluateFailsafe を使用（本タスクはADR-0003で未実装だった
  *   呼び出しループの初の実装）。

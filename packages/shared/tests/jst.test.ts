@@ -1,12 +1,12 @@
 /**
  * packages/shared/tests/jst.test.ts
  *
- * 根拠: ADR-0005 / SPEC-INT-060 / AUD-REL-007（JST計算の単一化）。
+ * 根拠: ADR-0005 / PrjOps:SPEC-INT-060 / AUD-REL-007（JST計算の単一化）。
  */
 import { describe, expect, it } from "vitest";
 import { fromJstClock, jstDayRange, toJstClock } from "../src/jst.js";
 
-describe("JST utilities (SPEC-INT-060 / AUD-REL-007)", () => {
+describe("JST utilities (PrjOps:SPEC-INT-060 / AUD-REL-007)", () => {
   it.each(["2026-03-08T06:30:00Z", "2026-11-01T06:30:00Z"])("米国DST切替日でもJSTは固定UTC+9 (%s)", (iso) => {
     const instant = new Date(iso);
     expect(toJstClock(instant).getTime() - instant.getTime()).toBe(9 * 60 * 60 * 1000);

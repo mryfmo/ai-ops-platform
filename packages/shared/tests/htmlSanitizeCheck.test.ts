@@ -8,7 +8,7 @@ import {
   checkForbiddenTerms,
 } from "../src/html/htmlSanitizeCheck.js";
 
-describe("checkNoPlaceholders [SPEC-INT-051(c)]", () => {
+describe("checkNoPlaceholders [PrjOps:SPEC-INT-051(c)]", () => {
   it("プレースホルダなしのHTMLはok=true", () => {
     expect(checkNoPlaceholders("<p>進捗率62%</p>").ok).toBe(true);
   });
@@ -21,7 +21,7 @@ describe("checkNoPlaceholders [SPEC-INT-051(c)]", () => {
   });
 });
 
-describe("checkFileSizeWithinLimit [REQ-010 AC-010-2]", () => {
+describe("checkFileSizeWithinLimit [PrjOps:REQ-010 AC-010-2]", () => {
   it("2MB以下はtrue", () => {
     expect(checkFileSizeWithinLimit("x".repeat(1000))).toBe(true);
   });
@@ -30,7 +30,7 @@ describe("checkFileSizeWithinLimit [REQ-010 AC-010-2]", () => {
   });
 });
 
-describe("checkNoExternalReferences [REQ-010 AC-010-1]", () => {
+describe("checkNoExternalReferences [PrjOps:REQ-010 AC-010-1]", () => {
   it("外部参照がなければok", () => {
     expect(checkNoExternalReferences("<style>body{color:red}</style>").ok).toBe(true);
   });
@@ -41,7 +41,7 @@ describe("checkNoExternalReferences [REQ-010 AC-010-1]", () => {
   });
 });
 
-describe("extractDataSrcRefs / verifyNumericConsistency [SPEC-INT-051(a)]", () => {
+describe("extractDataSrcRefs / verifyNumericConsistency [PrjOps:SPEC-INT-051(a)]", () => {
   const html = `
     <span data-src="status_updates/SU-PJ-001-2026-W27-1#progress_pct">62</span>
     <span data-src="projects/PJ-001#plan_line_pct">65</span>
@@ -71,7 +71,7 @@ describe("extractDataSrcRefs / verifyNumericConsistency [SPEC-INT-051(a)]", () =
   });
 });
 
-describe("checkForbiddenTerms [SPEC-INT-051(b) 権限違反検査]", () => {
+describe("checkForbiddenTerms [PrjOps:SPEC-INT-051(b) 権限違反検査]", () => {
   it("PRF-05向けレポートに個人名が含まれていればNG", () => {
     const html = "<p>田中太郎さんが担当しています</p>";
     const r = checkForbiddenTerms(html, ["田中太郎"]);

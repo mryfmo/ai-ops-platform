@@ -1,10 +1,10 @@
 # calendar/jp_holidays.yaml
 #
-# 日本の祝日定義ファイル（PrjOps SPEC-INT-054 / DevOps SPEC-INT-033・OPS-09 が参照する唯一の正）
+# 日本の祝日定義ファイル（PrjOps:SPEC-INT-054 / DevOps:SPEC-INT-033・OPS-09 が参照する唯一の正）
 # 出典: 内閣府「国民の祝日について」 https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html
 # 運用ルール:
 #   - 年1回、内閣府公表の官報を根拠に本ファイルを更新する。
-#   - 更新はPull Request必須、承認者はマネージャー/PRF-03相当（DOC-02 §3 PROC-10置換、DOC-05 SPEC-INT-054）。
+#   - 更新はPull Request必須、承認者はマネージャー/PRF-03相当（DOC-02 §3 PROC-10置換、DOC-05 PrjOps:SPEC-INT-054）。
 #   - 「第n営業日」判定・TH-*の営業時間判定・REQ-009/REQ-034の督促タイミングは、本ファイルのみを根拠とする。
 #   - 春分の日・秋分の日は前年2月の官報公示で確定するため、翌年分は「要確認」として仮値を置く。
 #   - 振替休日（日曜が祝日の場合の翌平日休日）は本ファイルに個別行として明示する。

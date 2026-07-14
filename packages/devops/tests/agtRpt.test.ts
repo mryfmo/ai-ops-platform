@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAuditLog } from "@aiops/shared/auditLog.js";
+import { DORA_WEEKLY_METRIC_CONTRACT } from "@aiops/shared/periodBuckets.js";
 import {
   resolveActiveRecipients,
   deliverMemberDailyReport,
@@ -11,12 +12,12 @@ import type { RecipientRecord } from "../src/lib/reportPermissionFilter.js";
 
 const EMAIL_ADDRESS = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
 
-function makeDeps(): { deps: RptDependencies; mails: Array<{ to: string; subject: string }> } {
-  const mails: Array<{ to: string; subject: string }> = [];
+function makeDeps(): { deps: RptDependencies; mails: Array<{ to: string; subject: string; html: string }> } {
+  const mails: Array<{ to: string; subject: string; html: string }> = [];
   const deps: RptDependencies = {
     graphClient: {
       sendMail: async (input) => {
-        mails.push({ to: input.toEmail, subject: input.subject });
+        mails.push({ to: input.toEmail, subject: input.subject, html: input.htmlBody });
       },
     },
     auditLog: new InMemoryAuditLog(),
@@ -212,6 +213,105 @@ describe("buildAndDeliverManagerReport [AC-023a/b]", () => {
     expect(detail).toMatchObject({ recipientId: "U-030" });
     expect(JSON.stringify(logs)).not.toMatch(EMAIL_ADDRESS);
     expect(JSON.stringify(logs)).not.toContain("マネージャー週次");
+    expect(mails[0]!.html.match(/<td>未取得<\/td>/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(mails[0]!.html).not.toContain("<td>0</td>");
+  });
+
+  it("DevOps:SPEC-INT-081: DIしたexact weekly snapshotsからのみ前週差分を算出する", async () => {
+    const { deps, mails } = makeDeps();
+    let readInput: Parameters<NonNullable<RptDependencies["weeklyMetricReader"]>["listWeeklyMetricObservations"]>[0];
+    deps.weeklyMetricReader = {
+      listWeeklyMetricObservations: async (input) => {
+        readInput = input;
+        return [
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.deploymentFrequency,
+            value: 10,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-05T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.deploymentFrequency,
+            value: 12,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-12T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.leadTime,
+            value: 5,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-05T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.leadTime,
+            value: 4,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-12T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.changeFailureRate,
+            value: 10,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-05T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.changeFailureRate,
+            value: 8,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-12T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.mttr,
+            value: 2,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-05T23:00:00+09:00",
+          },
+          {
+            projectId: null,
+            scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+            key: DORA_WEEKLY_METRIC_CONTRACT.keys.mttr,
+            value: 1.5,
+            source: DORA_WEEKLY_METRIC_CONTRACT.source,
+            observedAt: "2026-07-12T23:00:00+09:00",
+          },
+        ];
+      },
+    };
+    await buildAndDeliverManagerReport(
+      { ...common, dateJst: "2026-07-09" },
+      [],
+      [],
+      7,
+      [],
+      [],
+      0,
+      "週次",
+      "U-030",
+      "manager@example.com",
+      deps,
+    );
+    expect(mails[0]!.html).toContain('data-src="portfolio#deploy_freq_delta">2</span>');
+    expect(mails[0]!.html).toContain('data-src="portfolio#lead_time_delta">-1</span>');
+    expect(readInput!).toMatchObject({
+      projectId: null,
+      scope: DORA_WEEKLY_METRIC_CONTRACT.scope,
+      keys: Object.values(DORA_WEEKLY_METRIC_CONTRACT.keys),
+      source: DORA_WEEKLY_METRIC_CONTRACT.source,
+    });
   });
 
   it("codingTaskActivityを渡すとメール送信が成功する（ADR-0006 4b: 後方互換のoptional引数）", async () => {

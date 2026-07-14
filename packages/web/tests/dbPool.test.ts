@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/dbPool.test.ts
  *
- * 根拠: ADR-0013 / REQ-041 / SPEC-INT-068。Web の composition root が共有する
+ * 根拠: ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068。Web の composition root が共有する
  * PostgreSQL pool のプロセス単位 singleton を検証する。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,7 +16,7 @@ const { poolConstructor } = vi.hoisted(() => ({
 
 vi.mock("pg", () => ({ default: { Pool: poolConstructor } }));
 
-describe("getPool [REQ-041, SPEC-INT-068]", () => {
+describe("getPool [PrjOps:REQ-041 / DevOps:REQ-041, PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
   beforeEach(() => {
     delete (globalThis as typeof globalThis & { __aiopsPgPool?: unknown }).__aiopsPgPool;
     poolConstructor.mockClear();
@@ -27,7 +27,7 @@ describe("getPool [REQ-041, SPEC-INT-068]", () => {
     delete (globalThis as typeof globalThis & { __aiopsPgPool?: unknown }).__aiopsPgPool;
   });
 
-  it("reuses one process-wide pool across module reloads [SPEC-INT-068]", async () => {
+  it("reuses one process-wide pool across module reloads [PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     const firstModule = await import("../src/server/db/pool");
     const first = firstModule.getPool("postgresql://same");
 
@@ -40,7 +40,7 @@ describe("getPool [REQ-041, SPEC-INT-068]", () => {
     expect(poolConstructor).toHaveBeenCalledWith({ connectionString: "postgresql://same" });
   });
 
-  it("rejects a different database configuration without exposing either value [REQ-041]", async () => {
+  it("rejects a different database configuration without exposing either value [PrjOps:REQ-041 / DevOps:REQ-041]", async () => {
     const { getPool } = await import("../src/server/db/pool");
     getPool("postgresql://first");
 
