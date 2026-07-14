@@ -179,9 +179,13 @@ CREATE TABLE IF NOT EXISTS report_snapshots (
   period_start TIMESTAMPTZ NOT NULL,
   period_end   TIMESTAMPTZ NOT NULL,
   scope        TEXT NOT NULL CHECK (scope IN ('user', 'project', 'global')),
+  project_id   TEXT,
+  source       TEXT NOT NULL,
   metrics      JSONB NOT NULL,
   generated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_report_snapshots_metric_lookup
+  ON report_snapshots (scope, project_id, source, period_start);
 
 -- SPEC-INT-056 audit_log（追記専用。REQ-028）
 CREATE TABLE IF NOT EXISTS audit_log (

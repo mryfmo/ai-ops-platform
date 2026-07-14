@@ -14,6 +14,13 @@
 import type { GraphClient } from "@aiops/shared/clients/graphClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
 import { isValidId } from "@aiops/shared/ids.js";
+import {
+  compareWeeklyMetric,
+  DORA_WEEKLY_METRIC_CONTRACT,
+  resolvePeriodRange,
+  type WeeklyMetricObservation,
+  type WeeklyMetricValue,
+} from "@aiops/shared/periodBuckets.js";
 import { calculateDoraSummary, type DeploymentRecord, type IncidentRecord } from "../lib/doraMetrics.js";
 import { isActiveRecipient, type RecipientRecord } from "../lib/reportPermissionFilter.js";
 import type { CodingTaskActivitySummary } from "../lib/codingTaskActivity.js";
@@ -31,6 +38,55 @@ export interface RptDependencies {
   auditLog: AuditLogWriter;
   traceId: string;
   fromMailbox: string;
+  weeklyMetricReader?: {
+    listWeeklyMetricObservations(input: {
+      projectId: string | null;
+      scope: string;
+      keys: string[];
+      source: string;
+      after: string;
+      before: string;
+    }): Promise<WeeklyMetricObservation[]>;
+  };
+}
+
+type DoraWeeklyMetricName = keyof typeof DORA_WEEKLY_METRIC_CONTRACT.keys;
+
+export async function resolveWeeklyDoraDeltas(
+  baseDate: string,
+  deps: RptDependencies,
+): Promise<Record<DoraWeeklyMetricName, WeeklyMetricValue>> {
+  const { source, scope, keys } = DORA_WEEKLY_METRIC_CONTRACT;
+  const projectId = null;
+  const current = resolvePeriodRange("week", baseDate);
+  const previousStart = new Date(Date.parse(current.start) - 7 * 24 * 60 * 60 * 1000).toISOString();
+  let observations: WeeklyMetricObservation[] = [];
+  let sourceError = deps.weeklyMetricReader === undefined;
+  if (deps.weeklyMetricReader) {
+    try {
+      observations = await deps.weeklyMetricReader.listWeeklyMetricObservations({
+        projectId,
+        scope,
+        keys: Object.values(keys),
+        source,
+        after: previousStart,
+        before: current.end,
+      });
+    } catch {
+      sourceError = true;
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(keys).map(([name, key]) => [
+      name,
+      compareWeeklyMetric({
+        baseDate,
+        selector: { projectId, scope, key, source },
+        observations,
+        sourceError,
+      }).delta_vs_previous_week,
+    ]),
+  ) as Record<DoraWeeklyMetricName, WeeklyMetricValue>;
 }
 
 const NUMERIC_USER_ID = /^U-\d{3,}$/;
@@ -163,6 +219,7 @@ export async function buildAndDeliverManagerReport(
   codingTaskActivity?: CodingTaskActivitySummary,
 ): Promise<void> {
   const doraSummary = calculateDoraSummary(deployments, incidents, periodDays);
+  const deltaVsPrevWeek = await resolveWeeklyDoraDeltas(common.dateJst, deps);
 
   const { subject, html } = composeManagerReport(
     common,
@@ -172,12 +229,7 @@ export async function buildAndDeliverManagerReport(
         medianLeadTimeHours: doraSummary.medianLeadTimeHours,
         changeFailureRatePct: doraSummary.changeFailureRatePct,
         failedDeploymentRecoveryTimeHours: doraSummary.failedDeploymentRecoveryTimeHours,
-        deltaVsPrevWeek: {
-          deploymentFrequency: 0,
-          leadTime: 0,
-          changeFailureRate: 0,
-          mttr: 0,
-        },
+        deltaVsPrevWeek,
       },
       sev1And2,
       topRiskProjects: selectTopRiskProjects(projectRiskInputs),

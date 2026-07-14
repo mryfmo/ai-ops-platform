@@ -107,6 +107,7 @@ export * from "./db/projectChannelsRepo.js";
 export * from "./db/channelMessagesRepo.js";
 export * from "./db/codingTasksRepo.js";
 export * from "./db/pmTimeseriesRepo.js";
+export * from "./db/reportSnapshotsRepo.js";
 export * from "./db/importLedgerRepo.js";
 export * from "./db/sevenKeysSnapshotsRepo.js";
 export * from "./db/recipientsRepo.js";

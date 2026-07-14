@@ -112,10 +112,10 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
       changeFailureRatePct: 8.3,
       failedDeploymentRecoveryTimeHours: 1.5,
       deltaVsPrevWeek: {
-        deploymentFrequency: 1,
-        leadTime: -0.5,
-        changeFailureRate: -1.2,
-        mttr: 0,
+        deploymentFrequency: { value: 1, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
+        leadTime: { value: -0.5, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
+        changeFailureRate: { value: -1.2, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
+        mttr: { value: 0, source: "github", as_of: "2026-07-06T00:00:00+09:00" },
       },
     },
     sev1And2: [],
@@ -175,6 +175,64 @@ describe("composeManagerReport [SPEC-EXT-024/025]", () => {
       "週次",
     );
     expect(html).toContain("データなし");
+  });
+
+  it("DevOps:SPEC-INT-081: unavailable deltaは0/NaN/null文字列でなく固定「未取得」と表示する", () => {
+    const unavailable = {
+      value: null,
+      unavailable_reason: "missing_previous",
+      source: "github",
+      as_of: "2026-07-13T00:00:00+09:00",
+    } as const;
+    const { html } = composeManagerReport(
+      common,
+      {
+        ...managerData,
+        dora: {
+          ...managerData.dora,
+          deltaVsPrevWeek: {
+            deploymentFrequency: unavailable,
+            leadTime: unavailable,
+            changeFailureRate: unavailable,
+            mttr: unavailable,
+          },
+        },
+      },
+      "週次",
+    );
+    expect(html.match(/<td>未取得<\/td>/g)).toHaveLength(4);
+    expect(html).not.toMatch(/<td>(?:0|NaN|null)<\/td>/);
+  });
+
+  it("DevOps:SPEC-INT-081: measured型へnon-finite値が混入してもHTMLへ出力しない", () => {
+    const invalidMeasured = {
+      value: Number.POSITIVE_INFINITY,
+      source: "dora",
+      as_of: "2026-07-13T00:00:00+09:00",
+    };
+    const { html } = composeManagerReport(
+      common,
+      {
+        ...managerData,
+        dora: {
+          ...managerData.dora,
+          deploymentFrequencyPerWeek: Number.POSITIVE_INFINITY,
+          medianLeadTimeHours: Number.NaN,
+          changeFailureRatePct: Number.NEGATIVE_INFINITY,
+          failedDeploymentRecoveryTimeHours: Number.POSITIVE_INFINITY,
+          deltaVsPrevWeek: {
+            deploymentFrequency: invalidMeasured,
+            leadTime: invalidMeasured,
+            changeFailureRate: invalidMeasured,
+            mttr: invalidMeasured,
+          },
+        },
+      },
+      "週次",
+    );
+    expect(html.match(/<td>未取得<\/td>/g)).toHaveLength(8);
+    expect(html).not.toContain("Infinity");
+    expect(html).not.toContain("NaN");
   });
 
   it("自己完結・クリーンなHTML", () => {

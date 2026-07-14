@@ -7,6 +7,7 @@
  */
 import { escapeHtml } from "./reportShell.js";
 import type { CodingTaskActivitySummary } from "../lib/codingTaskActivity.js";
+import type { WeeklyMetricValue } from "@aiops/shared";
 
 function numericSpan(path: string, field: string, displayValue: string | number): string {
   return `<span data-src="${escapeHtml(path)}#${escapeHtml(field)}">${escapeHtml(String(displayValue))}</span>`;
@@ -130,10 +131,10 @@ export interface DoraDisplay {
   changeFailureRatePct: number | null;
   failedDeploymentRecoveryTimeHours: number | null;
   deltaVsPrevWeek: {
-    deploymentFrequency: number;
-    leadTime: number;
-    changeFailureRate: number;
-    mttr: number;
+    deploymentFrequency: WeeklyMetricValue;
+    leadTime: WeeklyMetricValue;
+    changeFailureRate: WeeklyMetricValue;
+    mttr: WeeklyMetricValue;
   };
 }
 
@@ -165,7 +166,11 @@ export function selectTopRiskProjects(
 
 export function renderManagerPeriodBody(data: ManagerPeriodData): string {
   const metricCell = (path: string, metric: string, value: number | null | undefined, suffix = "") =>
-    value === null || value === undefined ? "未取得" : numericSpan(path, metric, `${value.toFixed(1)}${suffix}`);
+    value === null || value === undefined || !Number.isFinite(value)
+      ? "未取得"
+      : numericSpan(path, metric, `${value.toFixed(1)}${suffix}`);
+  const deltaCell = (metric: string, value: WeeklyMetricValue) =>
+    value.value === null || !Number.isFinite(value.value) ? "未取得" : numericSpan("portfolio", metric, value.value);
   const sevRows = data.sev1And2.length
     ? data.sev1And2
         .map(
@@ -225,18 +230,10 @@ export function renderManagerPeriodBody(data: ManagerPeriodData): string {
   <table>
     <thead><tr><th>指標</th><th>今週値</th><th>前週比</th></tr></thead>
     <tbody>
-      <tr><td>デプロイ頻度(週)</td><td>${metricCell("portfolio", "deploy_freq", data.dora.deploymentFrequencyPerWeek)}</td><td>${
-        data.dora.deltaVsPrevWeek.deploymentFrequency
-      }</td></tr>
-      <tr><td>変更リードタイム(h)</td><td>${metricCell("portfolio", "lead_time", data.dora.medianLeadTimeHours)}</td><td>${
-        data.dora.deltaVsPrevWeek.leadTime
-      }</td></tr>
-      <tr><td>変更失敗率(%)</td><td>${metricCell("portfolio", "change_failure_rate", data.dora.changeFailureRatePct, "%")}</td><td>${
-        data.dora.deltaVsPrevWeek.changeFailureRate
-      }</td></tr>
-      <tr><td>Failed deployment recovery time(h)</td><td>${metricCell("portfolio", "failed_deployment_recovery_time", data.dora.failedDeploymentRecoveryTimeHours)}</td><td>${
-        data.dora.deltaVsPrevWeek.mttr
-      }</td></tr>
+      <tr><td>デプロイ頻度(週)</td><td>${metricCell("portfolio", "deploy_freq", data.dora.deploymentFrequencyPerWeek)}</td><td>${deltaCell("deploy_freq_delta", data.dora.deltaVsPrevWeek.deploymentFrequency)}</td></tr>
+      <tr><td>変更リードタイム(h)</td><td>${metricCell("portfolio", "lead_time", data.dora.medianLeadTimeHours)}</td><td>${deltaCell("lead_time_delta", data.dora.deltaVsPrevWeek.leadTime)}</td></tr>
+      <tr><td>変更失敗率(%)</td><td>${metricCell("portfolio", "change_failure_rate", data.dora.changeFailureRatePct, "%")}</td><td>${deltaCell("change_failure_rate_delta", data.dora.deltaVsPrevWeek.changeFailureRate)}</td></tr>
+      <tr><td>Failed deployment recovery time(h)</td><td>${metricCell("portfolio", "failed_deployment_recovery_time", data.dora.failedDeploymentRecoveryTimeHours)}</td><td>${deltaCell("failed_deployment_recovery_time_delta", data.dora.deltaVsPrevWeek.mttr)}</td></tr>
     </tbody>
   </table>
 </section>
