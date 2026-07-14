@@ -17,6 +17,9 @@ interface FixtureOptions {
   prjopsReqs?: string[];
   devopsReqs?: string[];
   sourceText?: string;
+  traceabilitySourceText?: string;
+  traceabilityTestText?: string;
+  traceabilityOtherTestText?: string;
 }
 
 function fixture(options: FixtureOptions | string[] = {}): string {
@@ -26,6 +29,8 @@ function fixture(options: FixtureOptions | string[] = {}): string {
   for (const dir of [
     "packages/traceability/spec-ids",
     "packages/traceability/output",
+    "packages/traceability/src",
+    "packages/traceability/tests",
     "packages/shared/src",
     "packages/prjops/src",
     "packages/devops/src",
@@ -45,6 +50,18 @@ function fixture(options: FixtureOptions | string[] = {}): string {
   );
   if (normalized.sourceText !== undefined) {
     writeFileSync(join(root, "packages/shared/src/references.ts"), normalized.sourceText);
+  }
+  if (normalized.traceabilitySourceText !== undefined) {
+    writeFileSync(join(root, "packages/traceability/src/references.ts"), normalized.traceabilitySourceText);
+  }
+  if (normalized.traceabilityTestText !== undefined) {
+    writeFileSync(
+      join(root, "packages/traceability/tests/verifyTraceability.test.ts"),
+      normalized.traceabilityTestText,
+    );
+  }
+  if (normalized.traceabilityOtherTestText !== undefined) {
+    writeFileSync(join(root, "packages/traceability/tests/other.test.ts"), normalized.traceabilityOtherTestText);
   }
   writeFileSync(join(root, "docs/adr/0004-toolchain.md"), "# ADR-0004\n");
   return root;
@@ -97,6 +114,42 @@ describe("traceability CLI negative paths [ADR-0004 / AUD-VER-007]", () => {
 });
 
 describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", () => {
+  it("counts canonical implementation references in the traceability package [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      prjopsReqs: ["REQ-001"],
+      devopsReqs: ["REQ-002"],
+      traceabilitySourceText: "/** 根拠: PrjOps:REQ-001 / DevOps:REQ-002 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("does not report intentional invalid-reference fixtures as repository violations [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      traceabilityTestText: "/** 根拠: Other:REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("still validates namespace references in other traceability tests [PrjOps:SPEC-INT-070]", async () => {
+    const root = fixture({
+      traceabilityOtherTestText: "/** 根拠: Other:REQ-001 */\nexport {};\n",
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("unknown traceability system: Other:REQ-001");
+    expect(result.stderr).toContain("packages/traceability/tests/other.test.ts");
+  });
+
   it("rejects one bare colliding ID as evidence for both systems [PrjOps:AC-043-1 / DevOps:AC-033a]", async () => {
     const root = fixture({
       prjopsReqs: ["REQ-001"],

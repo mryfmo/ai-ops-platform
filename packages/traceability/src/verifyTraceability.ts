@@ -134,11 +134,14 @@ function namespaceFailuresByFile(
   packageDirs: string[],
   knownBySystem: ReadonlyMap<string, ReadonlySet<string>>,
   collidingIds: ReadonlySet<string>,
+  ignoredFiles: ReadonlySet<string> = new Set(),
 ): string[] {
-  const files = packageDirs.flatMap((pkgDir) => [
-    ...listFiles(join(pkgDir, "src"), [".ts", ".sql", ".yml", ".yaml"]),
-    ...listFiles(join(pkgDir, "tests"), [".ts"]),
-  ]);
+  const files = packageDirs
+    .flatMap((pkgDir) => [
+      ...listFiles(join(pkgDir, "src"), [".ts", ".sql", ".yml", ".yaml"]),
+      ...listFiles(join(pkgDir, "tests"), [".ts"]),
+    ])
+    .filter((file) => !ignoredFiles.has(file));
   return [
     ...new Set(
       files.flatMap((file) => {
@@ -301,14 +304,15 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   const collidingIds = new Set([...prjopsIds].filter((id) => devopsIds.has(id)));
 
   const sharedDir = join(repoRoot, "packages", "shared");
+  const traceabilityDir = join(repoRoot, "packages", "traceability");
   const prjopsDir = join(repoRoot, "packages", "prjops");
   const devopsDir = join(repoRoot, "packages", "devops");
   const serverDir = join(repoRoot, "packages", "server");
   const webDir = join(repoRoot, "packages", "web");
-  const packageDirs = [sharedDir, prjopsDir, devopsDir, serverDir, webDir];
+  const packageDirs = [sharedDir, traceabilityDir, prjopsDir, devopsDir, serverDir, webDir];
 
-  const prjopsCorpus = buildCorpus([sharedDir, prjopsDir, serverDir, webDir]);
-  const devopsCorpus = buildCorpus([sharedDir, devopsDir, serverDir, webDir]);
+  const prjopsCorpus = buildCorpus([sharedDir, traceabilityDir, prjopsDir, serverDir, webDir]);
+  const devopsCorpus = buildCorpus([sharedDir, traceabilityDir, devopsDir, serverDir, webDir]);
   const prjopsReferences = {
     src: parseReferences(prjopsCorpus.srcText, knownBySystem, collidingIds),
     test: parseReferences(prjopsCorpus.testText, knownBySystem, collidingIds),
@@ -317,7 +321,13 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     src: parseReferences(devopsCorpus.srcText, knownBySystem, collidingIds),
     test: parseReferences(devopsCorpus.testText, knownBySystem, collidingIds),
   };
-  const namespaceFailures = namespaceFailuresByFile(repoRoot, packageDirs, knownBySystem, collidingIds);
+  const namespaceFailures = namespaceFailuresByFile(
+    repoRoot,
+    packageDirs,
+    knownBySystem,
+    collidingIds,
+    new Set([join(traceabilityDir, "tests", "verifyTraceability.test.ts")]),
+  );
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsIndex.system, prjopsReferences, collidingIds),
