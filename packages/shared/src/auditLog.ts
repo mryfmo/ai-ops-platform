@@ -43,7 +43,9 @@ export const REASON_REQUIRED_ACTIONS = new Set([
 
 export function validateReasonRequirement(action: string, reason: string | undefined): void {
   if (REASON_REQUIRED_ACTIONS.has(action) && (!reason || reason.trim().length === 0)) {
-    throw new Error(`E-AUD01: action "${action}" requires a non-empty reason (PrjOps:REQ-021 AC-021-1 / PrjOps:SPEC-EXT-024)`);
+    throw new Error(
+      `E-AUD01: action "${action}" requires a non-empty reason (PrjOps:REQ-021 AC-021-1 / PrjOps:SPEC-EXT-024)`,
+    );
   }
 }
 

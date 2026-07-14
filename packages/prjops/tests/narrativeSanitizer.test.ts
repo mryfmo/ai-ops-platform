@@ -92,9 +92,12 @@ describe("Unicode数値拒否 [PrjOps:SPEC-INT-031 / PrjOps:REQ-010]", () => {
     expect(stripSentencesWithNumbers(text, "ja")).toBe(text);
   });
 
-  it.each(["二十三です。", "百二十です。"])("PrjOps:SPEC-INT-031: 多文字漢数字は数量文脈がなくても拒否する: %s", (text) => {
-    expect(checkNarrativeHasNoNumbers(text).ok).toBe(false);
-  });
+  it.each(["二十三です。", "百二十です。"])(
+    "PrjOps:SPEC-INT-031: 多文字漢数字は数量文脈がなくても拒否する: %s",
+    (text) => {
+      expect(checkNarrativeHasNoNumbers(text).ok).toBe(false);
+    },
+  );
 });
 
 describe("checkNarrativeHasNoNumbers [PrjOps:SPEC-INT-031]", () => {

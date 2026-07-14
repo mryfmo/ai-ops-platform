@@ -36,7 +36,9 @@ const TRANSITIONS: Record<DeployState, DeployState[]> = {
 
 export class InvalidDeployTransitionError extends Error {
   constructor(from: DeployState, to: DeployState) {
-    super(`E-DEP02: invalid deployment transition ${from} -> ${to} (DevOps:SPEC-INT-020: これ以外の遷移を実装してはならない)`);
+    super(
+      `E-DEP02: invalid deployment transition ${from} -> ${to} (DevOps:SPEC-INT-020: これ以外の遷移を実装してはならない)`,
+    );
   }
 }
 

@@ -26,7 +26,9 @@ describe("StandardReportsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
   });
 
   it("reportIdはevidenceIdsの修正で変わる", () => {
-    expect(standardReportId(payload)).not.toBe(standardReportId({ ...payload, evidenceIds: ["PrjOps:REQ-042", "REQ-999"] }));
+    expect(standardReportId(payload)).not.toBe(
+      standardReportId({ ...payload, evidenceIds: ["PrjOps:REQ-042", "REQ-999"] }),
+    );
   });
 
   it("ON CONFLICT DO NOTHINGで冪等insertする", async () => {

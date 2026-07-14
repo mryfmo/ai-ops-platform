@@ -111,7 +111,10 @@ describe("offline load baseline [AC-018-1 PrjOps:AC-042-1]", () => {
     ["delivery plus one", isWithinDeliveryCycleSla, 7_200_001, false],
     ["ingest exact", isWithinIngestToDispatchSla, 300_000, true],
     ["ingest plus one", isWithinIngestToDispatchSla, 300_001, false],
-  ])("applies the deterministic SLA boundary: %s [AC-018-1 PrjOps:AC-042-1]", (_name, predicate, elapsedMs, expected) => {
-    expect(predicate(elapsedMs)).toBe(expected);
-  });
+  ])(
+    "applies the deterministic SLA boundary: %s [AC-018-1 PrjOps:AC-042-1]",
+    (_name, predicate, elapsedMs, expected) => {
+      expect(predicate(elapsedMs)).toBe(expected);
+    },
+  );
 });

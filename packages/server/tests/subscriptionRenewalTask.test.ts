@@ -87,7 +87,9 @@ describe("subscriptionRenewalTask (ADR-0005 / PrjOps:SPEC-INT-001)", () => {
     await task.run(NOW);
     expect(repo.switched).toEqual([{ id: "sub-1", mode: "polling" }]);
     const logs = await auditLog.readAll();
-    expect(logs.some((l) => l.action === "graph_subscription_renewal_failed" && l.basis === "PrjOps:SPEC-INT-001")).toBe(true);
+    expect(
+      logs.some((l) => l.action === "graph_subscription_renewal_failed" && l.basis === "PrjOps:SPEC-INT-001"),
+    ).toBe(true);
     expect(logs[0]!.detail).not.toHaveProperty("error");
     expect(logs[0]!.detail).toMatchObject({ code: "E-SUB02", status: 404 });
     expect(JSON.stringify(logs)).not.toContain("secret body");

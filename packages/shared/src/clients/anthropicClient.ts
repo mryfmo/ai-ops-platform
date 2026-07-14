@@ -235,7 +235,9 @@ export function estimateCostUsd(
 
 export class DailyCostLimitExceededError extends Error {
   constructor(spend: number, limit: number) {
-    super(`E-COST01: daily LLM spend $${spend.toFixed(2)} would exceed limit $${limit.toFixed(2)} (PrjOps:SPEC-INT-060)`);
+    super(
+      `E-COST01: daily LLM spend $${spend.toFixed(2)} would exceed limit $${limit.toFixed(2)} (PrjOps:SPEC-INT-060)`,
+    );
   }
 }
 

@@ -83,7 +83,14 @@ describe("findTraceChain [AC-020-1: 数値の根拠まで遡れる]", () => {
     const log = new InMemoryAuditLog();
     await log.append({ trace_id: "t1", actor: "AGT-02", action: "ingest", basis: "REQ-004", detail: {}, at: "x" });
     await log.append({ trace_id: "t2", actor: "AGT-03", action: "judge", basis: "REQ-007", detail: {}, at: "y" });
-    await log.append({ trace_id: "t1", actor: "AGT-04", action: "generate", basis: "PrjOps:REQ-010", detail: {}, at: "z" });
+    await log.append({
+      trace_id: "t1",
+      actor: "AGT-04",
+      action: "generate",
+      basis: "PrjOps:REQ-010",
+      detail: {},
+      at: "z",
+    });
     const all = await log.readAll();
     const chain = findTraceChain(all, "t1");
     expect(chain.map((r) => r.action)).toEqual(["ingest", "generate"]);

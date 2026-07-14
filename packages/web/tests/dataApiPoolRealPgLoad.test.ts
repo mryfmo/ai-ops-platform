@@ -40,85 +40,88 @@ async function physicalConnectionCount(): Promise<number> {
   return result.rows[0]!.count;
 }
 
-describe.skipIf(!baseDatabaseUrl)("real PostgreSQL web pool load [PrjOps:REQ-041 / DevOps:REQ-041 PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
-  beforeAll(async () => {
-    if (!confirmDatabase) throw new Error("AIOPS_LOAD_TEST_CONFIRM_DATABASE is required");
-    if (confirmDatabase !== databaseName) {
-      throw new Error("AIOPS_LOAD_TEST_CONFIRM_DATABASE must exactly match the URL database name");
-    }
-    delete globalPool.__aiopsPgPool;
-    admin = new pg.Client({ connectionString: baseDatabaseUrl, application_name: `${applicationName}_admin` });
-    await admin.connect();
-    adminConnected = true;
-    await admin.query(`CREATE SCHEMA "${schema}"`);
-    schemaCreated = true;
-    await admin.query(
-      `CREATE TABLE "${schema}".recipients (
+describe.skipIf(!baseDatabaseUrl)(
+  "real PostgreSQL web pool load [PrjOps:REQ-041 / DevOps:REQ-041 PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]",
+  () => {
+    beforeAll(async () => {
+      if (!confirmDatabase) throw new Error("AIOPS_LOAD_TEST_CONFIRM_DATABASE is required");
+      if (confirmDatabase !== databaseName) {
+        throw new Error("AIOPS_LOAD_TEST_CONFIRM_DATABASE must exactly match the URL database name");
+      }
+      delete globalPool.__aiopsPgPool;
+      admin = new pg.Client({ connectionString: baseDatabaseUrl, application_name: `${applicationName}_admin` });
+      await admin.connect();
+      adminConnected = true;
+      await admin.query(`CREATE SCHEMA "${schema}"`);
+      schemaCreated = true;
+      await admin.query(
+        `CREATE TABLE "${schema}".recipients (
          user_id text PRIMARY KEY, email text NOT NULL, profile text NOT NULL, projects text[] NOT NULL, active boolean NOT NULL
        )`,
-    );
-    await admin.query(
-      `CREATE TABLE "${schema}".project_channels (
+      );
+      await admin.query(
+        `CREATE TABLE "${schema}".project_channels (
          project_id text PRIMARY KEY, github_owner text, github_repo text
        )`,
-    );
-    await admin.query(
-      `INSERT INTO "${schema}".recipients (user_id, email, profile, projects, active)
+      );
+      await admin.query(
+        `INSERT INTO "${schema}".recipients (user_id, email, profile, projects, active)
        VALUES ('U-load', 'manager@example.com', 'PRF-G', ARRAY['PJ-load'], true)`,
-    );
-    await admin.query(
-      `INSERT INTO "${schema}".project_channels (project_id, github_owner, github_repo)
+      );
+      await admin.query(
+        `INSERT INTO "${schema}".project_channels (project_id, github_owner, github_repo)
        VALUES ('PJ-load', 'owner', 'repo')`,
-    );
-  });
+      );
+    });
 
-  afterAll(async () => {
-    if (routePool) await routePool.end();
-    delete globalPool.__aiopsPgPool;
-    if (admin && adminConnected) {
-      if (schemaCreated) {
-        await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-        schemaCreated = false;
+    afterAll(async () => {
+      if (routePool) await routePool.end();
+      delete globalPool.__aiopsPgPool;
+      if (admin && adminConnected) {
+        if (schemaCreated) {
+          await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+          schemaCreated = false;
+        }
+        await admin.end();
+        adminConnected = false;
       }
-      await admin.end();
-      adminConnected = false;
-    }
-  });
+    });
 
-  it("keeps one physical route connection across 500 production GET requests", async () => {
-    const before = await physicalConnectionCount();
-    const { GET } = await import("../src/app/api/data/projects/route");
-    const request = new Request("https://example.invalid/api/data/projects");
-    const { getPool } = await import("../src/server/db/pool");
-    routePool = getPool(routeDatabaseUrl);
-    let peak = before;
-    let poolTotalPeak = routePool.totalCount;
+    it("keeps one physical route connection across 500 production GET requests", async () => {
+      const before = await physicalConnectionCount();
+      const { GET } = await import("../src/app/api/data/projects/route");
+      const request = new Request("https://example.invalid/api/data/projects");
+      const { getPool } = await import("../src/server/db/pool");
+      routePool = getPool(routeDatabaseUrl);
+      let peak = before;
+      let poolTotalPeak = routePool.totalCount;
 
-    for (let index = 0; index < 500; index += 1) {
-      expect((await GET(request)).status).toBe(200);
-      peak = Math.max(peak, await physicalConnectionCount());
-      poolTotalPeak = Math.max(poolTotalPeak, routePool.totalCount);
-    }
+      for (let index = 0; index < 500; index += 1) {
+        expect((await GET(request)).status).toBe(200);
+        peak = Math.max(peak, await physicalConnectionCount());
+        poolTotalPeak = Math.max(poolTotalPeak, routePool.totalCount);
+      }
 
-    const afterRequests = await physicalConnectionCount();
-    await routePool.end();
-    routePool = undefined;
-    delete globalPool.__aiopsPgPool;
-    const after = await physicalConnectionCount();
+      const afterRequests = await physicalConnectionCount();
+      await routePool.end();
+      routePool = undefined;
+      delete globalPool.__aiopsPgPool;
+      const after = await physicalConnectionCount();
 
-    expect(before).toBe(0);
-    expect(peak).toBe(1);
-    expect(afterRequests).toBe(peak);
-    expect(poolTotalPeak).toBe(1);
-    expect(after).toBe(before);
-    console.info(
-      JSON.stringify({
-        metric: "real_postgres_web_pool_stability",
-        requests: 500,
-        physicalConnections: { before, peak, afterRequests, after },
-        poolTotalPeak,
-        applicationName,
-      }),
-    );
-  }, 30_000);
-});
+      expect(before).toBe(0);
+      expect(peak).toBe(1);
+      expect(afterRequests).toBe(peak);
+      expect(poolTotalPeak).toBe(1);
+      expect(after).toBe(before);
+      console.info(
+        JSON.stringify({
+          metric: "real_postgres_web_pool_stability",
+          requests: 500,
+          physicalConnections: { before, peak, afterRequests, after },
+          poolTotalPeak,
+          applicationName,
+        }),
+      );
+    }, 30_000);
+  },
+);
