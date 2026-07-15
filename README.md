@@ -54,7 +54,7 @@ ai-ops-platform/
 （`pnpm` 自体もmise管理下のため、素の `pnpm` コマンドも `mise exec -- pnpm ...` 相当で動く）。
 
 ```bash
-mise install                # Node.js 20 / pnpm 9 を導入
+mise install                # Node.js 22 / pnpm 11 を導入
 mise run install             # = pnpm install
 mise run build               # 全パッケージのビルド
 mise run test                # 全パッケージのユニットテストを実行

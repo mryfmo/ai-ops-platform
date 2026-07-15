@@ -6,7 +6,7 @@
 
 ## 前提
 
-- Node.js 20 / pnpm 9.15.4 / mise が利用できること。
+- Node.js 22（22.13.0以上）/ pnpm 11.13.0 / mise が利用できること。
 - PostgreSQL サーバが起動しており、`packages/devops/src/db/schema.sql` と `pnpm --filter @aiops/devops db:migrate` を適用できること。
 - GitHub App が対象 organization にインストール済みで、Projects v2 / Issues / Pull requests / Deployments / Webhooks の必要権限を持つこと。
 - organization webhook が常駐 server の `PUBLIC_BASE_URL` に到達できること。

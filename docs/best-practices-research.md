@@ -78,7 +78,7 @@
 
 - `crypto.randomUUID()`（Node.js 14.17+で標準搭載）を利用し、`uuid`パッケージへの依存を避けた
   （`packages/shared/src/ids.ts`）。
-- グローバル`fetch`（Node.js 18+で標準搭載、本実装が前提とするNode 20 LTSでも利用可能）を利用し、
+- グローバル`fetch`（Node.js 18+で標準搭載、本実装が前提とするNode 22 LTSでも利用可能）を利用し、
   `axios`等のHTTPクライアントライブラリへの依存を避けた（`GraphClient`/`GitHubClient`）。
   これにより両クライアントはテスト時に外部npm依存なしで動作させることができ、
   依頼文書が求める「正確にエラーなく動作するレベル」の検証を、実際にこのサンドボックス内で
