@@ -17,6 +17,7 @@
 | 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる             | P0       | XL     | 001        | TODO               |
 | 010  | 0–7   | 推奨仕様・推奨環境で残存製品化工程を完了する                        | P0       | XL     | 001        | IN PROGRESS        |
 | 011  | 0–3   | 受入証跡の信頼基盤を構築する                                        | P0       | XL     | —          | BLOCKED: HUMAN/ENV |
+| 012  | 0–7   | 自然言語GitHub操作と議事録同期を承認付きで安全に稼働させる          | P0       | XL     | 010, 011   | TODO               |
 
 Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
 
@@ -26,6 +27,7 @@ Current notes:
 - Plan 005: local core accepted; real adapter is TODO; tenant evidence remains pending。
 - Plan 009: Plan 010 decision, DAG, and task mapping take precedence; Plan 009 is a detailed source ledger only。
 - Plan 011: Plan 010の86 task universeは変更せず、P010-F01-T10の自己発行可能な証跡方式を外部信頼基盤で是正する。Enterprise Cloud Organization、repository移管、別人policy admin 2名、別人reviewerがHUMAN/ENV gate。
+- Plan 012: Plan 010のpicker、read-only Kanban、Graph、coding workflow、承認境界を前提にし、Teams・Outlook議事録・Claude Code・Droidの自然言語操作をtyped proposalへ統一する。新しいtask universeをPlan 010へ追加しない。
 
 ## フェーズゲート
 
@@ -37,6 +39,7 @@ Current notes:
 - Phase 5: `plans/008-*` の実環境受入。GitHub、Microsoft 365、Anthropic、Factory、PostgreSQLを用いた証跡が揃った場合のみgo-liveを許可する。
 - Phase 6: `plans/010-*`。確定済みdecisionを適用し、Microsoft 365/Azureの実証と最終go-liveを閉じる。
 - Trust bootstrap: `plans/011-*`。P010-F01-T10より先に完了し、requesterがissuer/policy/verifierを同時支配できないことを実証する。
+- Conversational operations: `plans/012-*`。Plan 010の依存taskとPlan 011の外部trust gateを満たした後、proposal単位の承認、冪等実行、sandbox E2Eの順に閉じる。
 
 ## 横断実行規則
 
