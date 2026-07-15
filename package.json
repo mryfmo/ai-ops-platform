@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "PrjOps AI基盤 + AIエージェント主導DevOps運用基盤 統合モノレポ（14エージェント）",
-  "packageManager": "pnpm@10.34.4",
+  "packageManager": "pnpm@11.13.0",
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "test": "pnpm -r --if-present run test",
@@ -33,11 +33,6 @@
     "prettier": "^3.9.5"
   },
   "engines": {
-    "node": ">=20.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "postcss@8.4.31": "8.5.10"
-    }
+    "node": ">=22.13.0"
   }
 }

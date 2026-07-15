@@ -7,7 +7,7 @@
 # ---- build stage ----
 FROM node:22-slim AS build
 WORKDIR /repo
-RUN corepack enable && corepack prepare pnpm@10.34.4 --activate
+RUN corepack enable && corepack prepare pnpm@11.13.0 --activate
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY tsconfig.base.json ./
 COPY packages ./packages
