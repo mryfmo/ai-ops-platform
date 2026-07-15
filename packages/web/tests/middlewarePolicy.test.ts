@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/middlewarePolicy.test.ts
  *
- * 根拠: ADR-0005（/dashboard 認証必須化）。spec-reviewer指摘によりmiddleware.tsの
+ * 根拠: ADR-0005（/dashboard 認証必須化）。spec-reviewer指摘によりproxy.tsの
  *   判定ロジックを純粋関数化した decideDashboardRedirect を検証する。
  */
 import { describe, it, expect } from "vitest";

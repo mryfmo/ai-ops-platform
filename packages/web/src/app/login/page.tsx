@@ -1,7 +1,7 @@
 /**
  * packages/web/src/app/login/page.tsx
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。未認証ユーザーの遷移先（middleware.tsから
+ * 根拠: ADR-0005（WebUIダッシュボード）。未認証ユーザーの遷移先（proxy.tsから
  * リダイレクトされる簡易ログインページ）。
  */
 import { Card } from "../../components/ui/Card";
