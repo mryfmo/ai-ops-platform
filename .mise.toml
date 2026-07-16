@@ -1,6 +1,11 @@
 [tools]
+"aqua:rhysd/actionlint" = "1.7.12"
 node = "22"
 pnpm = "11.13.0"
+
+[tasks.actionlint]
+description = "GitHub Actions workflowの静的検証"
+run = "actionlint -shellcheck= -pyflakes= .github/workflows/*.yml"
 
 [tasks.install]
 description = "依存関係のインストール"
