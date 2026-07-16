@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P012-F00-T01",
+  "observedAt": "2026-07-16T03:04:40Z",
+  "targetSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+  "targetShaMeaning": "origin/main inventory baseline before task artifacts",
+  "contentPolicy": {
+    "secretValuesCollected": false,
+    "outputHashNormalization": "CRLF_to_LF_then_trimEnd",
+    "verificationLogHashNormalization": "absolute fixture root replaced with literal $CASE_ROOT; otherwise raw bytes",
+    "hashAlgorithm": "sha256"
+  },
+  "commands": [
+    {
+      "id": "gh_repo_view",
+      "command": "gh repo view mryfmo/ai-ops-platform --json nameWithOwner,isPrivate,defaultBranchRef",
+      "exitCode": 0,
+      "combinedOutputSha256": "58daed998a1b9e9cdd72045eddca58055ac52e2008f159ac3c3726ad2a943bdb"
+    },
+    {
+      "id": "gh_repo_api",
+      "command": "gh api repos/mryfmo/ai-ops-platform --jq '{full_name,private,default_branch,archived}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "f6d38a4c991ce68e96deaa3c296ad16f56a5f6198d02256e182420bd56329fb6"
+    },
+    {
+      "id": "gh_main_ref",
+      "command": "gh api repos/mryfmo/ai-ops-platform/git/ref/heads/main --jq '.object.sha'",
+      "exitCode": 0,
+      "combinedOutputSha256": "e8b0bc6f5b472f882c488f9d66de25869618d294490c9a4c4e4ce7de88483e17"
+    },
+    {
+      "id": "gh_branch_protection",
+      "command": "gh api repos/mryfmo/ai-ops-platform/branches/main/protection",
+      "exitCode": 1,
+      "httpStatus": 403,
+      "combinedOutputSha256": "c5d2afea89f963ab4b6a961e43c5ccb0c451dc2a0ac965607474bcf3c5d54a23"
+    },
+    {
+      "id": "gh_workflows",
+      "command": "gh api repos/mryfmo/ai-ops-platform/actions/workflows --jq '{total_count,workflows:[.workflows[]|{id,name,path,state}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "51e01d211d71615103c394742aa12ad3d8f71ca22e55accd839f8df82d21e2f2"
+    },
+    {
+      "id": "gh_main_ci_runs",
+      "command": "gh api 'repos/mryfmo/ai-ops-platform/actions/workflows/ci.yml/runs?branch=main&per_page=2' --jq '{total_count,workflow_runs:[.workflow_runs[]|{id,run_number,status,conclusion,event,head_sha,html_url,created_at}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "78a0ce5ba28bbfb1319e7df773d6d1a47ac2d6c94d1f8f2b811fbdfd9663ba53"
+    },
+    {
+      "id": "gh_coding_runs",
+      "command": "gh api 'repos/mryfmo/ai-ops-platform/actions/workflows/coding-task.yml/runs?per_page=2' --jq '{total_count,workflow_runs:[.workflow_runs[]|{id,run_number,status,conclusion,event,head_sha,html_url,created_at}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "a2790a384d7d281e7395679000c35d27768d89dbd7052f725b8f4688beb59915"
+    },
+    {
+      "id": "gh_report_runs",
+      "command": "gh api 'repos/mryfmo/ai-ops-platform/actions/workflows/report-generation.yml/runs?per_page=2' --jq '{total_count,workflow_runs:[.workflow_runs[]|{id,run_number,status,conclusion,event,head_sha,html_url,created_at}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "83aa8a987d3df72da84fa6d3d9ed691da370e40ec50e435cb6527b958acaa72b"
+    },
+    {
+      "id": "gh_actions_secrets",
+      "command": "gh api repos/mryfmo/ai-ops-platform/actions/secrets --jq '{total_count,secrets:[.secrets[]|{name,created_at,updated_at}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "8cd981a659e02c3591c81d01a25bd2b59e980217dac663b062140e632de8c31a"
+    },
+    {
+      "id": "gh_actions_variables",
+      "command": "gh api repos/mryfmo/ai-ops-platform/actions/variables --jq '{total_count,variables:[.variables[]|{name,created_at,updated_at}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "2ce9f1466656cd2968a9bd6da1d4fb3487b394f794ba91ac268708addd0ebb7f"
+    },
+    {
+      "id": "gh_environments",
+      "command": "gh api repos/mryfmo/ai-ops-platform/environments --jq '{total_count,environments:[.environments[]|{id,name,created_at,updated_at}]}'",
+      "exitCode": 0,
+      "combinedOutputSha256": "a96111929536c1533c11cdcbf059a2db0a9520ac1b52fb53d76f7e11e3e906a8"
+    },
+    {
+      "id": "gh_pages",
+      "command": "gh api repos/mryfmo/ai-ops-platform/pages",
+      "exitCode": 1,
+      "httpStatus": 404,
+      "combinedOutputSha256": "a38bbebaedf4672aa5d01a9c7a28113f0e620fb656116be6db925145275bd40c"
+    },
+    {
+      "id": "git_local_sha",
+      "command": "git rev-parse HEAD",
+      "exitCode": 0,
+      "combinedOutputSha256": "e8b0bc6f5b472f882c488f9d66de25869618d294490c9a4c4e4ce7de88483e17"
+    },
+    {
+      "id": "git_remote_sha",
+      "command": "git rev-parse origin/main",
+      "exitCode": 0,
+      "combinedOutputSha256": "e8b0bc6f5b472f882c488f9d66de25869618d294490c9a4c4e4ce7de88483e17"
+    },
+    {
+      "id": "git_agent_assets",
+      "command": "git ls-tree -r HEAD -- .claude .codex .factory .agents",
+      "exitCode": 0,
+      "combinedOutputSha256": "28da37c0a94709c2c6f7cccb7fbb30b05e2547954048bc6dfdbfe79923515d26"
+    },
+    {
+      "id": "git_infra_tree",
+      "command": "git ls-tree -r HEAD -- infra",
+      "exitCode": 0,
+      "combinedOutputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "azure_cli",
+      "command": "command -v az",
+      "exitCode": 1,
+      "combinedOutputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "git_workflows",
+      "command": "git ls-tree -r HEAD -- .github/workflows",
+      "exitCode": 0,
+      "combinedOutputSha256": "de769e1c7af88055528b960bb4ef2260c8febe0243274970ab1216fa46548e91"
+    },
+    {
+      "id": "git_github_actions",
+      "command": "git ls-tree -r HEAD -- .github/actions",
+      "exitCode": 0,
+      "combinedOutputSha256": "4b8fc986c4cb73ce8f49931906c1c16a12e7d56f192a92c1d364e9bcd4e82f7c"
+    },
+    {
+      "id": "git_broker_sandbox_search",
+      "command": "git grep -n -i -E 'token.?broker|agent.?sandbox|azure' HEAD -- .github/actions packages scripts infra bicep",
+      "exitCode": 0,
+      "combinedOutputSha256": "f347293ebd8d24334ba5230a1cfeea3207a8f3508b2446294d3013d4a006dbea"
+    },
+    {
+      "id": "mise_version",
+      "command": "MISE_NO_VERSION_CHECK=1 MISE_QUIET=1 mise --version",
+      "exitCode": 0,
+      "combinedOutputSha256": "7468f7061c1a2716e3e68156150f013106771d71362c89c40e7272af92c1d1eb"
+    }
+  ],
+  "verificationEnvironment": {
+    "fixtureRootParent": "/private/tmp",
+    "requiredInitialState": "each command names its own root inline and asserts that root does not exist",
+    "shell": "zsh with set -euo pipefail",
+    "miseIsolation": [
+      "MISE_DATA_DIR",
+      "MISE_CACHE_DIR",
+      "MISE_STATE_DIR",
+      "MISE_CONFIG_DIR",
+      "MISE_GLOBAL_CONFIG_FILE"
+    ]
+  },
+  "verificationRuns": [
+    {
+      "id": "mise_lock_generation",
+      "command": "mise lock --platform linux-x64,macos-arm64",
+      "exitCode": 0,
+      "result": "six exact platform entries generated"
+    },
+    {
+      "id": "cache_cold_locked_actionlint",
+      "fixtureRoot": "/private/tmp/p012-replay-cold-v4",
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-replay-cold-v4\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; export PATH=/Users/mryfmo/.local/bin:/usr/bin:/bin MISE_DATA_DIR=\"$CASE_ROOT/data\" MISE_CACHE_DIR=\"$CASE_ROOT/cache\" MISE_STATE_DIR=\"$CASE_ROOT/state\" MISE_CONFIG_DIR=\"$CASE_ROOT/config\" MISE_GLOBAL_CONFIG_FILE=\"$CASE_ROOT/no-global.toml\" MISE_NO_VERSION_CHECK=1 MISE_LOCKED=1; /Users/mryfmo/.local/bin/mise install > \"$CASE_ROOT/install.raw.log\" 2>&1; /Users/mryfmo/.local/bin/mise run actionlint > \"$CASE_ROOT/actionlint.raw.log\" 2>&1; sed \"s|$CASE_ROOT|\\\\$CASE_ROOT|g\" \"$CASE_ROOT/install.raw.log\" | LC_ALL=C sort > \"$CASE_ROOT/install.normalized.log\"; sed \"s|$CASE_ROOT|\\\\$CASE_ROOT|g\" \"$CASE_ROOT/actionlint.raw.log\" | LC_ALL=C sort > \"$CASE_ROOT/actionlint.normalized.log\"; install_hash=$(shasum -a 256 \"$CASE_ROOT/install.normalized.log\" | cut -d\" \" -f1); actionlint_hash=$(shasum -a 256 \"$CASE_ROOT/actionlint.normalized.log\" | cut -d\" \" -f1); printf \"install_log_sha256=%s actionlint_log_sha256=%s result=cache-cold-locked-green\\n\" \"$install_hash\" \"$actionlint_hash\"'",
+      "exitCode": 0,
+      "installLogSha256": "70949ecb05bfe29ecab83891cdbaf3de3820728c25e695b65b2b5fcd9cd020db",
+      "actionlintLogSha256": "44a450bd12c697b48167ce65f997333189920b67d4608108f8e2f93f6ecdb95f",
+      "oracle": "cache-cold MISE_LOCKED install and exact hermetic actionlint task both exit zero"
+    },
+    {
+      "id": "tampered_checksum",
+      "fixtureRoot": "/private/tmp/p012-replay-checksum-v3",
+      "mutation": {
+        "file": "mise.lock",
+        "before": "sha256:aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f",
+        "after": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "beforeFileSha256": "13ebd74c7f70ee0b588339d96f22031be5b7a62a9eae1e5ddb3e108b9592da94",
+        "afterFileSha256": "668e6c62845198c19a64b6b9da39954aab95f55076331c7adc94de528b1dcac3"
+      },
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-replay-checksum-v3\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; cp .mise.toml mise.lock \"$CASE_ROOT\"; perl -0pi -e s/sha256:aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f/sha256:0000000000000000000000000000000000000000000000000000000000000000/ \"$CASE_ROOT/mise.lock\"; after_hash=$(shasum -a 256 \"$CASE_ROOT/mise.lock\" | cut -d\" \" -f1); test \"$after_hash\" = \"668e6c62845198c19a64b6b9da39954aab95f55076331c7adc94de528b1dcac3\"; cd \"$CASE_ROOT\"; set +e; env PATH=/Users/mryfmo/.local/bin:/usr/bin:/bin MISE_DATA_DIR=/private/tmp/p012-replay-checksum-v3/run/data MISE_CACHE_DIR=/private/tmp/p012-replay-checksum-v3/run/cache MISE_STATE_DIR=/private/tmp/p012-replay-checksum-v3/run/state MISE_CONFIG_DIR=/private/tmp/p012-replay-checksum-v3/run/config MISE_GLOBAL_CONFIG_FILE=/private/tmp/p012-replay-checksum-v3/run/no-global.toml MISE_NO_VERSION_CHECK=1 MISE_LOCKED=1 /Users/mryfmo/.local/bin/mise install > install.raw.log 2>&1; mise_code=$?; set -e; test \"$mise_code\" -ne 0; grep -F \"Checksum mismatch\" install.raw.log >/dev/null; sed \"s|$CASE_ROOT|\\\\$CASE_ROOT|g\" install.raw.log | LC_ALL=C sort > install.normalized.log; log_hash=$(shasum -a 256 install.normalized.log | cut -d\" \" -f1); printf \"after_sha256=%s normalized_log_sha256=%s mise_exit=%s oracle=matched\\n\" \"$after_hash\" \"$log_hash\" \"$mise_code\"'",
+      "miseExitCode": 1,
+      "gateExitCode": 0,
+      "expectedOracle": "Checksum mismatch",
+      "oracleMatched": true,
+      "installLogSha256": "5151be3591690130ad3fb5b0e8e039a215bd7dd7a76a0eac24e69a649fa93677"
+    },
+    {
+      "id": "tampered_download_url",
+      "fixtureRoot": "/private/tmp/p012-replay-url-v3",
+      "mutation": {
+        "file": "mise.lock",
+        "before": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz",
+        "after": "https://nodejs.org/dist/v22.23.1/not-node-v22.23.1-darwin-arm64.tar.gz",
+        "beforeFileSha256": "13ebd74c7f70ee0b588339d96f22031be5b7a62a9eae1e5ddb3e108b9592da94",
+        "afterFileSha256": "e88609702487470ce219abaa8fba20db25e683bc0cf8c9b87b62576b4c6b2b31"
+      },
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-replay-url-v3\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; cp .mise.toml mise.lock \"$CASE_ROOT\"; perl -0pi -e s#https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz#https://nodejs.org/dist/v22.23.1/not-node-v22.23.1-darwin-arm64.tar.gz# \"$CASE_ROOT/mise.lock\"; after_hash=$(shasum -a 256 \"$CASE_ROOT/mise.lock\" | cut -d\" \" -f1); test \"$after_hash\" = \"e88609702487470ce219abaa8fba20db25e683bc0cf8c9b87b62576b4c6b2b31\"; cd \"$CASE_ROOT\"; set +e; env PATH=/Users/mryfmo/.local/bin:/usr/bin:/bin MISE_DATA_DIR=/private/tmp/p012-replay-url-v3/run/data MISE_CACHE_DIR=/private/tmp/p012-replay-url-v3/run/cache MISE_STATE_DIR=/private/tmp/p012-replay-url-v3/run/state MISE_CONFIG_DIR=/private/tmp/p012-replay-url-v3/run/config MISE_GLOBAL_CONFIG_FILE=/private/tmp/p012-replay-url-v3/run/no-global.toml MISE_NO_VERSION_CHECK=1 MISE_LOCKED=1 /Users/mryfmo/.local/bin/mise install > install.raw.log 2>&1; mise_code=$?; set -e; test \"$mise_code\" -ne 0; grep -F \"precompiled node archive not found and locked mode requires the locked precompiled artifact\" install.raw.log >/dev/null; sed \"s|$CASE_ROOT|\\\\$CASE_ROOT|g\" install.raw.log | LC_ALL=C sort > install.normalized.log; log_hash=$(shasum -a 256 install.normalized.log | cut -d\" \" -f1); printf \"after_sha256=%s normalized_log_sha256=%s mise_exit=%s oracle=matched\\n\" \"$after_hash\" \"$log_hash\" \"$mise_code\"'",
+      "miseExitCode": 1,
+      "gateExitCode": 0,
+      "expectedOracle": "precompiled node archive not found and locked mode requires the locked precompiled artifact",
+      "oracleMatched": true,
+      "installLogSha256": "f2202824debfd46c62df479e106a9b019de762704615bc5293c8ff4078c7ec73"
+    },
+    {
+      "id": "tampered_version",
+      "fixtureRoot": "/private/tmp/p012-replay-version-v3",
+      "mutation": {
+        "file": ".mise.toml",
+        "before": "\"aqua:rhysd/actionlint\" = \"1.7.12\"",
+        "after": "\"aqua:rhysd/actionlint\" = \"1.7.11\"",
+        "beforeFileSha256": "b01c7d23f197ebf1daf451c8593e6e9ddfca89bf6213b47748385a1758d4abde",
+        "afterFileSha256": "a7f73956c7bb119abb3fb97f586fda36ec4a045a2cb853434a54912c76d67a27"
+      },
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-replay-version-v3\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; cp .mise.toml mise.lock \"$CASE_ROOT\"; perl -0pi -e '\"'\"'s/1\\.7\\.12/1.7.11/'\"'\"' \"$CASE_ROOT/.mise.toml\"; after_hash=$(shasum -a 256 \"$CASE_ROOT/.mise.toml\" | cut -d\" \" -f1); test \"$after_hash\" = \"a7f73956c7bb119abb3fb97f586fda36ec4a045a2cb853434a54912c76d67a27\"; cd \"$CASE_ROOT\"; set +e; env PATH=/Users/mryfmo/.local/bin:/usr/bin:/bin MISE_DATA_DIR=\"$CASE_ROOT/run/data\" MISE_CACHE_DIR=\"$CASE_ROOT/run/cache\" MISE_STATE_DIR=\"$CASE_ROOT/run/state\" MISE_CONFIG_DIR=\"$CASE_ROOT/run/config\" MISE_GLOBAL_CONFIG_FILE=\"$CASE_ROOT/run/no-global.toml\" MISE_NO_VERSION_CHECK=1 MISE_LOCKED=1 /Users/mryfmo/.local/bin/mise install > install.raw.log 2>&1; mise_code=$?; set -e; test \"$mise_code\" -ne 0; grep -F \"aqua:rhysd/actionlint@1.7.11 is not in the lockfile\" install.raw.log >/dev/null; sed \"s|$CASE_ROOT|\\\\$CASE_ROOT|g\" install.raw.log | LC_ALL=C sort > install.normalized.log; log_hash=$(shasum -a 256 install.normalized.log | cut -d\" \" -f1); printf \"after_sha256=%s normalized_log_sha256=%s mise_exit=%s oracle=matched\\n\" \"$after_hash\" \"$log_hash\" \"$mise_code\"'",
+      "miseExitCode": 1,
+      "gateExitCode": 0,
+      "expectedOracle": "aqua:rhysd/actionlint@1.7.11 is not in the lockfile",
+      "oracleMatched": true,
+      "installLogSha256": "b05d097ed60f721331985b6682766671768bbab6bdf33aad08f284fcfd76ce0d"
+    },
+    {
+      "id": "stale_sha_gate",
+      "fixtureRoot": "/private/tmp/p012-stale-gate-v4",
+      "mutation": {
+        "file": "stale-readback.json",
+        "beforeLocalSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+        "afterLocalSha": "0000000000000000000000000000000000000000",
+        "beforeShaMatch": true,
+        "afterShaMatch": false,
+        "beforeFileSha256": "b4dcde9acb39dfa36a304eda4ba5f6ff334270beff0de758721f9a56d15b7a25",
+        "afterFileSha256": "2fc394f5a6aa02d1b911a1dfe99cdaa751f7d882de459daf58a57bd84621bac1"
+      },
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-stale-gate-v4\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; cp .orchestration/evidence/P012-F00-T01/readback.json \"$CASE_ROOT/stale-readback.json\"; node -e '\"'\"'const fs=require(\"fs\");const p=process.argv[1];const j=JSON.parse(fs.readFileSync(p,\"utf8\"));j.repository.localSha=\"0000000000000000000000000000000000000000\";j.repository.shaMatch=false;fs.writeFileSync(p,JSON.stringify(j,null,2)+\"\\n\");'\"'\"' \"$CASE_ROOT/stale-readback.json\"; fixture_hash=$(shasum -a 256 \"$CASE_ROOT/stale-readback.json\" | cut -d\" \" -f1); node -e '\"'\"'const fs=require(\"fs\");const accept=p=>{const j=JSON.parse(fs.readFileSync(p,\"utf8\"));return j.targetSha===j.repository.localSha&&j.repository.localSha===j.repository.remoteDefaultSha&&j.repository.shaMatch===true};const live=accept(process.argv[1]);const stale=accept(process.argv[2]);console.log(JSON.stringify({live,stale}));if(!live||stale)process.exit(1);'\"'\"' .orchestration/evidence/P012-F00-T01/readback.json \"$CASE_ROOT/stale-readback.json\" > \"$CASE_ROOT/gate.log\"; log_hash=$(shasum -a 256 \"$CASE_ROOT/gate.log\" | cut -d\" \" -f1); printf \"fixture_sha256=%s gate_log_sha256=%s result=live-accepted-stale-rejected\\n\" \"$fixture_hash\" \"$log_hash\"'",
+      "exitCode": 0,
+      "expectedResult": {
+        "live": true,
+        "stale": false
+      },
+      "gateLogSha256": "4008f5f1fee74e6672c985c780eb38d65280c14f1628e9373529cacd6a0ba992"
+    },
+    {
+      "id": "secret_value_gate",
+      "fixtureRoot": "/private/tmp/p012-secret-gate-v4",
+      "mutation": {
+        "files": [
+          {
+            "shape": "direct sensitive key",
+            "sha256": "328841a101f33107dce8387eb6c87b3e1afc81e97d92d1718b4f7f2473c9e55b"
+          },
+          {
+            "shape": "nested secret object",
+            "sha256": "9e5740442afc50b8f50d76c9ed030dddcb41d23fc3dc8840496483cf15b96f28"
+          },
+          {
+            "shape": "name TOKEN with value selector",
+            "sha256": "dc9a9d831199acf543abfe9ec943c60c34603b731f6b91ea3c5ef87c79d9d7d9"
+          }
+        ]
+      },
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-secret-gate-v4\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; node -e '\"'\"'const fs=require(\"fs\");const root=process.argv[1];const data=[{tokenValue:\"must-be-rejected\"},{secret:{value:\"must-be-rejected\"}},{name:\"TOKEN\",value:\"must-be-rejected\"}];data.forEach((v,i)=>fs.writeFileSync(root+\"/injected-\"+(i+1)+\".json\",JSON.stringify(v,null,2)+\"\\n\"));'\"'\"' \"$CASE_ROOT\"; node -e '\"'\"'const fs=require(\"fs\");const sensitive=/(secret|token|password|credential)/i;const hasData=v=>typeof v===\"string\"?v.length>0:typeof v===\"number\"?v!==0:v===true||Array.isArray(v)&&v.length>0||v!==null&&typeof v===\"object\"&&Object.keys(v).length>0;const broker=v=>{if(!v||typeof v!==\"object\"||Array.isArray(v))return false;const keys=Object.keys(v).sort();if(JSON.stringify(keys)!==JSON.stringify([\"externalResourceIds\",\"providerReadback\",\"recordedScope\",\"trackedDefinition\"]))return false;return typeof v.trackedDefinition===\"string\"&&Array.isArray(v.recordedScope)&&v.recordedScope.every(x=>typeof x===\"string\")&&typeof v.providerReadback===\"string\"&&Array.isArray(v.externalResourceIds)&&v.externalResourceIds.every(x=>typeof x===\"string\")};const exact=new Map([[\"contentPolicy.secretValuesCollected\",false],[\"github.actionsMetadata.repositorySecretCount\",0],[\"github.actionsMetadata.secretValuesCollected\",false],[\"acceptance.secretValueOutputRejected\",true]]);const accept=p=>{let ok=true;const walk=(v,path)=>{if(!ok)return;if(Array.isArray(v)){v.forEach((x,i)=>walk(x,path+\"[\"+i+\"]\"));return}if(!v||typeof v!==\"object\")return;if(typeof v.name===\"string\"&&sensitive.test(v.name)&&Object.prototype.hasOwnProperty.call(v,\"value\")&&hasData(v.value)){ok=false;return}for(const [k,x] of Object.entries(v)){const q=path?path+\".\"+k:k;if(sensitive.test(k)){if(exact.has(q)){if(!Object.is(x,exact.get(q)))ok=false}else if(q===\"environment.tokenBroker\"){if(!broker(x))ok=false}else{ok=false}}walk(x,q)}};walk(JSON.parse(fs.readFileSync(p,\"utf8\")),\"\");return ok};const live=process.argv.slice(1,4).every(accept);const injected=process.argv.slice(4).map(accept);console.log(JSON.stringify({live,injected}));if(!live||injected.some(Boolean))process.exit(1);'\"'\"' .orchestration/evidence/P012-F00-T01/commands.json .orchestration/evidence/P012-F00-T01/readback.json .orchestration/evidence/P012-F00-T01/evidence.json \"$CASE_ROOT/injected-1.json\" \"$CASE_ROOT/injected-2.json\" \"$CASE_ROOT/injected-3.json\" > \"$CASE_ROOT/gate.log\"; fixture_hashes=$(shasum -a 256 \"$CASE_ROOT\"/injected-*.json | cut -d\" \" -f1 | paste -sd, -); log_hash=$(shasum -a 256 \"$CASE_ROOT/gate.log\" | cut -d\" \" -f1); printf \"fixture_sha256=%s gate_log_sha256=%s result=live-accepted-all-injected-rejected\\n\" \"$fixture_hashes\" \"$log_hash\"'",
+      "exitCode": 0,
+      "expectedResult": {
+        "live": true,
+        "injected": [
+          false,
+          false,
+          false
+        ]
+      },
+      "gateLogSha256": "5a5eeccda8a6ba286f0ec7f89d28a40e6b62df01d712668703b179504d45fabd"
+    },
+    {
+      "id": "lock_exact_mapping_gate",
+      "fixtureRoot": "/private/tmp/p012-lock-gate-v4",
+      "mutation": "swap the linux-x64 and macos-arm64 actionlint checksums without changing the set of values",
+      "fixtureSha256": "75b4f0000592445f42e180ba3db1ed18f630fb68b3cafb3b96b0b2dfa9ae3cbd",
+      "expectedMappings": [
+        {
+          "tool": "aqua:rhysd/actionlint",
+          "version": "1.7.12",
+          "platform": "linux-x64",
+          "checksum": "sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+          "provenance": "github-attestations"
+        },
+        {
+          "tool": "aqua:rhysd/actionlint",
+          "version": "1.7.12",
+          "platform": "macos-arm64",
+          "checksum": "sha256:aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz",
+          "provenance": "github-attestations"
+        },
+        {
+          "tool": "node",
+          "version": "22.23.1",
+          "platform": "linux-x64",
+          "checksum": "sha256:7a8cb04b4a1df4eaf432125324b81b29a088e73570a23259a8de1c65d07fc129",
+          "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-linux-x64.tar.gz",
+          "provenance": null
+        },
+        {
+          "tool": "node",
+          "version": "22.23.1",
+          "platform": "macos-arm64",
+          "checksum": "sha256:ef28d8fab2c0e4314522d4bb1b7173270aa3937e93b92cb7de79c112ac1fa953",
+          "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz",
+          "provenance": null
+        },
+        {
+          "tool": "pnpm",
+          "version": "11.13.0",
+          "platform": "linux-x64",
+          "checksum": "sha256:2c15f7b6ab256642f4d01687a2b01e07714d835d05d29ba045bdbde59b17bb4f",
+          "url": "https://github.com/pnpm/pnpm/releases/download/v11.13.0/pnpm-linux-x64.tar.gz",
+          "provenance": "github-attestations"
+        },
+        {
+          "tool": "pnpm",
+          "version": "11.13.0",
+          "platform": "macos-arm64",
+          "checksum": "sha256:01af2f0e57108a4f82193a14618c57104c1426137ce62b95e0199852a542880f",
+          "url": "https://github.com/pnpm/pnpm/releases/download/v11.13.0/pnpm-darwin-arm64.tar.gz",
+          "provenance": "github-attestations"
+        }
+      ],
+      "command": "zsh -c 'set -euo pipefail; CASE_ROOT=\"/private/tmp/p012-lock-gate-v4\"; test ! -e \"$CASE_ROOT\"; mkdir -p \"$CASE_ROOT\"; cp mise.lock \"$CASE_ROOT/swapped.lock\"; node -e '\"'\"'const fs=require(\"fs\");const p=process.argv[1];let s=fs.readFileSync(p,\"utf8\");const a=\"sha256:8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8\",b=\"sha256:aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f\",t=\"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\";if(s.split(a).length!==2||s.split(b).length!==2)process.exit(2);s=s.replace(a,t).replace(b,a).replace(t,b);fs.writeFileSync(p,s);'\"'\"' \"$CASE_ROOT/swapped.lock\"; fixture_hash=$(shasum -a 256 \"$CASE_ROOT/swapped.lock\" | cut -d\" \" -f1); test \"$fixture_hash\" = \"75b4f0000592445f42e180ba3db1ed18f630fb68b3cafb3b96b0b2dfa9ae3cbd\"; node -e '\"'\"'const fs=require(\"fs\");const doc=JSON.parse(fs.readFileSync(process.argv[1],\"utf8\"));const expected=doc.verificationRuns.find(x=>x.id===\"lock_exact_mapping_gate\").expectedMappings.sort((a,b)=>(a.tool+\"/\"+a.platform).localeCompare(b.tool+\"/\"+b.platform));const parse=p=>{const lines=fs.readFileSync(p,\"utf8\").split(/\\r?\\n/);let version=null,current=null;const out=[];for(const line of lines){let m=line.match(/^\\[\\[tools\\.(?:\"([^\"]+)\"|([^\\]]+))\\]\\]$/);if(m){version=null;current=null;continue}m=line.match(/^version = \"([^\"]+)\"$/);if(m&&!current){version=m[1];continue}m=line.match(/^\\[tools\\.(?:\"([^\"]+)\"|([^.\\]]+))\\.\"platforms\\.([^\"]+)\"\\]$/);if(m){current={tool:m[1]||m[2],version,platform:m[3],checksum:null,url:null,provenance:null};out.push(current);continue}if(current){m=line.match(/^(checksum|url|provenance) = \"([^\"]+)\"$/);if(m)current[m[1]]=m[2]}}return out.sort((a,b)=>(a.tool+\"/\"+a.platform).localeCompare(b.tool+\"/\"+b.platform))};const accept=p=>JSON.stringify(parse(p))===JSON.stringify(expected);const live=accept(process.argv[2]);const swapped=accept(process.argv[3]);console.log(JSON.stringify({live,swapped,entries:parse(process.argv[2]).length}));if(!live||swapped)process.exit(1);'\"'\"' .orchestration/evidence/P012-F00-T01/commands.json mise.lock \"$CASE_ROOT/swapped.lock\" > \"$CASE_ROOT/gate.log\"; log_hash=$(shasum -a 256 \"$CASE_ROOT/gate.log\" | cut -d\" \" -f1); printf \"fixture_sha256=%s gate_log_sha256=%s result=live-exact-swapped-rejected\\n\" \"$fixture_hash\" \"$log_hash\"'",
+      "exitCode": 0,
+      "expectedResult": {
+        "live": true,
+        "swapped": false,
+        "entries": 6
+      },
+      "gateLogSha256": "715c4cda5d114774712cd6d872bc3a1a29cceea48c6e9c1142f45d7ba2346f3b"
+    },
+    {
+      "id": "fixture_cleanup",
+      "command": "zsh -c 'set -euo pipefail; roots=(/private/tmp/p012-replay-cold-v4 /private/tmp/p012-replay-checksum-v3 /private/tmp/p012-replay-url-v3 /private/tmp/p012-replay-version-v3 /private/tmp/p012-secret-gate-v4 /private/tmp/p012-stale-gate-v4 /private/tmp/p012-lock-gate-v4); rm -rf -- $roots; remaining=0; for root in $roots; do if test -e \"$root\"; then remaining=$((remaining+1)); fi; done; printf \"fixture_roots=%s remaining=%s\\n\" \"${#roots[@]}\" \"$remaining\"; test \"$remaining\" -eq 0'",
+      "exitCode": 0,
+      "combinedOutputSha256": "41917928990c3794abe4ae235832af49f41ff67cf4838014e1f7998cdc642eee",
+      "expectedResult": "fixture_roots=7 remaining=0"
+    },
+    {
+      "id": "legacy_fixture_cleanup_and_inventory",
+      "command": "zsh -c 'set -euo pipefail; roots=(/private/tmp/p012-cold-v2 /private/tmp/p012-cold-v3 /private/tmp/p012-lock-checksum /private/tmp/p012-lock-checksum-cold /private/tmp/p012-lock-url /private/tmp/p012-lock-url-cold /private/tmp/p012-lock-url-cold-2 /private/tmp/p012-lock-version /private/tmp/p012-lock-version-cold /private/tmp/p012-mise-cold-20260715T232000Z); rm -rf -- $roots; remaining=$(find /private/tmp -maxdepth 1 -type d -name \"p012-*\" -print | wc -l | tr -d \" \" ); printf \"legacy_fixture_roots=%s all_p012_remaining=%s\\n\" \"${#roots[@]}\" \"$remaining\"; test \"$remaining\" -eq 0'",
+      "exitCode": 0,
+      "combinedOutputSha256": "59444d3af83099203122aad0dcf0b7da62b5077266589678ee7c80fb21173939",
+      "expectedResult": "legacy_fixture_roots=10 all_p012_remaining=0"
+    }
+  ]
+}

@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P012-F00-T01",
+  "observedAt": "2026-07-16T03:04:40Z",
+  "targetSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+  "targetShaMeaning": "origin/main inventory baseline before task artifacts",
+  "repository": {
+    "nameWithOwner": "mryfmo/ai-ops-platform",
+    "visibility": "private",
+    "archived": false,
+    "defaultBranch": "main",
+    "localSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+    "remoteDefaultSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+    "shaMatch": true
+  },
+  "github": {
+    "branchProtection": {
+      "state": "readback_unavailable",
+      "httpStatus": 403,
+      "reason": "private repository plan does not expose the branch protection API",
+      "interpretation": "unknown; this response is not evidence that protection is absent"
+    },
+    "workflows": [
+      {
+        "id": 309793279,
+        "name": "ci",
+        "path": ".github/workflows/ci.yml",
+        "state": "active"
+      },
+      {
+        "id": 309793280,
+        "name": "coding-task",
+        "path": ".github/workflows/coding-task.yml",
+        "state": "active"
+      },
+      {
+        "id": 310454605,
+        "name": "report-generation",
+        "path": ".github/workflows/report-generation.yml",
+        "state": "active"
+      },
+      {
+        "id": 310454639,
+        "name": "Dependabot Updates",
+        "path": "dynamic/dependabot/dependabot-updates",
+        "state": "active"
+      }
+    ],
+    "runs": {
+      "mainCi": {
+        "id": 29463466536,
+        "runNumber": 78,
+        "status": "completed",
+        "conclusion": "success",
+        "event": "push",
+        "headSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+        "url": "https://github.com/mryfmo/ai-ops-platform/actions/runs/29463466536"
+      },
+      "codingTask": {
+        "totalCount": 0,
+        "latest": null
+      },
+      "reportGeneration": {
+        "totalCount": 1,
+        "latest": {
+          "id": 29212379297,
+          "runNumber": 1,
+          "status": "completed",
+          "conclusion": "failure",
+          "event": "schedule",
+          "headSha": "21306d8d966db2b90496a3912785bd4c4fc65ba0",
+          "url": "https://github.com/mryfmo/ai-ops-platform/actions/runs/29212379297"
+        }
+      }
+    },
+    "actionsMetadata": {
+      "repositorySecretCount": 0,
+      "repositoryVariableCount": 0,
+      "environmentCount": 0,
+      "secretValuesCollected": false
+    },
+    "pages": {
+      "state": "not_configured",
+      "httpStatus": 404,
+      "interpretation": "not a Pages runtime failure"
+    }
+  },
+  "trackedAssets": {
+    "claude": [
+      {
+        "path": ".claude/agents/security-reviewer.md",
+        "blobSha": "652a2b7e3725da7e79a03855ad8e3d60e93b7d43"
+      },
+      {
+        "path": ".claude/agents/spec-reviewer.md",
+        "blobSha": "8ee29adc8ad701cbdaf29439b97cdb5d7afc9b03"
+      },
+      {
+        "path": ".claude/hooks/guard-write.mjs",
+        "blobSha": "e0af3f1b15d872d92aa51e87c778efa0f014978f"
+      },
+      {
+        "path": ".claude/skills/add-traced-module/SKILL.md",
+        "blobSha": "fbc3bfd91db81367f677d75004e7442d79c33412"
+      },
+      {
+        "path": ".claude/skills/db-migration/SKILL.md",
+        "blobSha": "072910babe2aecc59d7312a85d13cd1d91321d44"
+      },
+      {
+        "path": ".claude/skills/generate-report/SKILL.md",
+        "blobSha": "d0946c14e57759a39ecedcfe6ebc68c21288fbb0"
+      },
+      {
+        "path": ".claude/skills/new-adr/SKILL.md",
+        "blobSha": "3043e777b28b1f4736b5987506e3fda9d345f638"
+      },
+      {
+        "path": ".claude/skills/new-runbook/SKILL.md",
+        "blobSha": "c132bd1a20d4a0028d53c79d25fcb610b4f4dd36"
+      },
+      {
+        "path": ".claude/skills/release-check/SKILL.md",
+        "blobSha": "054529165b24c4f3b4fc82a1307d1e8ef935cb4f"
+      }
+    ],
+    "factory": [
+      {
+        "path": ".factory/droids/report-generator.md",
+        "blobSha": "fb66b7a94df7da5139a45404dac3721ef145517b"
+      },
+      {
+        "path": ".factory/skills/generate-report/SKILL.md",
+        "blobSha": "11687d899beac7f5cf8ecd064ba15917ed8b2e0c"
+      }
+    ],
+    "githubActions": [
+      {
+        "path": ".github/actions/run-coding-agent/action.yml",
+        "blobSha": "fc99cf04595dfa0e584f951aa241e4531f6bb6bd"
+      }
+    ],
+    "codex": [],
+    "agents": []
+  },
+  "environment": {
+    "acceptedDecision": {
+      "id": "DEC-ENV-002",
+      "status": "preserved",
+      "architecture": "Azure staging and production per ADR-0016"
+    },
+    "azure": {
+      "cli": "absent",
+      "providerReadback": {
+        "status": "unavailable",
+        "reason": "azure_cli_not_installed"
+      },
+      "trackedInfrastructureDefinitions": [],
+      "externalResourceIds": [],
+      "interpretation": "external Azure resource existence is unknown, not absent"
+    },
+    "tokenBroker": {
+      "trackedDefinition": "not_observed_in_recorded_scope",
+      "recordedScope": [
+        ".github/actions",
+        "packages",
+        "scripts",
+        "infra",
+        "bicep"
+      ],
+      "providerReadback": "unavailable",
+      "externalResourceIds": []
+    },
+    "agentSandbox": {
+      "capability": "partial",
+      "resourceIds": [],
+      "reasons": [
+        "coding-task workflow and local agent action are tracked",
+        "coding-task workflow has zero recorded runs",
+        "required repository Actions secrets are not configured",
+        "no tracked infrastructure definition exists",
+        "Azure provider readback is unavailable"
+      ]
+    }
+  },
+  "toolchainLock": {
+    "generator": {
+      "name": "mise",
+      "version": "2026.7.5",
+      "platform": "macos-arm64"
+    },
+    "platforms": [
+      "linux-x64",
+      "macos-arm64"
+    ],
+    "tools": [
+      {
+        "name": "aqua:rhysd/actionlint",
+        "version": "1.7.12",
+        "platforms": {
+          "linux-x64": {
+            "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+            "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+            "provenance": "github-attestations"
+          },
+          "macos-arm64": {
+            "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz",
+            "sha256": "aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f",
+            "provenance": "github-attestations"
+          }
+        }
+      },
+      {
+        "name": "node",
+        "version": "22.23.1",
+        "platforms": {
+          "linux-x64": {
+            "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-linux-x64.tar.gz",
+            "sha256": "7a8cb04b4a1df4eaf432125324b81b29a088e73570a23259a8de1c65d07fc129"
+          },
+          "macos-arm64": {
+            "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz",
+            "sha256": "ef28d8fab2c0e4314522d4bb1b7173270aa3937e93b92cb7de79c112ac1fa953"
+          }
+        }
+      },
+      {
+        "name": "pnpm",
+        "version": "11.13.0",
+        "platforms": {
+          "linux-x64": {
+            "url": "https://github.com/pnpm/pnpm/releases/download/v11.13.0/pnpm-linux-x64.tar.gz",
+            "sha256": "2c15f7b6ab256642f4d01687a2b01e07714d835d05d29ba045bdbde59b17bb4f",
+            "provenance": "github-attestations"
+          },
+          "macos-arm64": {
+            "url": "https://github.com/pnpm/pnpm/releases/download/v11.13.0/pnpm-darwin-arm64.tar.gz",
+            "sha256": "01af2f0e57108a4f82193a14618c57104c1426137ce62b95e0199852a542880f",
+            "provenance": "github-attestations"
+          }
+        }
+      }
+    ],
+    "verification": {
+      "cacheColdInstall": "passed",
+      "actionlint": "passed_with_hermetic_task",
+      "tamperedChecksum": "rejected",
+      "tamperedDownloadUrl": "rejected",
+      "tamperedVersion": "rejected",
+      "exactToolPlatformMappings": "passed_with_swapped-checksum-fixture",
+      "sensitiveValueShapes": "three_adversarial_shapes_rejected",
+      "temporaryFixtureRootsRemaining": 0
+    }
+  }
+}

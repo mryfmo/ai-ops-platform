@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P012-F00-T01",
+  "observedAt": "2026-07-16T03:04:40Z",
+  "targetSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+  "targetShaMeaning": "origin/main inventory baseline before task artifacts",
+  "result": "accepted",
+  "artifacts": [
+    {
+      "path": ".mise.toml",
+      "sha256": "b01c7d23f197ebf1daf451c8593e6e9ddfca89bf6213b47748385a1758d4abde"
+    },
+    {
+      "path": "mise.lock",
+      "sha256": "13ebd74c7f70ee0b588339d96f22031be5b7a62a9eae1e5ddb3e108b9592da94"
+    },
+    {
+      "path": ".orchestration/evidence/P012-F00-T01/commands.json",
+      "sha256": "06b93797534613bea6b14fb7749e45b6a1e605be077d25814ad29ad8bac69507"
+    },
+    {
+      "path": ".orchestration/evidence/P012-F00-T01/readback.json",
+      "sha256": "b4dcde9acb39dfa36a304eda4ba5f6ff334270beff0de758721f9a56d15b7a25"
+    }
+  ],
+  "acceptance": {
+    "localMatchesRemoteDefaultSha": true,
+    "remoteInventoryIsSanitizedAndReproducible": true,
+    "acceptedEnvironmentDecisionPreserved": true,
+    "sandboxCapabilityUsesClosedEnum": true,
+    "linuxX64LockEntriesComplete": true,
+    "macosArm64LockEntriesComplete": true,
+    "exactToolPlatformMappingsVerified": true,
+    "cacheColdLockedInstallPassed": true,
+    "hermeticActionlintPassed": true,
+    "tamperedChecksumRejected": true,
+    "tamperedDownloadUrlRejected": true,
+    "tamperedVersionRejected": true,
+    "staleShaRejected": true,
+    "secretValueOutputRejected": true,
+    "pages404ClassifiedAsNotConfigured": true,
+    "branchProtection403ClassifiedAsUnknown": true,
+    "allP012FixtureRootsRemoved": true
+  },
+  "reviewOutcome": {
+    "status": "accepted",
+    "firstRound": [
+      {
+        "reviewer": "audit_conversation_ops",
+        "outcome": "REJECT",
+        "counts": {
+          "critical": 0,
+          "high": 1,
+          "medium": 1
+        }
+      },
+      {
+        "reviewer": "audit_minutes_flow",
+        "outcome": "REJECT",
+        "counts": {
+          "critical": 0,
+          "high": 2,
+          "medium": 2
+        }
+      }
+    ],
+    "finalRound": [
+      {
+        "reviewer": "audit_conversation_ops",
+        "outcome": "ACCEPT",
+        "counts": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0
+        },
+        "scope": "cache-cold, three lock mutations, three sensitive-value shapes, exact mapping swap, cleanup, hashes, target SHA, allowed files, Plan #90"
+      },
+      {
+        "reviewer": "audit_minutes_flow",
+        "outcome": "ACCEPT",
+        "counts": {
+          "critical": 0,
+          "high": 0,
+          "medium": 0
+        },
+        "scope": "all task clauses, byte-identical isolated lock regeneration, remote inventory refresh hashes, adversarial replay, cleanup, Ponytail minimality"
+      }
+    ]
+  },
+  "humanEnvGateReferences": {
+    "acceptedArchitecture": [
+      "DEC-ENV-002",
+      "ADR-0016"
+    ],
+    "githubGovernance": "DEC-ENV-003",
+    "branchProtectionReadback": "unknown_due_http_403",
+    "externalAzureReadback": "unavailable_azure_cli_not_installed"
+  },
+  "prerequisitePlanCorrection": {
+    "pullRequest": "https://github.com/mryfmo/ai-ops-platform/pull/90",
+    "mergeSha": "27e8e853b8d467191b29ca4daf22fa7e9e197d43",
+    "postMergeCi": "https://github.com/mryfmo/ai-ops-platform/actions/runs/29463466536",
+    "review": "ACCEPT C0/H0/M0"
+  },
+  "cleanup": {
+    "remoteResourcesCreated": [],
+    "remoteResourcesMutated": [],
+    "temporaryFixturePolicy": "17 exact /private/tmp/p012-* roots used by accepted or superseded verification runs were deleted by recorded allowlisted commands",
+    "temporaryFixtureCleanup": "completed",
+    "remainingP012FixtureRoots": 0,
+    "evidenceCommands": [
+      "fixture_cleanup",
+      "legacy_fixture_cleanup_and_inventory"
+    ],
+    "repositoryCleanup": "traceability timestamp output restored; only the five P012-F00-T01 allowed files remain"
+  },
+  "inventoryFindings": [
+    {
+      "severity": "high",
+      "id": "P012-INV-001",
+      "finding": "coding-task is active but has zero runs and required repository Actions secrets are not configured",
+      "disposition": "recorded for later Plan 012 remediation; no remote configuration mutation is authorized in P012-F00-T01"
+    },
+    {
+      "severity": "high",
+      "id": "P012-INV-002",
+      "finding": "the only observed report-generation run failed",
+      "disposition": "recorded for later Plan 012 diagnosis; this inventory task does not alter workflow behavior"
+    },
+    {
+      "severity": "medium",
+      "id": "P012-INV-003",
+      "finding": "branch protection readback returns HTTP 403 under the current private repository plan",
+      "disposition": "state remains unknown and must not be interpreted as absent"
+    },
+    {
+      "severity": "medium",
+      "id": "P012-INV-004",
+      "finding": "Azure CLI and tracked infrastructure definitions are unavailable while DEC-ENV-002 remains accepted",
+      "disposition": "external Azure resource existence remains unknown; provider absence is not claimed"
+    }
+  ],
+  "notes": [
+    "Pages HTTP 404 is classified as not configured, not as a Pages runtime failure.",
+    "An initial probe exposed ambient shellcheck auto-detection. The task was corrected to disable optional shellcheck and pyflakes integrations, then the exact unmodified task passed cache-cold.",
+    "For provenance-backed aqua entries, mise can prefer url_api over url. The URL adversarial fixture therefore changed the Node artifact URL, which is the effective download URL for that lock entry.",
+    "Install logs are normalized by replacing the absolute fixture root and sorting lines because mise installs independent tools concurrently; the oracle, exit code, mutated artifact hash, and normalized log hash are then deterministic."
+  ]
+}
