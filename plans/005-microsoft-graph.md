@@ -6,6 +6,8 @@
 
 ## Status
 
+`BLOCKED — ENV`
+
 - **Priority**: P0
 - **Effort**: L
 - **Risk**: HIGH — tenant message/mail権限と通知欠落。

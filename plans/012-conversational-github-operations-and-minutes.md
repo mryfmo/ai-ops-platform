@@ -6,6 +6,8 @@
 
 ## Status
 
+`IN PROGRESS`
+
 - **Priority**: P0
 - **Effort**: XL
 - **Risk**: HIGH — LLM誤分類、権限昇格、別project更新、二重副作用、議事録PII、外部API partial failureを同時に扱う。
