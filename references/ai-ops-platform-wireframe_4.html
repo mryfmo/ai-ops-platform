@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Ops Platform — ダッシュボード ワイヤーフレーム v3.0</title>
+<!--
+  ============================================================================
+  AI Ops Platform  ダッシュボード ワイヤーフレーム v3.0
+  対象ペルソナ: 投資元(PRF-05) / 経営陣(PRF-04) / 部門長(PRF-03) / 上長(PRF-02) / メンバー(PRF-01)
+
+  v3 変更点:
+   - 左メニューを開閉式に(ヘッダのトグルで折りたたみ)。閉じた際は
+     メインコンテンツが自動で中央に再配置され、横スクロールは発生しない
+   - 日英ローカライゼーション(ヘッダのJA/EN切替)。REQ-016に従い、
+     数値・色判定は言語間で完全一致 — 切り替わるのはラベル文言のみ
+   - ページエージェントはフローティング(FAB + グラスパネル)
+
+  設計根拠(リポジトリ仕様):
+   - REQ-011〜015: プロファイル別レポート要件 / REQ-016: 多言語生成(ja/en)
+   - REQ-017: 承認ゲート / REQ-009: 督促スケジュール
+   - REQ-038 / ADR-0010: Seven Keys正典RAG + 月次PDCA
+   - REQ-039 / ADR-0011: 投資家ペルソナ(ILPA 2019・定義テーブル方式)
+   - ADR-0013: ページエージェント(ViewSpecのみ返却)
+   - AC-010-1/2: 自己完結HTML・オフライン表示・2MB以下
+  ============================================================================
+-->
+<style>
+:root{
+  --ink:#0E1626; --ink-2:#3D4A61; --muted:#7A8699;
+  --bg:#F6F8FB; --surface:#FFFFFF;
+  --hair:rgba(14,22,38,.08); --hair-2:rgba(14,22,38,.05);
+  --accent:#2E5BFF; --accent-d:#1E42C8; --accent-w:#EDF1FF;
+  --rag-g:#0E7C52; --rag-g-bg:#E3F4EC;
+  --rag-y:#9A6700; --rag-y-bg:#FCF0D8;
+  --rag-r:#C13A3A; --rag-r-bg:#FBE9E9;
+  --rag-x:#8B94A3; --rag-x-bg:#EEF1F5;
+  --ai:#7048C8; --ai-bg:#F2EDFC;
+  --code:#2E5BFF; --code-bg:#EDF1FF;
+  --human:#0E1626; --human-bg:#EAEDF2;
+  --quest:#8A6D1F; --quest-bg:#F8F1DC;
+  --anno:#C2410C; --anno-bg:#FFF3EB;
+  --r-lg:18px; --r-md:14px; --r-sm:10px;
+  --sh-1:0 1px 2px rgba(14,22,38,.04),0 2px 8px rgba(14,22,38,.04);
+  --sh-2:0 2px 6px rgba(14,22,38,.06),0 12px 32px rgba(14,22,38,.10);
+  --sh-3:0 8px 24px rgba(14,22,38,.14),0 24px 64px rgba(14,22,38,.18);
+  --font-sans:"Inter","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono","SF Mono",Consolas,"Roboto Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px;scroll-behavior:smooth}
+body{
+  font-family:var(--font-sans);color:var(--ink);line-height:1.6;
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(46,91,255,.055), transparent 60%),
+    radial-gradient(900px 420px at -10% 0%, rgba(112,72,200,.04), transparent 55%),
+    var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:var(--font-mono);font-feature-settings:"tnum";letter-spacing:0}
+button{font-family:inherit;cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ============================ ヘッダ ============================ */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  display:flex;align-items:center;gap:16px;height:62px;padding:0 18px;
+  background:rgba(252,253,255,.78);
+  backdrop-filter:saturate(180%) blur(14px);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--hair);
+}
+.nav-toggle{
+  border:none;background:none;width:38px;height:38px;border-radius:10px;
+  display:grid;place-items:center;color:var(--ink-2);transition:background .14s;flex:none;
+}
+.nav-toggle:hover{background:rgba(14,22,38,.06);color:var(--ink)}
+.nav-toggle svg rect{transition:transform .22s, opacity .18s;transform-origin:center}
+body.nav-closed .nav-toggle .l2{opacity:.35;transform:scaleX(.6)}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand .mark{
+  width:32px;height:32px;border-radius:9px;flex:none;
+  background:linear-gradient(135deg,#12203E,#2E5BFF);
+  display:grid;place-items:center;box-shadow:0 4px 10px rgba(46,91,255,.28);
+}
+.brand .t b{font-size:.9rem;font-weight:700;letter-spacing:-.01em;display:block;line-height:1.2}
+.brand .t span{font-size:.58rem;color:var(--muted);letter-spacing:.16em;font-family:var(--font-mono)}
+.persona-tabs{position:relative;display:flex;background:rgba(14,22,38,.055);border-radius:999px;padding:4px;gap:2px;margin:0 auto}
+.persona-tab{
+  position:relative;z-index:1;border:none;background:none;border-radius:999px;
+  padding:7px 15px;font-size:.79rem;font-weight:600;color:var(--ink-2);
+  display:flex;align-items:baseline;gap:6px;transition:color .18s;white-space:nowrap;
+}
+.persona-tab small{font-family:var(--font-mono);font-size:.55rem;color:var(--muted);letter-spacing:.08em;transition:color .18s}
+.persona-tab.on{color:var(--ink)}
+.persona-tab.on small{color:var(--accent)}
+.persona-tab:hover{color:var(--ink)}
+.tab-glider{
+  position:absolute;top:4px;bottom:4px;border-radius:999px;background:var(--surface);
+  box-shadow:0 1px 3px rgba(14,22,38,.12),0 4px 12px rgba(14,22,38,.08);
+  transition:left .28s cubic-bezier(.5,1.4,.4,1), width .28s cubic-bezier(.5,1.4,.4,1);z-index:0;
+}
+@media (prefers-reduced-motion:reduce){.tab-glider{transition:none}}
+.top-actions{display:flex;align-items:center;gap:12px;margin-left:auto}
+/* 言語切替 */
+.lang-seg{display:flex;background:rgba(14,22,38,.055);border-radius:999px;padding:3px}
+.lang-seg button{border:none;background:none;border-radius:999px;padding:4px 12px;font-size:.68rem;font-weight:600;color:var(--ink-2);font-family:var(--font-mono);letter-spacing:.06em;transition:.15s}
+.lang-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(14,22,38,.14)}
+.anno-toggle{display:flex;align-items:center;gap:8px;border:none;background:none;font-size:.7rem;color:var(--ink-2)}
+.anno-toggle .track{width:34px;height:20px;border-radius:999px;background:rgba(14,22,38,.14);position:relative;transition:background .18s;flex:none}
+.anno-toggle .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(14,22,38,.3);transition:transform .18s}
+.anno-toggle.on .track{background:#E1712F}
+.anno-toggle.on .track::after{transform:translateX(14px)}
+.userchip{display:flex;align-items:center;gap:9px}
+.userchip .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3D4A61,#0E1626);display:grid;place-items:center;font-size:.68rem;color:#fff;font-weight:600}
+.userchip .who{font-size:.7rem;line-height:1.35}
+.userchip .who small{display:block;font-size:.58rem;color:var(--muted)}
+@media(max-width:1240px){.userchip .who{display:none}.persona-tab small{display:none}.persona-tab{padding:7px 12px}}
+
+.wf-note{
+  display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  padding:6px 24px;font-size:.66rem;color:var(--muted);
+  border-bottom:1px dashed var(--hair);background:rgba(255,255,255,.5);
+  font-family:var(--font-mono);letter-spacing:.03em;
+}
+.wf-note b{color:#B4560F;letter-spacing:.14em}
+
+/* ============================ レイアウト(開閉ナビ) ============================ */
+.app{display:flex;min-height:calc(100vh - 100px)}
+.nav-rail{
+  width:236px;flex:none;padding:22px 14px;overflow:hidden;
+  position:sticky;top:96px;align-self:flex-start;max-height:calc(100vh - 96px);overflow-y:auto;
+  transition:width .3s cubic-bezier(.4,0,.2,1), opacity .22s, padding .3s cubic-bezier(.4,0,.2,1);
+  white-space:nowrap;
+}
+body.nav-closed .nav-rail{width:0;padding:22px 0;opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.nav-rail{transition:opacity .15s}}
+@media(max-width:900px){.nav-rail{display:none}}
+.nav-group{margin-bottom:22px}
+.nav-group h6{font-family:var(--font-mono);font-size:.58rem;letter-spacing:.18em;color:var(--muted);padding:0 12px 7px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r-sm);
+  font-size:.8rem;color:var(--ink-2);border:none;background:none;width:100%;text-align:left;
+  transition:background .14s,color .14s;
+}
+.nav-item svg{flex:none;opacity:.55}
+.nav-item:hover{background:rgba(14,22,38,.05)}
+.nav-item.on{background:var(--surface);color:var(--accent);font-weight:600;box-shadow:var(--sh-1)}
+.nav-item.on svg{opacity:1}
+.nav-item:disabled{opacity:.55;cursor:not-allowed}
+.nav-item .lock{margin-left:auto;font-size:.58rem;color:var(--muted);font-family:var(--font-mono)}
+
+/* ナビを閉じるとmainが自動で中央へ(margin:autoで再配置・横スクロール無し) */
+.main{flex:1;min-width:0;padding:26px 30px 90px;max-width:1280px;margin:0 auto;transition:max-width .3s}
+
+.page-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+.page-head .eyebrow{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.2em;color:var(--accent);display:block;margin-bottom:5px}
+.page-head h1{font-size:1.45rem;font-weight:700;letter-spacing:-.015em;line-height:1.25}
+.page-head .grow{flex:1}
+.period-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.period-ctl .lbl{font-size:.66rem;color:var(--muted)}
+.seg{display:flex;background:rgba(14,22,38,.055);border-radius:999px;padding:3px;gap:1px}
+.seg button{border:none;background:none;padding:4.5px 13px;font-size:.7rem;font-weight:500;color:var(--ink-2);border-radius:999px;transition:.15s}
+.seg button.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(14,22,38,.14)}
+.pager{display:flex;background:var(--surface);border:1px solid var(--hair);border-radius:999px;overflow:hidden;box-shadow:var(--sh-1)}
+.pager button{border:none;background:none;padding:5px 12px;font-size:.72rem;color:var(--ink-2)}
+.pager button:hover{color:var(--accent);background:var(--accent-w)}
+.pager button+button{border-left:1px solid var(--hair-2)}
+.period-label{font-family:var(--font-mono);font-size:.74rem;color:var(--ink);padding:5px 13px;background:var(--surface);border:1px solid var(--hair);border-radius:999px;box-shadow:var(--sh-1)}
+.status-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 22px}
+
+/* ============================ 共通部品 ============================ */
+.card{background:var(--surface);border:1px solid var(--hair-2);border-radius:var(--r-lg);box-shadow:var(--sh-1);margin-bottom:18px;position:relative;overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;padding:15px 20px 13px;flex-wrap:wrap}
+.card-h h3{font-size:.9rem;font-weight:650;letter-spacing:-.005em}
+.card-h .sub{font-size:.66rem;color:var(--muted)}
+.card-h .grow{flex:1}
+.card-b{padding:4px 20px 18px}
+.card-b.tight{padding:0}
+.card-b.tight table{margin-top:2px}
+
+.prov{display:inline-flex;align-items:center;gap:5px;border-radius:999px;font-size:.58rem;padding:2.5px 9px;font-family:var(--font-mono);letter-spacing:.04em;white-space:nowrap;font-weight:500}
+.prov::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.prov.code{color:var(--code);background:var(--code-bg)}
+.prov.ai{color:var(--ai);background:var(--ai-bg)}
+.prov.human{color:var(--human);background:var(--human-bg)}
+.prov.quest{color:var(--quest);background:var(--quest-bg)}
+
+.rag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;font-size:.68rem;padding:2.5px 10px;font-weight:600;white-space:nowrap}
+.rag i{font-style:normal;font-size:.6rem}
+.rag.g{color:var(--rag-g);background:var(--rag-g-bg)}
+.rag.y{color:var(--rag-y);background:var(--rag-y-bg)}
+.rag.r{color:var(--rag-r);background:var(--rag-r-bg)}
+.rag.x{color:var(--rag-x);background:var(--rag-x-bg)}
+.rag-dot{display:inline-grid;place-items:center;width:30px;height:24px;border-radius:8px;font-size:.6rem;font-weight:700;transition:transform .12s}
+.sk-cell:hover .rag-dot{transform:scale(1.12)}
+.rag-dot.g{color:var(--rag-g);background:var(--rag-g-bg)}
+.rag-dot.y{color:var(--rag-y);background:var(--rag-y-bg)}
+.rag-dot.r{color:var(--rag-r);background:var(--rag-r-bg)}
+.rag-dot.x{color:var(--rag-x);background:var(--rag-x-bg)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;font-size:.66rem;padding:3.5px 11px;font-weight:600}
+.badge.ok{color:var(--rag-g);background:var(--rag-g-bg)}
+.badge.wait{color:var(--rag-y);background:var(--rag-y-bg)}
+.badge.info{color:var(--accent);background:var(--accent-w)}
+.badge.min{color:var(--muted);background:rgba(14,22,38,.06)}
+
+table.dt{width:100%;border-collapse:collapse;font-size:.78rem}
+.dt th{text-align:left;font-size:.6rem;font-family:var(--font-mono);letter-spacing:.1em;color:var(--muted);font-weight:500;padding:10px 20px;border-bottom:1px solid var(--hair);white-space:nowrap}
+.dt td{padding:10px 20px;border-bottom:1px solid var(--hair-2);vertical-align:middle}
+.dt tr:last-child td{border-bottom:none}
+.dt tbody tr{transition:background .12s}
+.dt tbody tr:hover{background:rgba(46,91,255,.028)}
+.dt .num{text-align:right;font-family:var(--font-mono);font-feature-settings:"tnum"}
+.dt .id{font-family:var(--font-mono);font-size:.68rem;color:var(--muted)}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px}
+.kpi{background:var(--surface);border:1px solid var(--hair-2);border-radius:var(--r-md);box-shadow:var(--sh-1);padding:16px 18px 14px;position:relative}
+.kpi .k-label{font-size:.68rem;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:500}
+.kpi .k-val{font-family:var(--font-mono);font-feature-settings:"tnum";font-size:1.85rem;font-weight:600;letter-spacing:-.035em;margin-top:4px;line-height:1.15}
+.kpi .k-val small{font-size:.8rem;color:var(--ink-2);font-weight:500;letter-spacing:0}
+.kpi .k-sub{font-size:.64rem;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:6px}
+.delta{font-family:var(--font-mono);font-size:.64rem;font-weight:600;border-radius:999px;padding:1px 8px}
+.delta.up{color:var(--rag-g);background:var(--rag-g-bg)}
+.delta.down{color:var(--rag-r);background:var(--rag-r-bg)}
+.delta.flat{color:var(--muted);background:rgba(14,22,38,.05)}
+
+.anno{display:none;font-family:var(--font-mono);font-size:.56rem;color:var(--anno);background:var(--anno-bg);border:1px dashed #EDC5A5;border-radius:6px;padding:1px 7px;letter-spacing:.02em;vertical-align:middle}
+body.show-anno .anno{display:inline-block}
+.anno-block{display:none;font-family:var(--font-mono);font-size:.6rem;color:var(--anno);background:var(--anno-bg);border:1px dashed #EDC5A5;border-radius:8px;padding:8px 12px;margin-top:12px;line-height:1.7}
+body.show-anno .anno-block{display:block}
+
+.principle{display:flex;gap:10px;align-items:flex-start;font-size:.7rem;color:var(--ink-2);background:rgba(14,22,38,.028);border-radius:var(--r-sm);padding:10px 13px;margin-top:14px}
+.principle svg{flex:none;margin-top:2px}
+
+.btn{border-radius:var(--r-sm);font-size:.74rem;font-weight:600;padding:7px 15px;border:1px solid var(--hair);background:var(--surface);color:var(--ink-2);transition:.14s;box-shadow:0 1px 2px rgba(14,22,38,.05)}
+.btn:hover{border-color:rgba(14,22,38,.2);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(46,91,255,.32)}
+.btn.primary:hover{background:var(--accent-d)}
+.btn.danger-ghost{color:var(--rag-r);border-color:rgba(193,58,58,.28)}
+.btn.danger-ghost:hover{background:var(--rag-r-bg)}
+.btn.sm{font-size:.66rem;padding:4.5px 11px}
+.btn:disabled{opacity:.7;cursor:default;box-shadow:none}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-32{display:grid;grid-template-columns:3fr 2fr;gap:18px}
+@media(max-width:1020px){.grid-2,.grid-32{grid-template-columns:1fr}}
+
+.sk-wrap{overflow-x:auto}
+.sk{width:100%;border-collapse:collapse;font-size:.76rem;min-width:660px}
+.sk th{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.06em;color:var(--muted);font-weight:500;padding:9px 8px;border-bottom:1px solid var(--hair);text-align:center;line-height:1.4}
+.sk th:first-child{text-align:left;padding-left:20px}
+.sk td{padding:8px 8px;border-bottom:1px solid var(--hair-2);text-align:center}
+.sk td:first-child{text-align:left;padding-left:20px}
+.sk tbody tr:hover{background:rgba(46,91,255,.028)}
+.sk tr:last-child td{border-bottom:none}
+.sk .pj{font-weight:600}
+.sk .pj .id{font-family:var(--font-mono);font-weight:400;font-size:.64rem;color:var(--muted);margin-right:7px}
+.sk-cell{position:relative;display:inline-block}
+.sk-cell .tip{
+  display:none;position:absolute;bottom:135%;left:50%;transform:translateX(-50%);
+  background:rgba(14,22,38,.96);color:#EDF1F8;font-size:.65rem;border-radius:10px;padding:8px 11px;
+  width:210px;z-index:30;text-align:left;line-height:1.5;box-shadow:var(--sh-3);
+}
+.sk-cell .tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:rgba(14,22,38,.96)}
+.sk-cell:hover .tip,.sk-cell:focus-within .tip{display:block}
+.sk-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:.68rem;color:var(--ink-2);padding:12px 20px;border-top:1px solid var(--hair-2)}
+
+.pdca li{list-style:none;display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--hair-2);font-size:.78rem}
+.pdca li:last-child{border-bottom:none}
+.pdca .mv{font-family:var(--font-mono);font-size:.62rem;font-weight:600;border-radius:999px;padding:1.5px 9px}
+.pdca .mv.up{color:var(--rag-g);background:var(--rag-g-bg)}
+.pdca .mv.dn{color:var(--rag-r);background:var(--rag-r-bg)}
+.topics li{list-style:none;display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--hair-2);font-size:.8rem;align-items:baseline}
+.topics li:last-child{border-bottom:none}
+.topics .no{font-family:var(--font-mono);font-size:.68rem;color:var(--muted);flex:none;width:20px}
+
+.hm{border-collapse:separate;border-spacing:4px 4px;font-size:.7rem;width:100%}
+.hm th{font-family:var(--font-mono);font-size:.58rem;color:var(--muted);font-weight:500;padding:4px 8px;text-align:center}
+.hm th:first-child{text-align:left;padding-left:18px}
+.hm td{padding:0;text-align:center}
+.hm td:first-child{text-align:left;padding-left:18px;font-size:.74rem;white-space:nowrap}
+.hm .cell{width:100%;height:28px;border-radius:8px;display:grid;place-items:center;font-size:.58rem;font-weight:700;font-family:var(--font-mono)}
+
+.appr-item{display:flex;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--hair-2);flex-wrap:wrap}
+.appr-item:last-child{border-bottom:none}
+.appr-item .doc{flex:1;min-width:220px}
+.appr-item .doc b{font-size:.8rem;display:block}
+.appr-item .doc span{font-size:.66rem;color:var(--muted)}
+.deadline{font-family:var(--font-mono);font-size:.64rem;color:var(--rag-y);background:var(--rag-y-bg);border-radius:999px;padding:2.5px 10px;white-space:nowrap}
+.deadline.over{color:var(--rag-r);background:var(--rag-r-bg)}
+
+.chart-box{padding:2px 14px 14px}
+.chart-legend{display:flex;gap:14px;font-size:.64rem;color:var(--ink-2);padding:0 20px 6px;flex-wrap:wrap}
+.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;font-style:normal}
+svg text{font-family:var(--font-mono)}
+
+.remind li{list-style:none;display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hair-2);font-size:.78rem;flex-wrap:wrap}
+.remind li:last-child{border-bottom:none}
+.remind .who{flex:1;min-width:150px}
+.remind .who small{display:block;color:var(--muted);font-size:.64rem}
+.remind .late{font-family:var(--font-mono);font-size:.62rem;color:var(--rag-r);background:var(--rag-r-bg);border-radius:999px;padding:1.5px 9px}
+.proposal{
+  border:1px solid rgba(112,72,200,.18);border-radius:var(--r-lg);
+  background:linear-gradient(135deg,rgba(112,72,200,.05),rgba(46,91,255,.03) 55%,transparent);
+  padding:16px 20px;margin-bottom:18px;box-shadow:var(--sh-1);
+}
+.proposal .p-head{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.proposal .p-head b{font-size:.84rem}
+.proposal p{font-size:.76rem;color:var(--ink-2)}
+.proposal .p-actions{display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap}
+.proposal .timer{margin-left:auto;font-family:var(--font-mono);font-size:.62rem;color:var(--rag-y)}
+
+/* ============================ フローティング ページエージェント ============================ */
+.agent-fab{
+  position:fixed;right:26px;bottom:26px;z-index:90;
+  width:58px;height:58px;border-radius:20px;border:none;
+  background:linear-gradient(135deg,#12203E 0%,#2E5BFF 100%);
+  box-shadow:0 8px 20px rgba(46,91,255,.38),0 2px 6px rgba(14,22,38,.2);
+  display:grid;place-items:center;transition:transform .18s cubic-bezier(.4,1.6,.5,1), box-shadow .18s;
+}
+.agent-fab:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 14px 30px rgba(46,91,255,.44),0 3px 8px rgba(14,22,38,.22)}
+.agent-fab:active{transform:scale(.96)}
+.agent-fab .badge-dot{position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:var(--rag-g);border:2.5px solid #fff}
+.agent-fab.open{background:var(--ink)}
+.agent-fab svg{transition:transform .2s, opacity .2s;position:absolute}
+.agent-fab .ic-close{opacity:0;transform:rotate(-90deg) scale(.6)}
+.agent-fab.open .ic-spark{opacity:0;transform:rotate(90deg) scale(.6)}
+.agent-fab.open .ic-close{opacity:1;transform:none}
+.agent-panel{
+  position:fixed;right:26px;bottom:98px;z-index:89;
+  width:392px;max-width:calc(100vw - 32px);
+  max-height:min(640px, calc(100vh - 130px));
+  display:flex;flex-direction:column;
+  background:rgba(255,255,255,.9);
+  backdrop-filter:saturate(180%) blur(22px);
+  -webkit-backdrop-filter:saturate(180%) blur(22px);
+  border:1px solid rgba(255,255,255,.7);
+  border-radius:22px;box-shadow:var(--sh-3);
+  opacity:0;transform:translateY(14px) scale(.97);pointer-events:none;
+  transform-origin:bottom right;
+  transition:opacity .22s ease, transform .22s cubic-bezier(.4,1.4,.4,1);
+}
+.agent-panel.open{opacity:1;transform:none;pointer-events:auto}
+@media (prefers-reduced-motion:reduce){.agent-panel{transition:opacity .15s}}
+@media(max-width:560px){.agent-panel{right:8px;left:8px;width:auto;bottom:92px}.agent-fab{right:16px;bottom:16px}}
+.agent-h{padding:16px 18px 12px;border-bottom:1px solid var(--hair-2);display:flex;align-items:center;gap:11px}
+.agent-h .a-mark{width:34px;height:34px;border-radius:12px;background:linear-gradient(135deg,#12203E,#2E5BFF);display:grid;place-items:center;flex:none}
+.agent-h b{font-size:.84rem;display:block;line-height:1.3}
+.agent-h p{font-size:.62rem;color:var(--muted);line-height:1.45}
+.agent-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:180px}
+.msg{max-width:94%;font-size:.75rem;line-height:1.55}
+.msg.user{align-self:flex-end;background:var(--ink);color:#fff;border-radius:16px 16px 4px 16px;padding:8px 13px;box-shadow:var(--sh-1)}
+.msg.bot{align-self:flex-start;width:100%}
+.msg.bot .bubble{background:var(--surface);border:1px solid var(--hair-2);border-radius:16px 16px 16px 4px;padding:9px 13px;box-shadow:var(--sh-1)}
+.reasoning{margin:6px 0 0;font-size:.64rem}
+.reasoning summary{cursor:pointer;color:var(--muted);font-family:var(--font-mono);letter-spacing:.04em}
+.reasoning div{color:var(--muted);border-left:2px solid var(--hair);padding:4px 0 4px 10px;margin-top:5px}
+.toolcard{margin-top:8px;border:1px solid var(--hair-2);border-radius:14px;background:var(--surface);overflow:hidden;box-shadow:var(--sh-1)}
+.toolcard .t-h{display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(46,91,255,.045);border-bottom:1px solid var(--hair-2);font-family:var(--font-mono);font-size:.6rem;color:var(--ink-2)}
+.toolcard .t-b{padding:9px 12px;font-size:.66rem;color:var(--ink-2)}
+.toolcard .t-b code{font-family:var(--font-mono);font-size:.58rem;background:rgba(14,22,38,.06);border-radius:5px;padding:1px 6px}
+.toolcard .pin{margin:0 12px 12px;width:calc(100% - 24px)}
+.agent-sugg{padding:10px 16px 4px;display:flex;flex-wrap:wrap;gap:6px}
+.chip-q{border:1px solid var(--hair);background:var(--surface);border-radius:999px;font-size:.64rem;padding:4.5px 12px;color:var(--ink-2);transition:.14s}
+.chip-q:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-w)}
+.agent-input{display:flex;gap:8px;padding:12px 16px 8px}
+.agent-input input{flex:1;border:1px solid var(--hair);border-radius:12px;padding:9px 13px;font-size:.74rem;font-family:inherit;background:var(--surface)}
+.agent-input input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,91,255,.14)}
+.agent-note{font-size:.58rem;color:var(--muted);padding:0 18px 14px;line-height:1.5}
+
+.footer{border-top:1px solid var(--hair);padding:16px 30px;display:flex;gap:18px;align-items:center;font-size:.64rem;color:var(--muted);flex-wrap:wrap;background:rgba(255,255,255,.6)}
+.footer .conf{font-family:var(--font-mono);letter-spacing:.1em;color:var(--rag-r);background:var(--rag-r-bg);border-radius:999px;padding:2px 11px}
+
+.view{display:none}
+.view.on{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.view.on{animation:none}}
+
+/* ==========================================================================
+   6. グローバル ツールチップ / ユーザーメニュー(v4)
+   ========================================================================== */
+#tipbox{
+  position:fixed;z-index:200;max-width:290px;
+  background:rgba(14,22,38,.96);color:#EDF1F8;font-size:.68rem;line-height:1.55;
+  border-radius:11px;padding:9px 13px;box-shadow:var(--sh-3);
+  opacity:0;transform:translateY(4px);transition:opacity .14s, transform .14s;pointer-events:none;
+}
+#tipbox.show{opacity:1;transform:none}
+#tipbox .t-title{font-weight:700;display:block;margin-bottom:2px}
+#tipbox .t-meta{display:block;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.14);color:#AAB6CC;font-size:.58rem;font-family:var(--font-mono);letter-spacing:.02em}
+#tipbox::after{content:"";position:absolute;left:var(--ax,50%);top:100%;margin-left:-5px;border:5px solid transparent;border-top-color:rgba(14,22,38,.96)}
+#tipbox.below::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:rgba(14,22,38,.96)}
+@media (prefers-reduced-motion:reduce){#tipbox{transition:opacity .1s}}
+
+.nav-item.locked{opacity:.55;cursor:not-allowed}
+.kpi{transition:box-shadow .16s, transform .16s;cursor:default}
+.kpi:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.prov,.rag,.delta,.deadline,.badge{cursor:default}
+
+/* ユーザーメニュー */
+.userchip{position:relative}
+.userchip>button{display:flex;align-items:center;gap:9px;border:none;background:none;border-radius:12px;padding:4px 8px;transition:background .14s}
+.userchip>button:hover{background:rgba(14,22,38,.06)}
+.userchip .who{text-align:left}
+.userchip .chev{transition:transform .18s;color:var(--muted);flex:none}
+.userchip.open .chev{transform:rotate(180deg)}
+.user-menu{
+  position:absolute;top:calc(100% + 10px);right:0;width:272px;
+  background:rgba(255,255,255,.94);
+  backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);
+  border:1px solid rgba(255,255,255,.7);border-radius:16px;box-shadow:var(--sh-3);padding:8px;
+  opacity:0;transform:translateY(6px) scale(.98);pointer-events:none;transition:.18s;transform-origin:top right;z-index:120;
+}
+.userchip.open .user-menu{opacity:1;transform:none;pointer-events:auto}
+.user-menu .um-head{display:flex;gap:11px;align-items:center;padding:10px 10px 12px;border-bottom:1px solid var(--hair-2);margin-bottom:6px}
+.user-menu .um-head .avatar{width:38px;height:38px;font-size:.8rem}
+.user-menu .um-head b{font-size:.82rem;display:block;line-height:1.3}
+.user-menu .um-head small{font-size:.6rem;color:var(--muted);display:block;line-height:1.5}
+.user-menu .um-role{display:flex;gap:6px;flex-wrap:wrap;padding:2px 10px 10px;border-bottom:1px solid var(--hair-2);margin-bottom:6px}
+.user-menu .um-item{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;text-align:left;font-size:.75rem;color:var(--ink-2);padding:8px 10px;border-radius:10px;transition:background .12s}
+.user-menu .um-item:hover{background:rgba(14,22,38,.05);color:var(--ink)}
+.user-menu .um-item svg{opacity:.6;flex:none}
+.user-menu .um-item.danger{color:var(--rag-r)}
+.user-menu .um-item.danger:hover{background:var(--rag-r-bg)}
+.user-menu .um-note{font-size:.58rem;color:var(--muted);padding:8px 10px 4px;line-height:1.55}
+
+/* ==========================================================================
+   7. 管理コンソール(v5)
+   ========================================================================== */
+.icon-btn{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;border:none;background:none;color:var(--ink-2);transition:.14s;flex:none}
+.icon-btn:hover{background:rgba(14,22,38,.06);color:var(--ink)}
+.icon-btn.on{background:var(--accent-w);color:var(--accent)}
+.steps{display:flex;align-items:center;flex-wrap:wrap;row-gap:8px}
+.step{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted);font-weight:500}
+.step .n{width:22px;height:22px;border-radius:50%;background:rgba(14,22,38,.07);display:grid;place-items:center;font-family:var(--font-mono);font-size:.66rem}
+.step.done{color:var(--ink-2)}
+.step.done .n{background:var(--accent-w);color:var(--accent)}
+.step.cur{color:var(--ink);font-weight:600}
+.step.cur .n{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(46,91,255,.3)}
+.step+.step::before{content:"";width:30px;height:1px;background:var(--hair);margin:0 12px}
+.dropzone{border:1.5px dashed rgba(14,22,38,.16);border-radius:14px;padding:20px;text-align:center;color:var(--muted);font-size:.74rem;background:rgba(46,91,255,.02);transition:.15s}
+.dropzone:hover{border-color:var(--accent);background:rgba(46,91,255,.045)}
+.filerows{margin-top:12px}
+.filerows li{list-style:none;display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--hair-2);font-size:.76rem;flex-wrap:wrap}
+.filerows li:last-child{border-bottom:none}
+.filerows b{font-weight:600}
+.progress{height:8px;border-radius:999px;background:rgba(14,22,38,.07);overflow:hidden}
+.progress i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2E5BFF,#7048C8)}
+input[type="checkbox"]{accent-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ============================ ヘッダ ============================ -->
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" aria-pressed="false" aria-label="メニューを開閉" data-tip="メニューを開閉 — 閉じるとコンテンツが自動で中央に再配置" data-tip-en="Toggle menu — content auto-recenters when closed">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">
+      <rect class="l1" x="1" y="3.2" width="16" height="1.8" rx=".9"/>
+      <rect class="l2" x="1" y="8.1" width="16" height="1.8" rx=".9"/>
+      <rect class="l3" x="1" y="13" width="16" height="1.8" rx=".9"/>
+    </svg>
+  </button>
+  <div class="brand">
+    <span class="mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 11L6 4l3 5 2-3 3 5" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <span class="t"><b>AI Ops Platform</b><span>PRJOPS × DEVOPS</span></span>
+  </div>
+
+  <nav class="persona-tabs" id="personaTabs" aria-label="ペルソナ切替">
+    <span class="tab-glider" id="tabGlider" aria-hidden="true"></span>
+    <button class="persona-tab" data-view="investor"><span data-en="Investor">投資元</span><small>PRF-05</small></button>
+    <button class="persona-tab on" data-view="executive"><span data-en="Executive">経営陣</span><small>PRF-04</small></button>
+    <button class="persona-tab" data-view="manager"><span data-en="Manager">部門長</span><small>PRF-03</small></button>
+    <button class="persona-tab" data-view="leader"><span data-en="Leader">上長</span><small>PRF-02</small></button>
+    <button class="persona-tab" data-view="member"><span data-en="Member">メンバー</span><small>PRF-01</small></button>
+  </nav>
+
+  <div class="top-actions">
+    <button class="icon-btn" id="adminBtn" data-tip="<span class='t-title'>管理コンソール</span>PrjOps + DevOps 管理者(PRF-G)向け: Excel取込・閾値・配信スケジュール・エージェント・連携" data-tip-en="<span class='t-title'>Admin Console</span>For PrjOps + DevOps admins (PRF-G): Excel import, thresholds, schedules, agents, integrations" aria-label="管理コンソール">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <div class="lang-seg" role="group" aria-label="言語切替">
+      <button class="on" data-lang="ja" data-tip="日本語 — 数値・色判定は言語間で完全一致(REQ-016)" data-tip-en="Japanese — figures and RAG identical across languages (REQ-016)">JA</button>
+      <button data-lang="en" data-tip="English — 数値・色判定は言語間で完全一致(REQ-016)" data-tip-en="English — figures and RAG identical across languages (REQ-016)">EN</button>
+    </div>
+    <button class="anno-toggle" id="annoToggle" aria-pressed="false" data-tip="開発用: 各パネルの根拠となるREQ/SPEC/ADRの仕様IDを重ねて表示" data-tip-en="Dev aid: overlay REQ/SPEC/ADR spec IDs backing each panel">
+      <span class="track" aria-hidden="true"></span><span data-en="Spec notes">仕様注釈</span>
+    </button>
+    <div class="userchip" id="userChip">
+      <button id="userBtn" aria-haspopup="menu" aria-expanded="false" data-tip="アカウントメニューを開く" data-tip-en="Open account menu">
+        <span class="avatar" aria-hidden="true">TS</span>
+        <span class="who"><span data-en="Takuya Sato">佐藤 拓也</span><small><span data-en="Manager">マネージャー</span> ・ PRF-03</small></span>
+        <svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="user-menu" role="menu" aria-label="アカウント">
+        <div class="um-head">
+          <span class="avatar">TS</span>
+          <span><b data-en="Takuya Sato">佐藤 拓也</b><small>t.sato@example.co.jp</small><small data-en="Signed in via Entra ID (SSO)">Entra ID (SSO) 認証済</small></span>
+        </div>
+        <div class="um-role">
+          <span class="badge info" data-tip="関係者マスタ(ST-042)に登録された既定プロファイル。閲覧範囲はREQ-011〜015で規定" data-tip-en="Default profile in the stakeholder master (ST-042). Visibility scope per REQ-011–015">PRF-03 <span data-en="Manager">マネージャー</span></span>
+          <span class="badge min" data-tip="AC-002-1: 同一人物がプロジェクトごとに異なる立場で参加できます" data-tip-en="AC-002-1: one person can hold different roles per project">PJ-007: PRF-02</span>
+        </div>
+        <button class="um-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.8" stroke="currentColor" stroke-width="1.3"/><path d="M2.8 13.5c.8-2.6 2.9-3.9 5.2-3.9s4.4 1.3 5.2 3.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span data-en="Profile settings (language / timezone)">プロファイル設定(言語・タイムゾーン)</span></button>
+        <button class="um-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 00-4 4v2.5L2.5 11h11L12 8.5V6a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span data-en="Notification settings (Teams / email)">通知設定(Teams / メール)</span></button>
+        <button class="um-item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span data-en="My activity (audit log)">自分の操作履歴(監査ログ)</span></button>
+        <button class="um-item danger"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 2.5H4a1.5 1.5 0 00-1.5 1.5v8A1.5 1.5 0 004 13.5h2M10.5 11l3-3-3-3M13.5 8h-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-en="Sign out">サインアウト</span></button>
+        <p class="um-note" data-en="The persona tabs above are a wireframe preview switcher. In production, visible views are fixed by your registered profile.">上部のペルソナタブはワイヤーフレーム用のプレビュー切替です。実装では登録プロファイルにより閲覧可能ビューが固定されます。</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wf-note">
+  <b>WIREFRAME v3.0</b>
+  <span data-en="Screen blueprint for development kickoff — all figures are sample values">開発着手用の画面設計図 — 数値はサンプル値</span>
+  <span style="margin-left:auto"><span data-en="Provenance:">出所:</span> <span class="prov code" data-en="Code-computed">コード算出</span> <span class="prov ai" data-en="AI text">AI文章</span> <span class="prov human" data-en="Human-approved">人間承認</span> <span class="prov quest" data-en="Questionnaire">質問票</span></span>
+</div>
+
+<div class="app">
+
+  <aside class="nav-rail" id="navRail" aria-label="メニュー"></aside>
+
+  <main class="main">
+
+    <!-- ================== VIEW 1: 投資元 (PRF-05) ================== -->
+    <section class="view" id="view-investor">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">INVESTOR REPORT — QUARTERLY</span>
+          <h1><span data-en="Investor Report">投資家レポート</span> <span class="anno">REQ-015 / REQ-039 / ADR-0011</span></h1>
+        </div>
+        <div class="grow"></div>
+        <div class="period-ctl">
+          <span class="lbl" data-en="Period">表示期間</span>
+          <div class="seg" data-seg="inv"><button>week</button><button>month</button><button class="on">quarter</button><button>half</button><button>year</button></div>
+          <div class="pager"><button data-en="‹ Prev">‹ 前へ</button><button data-en="Next ›">次へ ›</button></div>
+          <span class="period-label">2026 Q2 (4/1 – 6/30)</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <span class="badge ok" data-tip="<span class='t-title'>承認トレイル</span>AGT-04生成 → AGT-07スキーマ/開示検証 → PRF-03承認。承認前の配信ゼロはaudit_logで機械検証(AC-017-1)" data-tip-en="<span class='t-title'>Approval trail</span>AGT-04 generate → AGT-07 schema/disclosure check → PRF-03 approve. Zero pre-approval delivery verified via audit_log (AC-017-1)" data-en="✓ Approved — Manager approval 2026-07-03 10:12">✓ 承認済 — マネージャー承認 2026-07-03 10:12</span>
+        <span class="badge min" data-tip="ILPA準拠の集計値のみを開示。権限フィルタはデータ取得側で強制され、表示側の後付けマスキングは行いません" data-tip-en="Only ILPA-aligned aggregates are disclosed. Filtering enforced at data retrieval — no after-the-fact masking" data-en="Minimum disclosure: internal notes, personal names and internal-only info are hidden">最小開示: 内部メモ・個人名・社内固有情報は非表示</span>
+        <span class="badge info" data-en="With quarter-over-quarter deltas">前四半期差分つき</span>
+        <span class="anno" data-en="Approval gate: REQ-017 (zero pre-approval deliveries, machine-verified via audit_log)">承認ゲート: REQ-017(承認前配信ゼロをaudit_logで機械検証)</span>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="Highlights">ハイライト</h3><span class="sub" data-en="Conclusions only (3 items) — the KPI table is the source of truth for figures">結論のみ3点・数値はKPI表を正とする</span>
+          <div class="grow"></div>
+          <span class="prov ai" data-en="AI text">AI文章</span><span class="prov human" data-en="Human-approved">人間承認</span>
+        </div>
+        <div class="card-b">
+          <ul class="topics">
+            <li><span class="no">a.</span><span data-en="Portfolio revenue landed above target, and two key companies completed commercial releases.">ポートフォリオ売上は目標を上回って着地し、主要2案件の商用リリースが完了した。</span></li>
+            <li><span class="no">b.</span><span data-en="Milestone delays are concentrated in one company; the recovery plan will be reflected early next quarter.">マイルストーン遅延は1案件に集中しており、リカバリ計画は次四半期前半に反映される。</span></li>
+            <li><span class="no">c.</span><span data-en="High-severity risks decreased quarter over quarter. Remaining ones stem from PJ-014's external dependency and are being monitored.">高重大度リスクは前四半期比で減少。残存はPJ-014の外部依存起因で監視継続中。</span></li>
+          </ul>
+          <div class="anno-block" data-en="standard-report.v1: LLM generates only the conclusion / riskSummary / nextActions text slots. Metrics and evidence IDs are injected by code (ADR-0012).">standard-report.v1: LLM生成は conclusion / riskSummary / nextActions の文章スロットのみ。metrics・evidence IDはコード注入(ADR-0012)。</div>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi" data-tip="持分比率で加重した投資先売上の合計。<span class='t-meta'>ソース: financial-input(企業入力) / 定義: SPEC-INT-066 メトリクス定義テーブル v1</span>" data-tip-en="Sum of portfolio revenue weighted by ownership.<span class='t-meta'>Source: financial-input / Def: SPEC-INT-066 metric table v1</span>">
+          <div class="k-label"><span data-en="Revenue (ownership-weighted)">Revenue(持分加重)</span> <span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="k-val">$12.4<small>M</small></div>
+          <div class="k-sub"><span class="delta up">▲ +6.9% vs Target</span><svg width="72" height="20" viewBox="0 0 72 20" aria-hidden="true"><polyline points="0,15 14,13 28,14 42,10 56,7 72,4" fill="none" stroke="#2E5BFF" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="kpi" data-tip="持分比率で加重したEBITDA。Target・Varianceは定義テーブルの計算式に従いコードが算出。<span class='t-meta'>ソース: financial-input / SPEC-INT-066</span>" data-tip-en="Ownership-weighted EBITDA. Target and variance computed by code per the definition table.<span class='t-meta'>Source: financial-input / SPEC-INT-066</span>">
+          <div class="k-label"><span data-en="EBITDA (ownership-weighted)">EBITDA(持分加重)</span> <span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="k-val">$2.1<small>M</small></div>
+          <div class="k-sub"><span class="delta down">▼ −8.7% vs Target</span><svg width="72" height="20" viewBox="0 0 72 20" aria-hidden="true"><polyline points="0,8 14,9 28,7 42,11 56,12 72,10" fill="none" stroke="#2E5BFF" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="kpi" data-tip="出資対象PJにおける計画対実績の最大遅延日数。<span class='t-meta'>ソース: GitHubマイルストーン日付(github-derived)</span>" data-tip-en="Max delay (days) vs baseline across invested projects.<span class='t-meta'>Source: GitHub milestone dates (github-derived)</span>">
+          <div class="k-label"><span data-en="Milestone delay">マイルストーン遅延</span> <span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="k-val">14<small data-en=" days (max)"> 日(最大)</small></div>
+          <div class="k-sub"><span class="delta down" data-en="▼ Concentrated in PJ-014">▼ PJ-014 に集中</span></div>
+        </div>
+        <div class="kpi" data-tip="重要度=高でOpenの課題数。前四半期比を併記。<span class='t-meta'>ソース: github-derived / 重要度確定は人(REQ-008)</span>" data-tip-en="Open issues at High severity, with QoQ delta.<span class='t-meta'>Source: github-derived / severity confirmed by humans (REQ-008)</span>">
+          <div class="k-label"><span data-en="High-severity open issues">高重大度 Open課題</span> <span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="k-val">3<small data-en=" items"> 件</small></div>
+          <div class="k-sub"><span class="delta up" data-en="▲ Prev quarter 5 → 3">▲ 前四半期 5件 → 3件</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="KPI Table (ILPA 2019 baseline)">KPIテーブル(ILPA 2019 ベースライン)</h3>
+          <span class="sub" data-en="Metric definition table — the 2027 revision is absorbed as a new version">定義テーブル方式 — 2027年改訂を版追加で吸収</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed">コード算出</span>
+          <span class="anno" data-en="SPEC-INT-066: metric definition table (ID / label / unit / granularity / formula / required / version / effective date)">SPEC-INT-066: メトリクス定義テーブル(ID/表示名/単位/粒度/計算式/必須/版/適用開始日)</span>
+        </div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th>KPI</th><th class="num" data-en="Value">値</th><th class="num">Target</th><th class="num">Variance</th><th>Trend(4Q)</th><th data-en="Unit">単位</th><th data-en="Source">ソース</th></tr></thead>
+            <tbody>
+              <tr><td>Revenue</td><td class="num">$12,400,000</td><td class="num">$11,600,000</td><td class="num" style="color:var(--rag-g)">+$800,000</td>
+                <td><svg width="90" height="18" viewBox="0 0 90 18"><polyline points="2,14 30,11 58,8 88,4" fill="none" stroke="#2E5BFF" stroke-width="1.6" stroke-linecap="round"/><circle cx="88" cy="4" r="2.4" fill="#2E5BFF"/></svg></td>
+                <td class="id">currency</td><td><span class="badge min">financial-input</span></td></tr>
+              <tr><td>EBITDA</td><td class="num">$2,100,000</td><td class="num">$2,300,000</td><td class="num" style="color:var(--rag-r)">−$200,000</td>
+                <td><svg width="90" height="18" viewBox="0 0 90 18"><polyline points="2,7 30,9 58,6 88,10" fill="none" stroke="#2E5BFF" stroke-width="1.6" stroke-linecap="round"/><circle cx="88" cy="10" r="2.4" fill="#2E5BFF"/></svg></td>
+                <td class="id">currency</td><td><span class="badge min">financial-input</span></td></tr>
+              <tr><td>Milestone Delay Days<span data-en=" (max)">(最大)</span></td><td class="num">14</td><td class="num">0</td><td class="num" style="color:var(--rag-r)">+14</td>
+                <td><svg width="90" height="18" viewBox="0 0 90 18"><polyline points="2,12 30,10 58,6 88,7" fill="none" stroke="#2E5BFF" stroke-width="1.6" stroke-linecap="round"/><circle cx="88" cy="7" r="2.4" fill="#2E5BFF"/></svg></td>
+                <td class="id">days</td><td><span class="badge min">github-derived</span></td></tr>
+              <tr><td>High-Severity Open Issues</td><td class="num">3</td><td class="num">≤ 2</td><td class="num" style="color:var(--rag-y)">+1</td>
+                <td><svg width="90" height="18" viewBox="0 0 90 18"><polyline points="2,4 30,6 58,9 88,11" fill="none" stroke="#2E5BFF" stroke-width="1.6" stroke-linecap="round"/><circle cx="88" cy="11" r="2.4" fill="#2E5BFF"/></svg></td>
+                <td class="id">count</td><td><span class="badge min">github-derived</span></td></tr>
+              <tr><td data-en="Company-specific KPI (optional)">導入企業固有KPI(任意)</td><td class="num" style="color:var(--muted)" data-en="Not provided">未入力</td><td class="num" style="color:var(--muted)">—</td><td class="num" style="color:var(--muted)">—</td>
+                <td style="color:var(--muted);font-size:.66rem" data-en="Not provided (never guessed)">未入力(推測で埋めない)</td><td class="id">—</td><td><span class="badge min">financial-input</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-h"><h3 data-en="Milestones (invested companies only)">マイルストーン(出資対象のみ)</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="card-b tight">
+            <table class="dt">
+              <thead><tr><th>ID</th><th data-en="Company / Project">会社 / 案件</th><th data-en="Next milestone">次マイルストーン</th><th class="num" data-en="Delay (days)">遅延日数</th></tr></thead>
+              <tbody>
+                <tr><td class="id">PJ-003</td><td>Alpha Manufacturing</td><td data-en="Commercial release v2.0">商用リリース v2.0</td><td class="num" style="color:var(--rag-g)">0</td></tr>
+                <tr><td class="id">PJ-007</td><td>Beta Logistics</td><td data-en="Site rollout Phase 2">拠点展開 Phase 2</td><td class="num" style="color:var(--rag-g)">0</td></tr>
+                <tr><td class="id">PJ-014</td><td>Gamma Retail</td><td data-en="Core system cutover">基幹刷新 カットオーバー</td><td class="num" style="color:var(--rag-r)">14</td></tr>
+                <tr><td class="id">PJ-021</td><td>Delta Energy</td><td data-en="PoC completion report">PoC 完了報告</td><td class="num" style="color:var(--muted)" data-en="No data">未取得</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3 data-en="High-severity risks">高重大度リスク</h3><span class="sub" data-en="Aggregates only — internal detail hidden">集計値のみ・内部詳細は非表示</span><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="card-b tight">
+            <table class="dt">
+              <thead><tr><th>ID</th><th data-en="Company / Project">会社 / 案件</th><th class="num" data-en="High-severity open">高重大度 Open</th><th data-en="QoQ">前四半期比</th></tr></thead>
+              <tbody>
+                <tr><td class="id">PJ-014</td><td>Gamma Retail</td><td class="num">2</td><td><span class="delta flat" data-en="→ Flat">→ 横ばい</span></td></tr>
+                <tr><td class="id">PJ-007</td><td>Beta Logistics</td><td class="num">1</td><td><span class="delta up" data-en="▲ −1 improved">▲ −1 改善</span></td></tr>
+                <tr><td class="id">PJ-003</td><td>Alpha Manufacturing</td><td class="num">0</td><td><span class="delta up" data-en="▲ −1 improved">▲ −1 改善</span></td></tr>
+              </tbody>
+            </table>
+            <div class="principle" style="margin:14px 20px 18px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L15 14H1L8 1Z" stroke="#7A8699" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4" stroke="#7A8699" stroke-width="1.4"/><circle cx="8" cy="12" r=".8" fill="#7A8699"/></svg>
+              <span data-en="Permission filtering is enforced at data retrieval (no after-the-fact masking in the view layer). Internal issue details and personal names never reach this view.">権限フィルタはデータ取得側で強制(表示側の後付けマスキング禁止)。社内課題の詳細・個人名はこのビューに到達しません。</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="WBS — Milestone schedule (quarterly)">WBS — マイルストーン工程表(四半期)</h3>
+          <span class="sub" data-en="Milestone granularity only — task detail and personal names are not disclosed">マイルストーン粒度のみ — タスク詳細・個人名は非開示</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed">コード算出</span>
+          <span class="anno" data-en="Baseline/actual computed from milestone dates. Minimum disclosure per REQ-015. No AI interpolation of schedule data.">計画/実績はマイルストーン日付からコード算出。REQ-015最小開示。工程データのAI補間なし。</span>
+        </div>
+        <div class="chart-legend">
+          <span><i style="background:#DCE4F5"></i><span data-en="Planned">計画</span></span>
+          <span><i style="background:#2E5BFF"></i><span data-en="Progress">実績</span></span>
+          <span><i style="background:#C13A3A"></i><span data-en="Delay">遅延</span></span>
+          <span><i style="background:#C7860A;border-radius:50%"></i><span data-en="Milestone">マイルストーン</span></span>
+          <span><i style="background:#0E7C52;border-radius:50%"></i><span data-en="Achieved">達成済</span></span>
+        </div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 172" width="100%" height="172" role="img" aria-label="Milestone Gantt">
+            <g stroke="rgba(14,22,38,.06)"><line x1="140" y1="30" x2="140" y2="158"/><line x1="235" y1="30" x2="235" y2="158"/><line x1="330" y1="30" x2="330" y2="158"/><line x1="425" y1="30" x2="425" y2="158"/><line x1="520" y1="30" x2="520" y2="158"/><line x1="615" y1="30" x2="615" y2="158"/><line x1="710" y1="30" x2="710" y2="158"/></g>
+            <g fill="#7A8699" font-size="9" text-anchor="middle"><text x="187" y="22">Apr</text><text x="282" y="22">May</text><text x="377" y="22">Jun</text><text x="472" y="22">Jul</text><text x="567" y="22">Aug</text><text x="662" y="22">Sep</text></g>
+            <line x1="474" y1="28" x2="474" y2="160" stroke="#C2410C" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="474" y="170" font-size="8" fill="#C2410C" text-anchor="middle">TODAY 7/16</text>
+            <g font-size="10" fill="#3D4A61">
+              <text x="8" y="52">PJ-003 Alpha</text><text x="8" y="82">PJ-007 Beta</text><text x="8" y="112">PJ-014 Gamma</text><text x="8" y="142">PJ-021 Delta</text>
+            </g>
+            <!-- PJ-003: 完了 -->
+            <rect x="140" y="42" width="285" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="140" y="42" width="285" height="14" rx="7" fill="#2E5BFF"/>
+            <path d="M425 42 l7 7 -7 7 -7 -7 z" fill="#0E7C52"/>
+            <text x="438" y="53" font-size="8.5" fill="#0E7C52" data-en="v2.0 released">v2.0 リリース済</text>
+            <!-- PJ-007 -->
+            <rect x="140" y="72" width="428" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="140" y="72" width="334" height="14" rx="7" fill="#2E5BFF"/>
+            <path d="M568 72 l7 7 -7 7 -7 -7 z" fill="#C7860A"/>
+            <text x="581" y="83" font-size="8.5" fill="#9A6700" data-en="Phase 2 8/15">Phase 2 8/15</text>
+            <!-- PJ-014: +14日遅延 -->
+            <rect x="140" y="102" width="315" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="140" y="102" width="252" height="14" rx="7" fill="#2E5BFF"/>
+            <rect x="455" y="102" width="43" height="14" rx="7" fill="#C13A3A"/>
+            <path d="M455 102 l7 7 -7 7 -7 -7 z" fill="none" stroke="#C7860A" stroke-width="1.5"/>
+            <path d="M498 102 l7 7 -7 7 -7 -7 z" fill="#C13A3A"/>
+            <text x="511" y="113" font-size="8.5" fill="#C13A3A" data-en="Cutover +14d">カットオーバー +14日</text>
+            <!-- PJ-021 -->
+            <rect x="140" y="132" width="297" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="140" y="132" width="270" height="14" rx="7" fill="#2E5BFF"/>
+            <path d="M437 132 l7 7 -7 7 -7 -7 z" fill="#C7860A"/>
+            <text x="450" y="143" font-size="8.5" fill="#9A6700" data-en="PoC report 7/20">PoC完了報告 7/20</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 data-en="Time series (quarter, weekly buckets)">時系列(四半期・週次バケット)</h3><span class="sub" data-en="Open / Close / Milestone trends">Open / Close / Milestone の推移</span><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span><span class="anno">GET /app/api/data/timeseries?period=quarter&persona=investor</span></div>
+        <div class="chart-legend"><span><i style="background:#BDCBF4"></i>Open</span><span><i style="background:#2E5BFF"></i>Close</span><span><i style="background:#9A6700"></i>Milestone</span></div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 150" width="100%" height="150" role="img" aria-label="Quarterly weekly time series">
+            <g stroke="rgba(14,22,38,.06)"><line x1="40" y1="20" x2="700" y2="20"/><line x1="40" y1="60" x2="700" y2="60"/><line x1="40" y1="100" x2="700" y2="100"/><line x1="40" y1="130" x2="700" y2="130"/></g>
+            <g fill="#7A8699" font-size="9"><text x="34" y="23" text-anchor="end">30</text><text x="34" y="63" text-anchor="end">20</text><text x="34" y="103" text-anchor="end">10</text><text x="34" y="133" text-anchor="end">0</text></g>
+            <g fill="#BDCBF4"><rect rx="3" x="52" y="86" width="14" height="44"/><rect rx="3" x="100" y="75" width="14" height="55"/><rect rx="3" x="148" y="92" width="14" height="38"/><rect rx="3" x="196" y="70" width="14" height="60"/><rect rx="3" x="244" y="97" width="14" height="33"/><rect rx="3" x="292" y="81" width="14" height="49"/><rect rx="3" x="340" y="88" width="14" height="42"/><rect rx="3" x="388" y="64" width="14" height="66"/><rect rx="3" x="436" y="90" width="14" height="40"/><rect rx="3" x="484" y="79" width="14" height="51"/><rect rx="3" x="532" y="94" width="14" height="36"/><rect rx="3" x="580" y="84" width="14" height="46"/><rect rx="3" x="628" y="99" width="14" height="31"/></g>
+            <g fill="#2E5BFF"><rect rx="3" x="68" y="95" width="14" height="35"/><rect rx="3" x="116" y="88" width="14" height="42"/><rect rx="3" x="164" y="83" width="14" height="47"/><rect rx="3" x="212" y="90" width="14" height="40"/><rect rx="3" x="260" y="79" width="14" height="51"/><rect rx="3" x="308" y="92" width="14" height="38"/><rect rx="3" x="356" y="72" width="14" height="58"/><rect rx="3" x="404" y="86" width="14" height="44"/><rect rx="3" x="452" y="68" width="14" height="62"/><rect rx="3" x="500" y="88" width="14" height="42"/><rect rx="3" x="548" y="75" width="14" height="55"/><rect rx="3" x="596" y="70" width="14" height="60"/><rect rx="3" x="644" y="81" width="14" height="49"/></g>
+            <g fill="#9A6700"><circle cx="205" cy="14" r="4"/><circle cx="445" cy="14" r="4"/><circle cx="653" cy="14" r="4"/></g>
+            <g fill="#7A8699" font-size="9" text-anchor="middle"><text x="66" y="145">W14</text><text x="210" y="145">W17</text><text x="354" y="145">W20</text><text x="498" y="145">W23</text><text x="642" y="145">W26</text></g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================== VIEW 2: 経営陣 (PRF-04) ================== -->
+    <section class="view on" id="view-executive">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">EXECUTIVE DASHBOARD — MONTHLY</span>
+          <h1><span data-en="Executive Dashboard">経営ダッシュボード</span> <span class="anno">REQ-014 / REQ-038 / ADR-0010</span></h1>
+        </div>
+        <div class="grow"></div>
+        <div class="period-ctl">
+          <span class="lbl" data-en="Period">表示期間</span>
+          <div class="seg" data-seg="exec"><button>week</button><button class="on">month</button><button>quarter</button><button>half</button><button>year</button></div>
+          <div class="pager"><button data-en="‹ Prev">‹ 前へ</button><button data-en="Next ›">次へ ›</button></div>
+          <span class="period-label" data-en="June 2026">2026年6月度</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <span class="badge ok" data-tip="毎月第1営業日にseven_keys_snapshots(追記専用)へ記録。同月の重複実行はスキップされます" data-tip-en="Recorded to append-only seven_keys_snapshots on the 1st business day; same-month duplicates are skipped" data-en="✓ Approved — 1st business day snapshot 2026-07-01">✓ 承認済 — 第1営業日スナップショット 2026-07-01</span>
+        <span class="badge min" data-en="Company-wide read-only / no personal names shown">全社閲覧 / 操作不可 / 個人名は表示しない</span>
+        <span class="anno" data-en="seven_keys_snapshots (append-only) / same-month duplicates skipped">seven_keys_snapshots(追記専用) / 同月重複はスキップ</span>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 data-en="This month's conclusions (3 lines)">今月の結論(3行)</h3><div class="grow"></div><span class="prov ai" data-en="AI text">AI文章</span><span class="prov human" data-en="Human-approved">人間承認</span></div>
+        <div class="card-b">
+          <ul class="topics">
+            <li><span class="no">1.</span><span data-en="The portfolio is stable overall. Of 50 projects, 2 are At Risk (red) — one fewer than last month.">ポートフォリオ全体は安定。50プロジェクト中、危険(赤)は2件で前月から1件減少した。</span></li>
+            <li><span class="no">2.</span><span data-en="PJ-014's scope management (K4) and risk (K6) have worsened; the manager should review the remediation plan.">PJ-014はスコープ管理(K4)とリスク(K6)が悪化しており、部門長による是正計画のレビューが必要。</span></li>
+            <li><span class="no">3.</span><span data-en="4 questionnaires remain uncollected, leaving K1/K2/K7 not assessed. Re-check after collection completes.">質問票の未回収が4件あり、K1/K2/K7が未評価のまま。回収完了後に再点検する。</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid-32">
+        <div class="card">
+          <div class="card-h">
+            <h3 data-en="Seven Keys — Project × 7-key RAG">Seven Keys — プロジェクト × 7キー RAG</h3>
+            <span class="sub" data-en="Canonical 7 keys / financials excluded as lagging indicators (see investor view)">正典7キー / 財務は遅行指標のため除外(投資家ビューで提供)</span>
+            <div class="grow"></div>
+            <span class="prov code" data-en="Code-computed">コード算出</span><span class="prov quest" data-en="Questionnaire">質問票</span>
+          </div>
+          <div class="sk-wrap">
+            <table class="sk">
+              <thead>
+                <tr>
+                  <th data-en="Project">プロジェクト</th>
+                  <th title="Stakeholders committed">K1<br><span data-en="Commitment">本気度</span></th>
+                  <th title="Business benefits">K2<br><span data-en="Benefits">事業効果</span></th>
+                  <th title="Work &amp; schedule predictable">K3<br><span data-en="Predictable">予測可能</span></th>
+                  <th title="Scope managed">K4<br><span data-en="Scope">スコープ</span></th>
+                  <th title="Team high performing">K5<br><span data-en="Team">高稼働</span></th>
+                  <th title="Risks mitigated">K6<br><span data-en="Risks">リスク</span></th>
+                  <th title="Delivery org benefits">K7<br><span data-en="Org benefit">組織利益</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="pj"><span class="id">PJ-003</span><span data-en="Alpha Mfg. Renewal">Alpha 生産管理刷新</span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — Questionnaire: sponsor monthly attendance 100% (answered 2026-06-28)"><b>順調</b> — 質問票: スポンサー月次参加 100%(回答 2026-06-28)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — Questionnaire: 2/2 benefit KPIs on track"><b>順調</b> — 質問票: 便益KPI 2/2 達成見込み</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — GitHub-derived: progress 84% (calibrated threshold 70%)"><b>順調</b> — GitHub由来: 進捗 84%(校正閾値 70%)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — scope change 1/5 (calibrated threshold 2/5)"><b>順調</b> — scope change 1/5(校正閾値 2/5)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — median review wait 18h (thresholds 48/72h)"><b>順調</b> — review wait 中央値 18h(閾値 48/72h)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — 1 high-severity risk open (external dependency)"><b>注意</b> — 高重大度リスク1件 Open(外部依存)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — Questionnaire: 2 standardized assets registered"><b>順調</b> — 質問票: 標準化資産 2件 登録済</span></span></td>
+                </tr>
+                <tr>
+                  <td class="pj"><span class="id">PJ-007</span><span data-en="Beta Logistics Opt.">Beta 物流最適化</span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — Questionnaire answered 2026-06-27"><b>順調</b> — 質問票回答: 2026-06-27</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — benefit measurement baseline not set"><b>注意</b> — 便益実測がベースライン未設定</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — progress 76%"><b>順調</b> — 進捗 76%</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — scope change 0/5"><b>順調</b> — scope change 0/5</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — median review wait 54h (over 48h threshold)"><b>注意</b> — review wait 中央値 54h(閾値 48h 超過)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — 0 high-severity risks"><b>順調</b> — 高重大度リスク 0件</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot x">◇</span><span class="tip" data-en="<b>Not assessed</b> — K7 questionnaire unanswered. Never guessed."><b>未評価</b> — 質問票K7設問が未回答。推測では埋めない</span></span></td>
+                </tr>
+                <tr>
+                  <td class="pj"><span class="id">PJ-014</span><span data-en="Gamma Core Renewal">Gamma 基幹刷新</span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — sponsor missed last 2 meetings"><b>注意</b> — スポンサー会議 直近2回欠席</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — benefit KPI re-estimation in progress"><b>注意</b> — 便益KPIの再見積り中</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot r">■</span><span class="tip" data-en="<b>At risk</b> — progress 52%, milestone 14 days late"><b>危険</b> — 進捗 52%・マイルストーン遅延14日</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot r">■</span><span class="tip" data-en="<b>At risk</b> — scope change 4/5 (over threshold)"><b>危険</b> — scope change 4/5(閾値超過)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — median review wait 61h"><b>注意</b> — review wait 中央値 61h</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot r">■</span><span class="tip" data-en="<b>At risk</b> — 2 high-severity risks incl. regulatory impact"><b>危険</b> — 高重大度リスク2件・法令影響を含む</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — Questionnaire: knowledge transfer behind plan"><b>注意</b> — 質問票: ナレッジ移転が計画未満</span></span></td>
+                </tr>
+                <tr>
+                  <td class="pj"><span class="id">PJ-021</span><span data-en="Delta Forecast PoC">Delta 需要予測PoC</span></td>
+                  <td><span class="sk-cell"><span class="rag-dot x">◇</span><span class="tip" data-en="<b>Not assessed</b> — questionnaire uncollected (reminder sent)"><b>未評価</b> — 質問票 未回収(督促中)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot x">◇</span><span class="tip" data-en="<b>Not assessed</b> — questionnaire uncollected"><b>未評価</b> — 質問票 未回収</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — progress 91%"><b>順調</b> — 進捗 91%</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — scope change 0/5"><b>順調</b> — scope change 0/5</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — median review wait 12h"><b>順調</b> — review wait 中央値 12h</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — 0 high-severity risks"><b>順調</b> — 高重大度リスク 0件</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot x">◇</span><span class="tip" data-en="<b>Not assessed</b> — questionnaire uncollected"><b>未評価</b> — 質問票 未回収</span></span></td>
+                </tr>
+                <tr>
+                  <td class="pj"><span class="id">PJ-029</span><span data-en="Epsilon Data Platform">Epsilon データ基盤</span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — Questionnaire answered 2026-06-30"><b>順調</b> — 質問票回答: 2026-06-30</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — 1/1 benefit KPI achieved"><b>順調</b> — 便益KPI 1/1 達成</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot y">▲</span><span class="tip" data-en="<b>Caution</b> — progress 66% (below 70% threshold)"><b>注意</b> — 進捗 66%(閾値 70% 未満)</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — scope change 1/5"><b>順調</b> — scope change 1/5</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — median review wait 22h"><b>順調</b> — review wait 中央値 22h</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — 0 high-severity risks"><b>順調</b> — 高重大度リスク 0件</span></span></td>
+                  <td><span class="sk-cell"><span class="rag-dot g">●</span><span class="tip" data-en="<b>On track</b> — 1 standardized asset registered"><b>順調</b> — 標準化資産 1件 登録済</span></span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="sk-legend">
+            <span class="rag g"><i>●</i><span data-en="On track">順調</span></span>
+            <span class="rag y"><i>▲</i><span data-en="Caution">注意</span></span>
+            <span class="rag r"><i>■</i><span data-en="At risk">危険</span></span>
+            <span class="rag x"><i>◇</i><span data-en="Not assessed — AI never guesses; grey stays grey">未評価 — 欠落時はAIが推測せずグレー</span></span>
+            <span style="margin-left:auto;font-size:.62rem;color:var(--muted)" data-en="Hover a cell for the basis / all 50 projects via scroll">セルにカーソルで判定根拠 / 全50件はスクロール</span>
+          </div>
+          <div class="anno-block" style="margin:0 20px 16px" data-en="K3/K4/K5 and part of K6 = code-computed from GitHub data (direct controls). K1/K2/K7 and qualitative K6 = structured questionnaire (indirect controls). Thresholds (progress 70% / scope 2/5 / review wait 48/72h) are initial calibrations (ADR-0010).">K3/K4/K5とK6の一部 = GitHub由来データからコード算出(direct controls)。K1/K2/K7とK6の定性部分 = 構造化質問票(indirect controls)。閾値(進捗70% / scope 2/5 / review wait 48/72h)は初期校正値(ADR-0010)。</div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-h"><h3 data-en="The seven questions">7つの問い</h3></div>
+            <div class="card-b" style="font-size:.76rem;color:var(--ink-2)">
+              <ul class="topics">
+                <li><span class="no">K1</span><span data-en="Are stakeholders committed?">関係者は本気か</span></li>
+                <li><span class="no">K2</span><span data-en="Are business benefits being realized?">事業効果は出ているか</span></li>
+                <li><span class="no">K3</span><span data-en="Is work &amp; schedule predictable?">計画は予測可能か</span></li>
+                <li><span class="no">K4</span><span data-en="Is scope managed?">スコープは管理下か</span></li>
+                <li><span class="no">K5</span><span data-en="Is the team high performing?">チームは高稼働か</span></li>
+                <li><span class="no">K6</span><span data-en="Are risks mitigated?">リスクは抑えられているか</span></li>
+                <li><span class="no">K7</span><span data-en="Does the delivery organization benefit?">組織に利益が残るか</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3 data-en="MoM PDCA (May → Jun)">前月比 PDCA(05 → 06)</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+            <div class="card-b">
+              <ul class="pdca">
+                <li><span class="mv up" data-en="Improved">改善</span><span class="id mono">PJ-003</span> <span data-en="K6: ■At risk → ▲Caution">K6: ■危険 → ▲注意</span></li>
+                <li><span class="mv up" data-en="Improved">改善</span><span class="id mono">PJ-029</span> <span data-en="K2: ▲Caution → ●On track">K2: ▲注意 → ●順調</span></li>
+                <li><span class="mv dn" data-en="Worsened">悪化</span><span class="id mono">PJ-014</span> <span data-en="K4: ▲Caution → ■At risk">K4: ▲注意 → ■危険</span></li>
+                <li><span class="mv dn" data-en="Worsened">悪化</span><span class="id mono">PJ-014</span> <span data-en="K6: ▲Caution → ■At risk">K6: ▲注意 → ■危険</span></li>
+              </ul>
+              <div class="principle">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#7A8699" stroke-width="1.4"/><path d="M8 4.5v4l2.5 1.5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round"/></svg>
+                <span data-en="A snapshot is appended on the 1st business day of each month; improved/worsened keys are surfaced automatically.">毎月第1営業日にスナップショットを追記記録し、改善・悪化キーを自動提示。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3 data-en="Color distribution (50 projects)">色分布(50プロジェクト)</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+            <div class="card-b">
+              <svg viewBox="0 0 280 34" width="100%" height="34" role="img" aria-label="RAG distribution">
+                <rect x="0" y="6" width="184" height="20" rx="7" fill="#0E7C52"/>
+                <rect x="186" y="6" width="61" height="20" fill="#C7860A"/>
+                <rect x="249" y="6" width="11" height="20" fill="#C13A3A"/>
+                <rect x="262" y="6" width="18" height="20" rx="7" fill="#C6CDD7"/>
+              </svg>
+              <div class="chart-legend" style="padding:10px 0 0">
+                <span><i style="background:#0E7C52"></i><span data-en="On track 33">順調 33</span></span>
+                <span><i style="background:#C7860A"></i><span data-en="Caution 11">注意 11</span></span>
+                <span><i style="background:#C13A3A"></i><span data-en="At risk 2">危険 2</span></span>
+                <span><i style="background:#C6CDD7"></i><span data-en="Not assessed 4">未評価 4</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="WBS — Portfolio schedule (phase level, monthly)">WBS — ポートフォリオ工程表(フェーズ・月次)</h3>
+          <span class="sub" data-en="Read-only / no personal names — task detail is managed on manager/leader views">閲覧のみ / 個人名なし — タスク詳細は部門長・上長ビューで管理</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed">コード算出</span>
+          <span class="anno" data-en="Phase spans from project plan data; current phase emphasized; delay shown as red extension. Not assessed stays grey (no AI guessing).">フェーズ期間は計画データから算出。進行中フェーズを強調、遅延は赤延伸。欠落はグレーのまま(AI推測なし)。</span>
+        </div>
+        <div class="chart-legend">
+          <span><i style="background:#D7E0F5"></i><span data-en="Requirements">要件定義</span></span>
+          <span><i style="background:#B9C9EE"></i><span data-en="Design">設計</span></span>
+          <span><i style="background:#92ABE4"></i><span data-en="Build">開発</span></span>
+          <span><i style="background:#6E8FD9"></i><span data-en="Test">テスト</span></span>
+          <span><i style="background:#4C74CE"></i><span data-en="Rollout">移行</span></span>
+          <span><i style="background:#C13A3A"></i><span data-en="Delay">遅延</span></span>
+        </div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 208" width="100%" height="208" role="img" aria-label="Portfolio phase Gantt">
+            <g stroke="rgba(14,22,38,.06)"><line x1="150" y1="30" x2="150" y2="192"/><line x1="212" y1="30" x2="212" y2="192"/><line x1="274" y1="30" x2="274" y2="192"/><line x1="336" y1="30" x2="336" y2="192"/><line x1="398" y1="30" x2="398" y2="192"/><line x1="460" y1="30" x2="460" y2="192"/><line x1="522" y1="30" x2="522" y2="192"/><line x1="584" y1="30" x2="584" y2="192"/><line x1="646" y1="30" x2="646" y2="192"/><line x1="708" y1="30" x2="708" y2="192"/></g>
+            <g fill="#7A8699" font-size="9" text-anchor="middle"><text x="181" y="22">Apr</text><text x="243" y="22">May</text><text x="305" y="22">Jun</text><text x="367" y="22">Jul</text><text x="429" y="22">Aug</text><text x="491" y="22">Sep</text><text x="553" y="22">Oct</text><text x="615" y="22">Nov</text><text x="677" y="22">Dec</text></g>
+            <line x1="367" y1="28" x2="367" y2="194" stroke="#C2410C" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="367" y="204" font-size="8" fill="#C2410C" text-anchor="middle">TODAY</text>
+            <g font-size="10" fill="#3D4A61">
+              <text x="26" y="52">PJ-003</text><text x="26" y="84">PJ-007</text><text x="26" y="116">PJ-014</text><text x="26" y="148">PJ-021</text><text x="26" y="180">PJ-029</text>
+            </g>
+            <g font-size="9">
+              <text x="8" y="52" fill="#0E7C52">●</text><text x="8" y="84" fill="#9A6700">▲</text><text x="8" y="116" fill="#C13A3A">■</text><text x="8" y="148" fill="#0E7C52">●</text><text x="8" y="180" fill="#9A6700">▲</text>
+            </g>
+            <!-- PJ-003 -->
+            <g>
+              <rect x="150" y="42" width="62" height="14" fill="#D7E0F5" rx="4"/><rect x="212" y="42" width="62" height="14" fill="#B9C9EE"/><rect x="274" y="42" width="155" height="14" fill="#92ABE4"/><rect x="429" y="42" width="93" height="14" fill="#6E8FD9"/><rect x="522" y="42" width="62" height="14" fill="#4C74CE" rx="4"/>
+              <rect x="274" y="40" width="155" height="18" fill="none" stroke="#2E5BFF" stroke-width="1.4" rx="5"/>
+            </g>
+            <!-- PJ-007 -->
+            <g>
+              <rect x="150" y="74" width="93" height="14" fill="#D7E0F5" rx="4"/><rect x="243" y="74" width="62" height="14" fill="#B9C9EE"/><rect x="305" y="74" width="124" height="14" fill="#92ABE4"/><rect x="429" y="74" width="93" height="14" fill="#6E8FD9"/><rect x="522" y="74" width="93" height="14" fill="#4C74CE" rx="4"/>
+              <rect x="305" y="72" width="124" height="18" fill="none" stroke="#2E5BFF" stroke-width="1.4" rx="5"/>
+            </g>
+            <!-- PJ-014: 開発が遅延 -->
+            <g>
+              <rect x="150" y="106" width="62" height="14" fill="#D7E0F5" rx="4"/><rect x="212" y="106" width="93" height="14" fill="#B9C9EE"/><rect x="305" y="106" width="124" height="14" fill="#92ABE4"/><rect x="429" y="106" width="43" height="14" fill="#C13A3A"/><rect x="472" y="106" width="81" height="14" fill="#6E8FD9"/><rect x="553" y="106" width="93" height="14" fill="#4C74CE" rx="4"/>
+              <rect x="305" y="104" width="167" height="18" fill="none" stroke="#C13A3A" stroke-width="1.4" rx="5"/>
+              <text x="650" y="117" font-size="8.5" fill="#C13A3A">+14d</text>
+            </g>
+            <!-- PJ-021: PoC 短期 -->
+            <g>
+              <rect x="150" y="138" width="62" height="14" fill="#D7E0F5" rx="4"/><rect x="212" y="138" width="155" height="14" fill="#92ABE4"/><rect x="367" y="138" width="31" height="14" fill="#6E8FD9" rx="4"/>
+              <rect x="367" y="136" width="31" height="18" fill="none" stroke="#2E5BFF" stroke-width="1.4" rx="5"/>
+              <text x="405" y="149" font-size="8.5" fill="#7A8699" data-en="PoC ends 7/20">PoC 7/20終了</text>
+            </g>
+            <!-- PJ-029 -->
+            <g>
+              <rect x="150" y="170" width="93" height="14" fill="#D7E0F5" rx="4"/><rect x="243" y="170" width="93" height="14" fill="#B9C9EE"/><rect x="336" y="170" width="155" height="14" fill="#92ABE4"/><rect x="491" y="170" width="93" height="14" fill="#6E8FD9"/><rect x="584" y="170" width="62" height="14" fill="#4C74CE" rx="4"/>
+              <rect x="336" y="168" width="155" height="18" fill="none" stroke="#2E5BFF" stroke-width="1.4" rx="5"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 data-en="Top 5 key topics">重要トピック 上位5件</h3><span class="sub" data-en="Numbers = priority order (decided by code scoring)">番号 = 優先順位(コードのスコアリングで決定)</span><div class="grow"></div><span class="prov code" data-en="Ranking: code">順位: コード</span><span class="prov ai" data-en="Summary: AI">要約文: AI</span></div>
+        <div class="card-b">
+          <ol class="topics">
+            <li><span class="no">1.</span><span data-en="<b>PJ-014 scope deviation remediation</b> — 4/5 change requests proceeding unapproved. Manager review this week."><b>PJ-014 スコープ逸脱の是正</b> — 変更要求4/5件が未承認のまま進行。部門長レビューを今週設定。</span><span class="rag r" style="margin-left:auto"><i>■</i><span data-en="At risk">危険</span></span></li>
+            <li><span class="no">2.</span><span data-en="<b>PJ-014 regulatory-impact risk</b> — 2 external dependencies open at high severity. Due 7/24."><b>PJ-014 法令影響リスク</b> — 外部依存2件が高重大度でOpen。対応期限 7/24。</span><span class="rag r" style="margin-left:auto"><i>■</i><span data-en="At risk">危険</span></span></li>
+            <li><span class="no">3.</span><span data-en="<b>4 uncollected questionnaires</b> — K1/K2/K7 not assessed. Reminder agent auto-collecting (rate 92%)."><b>質問票 未回収4件</b> — K1/K2/K7が未評価。督促エージェントが自動回収中(回収率 92%)。</span><span class="rag x" style="margin-left:auto"><i>◇</i><span data-en="Not assessed">未評価</span></span></li>
+            <li><span class="no">4.</span><span data-en="<b>PJ-007 review backlog</b> — median review wait over the 48h threshold. Trialing a review rotation."><b>PJ-007 レビュー滞留</b> — review wait中央値が閾値48hを超過。レビュー当番制を試行。</span><span class="rag y" style="margin-left:auto"><i>▲</i><span data-en="Caution">注意</span></span></li>
+            <li><span class="no">5.</span><span data-en="<b>PJ-029 progress recovery</b> — progress 66%. Re-assess at the mid-July milestone."><b>PJ-029 進捗リカバリ</b> — 進捗66%。7月中旬のマイルストーンで再判定。</span><span class="rag y" style="margin-left:auto"><i>▲</i><span data-en="Caution">注意</span></span></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================== VIEW 3: 部門長 (PRF-03) ================== -->
+    <section class="view" id="view-manager">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">MANAGER DASHBOARD — WEEKLY + MONTHLY</span>
+          <h1><span data-en="Manager Dashboard">マネージャーダッシュボード</span> <span class="anno">REQ-013 / PRF-03(+DevOps PRF-G)</span></h1>
+        </div>
+        <div class="grow"></div>
+        <div class="period-ctl">
+          <span class="lbl" data-en="Period">表示期間</span>
+          <div class="seg" data-seg="mgr"><button class="on">week</button><button>month</button><button>quarter</button><button>half</button><button>year</button></div>
+          <div class="pager"><button data-en="‹ Prev">‹ 前へ</button><button data-en="Next ›">次へ ›</button></div>
+          <span class="period-label">2026 W29 (7/13 – 7/19)</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <span class="badge info" data-en="12 projects under management / with WoW deltas">配下 12プロジェクト / 前週差分つき</span>
+        <span class="badge wait" data-en="2 items pending approval">承認待ち 2件</span>
+        <span class="anno">GET /app/api/data/manager-summary?periodStart&periodEnd</span>
+      </div>
+
+      <div class="card" style="border-color:rgba(154,103,0,.22)">
+        <div class="card-h">
+          <h3 data-en="Approval queue — reports for executives &amp; investors">承認キュー — 経営・投資家向けレポート</h3>
+          <span class="sub" data-en="Not delivered until approved (built into the delivery job's state machine)">承認まで配信されない(配信ジョブの状態機械に組込み)</span>
+          <div class="grow"></div>
+          <span class="prov human" data-en="Human-approved">人間承認</span>
+          <span class="anno" data-en="REQ-017: after 24h escalates to deputy approver; after another 24h, held with delay notice / AC-017-1: zero pre-approval deliveries, verified via audit_log">REQ-017: 期限24h超過で代理承認者へ、さらに24hで配信保留のまま遅延通知 / AC-017-1: 承認前配信ゼロをaudit_logで機械検証</span>
+        </div>
+        <div class="card-b tight">
+          <div class="appr-item">
+            <div class="doc">
+              <b data-en="Executive monthly report 2026-06 (for PRF-04)">経営月次レポート 2026-06(PRF-04向け)</b>
+              <span data-en="Generated by AGT-04 → verified by AGT-07 2026-07-13 08:02 ・ preview link available">AGT-04生成 → AGT-07検証済 2026-07-13 08:02 ・ プレビューリンクあり</span>
+            </div>
+            <span class="deadline" data-en="14:22 until deadline">期限まで 14:22</span>
+            <button class="btn sm" data-en="Preview">プレビュー</button>
+            <button class="btn sm primary" data-en="Approve">承認する</button>
+            <button class="btn sm danger-ghost" data-en="Send back…" title="差し戻し時はコメント必須">差し戻し…</button>
+          </div>
+          <div class="appr-item">
+            <div class="doc">
+              <b data-en="Investor quarterly report 2026 Q2 (for PRF-05)">投資家四半期レポート 2026 Q2(PRF-05向け)</b>
+              <span data-en="Generated by AGT-04 → verified by AGT-07 2026-07-12 17:44 ・ minimum-disclosure check passed">AGT-04生成 → AGT-07検証済 2026-07-12 17:44 ・ 最小開示チェック合格</span>
+            </div>
+            <span class="deadline over" data-en="Overdue — deputy approver notified">期限超過 — 代理承認者へ通知済</span>
+            <button class="btn sm" data-en="Preview">プレビュー</button>
+            <button class="btn sm primary" data-en="Approve">承認する</button>
+            <button class="btn sm danger-ghost" data-en="Send back…">差し戻し…</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi" data-tip="あなたが担当マネージャーであるactiveプロジェクトの数。" data-tip-en="Number of active projects where you are the assigned manager."><div class="k-label"><span data-en="Total projects">総プロジェクト数</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val">12<small data-en=""> 件</small></div></div>
+        <div class="kpi" data-tip="配下全プロジェクトの課題+アクションの総数(表示期間内)。" data-tip-en="Total issues + actions across managed projects within the shown period."><div class="k-label"><span data-en="Total issues &amp; actions">総課題・アクション</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val">248<small data-en=""> 件</small></div><div class="k-sub"><span class="delta flat" data-en="→ WoW +3">→ 前週 +3</span></div></div>
+        <div class="kpi" data-tip="Open状態の課題+アクション。下のバーンダウンの赤線(残件数)と同一の値。" data-tip-en="Open issues + actions. Equals the red 'remaining' line in the burndown below."><div class="k-label"><span data-en="Remaining issues &amp; actions">残課題・アクション</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val">57<small data-en=""> 件</small></div><div class="k-sub"><span class="delta up" data-en="▲ WoW −9">▲ 前週 −9</span></div></div>
+        <div class="kpi" data-tip="週次報告+質問票の回収率。未回収は経営ビューでの「未評価(グレー)」の直接の要因になります。<span class='t-meta'>AGT-06 回収台帳から算出</span>" data-tip-en="Collection rate of weekly reports + questionnaires. Uncollected items directly cause grey 'Not assessed' on the executive view.<span class='t-meta'>From the AGT-06 collection ledger</span>"><div class="k-label"><span data-en="Report collection coverage">報告・質問票 回収率</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val">91.7<small> %</small></div><div class="k-sub"><span class="delta up" data-en="▲ 33 of 36 collected / 3 reminders running">▲ 36件中33件 回収済 / 督促 3件 実行中</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 data-en="① Color heatmap — projects × weeks">① 色分布ヒートマップ — 配下プロジェクト × 週</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="card-b tight" style="overflow-x:auto;padding-bottom:8px">
+          <table class="hm">
+            <thead><tr><th data-en="Project">プロジェクト</th><th>W25</th><th>W26</th><th>W27</th><th>W28</th><th data-en="W29 (current)">W29(当週)</th></tr></thead>
+            <tbody>
+              <tr><td><span class="id mono">PJ-003</span> <span data-en="Alpha Mfg. Renewal">Alpha 生産管理刷新</span></td>
+                <td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td></tr>
+              <tr><td><span class="id mono">PJ-007</span> <span data-en="Beta Logistics Opt.">Beta 物流最適化</span></td>
+                <td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td></tr>
+              <tr><td><span class="id mono">PJ-014</span> <span data-en="Gamma Core Renewal">Gamma 基幹刷新</span></td>
+                <td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-r-bg);color:var(--rag-r)">■</div></td><td><div class="cell" style="background:var(--rag-r-bg);color:var(--rag-r)">■</div></td><td><div class="cell" style="background:var(--rag-r-bg);color:var(--rag-r)">■</div></td></tr>
+              <tr><td><span class="id mono">PJ-021</span> <span data-en="Delta Forecast PoC">Delta 需要予測PoC</span></td>
+                <td><div class="cell" style="background:var(--rag-x-bg);color:var(--rag-x)">◇</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td></tr>
+              <tr><td><span class="id mono">PJ-029</span> <span data-en="Epsilon Data Platform">Epsilon データ基盤</span></td>
+                <td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-g-bg);color:var(--rag-g)">●</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td><td><div class="cell" style="background:var(--rag-y-bg);color:var(--rag-y)">▲</div></td></tr>
+            </tbody>
+          </table>
+          <div style="padding:6px 18px 10px;font-size:.62rem;color:var(--muted)" data-en="…7 more projects via scroll (design cap: 100)">…残り7プロジェクトはスクロールで表示(設計上限100件)</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-h"><h3 data-en="② Red / Yellow list">② Red / Yellow 一覧</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="card-b tight">
+            <table class="dt">
+              <thead><tr><th>PJ</th><th data-en="Status">状態</th><th data-en="Cause (basis)">要因(判定根拠)</th><th data-en="Owner">担当</th></tr></thead>
+              <tbody>
+                <tr><td class="id">PJ-014</td><td><span class="rag r"><i>■</i><span data-en="At risk">危険</span></span></td><td data-en="Milestone 14 days late / scope change 4/5">マイルストーン遅延14日・scope change 4/5</td><td data-en="Leader: Takahashi">リーダー: 高橋</td></tr>
+                <tr><td class="id">PJ-007</td><td><span class="rag y"><i>▲</i><span data-en="Caution">注意</span></span></td><td data-en="Median review wait 54h (48h threshold)">review wait 中央値 54h(閾値48h)</td><td data-en="Leader: Sato">リーダー: 佐藤</td></tr>
+                <tr><td class="id">PJ-029</td><td><span class="rag y"><i>▲</i><span data-en="Caution">注意</span></span></td><td data-en="Progress 66% (70% threshold)">進捗 66%(閾値70%)</td><td data-en="Leader: Inoue">リーダー: 井上</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3 data-en="③ Cross-project issues">③ 横断課題(複数プロジェクト影響)</h3><div class="grow"></div><span class="prov code" data-en="Extracted: code">抽出: コード</span><span class="prov ai" data-en="Summary: AI">要約: AI</span></div>
+          <div class="card-b tight">
+            <table class="dt">
+              <thead><tr><th data-en="Issue">課題</th><th data-en="Affected PJs">影響PJ</th><th data-en="Severity">重要度</th><th data-en="Escalations">エスカレーション</th></tr></thead>
+              <tbody>
+                <tr><td data-en="Adapting to external API spec change (planned Sep)">外部API仕様変更(9月予定)への追随</td><td class="id">PJ-007, 014, 021</td><td><span class="rag r"><i>■</i><span data-en="High">高</span></span></td><td class="id" data-en="2 records">履歴 2件</td></tr>
+                <tr><td data-en="Shared auth platform certificate renewal">共通認証基盤の証明書更新</td><td class="id">PJ-003, 029</td><td><span class="rag y"><i>▲</i><span data-en="Medium">中</span></span></td><td class="id">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="WBS — Portfolio schedule (weekly, with dependencies)">WBS — 配下プロジェクト工程表(週次・依存関係つき)</h3>
+          <span class="sub" data-en="Current phase + progress %, baseline vs actual, cross-project dependencies">進行中フェーズ+進捗% / 計画対実績 / プロジェクト間依存</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed">コード算出</span>
+          <span class="anno" data-en="Progress % from issue/PR completion; baseline = planned phase end; dependency edges from cross-project issue links">進捗%は課題/PR完了から算出。ベースライン=計画フェーズ終了。依存エッジは横断課題のリンクから生成</span>
+        </div>
+        <div class="chart-legend">
+          <span><i style="background:#DCE4F5"></i><span data-en="Planned">計画</span></span>
+          <span><i style="background:#2E5BFF"></i><span data-en="Progress">実績</span></span>
+          <span><i style="background:#C13A3A"></i><span data-en="Delay">遅延</span></span>
+          <span><i style="background:none;border:1.5px dashed #C7860A;width:9px;height:9px"></i><span data-en="Baseline end">計画終了</span></span>
+          <span><i style="background:#7048C8;height:3px;margin-top:4px;border-radius:6px"></i><span data-en="Dependency">依存</span></span>
+        </div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 212" width="100%" height="212" role="img" aria-label="Weekly WBS Gantt">
+            <g stroke="rgba(14,22,38,.06)"><line x1="150" y1="30" x2="150" y2="184"/><line x1="197" y1="30" x2="197" y2="184"/><line x1="244" y1="30" x2="244" y2="184"/><line x1="291" y1="30" x2="291" y2="184"/><line x1="338" y1="30" x2="338" y2="184"/><line x1="385" y1="30" x2="385" y2="184"/><line x1="432" y1="30" x2="432" y2="184"/><line x1="479" y1="30" x2="479" y2="184"/><line x1="526" y1="30" x2="526" y2="184"/><line x1="573" y1="30" x2="573" y2="184"/><line x1="620" y1="30" x2="620" y2="184"/><line x1="667" y1="30" x2="667" y2="184"/></g>
+            <g fill="#7A8699" font-size="8.5" text-anchor="middle"><text x="173" y="22">W25</text><text x="220" y="22">W26</text><text x="267" y="22">W27</text><text x="314" y="22">W28</text><text x="361" y="22">W29</text><text x="408" y="22">W30</text><text x="455" y="22">W31</text><text x="502" y="22">W32</text><text x="549" y="22">W33</text><text x="596" y="22">W34</text><text x="643" y="22">W35</text><text x="690" y="22">W36</text></g>
+            <line x1="361" y1="28" x2="361" y2="186" stroke="#C2410C" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="361" y="196" font-size="8" fill="#C2410C" text-anchor="middle">TODAY</text>
+            <g font-size="10" fill="#3D4A61">
+              <text x="8" y="52">PJ-003 <tspan fill="#7A8699" font-size="8.5" data-en="Build">開発</tspan></text>
+              <text x="8" y="82">PJ-007 <tspan fill="#7A8699" font-size="8.5" data-en="Build">開発</tspan></text>
+              <text x="8" y="112">PJ-014 <tspan fill="#7A8699" font-size="8.5" data-en="Build">開発</tspan></text>
+              <text x="8" y="142">PJ-021 <tspan fill="#7A8699" font-size="8.5">PoC</tspan></text>
+              <text x="8" y="172">PJ-029 <tspan fill="#7A8699" font-size="8.5" data-en="Build">開発</tspan></text>
+            </g>
+            <!-- PJ-003: 順調 84% -->
+            <rect x="150" y="42" width="329" height="15" rx="7" fill="#DCE4F5"/>
+            <rect x="150" y="42" width="276" height="15" rx="7" fill="#2E5BFF"/>
+            <text x="292" y="53.5" font-size="8.5" fill="#fff" text-anchor="middle">84%</text>
+            <!-- PJ-007: 76% -->
+            <rect x="150" y="72" width="376" height="15" rx="7" fill="#DCE4F5"/>
+            <rect x="150" y="72" width="286" height="15" rx="7" fill="#2E5BFF"/>
+            <text x="292" y="83.5" font-size="8.5" fill="#fff" text-anchor="middle">76%</text>
+            <!-- PJ-014: 52% / 計画W30終了→実績W32 -->
+            <rect x="150" y="102" width="282" height="15" rx="7" fill="#DCE4F5"/>
+            <rect x="150" y="102" width="147" height="15" rx="7" fill="#2E5BFF"/>
+            <rect x="432" y="102" width="94" height="15" rx="7" fill="#C13A3A"/>
+            <line x1="432" y1="98" x2="432" y2="121" stroke="#C7860A" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <text x="223" y="113.5" font-size="8.5" fill="#fff" text-anchor="middle">52%</text>
+            <text x="531" y="113.5" font-size="8.5" fill="#C13A3A">+14d</text>
+            <!-- PJ-021: 91% / W30で終了 -->
+            <rect x="150" y="132" width="258" height="15" rx="7" fill="#DCE4F5"/>
+            <rect x="150" y="132" width="235" height="15" rx="7" fill="#2E5BFF"/>
+            <text x="267" y="143.5" font-size="8.5" fill="#fff" text-anchor="middle">91%</text>
+            <!-- PJ-029: 66% -->
+            <rect x="150" y="162" width="423" height="15" rx="7" fill="#DCE4F5"/>
+            <rect x="150" y="162" width="279" height="15" rx="7" fill="#2E5BFF"/>
+            <text x="292" y="173.5" font-size="8.5" fill="#fff" text-anchor="middle">66%</text>
+            <!-- 依存: PJ-021 PoC完了 → PJ-014 検証工程 -->
+            <path d="M408 139 C 470 139, 490 125, 500 117" fill="none" stroke="#7048C8" stroke-width="1.6" stroke-dasharray="4 3"/>
+            <path d="M500 117 l-7 0 4 6 z" fill="#7048C8"/>
+            <text x="470" y="152" font-size="8" fill="#7048C8" data-en="PoC results → validation input">PoC結果 → 検証入力</text>
+            <!-- 外部APIマイルストーン -->
+            <line x1="690" y1="30" x2="690" y2="184" stroke="#C13A3A" stroke-width="1" stroke-dasharray="4 3"/>
+            <text x="686" y="196" font-size="8" fill="#C13A3A" text-anchor="end" data-en="Ext. API change (Sep) → PJ-007/014/021">外部API変更(9月) → PJ-007/014/021</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 data-en="Burndown (weekly)">バーンダウン(週次)</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="chart-legend"><span><i style="background:#BDCBF4"></i><span data-en="Opened">新規</span></span><span><i style="background:#2E5BFF"></i><span data-en="Resolved">解消</span></span><span><i style="background:#C13A3A;border-radius:6px;height:3px;margin-top:4px"></i><span data-en="Remaining (line)">残件数(線)</span></span></div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 170" width="100%" height="170" role="img" aria-label="Burndown chart">
+            <g stroke="rgba(14,22,38,.06)"><line x1="40" y1="20" x2="700" y2="20"/><line x1="40" y1="62" x2="700" y2="62"/><line x1="40" y1="104" x2="700" y2="104"/><line x1="40" y1="146" x2="700" y2="146"/></g>
+            <g fill="#7A8699" font-size="9"><text x="34" y="23" text-anchor="end">90</text><text x="34" y="65" text-anchor="end">60</text><text x="34" y="107" text-anchor="end">30</text><text x="34" y="149" text-anchor="end">0</text></g>
+            <g fill="#BDCBF4"><rect rx="4" x="80" y="118" width="20" height="28"/><rect rx="4" x="200" y="111" width="20" height="35"/><rect rx="4" x="320" y="122" width="20" height="24"/><rect rx="4" x="440" y="115" width="20" height="31"/><rect rx="4" x="560" y="125" width="20" height="21"/></g>
+            <g fill="#2E5BFF"><rect rx="4" x="104" y="108" width="20" height="38"/><rect rx="4" x="224" y="104" width="20" height="42"/><rect rx="4" x="344" y="99" width="20" height="47"/><rect rx="4" x="464" y="106" width="20" height="40"/><rect rx="4" x="584" y="103" width="20" height="43"/></g>
+            <polyline points="102,34 222,45 342,56 462,66 582,66" fill="none" stroke="#C13A3A" stroke-width="2.2" stroke-linecap="round"/>
+            <g fill="#C13A3A"><circle cx="102" cy="34" r="3.2"/><circle cx="222" cy="45" r="3.2"/><circle cx="342" cy="56" r="3.2"/><circle cx="462" cy="66" r="3.2"/><circle cx="582" cy="66" r="3.2"/></g>
+            <g fill="#7A8699" font-size="9" text-anchor="middle"><text x="102" y="163">W25</text><text x="222" y="163">W26</text><text x="342" y="163">W27</text><text x="462" y="163">W28</text><text x="582" y="163">W29</text></g>
+            <text x="596" y="60" font-size="10" fill="#C13A3A" data-en="57 left">残 57</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="DORA metrics — by service / repository">DORA 指標 — サービス / Repository 別</h3>
+          <span class="sub" data-en="For state awareness within the same scope (not team ranking)">同一スコープ内の状態把握用(チーム間の順位付けではない)</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed (no AI)">コード算出(AI不使用)</span>
+        </div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th data-en="Service / Repo">サービス / Repo</th><th class="num" data-en="Deploys / wk">デプロイ頻度 /週</th><th class="num" data-en="Lead time (h)">変更リードタイム (h)</th><th class="num" data-en="Failure rate (%)">変更失敗率 (%)</th><th class="num" data-en="Recovery (h)">復旧時間 (h)</th><th data-en="Spark (4 wk)">スパーク(4週)</th></tr></thead>
+            <tbody>
+              <tr><td class="id">svc-order-api</td><td class="num">8.0</td><td class="num">6.5</td><td class="num">3.1</td><td class="num">0.8</td>
+                <td><svg width="90" height="16" viewBox="0 0 90 16"><polyline points="2,12 30,9 58,7 88,4" fill="none" stroke="#0E7C52" stroke-width="1.6" stroke-linecap="round"/></svg></td></tr>
+              <tr><td class="id">svc-billing</td><td class="num">3.5</td><td class="num">14.2</td><td class="num">8.9</td><td class="num">2.4</td>
+                <td><svg width="90" height="16" viewBox="0 0 90 16"><polyline points="2,6 30,8 58,11 88,9" fill="none" stroke="#9A6700" stroke-width="1.6" stroke-linecap="round"/></svg></td></tr>
+              <tr><td class="id">web-dashboard</td><td class="num">12.0</td><td class="num">3.8</td><td class="num">1.4</td><td class="num" style="color:var(--muted)" data-en="No data">未取得</td>
+                <td><svg width="90" height="16" viewBox="0 0 90 16"><polyline points="2,10 30,7 58,5 88,3" fill="none" stroke="#0E7C52" stroke-width="1.6" stroke-linecap="round"/></svg></td></tr>
+            </tbody>
+          </table>
+          <div class="principle" style="margin:14px 20px 18px">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" stroke="#7A8699" stroke-width="1.4"/><path d="M5 8.5l2 2 4-5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span data-en="'No data' is the correct display for missing data. Threshold rules TH-001–007 feed these aggregates automatically. Test coverage (the TH-001 promotion criterion), AI-origin PR ratio and AI-PR change failure rate are shown on the DevOps admin view (PRF-G), not here.">「未取得」はデータ欠落の正しい表示。閾値ルール TH-001〜007 の運用結果がここへ自動集計される。テストカバレッジ(TH-001昇格基準)・AI起源PR比率・AI PR変更失敗率は、この画面ではなくDevOps運用管理者ビュー(PRF-G)で表示。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================== VIEW 4: 上長 (PRF-02) ================== -->
+    <section class="view" id="view-leader">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">TEAM LEADER — WEEKLY</span>
+          <h1><span data-en="Team Leader Dashboard">チームリーダーダッシュボード</span> <span class="anno" data-en="REQ-012 / PRF-02 (full info for owned projects)">REQ-012 / PRF-02(担当プロジェクトの全情報)</span></h1>
+        </div>
+        <div class="grow"></div>
+        <div class="period-ctl">
+          <span class="lbl" data-en="Period">表示期間</span>
+          <div class="seg" data-seg="ldr"><button class="on">week</button><button>month</button><button>quarter</button><button>half</button><button>year</button></div>
+          <div class="pager"><button data-en="‹ Prev">‹ 前へ</button><button data-en="Next ›">次へ ›</button></div>
+          <span class="period-label">2026 W29 (7/13 – 7/19)</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <span class="badge info" data-en="Owns: PJ-007 / PJ-021">担当: PJ-007 / PJ-021</span>
+        <span class="badge wait" data-en="Weekly report: requested Wed 09:00 → delivered Mon 08:00">週次報告 締切: 水曜 09:00 依頼 → 月曜 08:00 配信</span>
+      </div>
+
+      <div class="proposal">
+        <div class="p-head">
+          <span class="prov ai" data-en="AI proposal">AI提案</span>
+          <b data-en="Severity upgrade proposal — AGT-03 Analyzer">重要度引き上げの提案 — AGT-03 アナライザー</b>
+          <span class="anno" data-en="REQ-008: never auto-confirmed. PRF-02 decides / AC-008-2: provisionally applied after 72h of no response, with a 'provisional' label">REQ-008: 自動確定しない。確定はPRF-02 / AC-008-2: 72時間無応答で仮適用+「仮」ラベル</span>
+        </div>
+        <p><span class="id mono">PJ-007 / ISS-0482</span> <span data-en="'Negotiate delivery-API rate limit increase' — the impact description covers cost and schedule and affects multiple companies (Beta + 2 subcontractors), so an upgrade from Medium to <b>High</b> is proposed.">「配送APIのレート制限緩和交渉」— 影響記述にコスト・納期が含まれ、対象が複数企業(Beta社・委託2社)に及ぶため、重要度「中 → <b>高</b>」への引き上げを提案します。</span></p>
+        <div class="p-actions">
+          <button class="btn sm primary" data-en="Confirm upgrade to High">高に引き上げを確定</button>
+          <button class="btn sm" data-en="Keep Medium (record reason)">中のまま維持(理由を記録)</button>
+          <span class="timer" data-en="Provisionally applied after 71:12:44 of no response ('provisional' label on reports)">無応答 71:12:44 後に仮適用(レポートに「仮」ラベル)</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-h"><h3 data-en="① PJ Summary — PJ-007 Beta Logistics Opt.">① PJサマリ — PJ-007 Beta 物流最適化</h3><div class="grow"></div><span class="rag y"><i>▲</i><span data-en="Caution">注意</span></span></div>
+          <div class="card-b">
+            <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px">
+              <div><div class="k-label" style="font-size:.64rem;color:var(--muted)" data-en="Remaining">残課題</div><div class="k-val mono" style="font-size:1.4rem;font-weight:600">23</div></div>
+              <div><div class="k-label" style="font-size:.64rem;color:var(--muted)" data-en="Overdue">期限超過</div><div class="k-val mono" style="font-size:1.4rem;font-weight:600;color:var(--rag-r)">4</div></div>
+              <div><div class="k-label" style="font-size:.64rem;color:var(--muted)" data-en="Resolved this wk">今週解消</div><div class="k-val mono" style="font-size:1.4rem;font-weight:600;color:var(--rag-g)">9</div></div>
+            </div>
+            <p style="font-size:.74rem;color:var(--ink-2)"><span class="prov ai" data-en="AI summary">AI要約</span> <span data-en="Caution driven mainly by review backlog. Wait times improving under the rotation trial.">レビュー滞留が主因で注意判定。当番制の試行で待ち時間は改善傾向。</span></p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3 data-en="① PJ Summary — PJ-021 Delta Forecast PoC">① PJサマリ — PJ-021 Delta 需要予測PoC</h3><div class="grow"></div><span class="rag g"><i>●</i><span data-en="On track">順調</span></span></div>
+          <div class="card-b">
+            <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:8px">
+              <div><div class="k-label" style="font-size:.64rem;color:var(--muted)" data-en="Remaining">残課題</div><div class="k-val mono" style="font-size:1.4rem;font-weight:600">6</div></div>
+              <div><div class="k-label" style="font-size:.64rem;color:var(--muted)" data-en="Overdue">期限超過</div><div class="k-val mono" style="font-size:1.4rem;font-weight:600">0</div></div>
+              <div><div class="k-label" style="font-size:.64rem;color:var(--muted)" data-en="Resolved this wk">今週解消</div><div class="k-val mono" style="font-size:1.4rem;font-weight:600;color:var(--rag-g)">5</div></div>
+            </div>
+            <p style="font-size:.74rem;color:var(--ink-2)"><span class="prov ai" data-en="AI summary">AI要約</span> <span data-en="Completion report draft in progress; on track for the PoC report in the 3rd week of July.">完了報告のドラフトが進行中。7月第3週のPoC完了報告に向け順調。</span></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 data-en="② Issue / action detail (with status)">② 課題 / アクション詳細(ステータス付き)</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th>ID</th><th data-en="Title">タイトル</th><th>PJ</th><th data-en="Owner">担当</th><th data-en="Due">期限</th><th data-en="Severity">重要度</th><th data-en="Status">ステータス</th></tr></thead>
+            <tbody>
+              <tr><td class="id">ISS-0482</td><td data-en="Negotiate delivery-API rate limit increase">配送APIのレート制限緩和交渉</td><td class="id">PJ-007</td><td data-en="Yamamoto">山本</td><td class="mono">07/18</td><td><span class="rag y"><i>▲</i><span data-en="Med → High proposed">中 → 高 提案中</span></span></td><td><span class="badge wait" data-en="In progress">対応中</span></td></tr>
+              <tr><td class="id">ISS-0479</td><td data-en="Resolve duplicate warehouse master records">倉庫マスタの重複データ解消</td><td class="id">PJ-007</td><td data-en="Tanaka">田中</td><td class="mono" style="color:var(--rag-r)" data-en="07/11 overdue">07/11 超過</td><td><span class="rag r"><i>■</i><span data-en="High">高</span></span></td><td><span class="badge wait" data-en="In progress">対応中</span></td></tr>
+              <tr><td class="id">ACT-1093</td><td data-en="Minutes for weekly sync with 2 subcontractors">委託2社との週次同期の議事メモ</td><td class="id">PJ-007</td><td data-en="Sasaki">佐々木</td><td class="mono">07/17</td><td><span class="rag g"><i>●</i><span data-en="Low">低</span></span></td><td><span class="badge min" data-en="Not started">未着手</span></td></tr>
+              <tr><td class="id">ISS-0490</td><td data-en="Review forecast-model evaluation metrics">予測モデルの評価指標レビュー</td><td class="id">PJ-021</td><td data-en="Kobayashi">小林</td><td class="mono">07/16</td><td><span class="rag y"><i>▲</i><span data-en="Medium">中</span></span></td><td><span class="badge wait" data-en="In review">レビュー待ち</span></td></tr>
+              <tr><td class="id">ACT-1101</td><td data-en="Draft the PoC completion report">PoC完了報告ドラフト作成</td><td class="id">PJ-021</td><td data-en="Nakamura">中村</td><td class="mono">07/21</td><td><span class="rag y"><i>▲</i><span data-en="Medium">中</span></span></td><td><span class="badge ok" data-en="On track">順調</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="WBS — Task schedule for owned projects (weekly)">WBS — 担当PJ タスク工程表(週次)</h3>
+          <span class="sub" data-en="Task level with owners — full detail is visible for owned projects (PRF-02)">タスク粒度・担当者つき — 担当PJは全情報を閲覧可(PRF-02)</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed">コード算出</span>
+          <span class="anno" data-en="Bars from issue/action start–due dates; overdue = red extension to today; severity-upgrade proposal (ISS-0482) flagged inline">バーは課題/アクションの開始–期限から生成。超過=今日まで赤延伸。重要度引き上げ提案(ISS-0482)はバー上に表示</span>
+        </div>
+        <div class="chart-legend">
+          <span><i style="background:#DCE4F5"></i><span data-en="Planned">計画</span></span>
+          <span><i style="background:#2E5BFF"></i><span data-en="Progress">実績</span></span>
+          <span><i style="background:#C13A3A"></i><span data-en="Overdue">期限超過</span></span>
+          <span><i style="background:#C7860A;border-radius:50%"></i><span data-en="Milestone">マイルストーン</span></span>
+        </div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 196" width="100%" height="196" role="img" aria-label="Task Gantt">
+            <g stroke="rgba(14,22,38,.06)"><line x1="210" y1="30" x2="210" y2="168"/><line x1="334" y1="30" x2="334" y2="168"/><line x1="458" y1="30" x2="458" y2="168"/><line x1="582" y1="30" x2="582" y2="168"/><line x1="706" y1="30" x2="706" y2="168"/></g>
+            <g fill="#7A8699" font-size="8.5" text-anchor="middle"><text x="272" y="22">W28 (7/06–)</text><text x="396" y="22">W29 (7/13–)</text><text x="520" y="22">W30 (7/20–)</text><text x="644" y="22">W31 (7/27–)</text></g>
+            <line x1="387" y1="28" x2="387" y2="170" stroke="#C2410C" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="387" y="180" font-size="8" fill="#C2410C" text-anchor="middle">TODAY 7/16</text>
+            <g font-size="9" fill="#3D4A61">
+              <text x="8" y="52">ISS-0479 <tspan fill="#7A8699" data-en="Tanaka">田中</tspan></text>
+              <text x="8" y="80">ISS-0490 <tspan fill="#7A8699" data-en="Kobayashi">小林</tspan></text>
+              <text x="8" y="108">ACT-1093 <tspan fill="#7A8699" data-en="Sasaki">佐々木</tspan></text>
+              <text x="8" y="136">ISS-0482 <tspan fill="#7A8699" data-en="Yamamoto">山本</tspan></text>
+              <text x="8" y="164">ACT-1101 <tspan fill="#7A8699" data-en="Nakamura">中村</tspan></text>
+            </g>
+            <!-- ISS-0479 期限7/11超過 -->
+            <rect x="210" y="44" width="88" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="210" y="44" width="70" height="14" rx="7" fill="#2E5BFF"/>
+            <rect x="298" y="44" width="89" height="14" rx="7" fill="#C13A3A"/>
+            <text x="392" y="55" font-size="8.5" fill="#C13A3A" data-en="overdue → 2nd reminder">超過 → 督促2回目</text>
+            <!-- ISS-0490 7/10-16 -->
+            <rect x="281" y="72" width="106" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="281" y="72" width="85" height="14" rx="7" fill="#2E5BFF"/>
+            <!-- ACT-1093 7/14-17 -->
+            <rect x="351" y="100" width="54" height="14" rx="7" fill="#DCE4F5"/>
+            <!-- ISS-0482 7/08-18 -->
+            <rect x="245" y="128" width="177" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="245" y="128" width="106" height="14" rx="7" fill="#2E5BFF"/>
+            <text x="428" y="139" font-size="8.5" fill="#7048C8" data-en="severity ↑ proposed">重要度↑提案中</text>
+            <!-- ACT-1101 7/13-21 + PoC diamond -->
+            <rect x="334" y="156" width="159" height="14" rx="7" fill="#DCE4F5"/>
+            <rect x="334" y="156" width="95" height="14" rx="7" fill="#2E5BFF"/>
+            <path d="M493 156 l7 7 -7 7 -7 -7 z" fill="#C7860A"/>
+            <text x="506" y="167" font-size="8.5" fill="#9A6700" data-en="PoC report 7/21">PoC完了報告 7/21</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-h">
+            <h3 data-en="Weekly report collection — AGT-06 Tracker">週次報告 回収状況 — AGT-06 トラッカー</h3>
+            <span class="sub" data-en="From Wed 09:00 request / collected 9 of 12">水曜09:00依頼分 / 回収 9 ⁄ 12名</span>
+            <div class="grow"></div>
+            <span class="prov code" data-en="Code-computed">コード算出</span>
+          </div>
+          <div class="card-b">
+            <ul class="remind">
+              <li><span class="who"><span data-en="Kei Yamamoto">山本 圭</span> <small data-en="PJ-007 / last reminder: 07/13 15:00 (auto)">PJ-007 / 前回督促: 07/13 15:00(自動)</small></span><span class="late" data-en="2 days silent">未回答 2日</span><button class="btn sm" data-en="Delegate reminder">督促を委任</button></li>
+              <li><span class="who"><span data-en="Haruka Sasaki">佐々木 遥</span> <small data-en="PJ-007 / last reminder: none">PJ-007 / 前回督促: なし</small></span><span class="late" data-en="1 day silent">未回答 1日</span><button class="btn sm" data-en="Delegate reminder">督促を委任</button></li>
+              <li><span class="who"><span data-en="Naoki Kobayashi">小林 直樹</span> <small data-en="PJ-021 / last reminder: 07/14 09:00 (auto)">PJ-021 / 前回督促: 07/14 09:00(自動)</small></span><span class="late" data-en="1 day silent">未回答 1日</span><button class="btn sm" data-en="Delegate reminder">督促を委任</button></li>
+            </ul>
+            <div class="principle">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M9 3l5 5-5 5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span data-en="Once delegated, collection runs automatically via Teams + email per the reminder schedule. Every action is written to the audit log.">委任すると督促スケジュール(段階的リマインド)に従いTeams+メールで自動回収。全操作は監査ログに記録。</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3 data-en="Deliveries this week">今週の配信予定</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+          <div class="card-b tight">
+            <table class="dt">
+              <thead><tr><th data-en="Report">レポート</th><th data-en="Cadence">頻度</th><th data-en="Delivery">配信</th><th data-en="Channel">チャネル</th></tr></thead>
+              <tbody>
+                <tr><td data-en="Leader weekly (PJ summary + detail)">リーダー週次(PJサマリ+詳細表)</td><td class="id" data-en="Weekly">週次</td><td class="mono" data-en="Mon 08:00">月 08:00</td><td data-en="Email + Teams card">メール + Teamsカード</td></tr>
+                <tr><td data-en="Member weekly (own actions)">メンバー週次(各自アクション)</td><td class="id" data-en="Weekly">週次</td><td class="mono" data-en="Mon 08:00">月 08:00</td><td data-en="Email (individual)">メール(個別)</td></tr>
+                <tr><td data-en="Manager monthly">マネージャー月次</td><td class="id" data-en="Monthly">月次</td><td class="mono" data-en="1st business day">第1営業日</td><td data-en="Email + Teams card">メール + Teamsカード</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================== VIEW 5: メンバー (PRF-01) ================== -->
+    <section class="view" id="view-member">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">MY DASHBOARD — WEEKLY SNAPSHOT</span>
+          <h1><span data-en="My Dashboard">マイダッシュボード</span> <span class="anno" data-en="REQ-011 / PRF-01 (own info only)">REQ-011 / PRF-01(自分に関わる情報のみ)</span></h1>
+        </div>
+        <div class="grow"></div>
+        <div class="period-ctl">
+          <span class="lbl" data-en="Period">表示期間</span>
+          <div class="seg" data-seg="mbr"><button class="on">week</button><button>month</button><button>quarter</button><button>half</button><button>year</button></div>
+          <div class="pager"><button data-en="‹ Prev">‹ 前へ</button><button data-en="Next ›">次へ ›</button></div>
+          <span class="period-label">2026 W29 (7/13 – 7/19)</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <span class="badge info" data-en="Member of: PJ-007 / PJ-021">参加: PJ-007 / PJ-021</span>
+        <span class="badge min" data-en="Scope: your own items only — other members' issues are hidden">閲覧範囲: 自分の担当のみ — 他者の課題は非表示</span>
+        <span class="badge wait" data-en="Weekly report delivered Mon 08:00 (individual email)">週次レポート配信: 月曜 08:00(メール個別)</span>
+        <span class="anno" data-en="AC-011–015 common-1: hidden-info leakage machine-checked by AGT-07 before delivery (SPEC-INT-051)">AC-011〜015共通-1: 非表示情報の混入はAGT-07が配信前に機械チェック(SPEC-INT-051)</span>
+      </div>
+
+      <div class="card" style="border-color:rgba(46,91,255,.2)">
+        <div class="card-h">
+          <h3 data-en="This week's progress report">今週の進捗報告</h3>
+          <span class="sub" data-en="Requested Wed 09:00 → unfiled reports are auto-collected by reminders">水曜 09:00 に依頼 → 未報告分は督促が自動回収</span>
+          <div class="grow"></div>
+          <span class="prov human" data-en="Self-reported">本人入力</span>
+          <span class="anno" data-en="TOBE-01: request sent every Wed 09:00 JST via Teams + email / PRF-01 reports when delegated">TOBE-01: 毎週水曜09:00 JSTにTeams+メールで報告依頼 / 委任時はPRF-01が報告担当</span>
+        </div>
+        <div class="card-b tight">
+          <div class="appr-item">
+            <div class="doc">
+              <b data-en="PJ-007 Beta Logistics Opt. — weekly report">PJ-007 Beta 物流最適化 — 週次報告</b>
+              <span><span data-en="Request received 07/15 (Wed) 09:00 ・ also filable via Teams command">依頼受信 07/15(水) 09:00 ・ Teamsコマンド</span> <span class="mono" style="background:rgba(14,22,38,.06);border-radius:5px;padding:1px 6px;font-size:.62rem">/report PJ-007</span></span>
+            </div>
+            <span class="deadline" data-en="Not filed — 1st reminder: on due date">未報告 — 督促 1回目 予定: 期限超過当日</span>
+            <button class="btn sm primary" data-en="Report now">今すぐ報告する</button>
+          </div>
+          <div class="appr-item">
+            <div class="doc">
+              <b data-en="PJ-021 Delta Forecast PoC — weekly report">PJ-021 Delta 需要予測PoC — 週次報告</b>
+              <span data-en="Filed 07/15 (Wed) 14:22 ・ via Teams command">報告済 07/15(水) 14:22 ・ Teamsコマンド経由</span>
+            </div>
+            <span class="badge ok" data-en="✓ Filed">✓ 報告済</span>
+            <button class="btn sm" data-en="View report">報告内容を確認</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi" data-tip="自分が担当のアクション総数(表示期間内)。他メンバー分は含まれません。" data-tip-en="Your own actions within the period. Other members' items are never included."><div class="k-label"><span data-en="My actions">担当アクション</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val">9<small data-en=""> 件</small></div></div>
+        <div class="kpi" data-tip="期限を過ぎた自分のアクション。督促は超過当日 → +2営業日 → +5営業日の3回(REQ-009)。" data-tip-en="Your overdue actions. Reminders: on due date → +2 biz days → +5 biz days (REQ-009)."><div class="k-label"><span data-en="Overdue">期限超過</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val" style="color:var(--rag-r)">1<small data-en=""> 件</small></div><div class="k-sub"><span class="delta down" data-en="▼ 2nd reminder sent">▼ 督促 2回目 実施済</span></div></div>
+        <div class="kpi" data-tip="今週中に期限を迎える自分のアクション。" data-tip-en="Your actions due within this week."><div class="k-label"><span data-en="Due this week">今週期限</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val">3<small data-en=""> 件</small></div></div>
+        <div class="kpi" data-tip="今週完了として報告済みのアクション。Teamsコマンドでの報告も含みます。" data-tip-en="Actions reported done this week, including via Teams commands."><div class="k-label"><span data-en="Done this week">今週完了</span> <span class="prov code" data-en="Code-computed">コード算出</span></div><div class="k-val" style="color:var(--rag-g)">4<small data-en=""> 件</small></div><div class="k-sub"><span class="delta up" data-en="▲ WoW +1">▲ 前週 +1</span></div></div>
+      </div>
+
+      <div class="grid-32">
+        <div class="card">
+          <div class="card-h">
+            <h3 data-en="My actions">自分のアクション一覧</h3>
+            <span class="sub" data-en="Sorted by due date (asc) — your own items only">期限昇順 — 自分の担当分のみ表示</span>
+            <div class="grow"></div>
+            <span class="prov code" data-en="Code-computed">コード算出</span>
+            <span class="anno" data-en="REQ-011 layout: one screen = own actions (due-date asc) + own project colors">REQ-011 レイアウト: 1画面 = 自分のアクション一覧(期限昇順)+所属PJの色</span>
+          </div>
+          <div class="card-b tight">
+            <table class="dt">
+              <thead><tr><th data-en="Due ↑">期限 ↑</th><th>ID</th><th data-en="Action">アクション</th><th>PJ</th><th data-en="Status">ステータス</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="mono" style="color:var(--rag-r);font-weight:600" data-en="07/11 overdue">07/11 超過</td>
+                  <td class="id">ACT-1088</td><td data-en="Update rerun procedure for inventory sync batch">在庫連携バッチの再実行手順書 更新</td>
+                  <td><span class="rag y"><i>▲</i>PJ-007</span></td>
+                  <td><span class="badge wait" data-en="In progress">対応中</span> <span class="deadline over" data-en="Reminder 2 of 3, then escalates">督促 2回目 / 3回で上長へ</span></td>
+                  <td><button class="btn sm primary" data-en="Mark done">完了報告</button></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-weight:600">07/16</td>
+                  <td class="id">ACT-1095</td><td data-en="Prepare validation data for forecast model">需要予測モデルの検証データ整備</td>
+                  <td><span class="rag g"><i>●</i>PJ-021</span></td>
+                  <td><span class="badge wait" data-en="In progress">対応中</span></td>
+                  <td><button class="btn sm" data-en="Report progress">進捗を報告</button></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-weight:600">07/17</td>
+                  <td class="id">ACT-1093</td><td data-en="Minutes for weekly sync with 2 subcontractors">委託2社との週次同期の議事メモ</td>
+                  <td><span class="rag y"><i>▲</i>PJ-007</span></td>
+                  <td><span class="badge min" data-en="Not started">未着手</span></td>
+                  <td><button class="btn sm" data-en="Start">着手する</button></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-weight:600">07/18</td>
+                  <td class="id">ACT-1102</td><td data-en="Address review comments on API test cases">API連携テストケースのレビュー対応</td>
+                  <td><span class="rag y"><i>▲</i>PJ-007</span></td>
+                  <td><span class="badge wait" data-en="In review">レビュー待ち</span></td>
+                  <td><button class="btn sm" data-en="Report progress">進捗を報告</button></td>
+                </tr>
+                <tr>
+                  <td class="mono">07/22</td>
+                  <td class="id">ACT-1107</td><td data-en="Polish PoC result charts">PoC結果グラフの体裁調整</td>
+                  <td><span class="rag g"><i>●</i>PJ-021</span></td>
+                  <td><span class="badge min" data-en="Not started">未着手</span></td>
+                  <td><button class="btn sm" data-en="Start">着手する</button></td>
+                </tr>
+                <tr>
+                  <td class="mono">07/24</td>
+                  <td class="id">ACT-1110</td><td data-en="Draft the operations manual">操作マニュアル ドラフト作成</td>
+                  <td><span class="rag g"><i>●</i>PJ-021</span></td>
+                  <td><span class="badge min" data-en="Not started">未着手</span></td>
+                  <td><button class="btn sm" data-en="Start">着手する</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="principle" style="margin:14px 20px 18px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" stroke="#7A8699" stroke-width="1.4"/><path d="M5 8.5l2 2 4-5" stroke="#7A8699" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span data-en="Other members' issues never appear on this screen (filtering enforced at data retrieval). Done/progress reports can also be filed via Teams commands; both paths are audited.">他メンバーの課題・アクションはこの画面に表示されません(権限フィルタはデータ取得側で強制)。完了・進捗の報告はTeamsコマンドからも可能で、どちらの操作も監査ログに記録されます。</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-h"><h3 data-en="My project colors">所属プロジェクトの色</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+            <div class="card-b">
+              <ul class="pdca">
+                <li><span class="id mono">PJ-007</span> <span data-en="Beta Logistics Opt.">Beta 物流最適化</span><span style="margin-left:auto"><span class="rag y"><i>▲</i><span data-en="Caution">注意</span></span></span></li>
+                <li><span class="id mono">PJ-021</span> <span data-en="Delta Forecast PoC">Delta 需要予測PoC</span><span style="margin-left:auto"><span class="rag g"><i>●</i><span data-en="On track">順調</span></span></span></li>
+              </ul>
+              <p style="font-size:.66rem;color:var(--muted);margin-top:10px" data-en="Status at the weekly snapshot. Basis details are managed on leader-and-above screens.">週次スナップショット時点の判定。判定根拠の詳細はリーダー以上の画面で管理されます。</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3 data-en="How reminders work — AGT-06">督促のしくみ — AGT-06</h3><div class="grow"></div><span class="prov code" data-en="Deterministic schedule">決定的スケジュール</span><span class="anno">REQ-009 / AC-009-1,2</span></div>
+            <div class="card-b">
+              <ul class="topics">
+                <li><span class="no">1.</span><span data-en="Teams + email reminder on the <b>day</b> the deadline passes">期限超過の<b>当日</b>にTeams+メールで督促</span></li>
+                <li><span class="no">2.</span><span data-en="2nd reminder after <b>+2 business days</b> if unresolved">未完了なら <b>+2営業日</b> で2回目</span></li>
+                <li><span class="no">3.</span><span data-en="3rd (final) after <b>+5 business days</b>"><b>+5営業日</b> で3回目(最終)</span></li>
+              </ul>
+              <div class="principle">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L15 14H1L8 1Z" stroke="#7A8699" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4" stroke="#7A8699" stroke-width="1.4"/><circle cx="8" cy="12" r=".8" fill="#7A8699"/></svg>
+                <span data-en="If still unresolved after the 3rd reminder, an escalation notice is sent to the project's manager (PRF-03).">3回目の督促後も未完了の場合、当該プロジェクトのマネージャー(PRF-03)へエスカレーション通知が送られます。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3 data-en="Your deliveries">あなたへの配信</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+            <div class="card-b tight">
+              <table class="dt">
+                <thead><tr><th data-en="Report">レポート</th><th data-en="Cadence">頻度</th><th data-en="Delivery">配信</th></tr></thead>
+                <tbody>
+                  <tr><td data-en="Weekly (your action list)">週次(自分のアクション一覧)</td><td class="id" data-en="Weekly">週次</td><td class="mono" data-en="Mon 08:00">月 08:00</td></tr>
+                  <tr><td data-en="Report request (Teams + email)">報告依頼(Teams+メール)</td><td class="id" data-en="Weekly">週次</td><td class="mono" data-en="Wed 09:00">水 09:00</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h">
+          <h3 data-en="My WBS — personal task timeline">マイWBS — 自分のタスクタイムライン</h3>
+          <span class="sub" data-en="Your own actions only, plotted start → due date">自分の担当分のみ・開始 → 期限で表示</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Code-computed">コード算出</span>
+          <span class="anno" data-en="Same source as the action list (REQ-011). Other members' tasks never appear — filtering at data retrieval.">アクション一覧と同一ソース(REQ-011)。他メンバーのタスクは表示されない — 権限フィルタはデータ取得側で強制。</span>
+        </div>
+        <div class="chart-legend">
+          <span><i style="background:#DCE4F5"></i><span data-en="Planned">計画</span></span>
+          <span><i style="background:#2E5BFF"></i><span data-en="Progress">実績</span></span>
+          <span><i style="background:#C13A3A"></i><span data-en="Overdue">期限超過</span></span>
+        </div>
+        <div class="chart-box">
+          <svg viewBox="0 0 720 216" width="100%" height="216" role="img" aria-label="Personal task timeline">
+            <g stroke="rgba(14,22,38,.06)"><line x1="210" y1="30" x2="210" y2="192"/><line x1="334" y1="30" x2="334" y2="192"/><line x1="458" y1="30" x2="458" y2="192"/><line x1="582" y1="30" x2="582" y2="192"/><line x1="706" y1="30" x2="706" y2="192"/></g>
+            <g fill="#7A8699" font-size="8.5" text-anchor="middle"><text x="272" y="22">W28 (7/06–)</text><text x="396" y="22">W29 (7/13–)</text><text x="520" y="22">W30 (7/20–)</text><text x="644" y="22">W31 (7/27–)</text></g>
+            <line x1="387" y1="28" x2="387" y2="194" stroke="#C2410C" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="387" y="204" font-size="8" fill="#C2410C" text-anchor="middle">TODAY 7/16</text>
+            <g font-size="9" fill="#3D4A61">
+              <text x="8" y="51">ACT-1088 <tspan fill="#C13A3A" data-en="due 7/11">期限 7/11</tspan></text>
+              <text x="8" y="79">ACT-1095 <tspan fill="#7A8699" data-en="due 7/16">期限 7/16</tspan></text>
+              <text x="8" y="107">ACT-1093 <tspan fill="#7A8699" data-en="due 7/17">期限 7/17</tspan></text>
+              <text x="8" y="135">ACT-1102 <tspan fill="#7A8699" data-en="due 7/18">期限 7/18</tspan></text>
+              <text x="8" y="163">ACT-1107 <tspan fill="#7A8699" data-en="due 7/22">期限 7/22</tspan></text>
+              <text x="8" y="191">ACT-1110 <tspan fill="#7A8699" data-en="due 7/24">期限 7/24</tspan></text>
+            </g>
+            <!-- ACT-1088: 7/02-7/11 超過 -->
+            <rect x="210" y="43" width="88" height="13" rx="6.5" fill="#DCE4F5"/>
+            <rect x="210" y="43" width="62" height="13" rx="6.5" fill="#2E5BFF"/>
+            <rect x="298" y="43" width="89" height="13" rx="6.5" fill="#C13A3A"/>
+            <text x="392" y="53.5" font-size="8.5" fill="#C13A3A" data-en="reminder 2 of 3, then escalates">督促 2回目 / 3回で上長へ</text>
+            <!-- ACT-1095: 7/09-16 -->
+            <rect x="263" y="71" width="124" height="13" rx="6.5" fill="#DCE4F5"/>
+            <rect x="263" y="71" width="87" height="13" rx="6.5" fill="#2E5BFF"/>
+            <!-- ACT-1093: 7/14-17 -->
+            <rect x="351" y="99" width="54" height="13" rx="6.5" fill="#DCE4F5"/>
+            <!-- ACT-1102: 7/10-18 -->
+            <rect x="281" y="127" width="141" height="13" rx="6.5" fill="#DCE4F5"/>
+            <rect x="281" y="127" width="92" height="13" rx="6.5" fill="#2E5BFF"/>
+            <!-- ACT-1107: 7/17-22 -->
+            <rect x="405" y="155" width="88" height="13" rx="6.5" fill="#DCE4F5"/>
+            <!-- ACT-1110: 7/20-24 -->
+            <rect x="458" y="183" width="70" height="13" rx="6.5" fill="#DCE4F5"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         VIEW 6: 管理コンソール (PrjOps + DevOps 管理者 / PRF-G)
+         根拠: REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008(Excel取込),
+               TH-001〜007(DevOps自動化閾値), ADR-0010(Seven Keys校正),
+               SPEC-INT-066(メトリクス定義), DEC-SPEC-001(設定の正本はGit)
+         ================================================================== -->
+    <section class="view" id="view-admin">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">ADMIN CONSOLE — PRJOPS + DEVOPS</span>
+          <h1><span data-en="Admin Console">管理コンソール</span> <span class="anno">PRF-G / DEC-SPEC-001</span></h1>
+        </div>
+        <div class="grow"></div>
+      </div>
+      <div class="status-row">
+        <span class="badge info" data-tip="このコンソールはプラットフォーム管理者(PRF-G)のみアクセス可。ワイヤーフレームではプレビュー表示" data-tip-en="This console is restricted to platform admins (PRF-G). Shown here as a wireframe preview" data-en="Admins only (PRF-G)">管理者のみ(PRF-G)</span>
+        <span class="badge min" data-tip="<span class='t-title'>DEC-SPEC-001</span>設定の正本はGitリポジトリ。この画面での編集は直接反映されず、レビュー可能な変更提案(PR)を作成します" data-tip-en="<span class='t-title'>DEC-SPEC-001</span>Git is the authoring source of truth. Edits here create reviewable change proposals (PRs), never direct writes" data-en="Source of truth: Git — edits create a PR">設定の正本: Git — 編集はPRを作成</span>
+        <span class="badge wait" data-en="All operations are audit-logged">全操作は監査ログに記録</span>
+      </div>
+
+      <!-- ① Excel → GitHub 取込 -->
+      <div class="card" id="adm-import" style="border-color:rgba(46,91,255,.2)">
+        <div class="card-h">
+          <h3 data-en="Excel → GitHub Import — Issues / Project items / Milestones">Excel → GitHub 取込 — 課題 / Projectアイテム / マイルストーン</h3>
+          <span class="sub" data-en="Stable-key template v1 / idempotent via import ledger / PRs are out of scope">安定キー方式 テンプレートv1 / import台帳で冪等 / PRは取込対象外</span>
+          <div class="grow"></div>
+          <span class="prov code" data-en="Deterministic (no AI)">決定的処理(AI不使用)</span>
+          <span class="anno">REQ-037 / SPEC-INT-063 / AC-037-1 / ADR-0008</span>
+        </div>
+        <div class="card-b">
+          <div class="steps">
+            <span class="step done"><span class="n">1</span><span data-en="Select files">ファイル選択</span></span>
+            <span class="step cur"><span class="n">2</span><span data-en="Dry-run validation">ドライラン検証</span></span>
+            <span class="step"><span class="n">3</span><span data-en="Execute (confirm)">実行(要確認)</span></span>
+            <span class="step"><span class="n">4</span><span data-en="Job progress">ジョブ進捗</span></span>
+          </div>
+
+          <div class="grid-32" style="margin-top:14px">
+            <div>
+              <div class="dropzone" data-tip="テンプレートv1のブック(issues / project_items / milestonesシート)をドラッグ&ドロップ。3つの台帳を別ファイルに分けたまま順次アップロードも可能" data-tip-en="Drag &amp; drop template-v1 workbooks (issues / project_items / milestones sheets). The three ledgers can also stay as separate files uploaded in sequence">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style="margin-bottom:6px"><path d="M12 15V4m0 0l-4 4m4-4l4 4" stroke="#7A8699" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" stroke="#7A8699" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <div><span data-en="Drop .xlsx here or">.xlsx をドロップ、または</span> <button class="btn sm" data-en="Choose files">ファイルを選択</button></div>
+                <div style="font-size:.62rem;margin-top:6px"><span data-en="Max 10 MiB per file ・ ">1ファイル最大10 MiB ・ </span><a href="#" data-en="Download template v1 (3 sheets + _metadata)">テンプレートv1をダウンロード(3シート + _metadata)</a></div>
+              </div>
+
+              <ul class="filerows">
+                <li>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="1.5" width="11" height="13" rx="2" stroke="#0E7C52" stroke-width="1.3"/><path d="M5.5 6l2 2.5L10.5 5M5.5 11h5" stroke="#0E7C52" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  <b>課題管理表_2026Q2.xlsx</b>
+                  <span class="badge min" data-tip="シート: issues(source_key / title / body / labels / milestone)" data-tip-en="Sheet: issues (source_key / title / body / labels / milestone)">issues ・ 124<span data-en=" rows">行</span></span>
+                  <span class="badge ok">✓ <span data-en="Valid">検証OK</span></span>
+                </li>
+                <li>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="1.5" width="11" height="13" rx="2" stroke="#0E7C52" stroke-width="1.3"/><path d="M5.5 6l2 2.5L10.5 5M5.5 11h5" stroke="#0E7C52" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  <b>プロジェクト台帳.xlsx</b>
+                  <span class="badge min" data-tip="シート: project_items(source_key / project_node_id / content_node_id / field_node_id / field_type / value)" data-tip-en="Sheet: project_items (source_key / project_node_id / content_node_id / field_node_id / field_type / value)">project_items ・ 87<span data-en=" rows">行</span></span>
+                  <span class="badge wait">⚠ 1 <span data-en="error">エラー</span></span>
+                </li>
+                <li>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="1.5" width="11" height="13" rx="2" stroke="#9A6700" stroke-width="1.3"/><path d="M8 5v3.5M8 11h.01" stroke="#9A6700" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  <b>マイルストーン.xlsx</b>
+                  <span class="badge min" data-tip="シート: milestones(source_key / title / due_on / description)" data-tip-en="Sheet: milestones (source_key / title / due_on / description)">milestones ・ 12<span data-en=" rows">行</span></span>
+                  <span class="badge wait">⚠ 2 <span data-en="errors">エラー</span></span>
+                </li>
+              </ul>
+
+              <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
+                <label style="font-size:.72rem;color:var(--ink-2)" data-en="Target repo">対象リポジトリ</label>
+                <span class="period-label mono" data-tip="実行はリポジトリallowlist内のみ許可(403で拒否)" data-tip-en="Execution allowed only within the repo allowlist (otherwise 403)">org-a / prjops-data</span>
+                <div class="grow"></div>
+                <button class="btn sm" data-en="Re-run dry-run">ドライラン再実行</button>
+                <label style="display:flex;gap:6px;align-items:center;font-size:.7rem;color:var(--ink-2)"><input type="checkbox" id="confirmImport"> <span data-en="I confirm execution (x-confirm-import)">実行を確認しました(x-confirm-import)</span></label>
+                <button class="btn sm primary" id="execBtn" disabled data-tip="<span class='t-title'>実行不可</span>検証エラーが0件になるまで実行できません(AC-037-1)。エラー行を修正して再度ドライランしてください" data-tip-en="<span class='t-title'>Blocked</span>Execution stays disabled until validation errors reach zero (AC-037-1). Fix the rows and re-run the dry-run" data-en="Execute import">インポート実行</button>
+              </div>
+            </div>
+
+            <div>
+              <div class="card" style="margin-bottom:12px">
+                <div class="card-h" style="padding-bottom:8px"><h3 style="font-size:.78rem" data-en="Dry-run result — 223 rows / 3 errors (blocking)">ドライラン結果 — 223行 / エラー3件(実行ブロック)</h3></div>
+                <div class="card-b tight">
+                  <table class="dt" style="font-size:.72rem">
+                    <thead><tr><th data-en="Sheet">シート</th><th class="num" data-en="Row">行</th><th data-en="Column">列</th><th data-en="Message">内容</th></tr></thead>
+                    <tbody>
+                      <tr><td class="id">milestones</td><td class="num">14</td><td class="id">due_on</td><td data-en="invalid date format ('2026/13/01')">日付形式エラー(「2026/13/01」)</td></tr>
+                      <tr><td class="id">milestones</td><td class="num">9</td><td class="id">title</td><td data-en="required value missing">必須値が未入力</td></tr>
+                      <tr><td class="id">project_items</td><td class="num">3</td><td class="id">field_node_id</td><td data-en="required value missing">必須値が未入力</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card" style="margin-bottom:0">
+                <div class="card-h" style="padding-bottom:8px"><h3 style="font-size:.78rem" data-en="Job in progress — RUN-0143 (org-a/portfolio)">実行中ジョブ — RUN-0143(org-a/portfolio)</h3></div>
+                <div class="card-b">
+                  <div class="progress" data-tip="GitHub書き込みはジョブキュー化。コンテンツ生成のセカンダリリミット(80/分・500/時)を前提に進捗制御(ADR-0008)" data-tip-en="GitHub writes are queued; progress is throttled against secondary rate limits (80/min, 500/h content generation) per ADR-0008"><i style="width:62%"></i></div>
+                  <div style="display:flex;gap:10px;font-size:.66rem;color:var(--muted);margin-top:8px;flex-wrap:wrap">
+                    <span class="mono">312 / 500 <span data-en="rows">行</span> (62%)</span>
+                    <span data-en="Rate-controlled: 80/min ・ 500/h">レート制御中: 80/分 ・ 500/時</span>
+                    <span class="badge min" data-tip="import_ledger(source_key × 対象種別)が冪等の正本。既登録キーはスキップされ重複作成を防ぎます" data-tip-en="import_ledger (source_key × target kind) is the idempotency source of truth; already-registered keys are skipped" data-en="Skipped 18 (already in ledger)">スキップ 18(台帳一致)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="anno-block" data-en="Idempotency: import_ledger is the source of truth (source_key ISS-/PVI-/MS-). The issue-body import marker is a human trace, not a second lookup path. Text passes sanitization at 3 points: before save, before GitHub send, before report render.">冪等性: import_ledgerが正本(source_key ISS-/PVI-/MS-)。Issue本文のimportマーカーは人間向けトレースであり第二の照合経路ではない。取込テキストは保存前/GitHub送信前/レポート表示前の3箇所でサニタイズ。</div>
+        </div>
+      </div>
+
+      <!-- 取込履歴 -->
+      <div class="card" id="adm-history">
+        <div class="card-h"><h3 data-en="Import history">取込履歴</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th>RUN</th><th data-en="When / Who">日時 / 実行者</th><th data-en="Target">対象</th><th class="num" data-en="New">新規</th><th class="num" data-en="Updated">更新</th><th class="num" data-en="Skipped">スキップ</th><th data-en="Result">結果</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="id">RUN-0143</td><td>2026-07-16 09:04 <span class="id">k.yamada</span></td><td class="id">org-a/portfolio</td><td class="num">—</td><td class="num">—</td><td class="num">18</td><td><span class="badge wait" data-en="Running 62%">実行中 62%</span></td><td><button class="btn sm" data-en="Progress">進捗</button></td></tr>
+              <tr><td class="id">RUN-0142</td><td>2026-07-15 14:22 <span class="id">k.yamada</span></td><td class="id">org-a/prjops-data</td><td class="num">96</td><td class="num">21</td><td class="num">18</td><td><span class="badge ok" data-en="Succeeded">成功</span></td><td><button class="btn sm" data-en="Report">レポート</button></td></tr>
+              <tr><td class="id">RUN-0139</td><td>2026-07-10 11:40 <span class="id">t.sato</span></td><td class="id">org-a/prjops-data</td><td class="num">210</td><td class="num">0</td><td class="num">4</td><td><span class="badge wait" data-en="Partial (3 errors)">一部エラー(3)</span></td><td><button class="btn sm" data-en="Error report">エラーレポート</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ② 閾値・自動化ルール -->
+      <div class="card" id="adm-th">
+        <div class="card-h">
+          <h3 data-en="Thresholds &amp; automation rules (DevOps TH-001–007)">閾値・自動化ルール(DevOps TH-001〜007)</h3>
+          <span class="sub" data-en="What agents may do without a human, and when humans must decide">エージェントが人なしで実行できる範囲と、人が決める境界の定義</span>
+          <div class="grow"></div>
+          <span class="prov human" data-en="Human-approved">人間承認</span>
+        </div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th>ID</th><th data-en="Rule">ルール</th><th data-en="Current value">現在値</th><th data-en="Behavior">動作</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="id">TH-001</td><td data-en="Auto-promote to staging">ステージング自動昇格</td><td class="mono" data-en="coverage ≥ 80% + CI green">カバレッジ ≥ 80% + CI green</td><td data-en="AGT-DEP deploys without approval, notifies Teams after">AGT-DEPが承認なしで昇格・事後Teams通知</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td class="id">TH-002</td><td data-en="Production approval window">本番承認の時限</td><td class="mono" data-en="30 min escalate / 60 min abort">30分エスカレ / 60分自動中止</td><td data-en="AGT-CHG approval package → leader+ approves → AGT-DEP executes">AGT-CHG承認パッケージ → リーダー以上承認 → AGT-DEP実行</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td class="id">TH-003</td><td data-en="Auto-rollback">自動ロールバック</td><td class="mono" data-en="error rate / latency breach">エラー率・レイテンシ逸脱</td><td data-en="Rollback to last stable, file Sev2, notify Teams">直前安定版へ復帰・Sev2起票・即時通知</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td class="id">TH-004</td><td data-en="Incident triage SLA">インシデント分類SLA</td><td class="mono">Sev1–4 / SLA</td><td data-en="AGT-INC classifies, estimates impacted PJs, files issue">AGT-INCが重大度分類・影響PJ推定・Issue起票</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td class="id">TH-005</td><td data-en="No-response escalation">未応答エスカレーション</td><td class="mono" data-en="stepwise">段階的</td><td data-en="Auto-escalates unanswered items">未応答時に自動エスカレーション</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td class="id">TH-006</td><td data-en="Alert auto-close candidates">アラート自動クローズ候補</td><td class="mono" data-en="human confirm ≤ 24h">人の確認 24時間以内</td><td data-en="Candidates close only after human confirmation; otherwise stay open">充足分を候補化 → 人の確認後クローズ、無確認はオープン維持</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td class="id">TH-007</td><td data-en="Permission expiry">権限の失効</td><td class="mono" data-en="per environment">環境別</td><td data-en="AGT-SEC intake → human grant (leader/manager by env) → auto-expiry">AGT-SEC受付 → 人が付与(環境別) → 自動失効</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Seven Keys 校正 -->
+      <div class="card" id="adm-sk">
+        <div class="card-h"><h3 data-en="Seven Keys calibration (ADR-0010)">Seven Keys 校正閾値(ADR-0010)</h3><span class="sub" data-en="Initial calibration — reviewed against operating history">初期校正値 — 運用実績で見直す</span><div class="grow"></div><span class="prov human" data-en="Human-approved">人間承認</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th data-en="Key / signal">キー / シグナル</th><th data-en="Green">● 順調</th><th data-en="Yellow">▲ 注意</th><th data-en="Red">■ 危険</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>K3 <span class="id" data-en="progress vs plan">進捗率</span></td><td class="mono">≥ 70%</td><td class="mono">50–69%</td><td class="mono">&lt; 50%</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td>K4 <span class="id">scope change</span></td><td class="mono">≤ 2/5</td><td class="mono">3/5</td><td class="mono">≥ 4/5</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+              <tr><td>K5 <span class="id">review wait</span></td><td class="mono">&lt; 48h</td><td class="mono">48–72h</td><td class="mono">&gt; 72h</td><td><button class="btn sm th-edit" data-en="Propose change (PR)">変更提案(PR)</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ③ 配信スケジュール -->
+      <div class="card" id="adm-sched">
+        <div class="card-h"><h3 data-en="Report schedules &amp; approval gates">配信スケジュール & 承認ゲート</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span><span class="anno">REQ-010〜017 / TOBE-01</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th data-en="Profile">プロファイル</th><th data-en="Cadence">頻度</th><th data-en="Schedule (JST)">スケジュール(JST)</th><th data-en="Channel">チャネル</th><th data-en="Approval gate">承認ゲート</th></tr></thead>
+            <tbody>
+              <tr><td>PRF-01 <span data-en="Member">メンバー</span></td><td class="id" data-en="Weekly">週次</td><td class="mono" data-en="Mon 08:00 (request Wed 09:00)">月 08:00(依頼 水 09:00)</td><td data-en="Email (individual)">メール(個別)</td><td><span class="badge min" data-en="Verified (AGT-07)">検証のみ(AGT-07)</span></td></tr>
+              <tr><td>PRF-02 <span data-en="Leader">リーダー</span></td><td class="id" data-en="Weekly">週次</td><td class="mono" data-en="Mon 08:00">月 08:00</td><td data-en="Email + Teams card">メール + Teamsカード</td><td><span class="badge min" data-en="Verified (AGT-07)">検証のみ(AGT-07)</span></td></tr>
+              <tr><td>PRF-03 <span data-en="Manager">マネージャー</span></td><td class="id" data-en="Weekly + Monthly">週次+月次</td><td class="mono" data-en="Mon 08:00 / 1st biz day">月 08:00 / 第1営業日</td><td data-en="Email + Teams card">メール + Teamsカード</td><td><span class="badge min" data-en="Verified (AGT-07)">検証のみ(AGT-07)</span></td></tr>
+              <tr><td>PRF-04 <span data-en="Executive">経営陣</span></td><td class="id" data-en="Monthly">月次</td><td class="mono" data-en="1st business day">第1営業日</td><td data-en="Email (HTML)">メール(HTML)</td><td><span class="badge wait" data-tip="PRF-03の承認まで配信されない。24h超過で代理承認者、さらに24hで配信保留+遅延通知(REQ-017)" data-tip-en="Held until PRF-03 approval; deputy after 24h, then held with delay notice (REQ-017)" data-en="PRF-03 approval required">PRF-03承認 必須</span></td></tr>
+              <tr><td>PRF-05 <span data-en="Investor">投資元</span></td><td class="id" data-en="Quarterly">四半期</td><td class="mono" data-en="5th biz day of quarter">四半期第5営業日</td><td data-en="Email (HTML)">メール(HTML)</td><td><span class="badge wait" data-en="PRF-03 approval + min-disclosure check">PRF-03承認 + 最小開示チェック</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- メトリクス定義テーブル -->
+      <div class="card" id="adm-metrics">
+        <div class="card-h"><h3 data-en="Metric definition table (SPEC-INT-066)">メトリクス定義テーブル(SPEC-INT-066)</h3><span class="sub" data-en="Versioned — the ILPA 2027 revision is absorbed by adding a version">版管理 — ILPA 2027改訂は版追加で吸収</span><div class="grow"></div><span class="prov human" data-en="Human-approved">人間承認</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th data-en="Version">版</th><th data-en="Baseline">ベースライン</th><th class="num" data-en="Metrics">指標数</th><th data-en="Effective from">適用開始</th><th data-en="Status">状態</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="id">v1</td><td>ILPA 2019</td><td class="num">4 + <span data-en="custom">固有</span></td><td class="mono">2026-04-01</td><td><span class="badge ok" data-en="Active">適用中</span></td><td><button class="btn sm" data-en="View definitions">定義を表示</button></td></tr>
+              <tr><td class="id">v2</td><td>ILPA 2027 <span data-en="(draft)">(ドラフト)</span></td><td class="num">—</td><td class="mono" data-en="TBD">未定</td><td><span class="badge min" data-en="Draft">下書き</span></td><td><button class="btn sm th-edit" data-en="Propose version (PR)">版を提案(PR)</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ④ エージェント -->
+      <div class="card" id="adm-agents">
+        <div class="card-h"><h3 data-en="Agents">エージェント</h3><span class="sub" data-en="Deterministic where possible; text generation only in report slots">可能な限り決定的に。生成はレポートの文章スロットのみ</span><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th>ID</th><th data-en="Role">役割</th><th data-en="Last run">最終実行</th><th class="num" data-en="24h success">24h成功率</th><th data-en="State">状態</th></tr></thead>
+            <tbody>
+              <tr><td class="id">AGT-01</td><td data-en="Intake (Teams / email → structured)">インテーク(Teams/メール → 構造化)</td><td class="mono">09:41</td><td class="num">99.2%</td><td><span class="badge ok" data-en="Active">稼働</span></td></tr>
+              <tr><td class="id">AGT-03</td><td data-en="Analyzer (severity proposals — humans confirm)">アナライザー(重要度提案 — 確定は人)</td><td class="mono">09:00</td><td class="num">100%</td><td><span class="badge ok" data-en="Active">稼働</span></td></tr>
+              <tr><td class="id">AGT-04</td><td data-en="Reporter (text slots only)">レポーター(文章スロットのみ生成)</td><td class="mono" data-en="07/16 08:00">07/16 08:00</td><td class="num">100%</td><td><span class="badge ok" data-en="Active">稼働</span></td></tr>
+              <tr><td class="id">AGT-06</td><td data-en="Tracker (reminders, deterministic schedule)">トラッカー(督促・決定的スケジュール)</td><td class="mono">09:00</td><td class="num">100%</td><td><span class="badge ok" data-en="Active">稼働</span></td></tr>
+              <tr><td class="id">AGT-07</td><td data-en="Verifier (schema / disclosure checks before delivery)">ベリファイア(配信前スキーマ/開示検証)</td><td class="mono" data-en="07/16 08:02">07/16 08:02</td><td class="num">100%</td><td><span class="badge ok" data-en="Active">稼働</span></td></tr>
+              <tr><td class="id">AGT-DEP</td><td data-en="Deploy (TH-001/002/003)">デプロイ(TH-001/002/003)</td><td class="mono" data-en="07/15 22:10">07/15 22:10</td><td class="num">98.4%</td><td><span class="badge ok" data-en="Active">稼働</span></td></tr>
+              <tr><td class="id">AGT-INC</td><td data-en="Incident (triage per TH-004)">インシデント(TH-004分類)</td><td class="mono" data-en="07/14 03:22">07/14 03:22</td><td class="num">100%</td><td><span class="badge min" data-en="Standby">待機</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ⑤ 連携・マスタ -->
+      <div class="card" id="adm-intg">
+        <div class="card-h"><h3 data-en="Integrations &amp; masters">連携・マスタ</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th data-en="Connection">接続</th><th data-en="Status">状態</th><th data-en="Detail">詳細</th></tr></thead>
+            <tbody>
+              <tr><td>GitHub App</td><td><span class="badge ok" data-en="Connected">接続済</span></td><td data-en="Import allowlist: org-a/prjops-data, org-a/portfolio ・ secondary rate limits observed">取込allowlist: org-a/prjops-data, org-a/portfolio ・ セカンダリリミット順守</td></tr>
+              <tr><td>Microsoft Teams</td><td><span class="badge ok" data-en="Connected">接続済</span></td><td data-en="Adaptive cards + /report commands ・ webhook healthy">アダプティブカード + /reportコマンド ・ Webhook正常</td></tr>
+              <tr><td>Outlook / Exchange</td><td><span class="badge ok" data-en="Connected">接続済</span></td><td data-en="HTML report delivery (individual)">HTMLレポート個別配信</td></tr>
+              <tr><td>Entra ID</td><td><span class="badge ok" data-en="Connected">接続済</span></td><td data-en="SSO + stakeholder sync (daily) ・ ST 246 people / ORG 18 companies">SSO + 関係者同期(日次) ・ ST 246名 / ORG 18社</td></tr>
+              <tr><td>PostgreSQL</td><td><span class="badge ok" data-en="Healthy">正常</span></td><td data-en="Append-only: audit_log / seven_keys_snapshots / import_ledger">追記専用: audit_log / seven_keys_snapshots / import_ledger</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ⑥ 監査ログ -->
+      <div class="card" id="adm-audit">
+        <div class="card-h"><h3 data-en="Audit log (append-only)">監査ログ(追記専用)</h3><div class="grow"></div><span class="prov code" data-en="Code-computed">コード算出</span></div>
+        <div class="card-b tight">
+          <table class="dt">
+            <thead><tr><th data-en="Time">時刻</th><th data-en="Actor">主体</th><th data-en="Action">操作</th><th data-en="Target">対象</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">07/16 09:12</td><td class="id">t.sato (PRF-03)</td><td data-en="Report approved">レポート承認</td><td class="id">RPT-2026-06-EXEC</td></tr>
+              <tr><td class="mono">07/16 09:04</td><td class="id">k.yamada (PRF-G)</td><td>xlsx-import execute</td><td class="id">RUN-0143</td></tr>
+              <tr><td class="mono">07/16 08:02</td><td class="id">AGT-07</td><td data-en="Pre-delivery verification passed">配信前検証 合格</td><td class="id">RPT-2026-W29-*</td></tr>
+              <tr><td class="mono">07/16 09:00</td><td class="id">AGT-06</td><td data-en="Reminders sent (3)">督促送信(3件)</td><td class="id">PJ-007 / PJ-021</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============================ フローティング ページエージェント ============================ -->
+<div class="agent-panel" id="agentPanel" role="dialog" aria-label="ページエージェント" aria-modal="false">
+  <div class="agent-h">
+    <span class="a-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.4 3.6 3.6 1.4-3.6 1.4L8 11.5 6.6 7.9 3 6.5l3.6-1.4L8 1.5z" fill="#fff"/><circle cx="12.8" cy="12.4" r="1.6" fill="#fff" opacity=".85"/></svg>
+    </span>
+    <div>
+      <b data-en="Page Agent">ページエージェント</b>
+      <p><span data-en="Describe the view you want in plain language. Figures are never generated in prose — the agent calls view-switch tools instead.">見たい画面を自然文で。数値は本文で生成せず、表示切替ツールを呼びます。</span><span class="anno" data-en="ADR-0013: returns ViewSpec only">ADR-0013: ViewSpecのみ返却</span></p>
+    </div>
+  </div>
+  <div class="agent-body" id="agentBody">
+    <div class="msg user" data-en="Which projects worsened since last month?">先月から悪化したプロジェクトはどこ?</div>
+    <div class="msg bot">
+      <details class="reasoning"><summary data-en="▸ Reasoning">▸ 推論</summary><div data-en="Intent: check MoM worsened keys. Generating figures in prose is forbidden, so call the Seven Keys view tool and let the data view carry the judgment.">前月比の悪化キーを確認したい意図。数値の生成は禁止されているため、Seven Keys表示ツールを呼び、判断はデータ表示に委ねる。</div></details>
+      <div class="toolcard">
+        <div class="t-h">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="4" stroke="#2E5BFF" stroke-width="1.4"/><path d="M5 8h6M8 5v6" stroke="#2E5BFF" stroke-width="1.4" stroke-linecap="round"/></svg>
+          tool: show_seven_keys → ViewSpec
+        </div>
+        <div class="t-b"><span data-en="Returns:">返却:</span> <code>{ kind: "executiveSummary" }</code><br><span data-en="Data fetch:">データ取得:</span> <code>/app/api/data/executive-summary</code><span data-en=" (code-computed values)">(コード算出値)</span></div>
+        <button class="btn sm primary pin" id="pinBtn" data-en="Pin to page">ページに固定</button>
+      </div>
+      <div class="bubble" style="margin-top:8px" data-en="Displayed the Seven Keys matrix. Improved/worsened keys are listed in the MoM PDCA panel.">Seven Keysマトリクスを表示しました。前月比PDCAパネルに改善・悪化キーが一覧されています。</div>
+    </div>
+  </div>
+  <div class="agent-sugg" id="agentSugg"></div>
+  <div class="agent-input">
+    <input type="text" id="agentInput" placeholder="例: 危険のプロジェクトだけ見せて" data-ph-en="e.g. Show only at-risk projects" data-ph-ja="例: 危険のプロジェクトだけ見せて" aria-label="ページエージェントへの質問">
+    <button class="btn primary sm" data-en="Send">送信</button>
+  </div>
+  <p class="agent-note" data-en="Permission filters applied: only views allowed for this persona can be shown. Conversations are recorded in the audit log.">権限フィルタ適用済み: このペルソナで見られる画面のみ切替可能。会話は監査ログに記録されます。</p>
+</div>
+
+<button class="agent-fab" id="agentFab" aria-expanded="false" aria-controls="agentPanel" data-tip="ページエージェント — 自然文で画面を切替 (⌘K / Ctrl+K)" data-tip-en="Page Agent — switch views in plain language (⌘K / Ctrl+K)">
+  <span class="badge-dot" aria-hidden="true"></span>
+  <svg class="ic-spark" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 3l2 5.2L19.2 10 14 12l-2 5.2L10 12 4.8 10 10 8.2 12 3z" fill="#fff"/>
+    <circle cx="18.6" cy="17.8" r="2.1" fill="#fff" opacity=".85"/>
+  </svg>
+  <svg class="ic-close" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path d="M5 5l10 10M15 5L5 15" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+<footer class="footer">
+  <span><b>AI Ops Platform</b> — <span data-en="Generated 2026-07-14 09:00 JST / target period follows the header">生成日時: 2026-07-14 09:00 JST / 対象期間はヘッダ表示に従う</span></span>
+  <span data-en="Contact: AI CoE (Teams: #ai-ops-support)">問い合わせ: AI CoE(Teams: #ai-ops-support)</span>
+  <span style="margin-left:auto" class="conf">CONFIDENTIAL — <span data-en="Internal use only">社外秘</span></span>
+</footer>
+
+<script>
+/* ============================================================
+   ワイヤーフレーム用の最小インタラクション(実装ではNext.js側)
+   - REQ-016: ja/en切替はラベル文言のみ。数値・色判定は言語間で完全一致
+   ============================================================ */
+let lang='ja';
+
+const NAV = {
+  investor:{
+    ja:[{g:"INVESTOR",items:[["投資家レポート",true],["KPIテーブル(ILPA)"],["マイルストーン"],["WBS工程表"],["高重大度リスク"],["時系列"]]},{g:"アクセス",items:[["Seven Keys",false,"権限外"],["マネージャービュー",false,"権限外"]]}],
+    en:[{g:"INVESTOR",items:[["Investor Report",true],["KPI Table (ILPA)"],["Milestones"],["WBS Schedule"],["High-severity Risks"],["Time Series"]]},{g:"ACCESS",items:[["Seven Keys",false,"No access"],["Manager View",false,"No access"]]}]
+  },
+  executive:{
+    ja:[{g:"EXECUTIVE",items:[["経営ダッシュボード",true],["Seven Keys"],["前月比 PDCA"],["ポートフォリオWBS"],["重要トピック"],["時系列"]]},{g:"アクセス",items:[["投資家KPI",false,"権限外"],["承認キュー",false,"権限外"]]}],
+    en:[{g:"EXECUTIVE",items:[["Executive Dashboard",true],["Seven Keys"],["MoM PDCA"],["Portfolio WBS"],["Key Topics"],["Time Series"]]},{g:"ACCESS",items:[["Investor KPIs",false,"No access"],["Approval Queue",false,"No access"]]}]
+  },
+  manager:{
+    ja:[{g:"MANAGER",items:[["マネージャーダッシュボード",true],["承認キュー"],["ヒートマップ"],["WBS工程表"],["バーンダウン"],["DORA指標"],["横断課題"],["Excel取込"]]},{g:"アクセス",items:[["Seven Keys",false,"権限外"]]}],
+    en:[{g:"MANAGER",items:[["Manager Dashboard",true],["Approval Queue"],["Heatmap"],["WBS Schedule"],["Burndown"],["DORA Metrics"],["Cross-project Issues"],["Excel Import"]]},{g:"ACCESS",items:[["Seven Keys",false,"No access"]]}]
+  },
+  leader:{
+    ja:[{g:"LEADER",items:[["チームダッシュボード",true],["PJサマリ"],["課題・アクション"],["タスクWBS"],["週次報告 回収"],["配信予定"]]},{g:"アクセス",items:[["横断ビュー",false,"権限外"]]}],
+    en:[{g:"LEADER",items:[["Team Dashboard",true],["PJ Summary"],["Issues & Actions"],["Task WBS"],["Report Collection"],["Deliveries"]]},{g:"ACCESS",items:[["Cross-project View",false,"No access"]]}]
+  },
+  member:{
+    ja:[{g:"MEMBER",items:[["マイダッシュボード",true],["自分のアクション"],["マイWBS"],["進捗報告"],["配信予定"]]},{g:"アクセス",items:[["チームの課題",false,"権限外"],["横断ビュー",false,"権限外"]]}],
+    en:[{g:"MEMBER",items:[["My Dashboard",true],["My Actions"],["My WBS"],["Progress Report"],["Deliveries"]]},{g:"ACCESS",items:[["Team Issues",false,"No access"],["Cross-project View",false,"No access"]]}]
+  },
+  admin:{
+    ja:[{g:"ADMIN / PRF-G",items:[["Excel → GitHub 取込",true,null,"adm-import"],["取込履歴",false,null,"adm-history"],["閾値・自動化ルール",false,null,"adm-th"],["Seven Keys 校正",false,null,"adm-sk"],["配信スケジュール",false,null,"adm-sched"],["メトリクス定義",false,null,"adm-metrics"],["エージェント",false,null,"adm-agents"],["連携・マスタ",false,null,"adm-intg"],["監査ログ",false,null,"adm-audit"]]}],
+    en:[{g:"ADMIN / PRF-G",items:[["Excel → GitHub Import",true,null,"adm-import"],["Import History",false,null,"adm-history"],["Thresholds & Rules",false,null,"adm-th"],["Seven Keys Calibration",false,null,"adm-sk"],["Report Schedules",false,null,"adm-sched"],["Metric Definitions",false,null,"adm-metrics"],["Agents",false,null,"adm-agents"],["Integrations & Masters",false,null,"adm-intg"],["Audit Log",false,null,"adm-audit"]]}]
+  }
+};
+const SUGG = {
+  investor:{ja:["投資先KPIを一覧で","遅延しているマイルストーンは?","四半期の時系列を見せて"],en:["List portfolio KPIs","Which milestones are late?","Show quarterly time series"]},
+  executive:{ja:["危険のプロジェクトだけ","未評価の理由は?","時系列を半期で"],en:["Only at-risk projects","Why are some not assessed?","Time series by half-year"]},
+  manager:{ja:["DORAをrepo別に","バーンダウンを28日で","承認待ちを見せて"],en:["DORA by repo","Burndown over 28 days","Show pending approvals"]},
+  leader:{ja:["期限超過の課題だけ","未回答メンバーは?","PJ-007のサマリ"],en:["Only overdue issues","Who hasn't reported?","Summary of PJ-007"]},
+  member:{ja:["期限が近い順に","超過している担当は?","今週の報告状況"],en:["Sort by nearest due date","What's overdue for me?","This week's report status"]},
+  admin:{ja:["取込エラーの一覧","TH-001の現在値は?","今日の監査ログ"],en:["List import errors","Current TH-001 value?","Today's audit log"]}
+};
+
+let currentView='executive';
+const navRail=document.getElementById('navRail');
+const agentSugg=document.getElementById('agentSugg');
+const lockSvg='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" stroke="currentColor" stroke-width="1.3"/></svg>';
+const dotSvg='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="4.5" height="4.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg>';
+
+function renderNav(view){
+  navRail.innerHTML = NAV[view][lang].map(gr=>`
+    <div class="nav-group">
+      <h6>${gr.g}</h6>
+      ${gr.items.map(([label,on,lock,target])=>`
+        <button class="nav-item ${on?'on':''} ${lock?'locked':''}" ${target?`data-target="${target}"`:''} ${lock?`aria-disabled="true" data-tip="${lang==='en'?'Not available for this profile — visibility scope is fixed by REQ-011–015 and enforced at data retrieval':'このプロファイルでは閲覧できません — 閲覧範囲はREQ-011〜015で規定され、データ取得側で強制されます'}"`:''}>
+          ${lock?lockSvg:dotSvg}<span>${label}</span>${lock?`<span class="lock">${lock}</span>`:''}
+        </button>`).join('')}
+    </div>`).join('');
+  navRail.querySelectorAll('.nav-item[data-target]').forEach(btn=>btn.addEventListener('click',()=>{
+    const el=document.getElementById(btn.dataset.target);
+    if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}
+    navRail.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('on'));
+    btn.classList.add('on');
+  }));
+  agentSugg.innerHTML = SUGG[view][lang].map(q=>`<button class="chip-q">${q}</button>`).join('');
+}
+
+/* ペルソナ切替 + スライドインジケータ */
+const tabsWrap=document.getElementById('personaTabs');
+const glider=document.getElementById('tabGlider');
+function moveGlider(){
+  const on=tabsWrap.querySelector('.persona-tab.on');
+  if(!on) return;
+  glider.style.left=on.offsetLeft+'px';
+  glider.style.width=on.offsetWidth+'px';
+}
+function switchView(view){
+  currentView=view;
+  const isAdmin=view==='admin';
+  document.querySelectorAll('.persona-tab').forEach(t=>t.classList.toggle('on',!isAdmin&&t.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+view));
+  glider.style.opacity=isAdmin?'0':'1';
+  const ab=document.getElementById('adminBtn');
+  if(ab)ab.classList.toggle('on',isAdmin);
+  renderNav(view);moveGlider();
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('.persona-tab').forEach(t=>t.addEventListener('click',()=>switchView(t.dataset.view)));
+renderNav(currentView);
+window.addEventListener('resize',moveGlider);
+requestAnimationFrame(moveGlider);
+
+/* 左メニュー 開閉(閉じるとmainがmargin:autoで自動再センタリング) */
+const navToggle=document.getElementById('navToggle');
+navToggle.addEventListener('click',()=>{
+  const closed=document.body.classList.toggle('nav-closed');
+  navToggle.setAttribute('aria-pressed',closed);
+  setTimeout(moveGlider,320);
+});
+
+/* 言語切替(REQ-016: ラベルのみ切替。数値・色判定は不変) */
+function setLang(l){
+  lang=l;
+  document.documentElement.lang=l;
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    if(el.dataset.ja===undefined) el.dataset.ja=el.innerHTML;
+    el.innerHTML=(l==='en')?el.dataset.en:el.dataset.ja;
+  });
+  const inp=document.getElementById('agentInput');
+  inp.placeholder=(l==='en')?inp.dataset.phEn:inp.dataset.phJa;
+  document.querySelectorAll('.lang-seg button').forEach(b=>b.classList.toggle('on',b.dataset.lang===l));
+  renderNav(currentView);
+  requestAnimationFrame(moveGlider);
+}
+document.querySelectorAll('.lang-seg button').forEach(b=>b.addEventListener('click',()=>setLang(b.dataset.lang)));
+
+/* 期間セグメント(表示のみ) */
+document.querySelectorAll('.seg').forEach(seg=>{
+  seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+  }));
+});
+
+/* 仕様注釈トグル */
+const annoBtn=document.getElementById('annoToggle');
+annoBtn.addEventListener('click',()=>{
+  const on=document.body.classList.toggle('show-anno');
+  annoBtn.classList.toggle('on',on);
+  annoBtn.setAttribute('aria-pressed',on);
+});
+
+/* フローティング ページエージェント */
+const fab=document.getElementById('agentFab');
+const panel=document.getElementById('agentPanel');
+function setAgent(open){
+  panel.classList.toggle('open',open);
+  fab.classList.toggle('open',open);
+  fab.setAttribute('aria-expanded',open);
+  if(open) document.getElementById('agentInput').focus();
+}
+fab.addEventListener('click',()=>setAgent(!panel.classList.contains('open')));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&panel.classList.contains('open')) setAgent(false);
+});
+
+/* ページに固定(デモ) */
+const pinBtn=document.getElementById('pinBtn');
+pinBtn.addEventListener('click',()=>{
+  pinBtn.textContent=(lang==='en')?'✓ Pinned — fetching /app/api/data/executive-summary':'✓ 固定済み — /app/api/data/executive-summary を取得';
+  pinBtn.disabled=true;pinBtn.classList.remove('primary');
+});
+
+/* ==== グローバル ツールチップ(hover/focusで詳細ポップアップ) ==== */
+const tipbox=document.createElement('div');
+tipbox.id='tipbox';tipbox.setAttribute('role','tooltip');document.body.appendChild(tipbox);
+let tipTarget=null;
+function showTip(el){
+  const txt=(lang==='en'&&el.dataset.tipEn)?el.dataset.tipEn:el.dataset.tip;
+  if(!txt) return;
+  tipTarget=el;tipbox.innerHTML=txt;
+  tipbox.style.left='-9999px';tipbox.style.top='0px';tipbox.classList.add('show');
+  const r=el.getBoundingClientRect();
+  const tw=tipbox.offsetWidth, th=tipbox.offsetHeight;
+  let x=r.left+r.width/2-tw/2;
+  x=Math.max(8,Math.min(x,innerWidth-tw-8));
+  let y=r.top-th-10, below=false;
+  if(y<70){y=r.bottom+10;below=true;}
+  tipbox.classList.toggle('below',below);
+  tipbox.style.setProperty('--ax',(r.left+r.width/2-x)+'px');
+  tipbox.style.left=x+'px';tipbox.style.top=y+'px';
+}
+function hideTip(){tipTarget=null;tipbox.classList.remove('show');}
+document.addEventListener('mouseover',e=>{
+  const t=e.target.closest&&e.target.closest('[data-tip]');
+  if(t){if(t!==tipTarget)showTip(t);}
+  else if(tipTarget)hideTip();
+});
+document.addEventListener('focusin',e=>{const t=e.target.closest&&e.target.closest('[data-tip]');if(t)showTip(t);});
+document.addEventListener('focusout',hideTip);
+addEventListener('scroll',hideTip,true);
+
+/* 既定ツールチップ: 出所チップ / RAG / デルタ / 期限(クラス単位で自動付与) */
+const DEF_TIPS=[
+ ['.prov.code',"<span class='t-title'>コード算出</span>GitHub等の一次データから決定的ロジックで算出。AIは数値の生成・変更を行いません。<span class='t-meta'>三層分離: データ層</span>","<span class='t-title'>Code-computed</span>Derived deterministically from primary data (e.g. GitHub). AI never generates or alters figures.<span class='t-meta'>Three-layer separation: data layer</span>"],
+ ['.prov.ai',"<span class='t-title'>AI文章スロット</span>結論・要約などの文章のみをAIが生成。数値・IDはコードが注入し、AGT-07がスキーマ検証します。<span class='t-meta'>ADR-0012 standard-report.v1</span>","<span class='t-title'>AI text slot</span>AI writes prose only (conclusions, summaries). Figures/IDs are injected by code and schema-checked by AGT-07.<span class='t-meta'>ADR-0012 standard-report.v1</span>"],
+ ['.prov.human',"<span class='t-title'>人間承認</span>確定・承認は常に人が行い、操作はすべて監査ログに記録されます。<span class='t-meta'>三層分離: 判断層</span>","<span class='t-title'>Human-approved</span>Confirmation and approval always rest with people; every action is audit-logged.<span class='t-meta'>Three-layer separation: decision layer</span>"],
+ ['.prov.quest',"<span class='t-title'>質問票由来</span>K1/K2/K7等の定性キーは構造化質問票から判定。未回収の場合は推測せず「未評価」になります。<span class='t-meta'>indirect controls</span>","<span class='t-title'>Questionnaire</span>Qualitative keys (K1/K2/K7) come from structured questionnaires. If uncollected, the key stays 'Not assessed' — never guessed.<span class='t-meta'>indirect controls</span>"],
+ ['.rag.g',"<span class='t-title'>● 順調</span>校正済み閾値の範囲内。判定根拠はコード算出値または質問票回答。","<span class='t-title'>● On track</span>Within calibrated thresholds. Basis: code-computed values or questionnaire answers."],
+ ['.rag.y',"<span class='t-title'>▲ 注意</span>閾値を一部超過。悪化トレンドの早期シグナルとして扱います。","<span class='t-title'>▲ Caution</span>Partially over threshold. Treated as an early signal of deterioration."],
+ ['.rag.r',"<span class='t-title'>■ 危険</span>閾値超過。是正計画のレビュー対象。判定はコードが行い、AIは介在しません。","<span class='t-title'>■ At risk</span>Over threshold; subject to remediation review. Judged by code — no AI involved."],
+ ['.rag.x',"<span class='t-title'>◇ 未評価</span>データ欠落。AIが推測で補完することはなく、グレーのまま表示されます。","<span class='t-title'>◇ Not assessed</span>Data missing. AI never fills the gap by guessing — grey stays grey."],
+ ['.delta',"前期間との差分(コード算出)。比較期間はヘッダの表示期間セレクタに追従します。","Delta vs the previous period (code-computed). Comparison window follows the period selector."],
+ ['.deadline',"期限はコードが監視。超過時は決定的スケジュールで督促・エスカレーションが実行されます(REQ-009 / REQ-017)。","Deadlines are watched by code; overruns trigger deterministic reminders and escalation (REQ-009 / REQ-017)."],
+];
+DEF_TIPS.forEach(([sel,ja,en])=>{
+  document.querySelectorAll(sel).forEach(el=>{
+    if(!el.dataset.tip && !el.closest('.sk-cell')){el.dataset.tip=ja;el.dataset.tipEn=en;}
+  });
+});
+
+/* ヒートマップ セル: PJ×週の詳細を自動付与 */
+document.querySelectorAll('.hm').forEach(tbl=>{
+  const heads=[...tbl.querySelectorAll('thead th')].map(th=>th.textContent.trim().split('(')[0]);
+  const M={'●':['順調','On track'],'▲':['注意','Caution'],'■':['危険','At risk'],'◇':['未評価(データ欠落)','Not assessed (data missing)']};
+  tbl.querySelectorAll('tbody tr').forEach(tr=>{
+    const pj=tr.children[0].textContent.trim();
+    [...tr.children].slice(1).forEach((td,i)=>{
+      const c=td.querySelector('.cell');if(!c)return;
+      const sym=c.textContent.trim(), m=M[sym]||['',''];
+      c.dataset.tip=`<span class='t-title'>${pj}</span>${heads[i+1]}: ${sym} ${m[0]}`;
+      c.dataset.tipEn=`<span class='t-title'>${pj}</span>${heads[i+1]}: ${sym} ${m[1]}`;
+    });
+  });
+});
+
+/* WBSガント図形: 塗り色から意味を自動付与(計画/実績/遅延/マイルストーン) */
+const FILL_TIPS={
+ '#DCE4F5':['計画(ベースライン)','Planned (baseline)'],
+ '#2E5BFF':['実績・進捗','Actual progress'],
+ '#C13A3A':['遅延・期限超過区間','Delay / overdue span'],
+ '#C7860A':['マイルストーン(予定)','Milestone (planned)'],
+ '#0E7C52':['マイルストーン(達成済)','Milestone (achieved)'],
+ '#D7E0F5':['フェーズ: 要件定義','Phase: Requirements'],
+ '#B9C9EE':['フェーズ: 設計','Phase: Design'],
+ '#92ABE4':['フェーズ: 開発','Phase: Build'],
+ '#6E8FD9':['フェーズ: テスト','Phase: Test'],
+ '#4C74CE':['フェーズ: 移行','Phase: Rollout'],
+};
+document.querySelectorAll('svg[aria-label*="Gantt"] rect, svg[aria-label*="Gantt"] path, svg[aria-label*="timeline"] rect, svg[aria-label*="timeline"] path').forEach(sh=>{
+  const f=(sh.getAttribute('fill')||'').toUpperCase();
+  const m=FILL_TIPS[f];
+  if(m && !sh.dataset.tip){sh.dataset.tip=m[0];sh.dataset.tipEn=m[1];}
+});
+
+/* ==== ユーザーメニュー ==== */
+const chip=document.getElementById('userChip'), userBtn=document.getElementById('userBtn');
+userBtn.addEventListener('click',e=>{
+  e.stopPropagation();hideTip();
+  const open=chip.classList.toggle('open');
+  userBtn.setAttribute('aria-expanded',open);
+});
+document.addEventListener('click',e=>{if(!chip.contains(e.target))chip.classList.remove('open');});
+
+/* ==== キーボードショートカット: ⌘K / Ctrl+K でページエージェント ==== */
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setAgent(!panel.classList.contains('open'));}
+  if(e.key==='Escape')chip.classList.remove('open');
+});
+
+/* ==== 管理コンソール(歯車) ==== */
+document.getElementById('adminBtn').addEventListener('click',()=>{hideTip();switchView('admin');});
+
+/* ==== Excel取込: 確認チェック(エラー0件が前提のためこのデモでは実行ボタンは無効のまま) ==== */
+const confirmImport=document.getElementById('confirmImport');
+if(confirmImport){confirmImport.addEventListener('change',()=>{/* AC-037-1: エラー0件までexecBtnはdisabled固定 */});}
+</script>
+</body>
+</html>
