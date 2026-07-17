@@ -8,3 +8,4 @@ pnpm-lock.yaml
 packages/web/next-env.d.ts
 docs/spec/prjops/
 docs/spec/devops/
+references/
