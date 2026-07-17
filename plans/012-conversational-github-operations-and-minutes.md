@@ -14,13 +14,14 @@
 - **Depends on**: Plan 010の`P010-F02-T09..T14`（stable identity、picker、complete ProjectV2 snapshot、read-only board）、`P010-F03-T01..T08`（承認境界）、`P010-F04-T01..T08`（Graph sandbox）、`P010-F05-T10..T14`（coding workflow）；外部受入はPlan 011のtrust bootstrapにも依存する。
 - **Category**: security / correctness / direction / integration / operations
 - **Planned at**: commit `5d48752`, 2026-07-15
+- **Contract clarification measured at**: `main@ce912e6`, 2026-07-16。T02着手前の独立negative reviewで検出したformal task count、approver wire format/semantic verifier、DAG CI reachabilityを是正した。
 - **Wireframe/抽出**: N/A — 新規画面設計ではなく、既存Teams/Outlook/agent/Web Kanban surfaceの運用・承認境界を扱う。
-- **Official references checked**: 2026-07-15。GitHub REST/GraphQL/Actions/CLI、Microsoft Graph/Teams SDK/Outlook ImmutableId、AKS/Kubernetes Job、Anthropic commercial retention/ZDR、OpenAI Responses data controls/data residency/GPT-5.6 Sol、Claude Code、Factory Droid、Codex manualを一次資料で確認。
+- **Official references checked**: 2026-07-16。GitHub REST/GraphQL/Actions/CLI、Microsoft Graph/Teams SDK/Outlook ImmutableId、AKS/Kubernetes Job、Anthropic commercial retention/ZDR、OpenAI Responses data controls/data residency/GPT-5.6 Sol、Claude Code、Factory Droid、Codex manual、RFC 8785、RFC 8032、Zod 4 JSON Schemaを一次資料で確認。
 
 ## Plan quality self-audit
 
 - [x] `main@5d48752`の現行実装を直接読み、Current stateへ`file:line`を記録した。
-- [x] 初期plan基準と比較し、本PlanはXL scopeに対して99 executable task（5件の非実行gate-group summaryを除外）を持つ。複合だったTeams/AKS/provider/raw/Outlook単位を40 formal atomic taskへ分解し、cutover permission feasibility、publisher break-glass recovery、final target Entra acceptanceを独立追加して各taskのobservable boundaryと敵対oracleを確認した。
+- [x] 初期plan基準と比較し、本PlanはXL scopeに対して115 executable task（5件の非実行gate-group summaryを除外）を持つ。複合だったTeams/AKS/provider/raw/Outlook単位を41 formal taskと74 Stepsへ分解し、operation contract/approver/evidence trust/DAG validatorを5 task、coding publisherを8 task、raw recovery guardを5 taskへ分離して各taskのobservable boundaryと敵対oracleを確認した。
 - [x] 既存Plan 006/010/011と重複する実装を前提taskとして参照し、新規差分は会話操作・議事録proposal・agent資産に限定した。
 - [x] 各taskを一つのobservable boundaryへ限定し、Preconditions、Allowed files、Work、Complete、Positive/Adversarial Verify、STOPを明記した。
 - [x] 全write intentはproposalで停止し、Entra認証済み別人承認後だけ副作用を許可する。
@@ -29,6 +30,12 @@
 - [x] GitHub Pages、PR merge、main直接push、任意REST/GraphQL/shell、Kanban drag-and-dropを明示的に除外した。
 - [x] `plan-quality-gate`のvalidator/hook/subagentは本repositoryに存在しないため、同skillの必須節・独立review checklistを手動適用する。存在しないentry pointを実装完了と偽らない。
 - [x] 2026-07-14の初稿は、別contextの`gpt-5.6-sol high` reviewerが初回HIGH 8件、再review HIGH 2件を指摘し、全是正後のcold reviewで`ACCEPT`、CRITICAL/HIGH 0を記録した。2026-07-15に依存更新PR #85/#87/#80/#81統合後の`main@5d48752`へ再baseし、Current stateと一次資料を再検証した。
+
+## Execution checkpoint
+
+- 2026-07-16時点で実装/ACCEPTEDは0/115。P012-F00-T01はPR #91で旧evidence contract上のinventory/toolingをmerge済みだが、現行executed-only lifecycleで再claim・再実行するまでACCEPTEDへ数えない。
+- 115-task契約改訂のcommit/push/PR/mergeは0、open PRは0。Codex review chain 15件のうち12件を反映済みで、R15-01〜03を本改訂で解消する。
+- 再開順序はplan gate→`MISE_LOCKED=1 mise run ci`→Codex cold review→契約改訂のcommit/push/PR/merge→P012-F00-T01再claimとする。外部/HUMAN/ENV gateを実行済みへ読み替えない。
 
 ## Why this matters
 
@@ -95,14 +102,14 @@ ProjectV2 Status更新にはprovider側CAS、version、If-Match相当がなく�
 許可するtyped operation kindは次のexact setとする。
 
 ```text
+query.issues
+query.pull_requests
+query.project_board
 issue.create
 issue.comment
 issue.close
 issue.reopen
 pull_request.comment
-query.issues
-query.pull_requests
-query.project_board
 coding_task.create
 unknown
 ```
@@ -126,9 +133,83 @@ unknown
 | `coding_task.create`   | `{instruction:string[1..4000], agent:"claude-code"\|"droid", baseRef:"main"}` | active `PRF-02\|03`     | 同上                                                    | 下記3-identity coding credential contract | signed project→repo mapping、base SHAを固定              |
 | `unknown`              | `{}`                                                                          | なし                    | なし                                                    | なし                                      | proposal/API/GitHub callを作らずclarificationだけ        |
 
+#### Machine-readable operation contract
+
+`packages/prjops/src/lib/conversationalGithubContract.ts`をoperation contractのproduction正本とし、Markdown表、checked-in JSON、JSON Schema、slash/free-text parserはここから同じ定数とschemaを再利用する。正本は次のexact rootだけを公開する。全objectは`additionalProperties:false`、`operations`は上表順、配列順もcontractの一部とする。
+
+```text
+{
+  schemaVersion: 1,
+  operations: [{
+    kind,
+    requestSchemaRef,
+    requesterProfiles,
+    approverRequirement,
+    githubPermission,
+    targetContract,
+    expectedBefore,
+    expectedAfter
+  }],
+  responseSchemaRefs: {
+    read: "#/$defs/readResponse",
+    proposal: "#/$defs/writeProposalResponse",
+    terminal: "#/$defs/terminalResponse",
+    statusNotFound: "#/$defs/statusNotFoundResponse",
+    error: "#/$defs/errorResponse"
+  },
+  httpStatusByOutcome: {
+    proposalAccepted: 202,
+    schemaInvalid: 400,
+    unauthenticated: 401,
+    unauthorized: 403,
+    sourceConflict: 409,
+    businessInvalid: 422,
+    providerUnavailable: 503,
+    terminalStatusRead: 200,
+    statusNotFound: 404
+  },
+  forbiddenOperationFamilies: [
+    "pull_request.merge", "pull_request.approve", "pull_request.close",
+    "pull_request.metadata.update", "git.push.main", "git.force_push",
+    "repository.admin", "organization.admin", "permission.admin",
+    "environment.admin", "pages.admin", "project_v2.mutate",
+    "api.arbitrary", "shell.arbitrary"
+  ]
+}
+```
+
+operation rowは次のexact値を持つ。`null`はJSON null、profile配列は記載順である。
+
+| Kind                   | requestSchemaRef                    | requesterProfiles      | approverRequirement | githubPermission      | targetContract                                   | expectedBefore | expectedAfter |
+| ---------------------- | ----------------------------------- | ---------------------- | ------------------- | --------------------- | ------------------------------------------------ | -------------- | ------------- |
+| `query.issues`         | `#/$defs/queryIssuesRequest`        | `PRF-01,PRF-02,PRF-03` | `none`              | `issues_read`         | `mapped_single_repository_no_cursor`             | null           | null          |
+| `query.pull_requests`  | `#/$defs/queryPullRequestsRequest`  | `PRF-01,PRF-02,PRF-03` | `none`              | `pull_requests_read`  | `mapped_single_repository_no_cursor`             | null           | null          |
+| `query.project_board`  | `#/$defs/queryProjectBoardRequest`  | `PRF-01,PRF-02,PRF-03` | `none`              | `projects_read`       | `signed_project_v2_latest_complete_snapshot`     | null           | null          |
+| `issue.create`         | `#/$defs/issueCreateRequest`        | `PRF-02,PRF-03`        | `different_person`  | `issues_write`        | `mapped_repository_and_source_revision_match`    | null           | null          |
+| `issue.comment`        | `#/$defs/issueCommentRequest`       | `PRF-02,PRF-03`        | `different_person`  | `issues_write`        | `mapped_repository_existing_issue`               | null           | null          |
+| `issue.close`          | `#/$defs/issueCloseRequest`         | `PRF-02,PRF-03`        | `different_person`  | `issues_write`        | `mapped_repository_existing_issue`               | `open`         | `closed`      |
+| `issue.reopen`         | `#/$defs/issueReopenRequest`        | `PRF-02,PRF-03`        | `different_person`  | `issues_write`        | `mapped_repository_existing_issue`               | `closed`       | `open`        |
+| `pull_request.comment` | `#/$defs/pullRequestCommentRequest` | `PRF-02,PRF-03`        | `different_person`  | `pull_requests_write` | `mapped_repository_existing_pull_request`        | null           | null          |
+| `coding_task.create`   | `#/$defs/codingTaskCreateRequest`   | `PRF-02,PRF-03`        | `different_person`  | `three_identity_gate` | `signed_project_repository_mapping_and_base_sha` | null           | null          |
+| `unknown`              | `#/$defs/unknownRequest`            | 空配列                 | `none`              | `none`                | `clarification_only`                             | null           | null          |
+
+checked-in `conversational-github-operations.schema.json` rootはexact `{$schema:"https://json-schema.org/draft/2020-12/schema",$id:"https://aiops.local/contracts/conversational-github-operations.schema.json",title:"Plan 012 conversational GitHub operations",oneOf:[{$ref:"#/$defs/operationRequest"},{$ref:"#/$defs/readResponse"},{$ref:"#/$defs/writeProposalResponse"},{$ref:"#/$defs/terminalResponse"},{$ref:"#/$defs/statusNotFoundResponse"},{$ref:"#/$defs/errorResponse"}],$defs}`とする。request rootは`version:1`、上記10 kind、`projectId`、kindごとのpayloadをdiscriminatorで結び、全branchを`additionalProperties:false`にする。`readResponse.kind`はquery 3種だけ、`writeProposalResponse.kind`と`terminalResponse.kind`はwrite 6種だけを許可し、kindとitems/payloadのvariantを`oneOf`で結ぶ。`readResponse`、`writeProposalResponse`、`terminalResponse`、`statusNotFoundResponse`、`errorResponse`と、その内側の全itemも`additionalProperties:false`にする。`unknown`はAPI success responseを持たずclarificationへだけ写像する。
+
+`conversationalGithubContract.ts`はoperation order/matrix、`MAX_USER_BODY=65480`、`MAX_GITHUB_BODY=65536`、Zod runtime schema、同じ定数から構築したJSON Schema objectをexportする。ZodのUTF-16 `string.length`を境界判定に使わず、lone surrogateを拒否してUnicode scalar valueを数えるpure `unicodeScalarLength()`を唯一のlength helperとする。JSON Schemaの`minLength`/`maxLength`とruntime helperの両方をBMP、supplementary-plane emoji、結合文字、境界±1、lone high/low surrogateで照合する。Markdown表parserはescaped pipeとbacktick code spanを認識し、列を単純な`split("|")`で分割しない。checked-in JSON/schemaはexport objectとのdeep equalityでdriftを拒否する。
+
+read item unionはkindで判別し、Issue itemはexact `{number,title,state:"open"|"closed",url,updatedAt}`、PR itemはexact `{number,title,state:"open"|"closed",url,updatedAt,headRefName,baseRefName}`、Project itemはexact `{position,contentType,title,repository,assignees,labels,url,archived:false,redacted:false,status,capturedAt}`とする。Issue/PR `number`はsafe integer 1..2147483647、titleは1..256 scalar、head/base refは1..255 scalar、urlはnon-null approved GitHub HTTPS originかつsigned repository配下である。Project itemの`position`はsafe integer 0..2147483647、`contentType`は`issue|pull_request|draft_issue`、`title`は1..256 scalar、`repository`はnon-null `owner/name`、`url`はnullまたはapproved GitHub HTTPS originかつrepository配下、`archived`/`redacted`はliteral false、`assignees`はGitHub loginの0..100配列、`labels`はexact `{name:string[1..50],color:"#[0-9A-Fa-f]{6}"}`の0..100配列、`status`はnullまたはexact `{name:string[1..50],color:string[1..32],ordinal:safe integer[0..2147483647]}`、`capturedAt`/`updatedAt`はUTC RFC 3339である。complete provider snapshotの`archived=true`、`redacted=true`、deleted/tombstone itemはresponse adapterが除外し、response schemaへ`deleted` fieldを追加しない。read `items`は除外後0..1000件で、limitまたはsnapshot上限を超える場合だけserver生成`nextPageUrl`を返す。
+
+`operationId`はcanonical lowercase UUID、`projectId`は`^PJ-[0-9]{3,}$`、`errorCode`はnullまたは`^[a-z][a-z0-9_]{0,63}$`、`expiresAt`はUTC RFC 3339とする。`statusUrl`/`nextPageUrl`はuserinfo/query/fragmentなしのapproved exact AIOPS HTTPS originかつ正規化pathにoperation IDを含むserver生成URL、`targetUrl`はnullまたはapproved exact GitHub HTTPS originかつ署名済みrepository配下だけをruntimeで許可する。JSON Schemaの`format:"uri"`だけをtrust boundaryにせず、injected allowlistとWHATWG URL parserによるruntime検証を必須とする。raw provider body、PII、token、stack、未定義fieldを全response parserが拒否する。
+
+error responseはexact `{operationId:null|canonical lowercase UUID,kind:null|10-kind,projectId:null|PJ-ID,status:"error",httpStatus,errorCode,retryable}`で、`httpStatus`は`400|401|403|409|422|503`、`retryable`はboolean、全field required、`additionalProperties:false`である。許可pairは400=`request_invalid|unsupported_operation`/false、401=`unauthenticated`/false、403=`unauthorized`/false、409=`source_conflict|mapping_conflict|operation_stale`/false、422=`project_mismatch|target_invalid|ambiguous_intent|reason_required`/false、503=`provider_unavailable|source_read_unavailable|approver_unavailable`/trueだけとする。requestがUUIDを採番する前はoperationId null、kind/projectIdをstrict parseできない場合だけ各nullとし、parse済み値を別値へ置換しない。provider failure detail、対象者の存在、raw body、PII、token、stackはerror responseへ入れない。
+
+status-not-found responseはexact `{operationId:canonical lowercase UUID,kind:null,projectId:null,status:"not_found",httpStatus:404,errorCode:"operation_not_found",retryable:false}`で、全field required、`additionalProperties:false`とする。authenticated status GETでgeneric proposal/coding taskの双方にoperation IDが存在しない場合だけHTTP 404で返し、存在するoperationの認可失敗を404へ偽装せず403、provider read不能を404へ偽装せず503にする。
+
 Coding identityは相互注入不能な3件に分離する。(a) Plan 012 coding-dispatch GitHub App/tokenはrepository 1件、Metadata/Contents readとActions writeだけでworkflow dispatchし、Contents/PR writeなし。(b) unprivileged agent jobはcheckout用Contents readだけでpublisher/dispatch tokenなし。(c) protected P010 publisher App/tokenだけがbranch allowlist上のContents write+Pull requests writeを持ちdraft PRを作るが、Actions/merge/admin/deploy権限なし。startupと各jobでApp ID/installation/cache namespace/permission exact setをreadbackし、同一identity、cross-injection、main/既存branch write、non-draft PRをfail-closeする。
 
-read responseは`{operationId,kind,status:"succeeded",projectId,items,nextPageUrl:null|string}`、write proposal responseは`{operationId,kind,status:"pending",projectId,statusUrl,expiresAt}`、terminal resultは`{operationId,kind,status:"succeeded"|"failed"|"stale"|"verification_failed"|"indeterminate"|"rejected"|"expired",targetUrl:null|string,errorCode:null|string}`に固定する。status GETは全terminalをHTTP 200で返し、proposal POST成功は202、request時のschema不正は400、認証/認可失敗は401/403、source/mapping conflictは409、business validationは422、必須provider read不能は503に固定する。raw provider body、email/name、token、stack traceは返さない。`failed`はmutation request送信前の非verification失敗、`stale`はsource削除またはsource/mapping/expected state不一致、`verification_failed`はbounded read-only preflightを3回（既存retry policyのbackoff/cap）試してもprovider状態を確定できずmutation未送信の場合、`indeterminate`はmutation request送信後に結果を確定できない場合だけである。`rejected`はintended approverの明示否認、`expired`は30分無決定とし、どちらもGitHub mutation/attempt row 0とする。generic proposalのrequester cancel APIは提供しない。coding taskの`cancelled`はP010固有statusでこのunion外である。
+read responseは`{operationId,kind,status:"succeeded",projectId,items,nextPageUrl:null|string}`、write proposal responseは`{operationId,kind,status:"pending",projectId,statusUrl,expiresAt}`、terminal resultは`{operationId,kind,status:"succeeded"|"failed"|"stale"|"verification_failed"|"indeterminate"|"rejected"|"expired",targetUrl:null|string,errorCode:null|string}`に固定する。status GETはpending/terminalをHTTP 200、存在しないoperation IDをstatus-not-found response+HTTP 404で返す。proposal POST成功は202、request時のschema不正は400、認証/認可失敗は401/403、source/mapping conflictは409、business validationは422、必須provider read不能は503に固定する。raw provider body、email/name、token、stack traceは返さない。`failed`はmutation request送信前の非verification失敗、`stale`はsource削除またはsource/mapping/expected state不一致、`verification_failed`はbounded read-only preflightを3回（既存retry policyのbackoff/cap）試してもprovider状態を確定できずmutation未送信の場合、`indeterminate`はmutation request送信後に結果を確定できない場合だけである。`rejected`はintended approverの明示否認、`expired`は30分無決定とし、どちらもGitHub mutation/attempt row 0とする。generic proposalのrequester cancel APIは提供しない。coding taskの`cancelled`はP010 storage固有statusで、共通wireのstatus literalには含めず次のadapter写像を使う。
+
+`coding_task.create`のstorage/state machineはP010専用のままだが共通status APIはexactに写像する。`queued|dispatching|running|publish_authorized|publish_delivering|publishing`はwrite proposal responseの`pending`、`pr_created`はterminal `succeeded`+PR targetUrl+errorCode null、`failed`はterminal `failed`+targetUrl null+P010 fixed dispatch/publisher error code、`expired`はterminal `expired`+`coding_task_expired`、`indeterminate`はterminal `indeterminate`+`publisher_result_indeterminate`、`cancelled`はterminal `rejected`+`coding_task_cancelled`へ写像する。generic DBへcoding task rowを複製せず、共通API adapterだけがP010 rowをこのwireへ写像する。
 
 ### Side-effect and recovery contract
 
@@ -169,14 +250,89 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 
 ### Intended approver routing contract
 
+#### Intended approver artifact schema
+
+`docs/contracts/project-operation-approver.schema.json`は、private `prjops-data` repositoryから取得した7個のartifactをserverが検証前に組み立てる`source snapshot`のDraft 2020-12 schemaとする。実装者がroot layout、union、署名envelopeを選ばないよう、snapshotのrootは次のexact fieldだけを持つ。
+
+```text
+{
+  version: 1,
+  source: {
+    repositoryOwner,
+    repositoryName: "prjops-data",
+    repositoryId,
+    repositoryNodeId,
+    commitSha: lowercase hex[40],
+    snapshotVersion,
+    paths: {
+      rootPublicKey: "operation-approver-root-key.v1.json",
+      keyring: "operation-approver-keyring.v1.json",
+      keyringSignature: "operation-approver-keyring.v1.json.sig",
+      revocations: "operation-approver-revocations.v1.json",
+      revocationsSignature: "operation-approver-revocations.v1.json.sig",
+      master: "operation-approvers.v1.json",
+      masterSignature: "operation-approvers.v1.json.sig"
+    }
+  },
+  rootKeyFingerprintSha256: lowercase hex[64],
+  rootPublicKey: {version:1,snapshotVersion,alg:"Ed25519",encoding:"base64url",value},
+  keyring: { document, signature },
+  revocations: { document, signature },
+  master: { document, signature }
+}
+```
+
+全objectは`additionalProperties:false`、全stringはUnicode scalar valueだけを許可する。7 source artifactはUTF-8、BOMなし、末尾LF/whitespaceなしのbyte-exact RFC 8785 canonical JSONとして保存し、pure verifierは各raw bytesをparse→canonicalizeして元bytesとbyte一致しないartifactを署名検証前に拒否する。これによりI-JSONのduplicate property、lone surrogate、NaN/Infinity/unsafe number、非canonical number/string/property orderを拒否する。Unicode normalizationは行わない。
+
+field形式は次のexact mapとする。`tid`、`oid`、`clientId`、`botId`、`teamId`、`senderMailboxObjectId`、`recipientMailboxObjectId`はcanonical lowercase UUID。`channelId`、`folderId`、`repositoryNodeId`はUnicode scalar value 1..256 code pointsのopaque IDで、trim/normalize/decodeしない。`repositoryOwner`はGitHub login `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`、`repositoryId`はsafe positive integer、`projectId`は`^PJ-[0-9]{3,}$`、SHA-256はlowercase hex[64]、RFC 3339時刻はUTC `Z`で秒必須・小数秒最大3桁、version/snapshotVersionはsafe integer `1..2147483647`とする。validityは半開区間`validFrom <= at < validUntil`で、`validFrom < validUntil`を必須とする。
+
+`signature`はexact `{purpose,alg:"Ed25519",kid,encoding:"base64url",value}`。purposeはartifactごとに`operation-approver-keyring-v1|operation-approver-revocations-v1|operation-approver-master-v1`のexact値、`kid`は`^[a-z0-9][a-z0-9._-]{0,63}$`とする。全base64url fieldはalphabet `^[A-Za-z0-9_-]+$`、paddingなし、decode後に再encodeした値がinputとbyte一致するcanonical wireだけを許可する。signature valueはdecode後exact 64 bytes、root/delegated public key valueはdecode後exact 32 bytesとする。署名対象bytesはUTF-8 `<purpose>\n` + documentのRFC 8785 canonical bytes + LFとし、signature field自身やsnapshot/source metadataは含めない。keyring/revocation signatureは`kid:"root"`、master signatureはactive delegated keyのkidとする。root fingerprintはrootPublicKey.valueをbase64url decodeしたexact 32 bytesへ直接SHA-256を適用したlowercase hexで、canonical root-key artifact bytesはhash対象ではない。computed fingerprint、snapshot.rootKeyFingerprintSha256、引数trustedRootKeyFingerprintSha256の三者byte一致後だけ署名を検証し、protected environmentはraw keyでなくfingerprintだけをpinする。
+
+`rootPublicKey.snapshotVersion`、`keyring.document.snapshotVersion`、`revocations.document.snapshotVersion`、`master.document.snapshotVersion`は全て`source.snapshotVersion`とexact一致する。`keyring.document`はexact `{version:1,snapshotVersion,issuedAt,validFrom,validUntil,keys}`。`keys`は1..32件、各recordはexact `{kid,alg:"Ed25519",publicKeyBase64url,validFrom,validUntil}`で、kid重複を拒否する。`revocations.document`はexact `{version:1,snapshotVersion,issuedAt,validFrom,validUntil,revokedKeys}`。`revokedKeys`は0..32件、各recordはexact `{kid,revokedAt,reason}`、reasonは`compromised|superseded|retired`、kid重複を拒否する。各revoked kidはkeyringにexact 1件存在し、`key.validFrom <= revokedAt < key.validUntil`でなければならない。`revokedAt <= at`で初めて時刻`at`に失効済みとし、future revocationは予約済みだが発効前と扱う。root keyはこのlistで失効させず、root rotationは別owner ceremony/Planを必要とする。
+
+`master.document`はexact `{version:1,snapshotVersion,issuedAt,validFrom,validUntil,records}`で、recordsは1..1024件、各recordは次のexact fieldだけを持つ。
+
+```text
+{
+  projectId,
+  approver: {tid,oid},
+  approvalDelivery,
+  sourceEntitlements,
+  validFrom,
+  validUntil,
+  version,
+  signerKid
+}
+```
+
+`approvalDelivery`は次のexact discriminated unionである。
+
+- `{kind:"teams_personal",botId}` — active conversation referenceを`(tid,botId,approver.oid)`でexact 1件解決する。
+- `{kind:"teams_channel",botId,teamId,channelId}` — active conversation referenceを`(tid,botId,teamId,channelId)`でexact 1件解決する。
+- `{kind:"mail",senderMailboxObjectId,recipientMailboxObjectId}` — `recipientMailboxObjectId`は`approver.oid`とbyte一致し、Exchange Application RBAC内で両object IDを送信直前に再解決する。SMTP address、display nameはartifactへ入れない。
+
+`sourceEntitlements`は1..32件で、canonical bytesの重複を拒否する。variantは次のexact setだけである。
+
+- `{kind:"teams_channel",teamId,channelId}`
+- `{kind:"outlook_folder",mailboxObjectId,folderId}`
+- `{kind:"interactive_agent",clientId,profiles}`。profilesは`PRF-02|PRF-03`の1..2件、重複不可。
+
+coding taskは新しいentitlement variantを作らず、元sourceの上記variantを固定する。全variantのtenantはrecordの`approver.tid`とauthenticated requester/source tenantからF01-T04 resolverが照合し、artifact内に重複tenant fieldを持たせない。
+
+`rawArtifacts`はexact `{rootPublicKey,keyring,keyringSignature,revocations,revocationsSignature,master,masterSignature}`の7 `Uint8Array`、`sourceMetadata`はexact `{repositoryOwner,repositoryName:"prjops-data",repositoryId,repositoryNodeId,commitSha,snapshotVersion}`とする。T02のpure `verifyOperationApproverSnapshot({rawArtifacts,sourceMetadata,trustedRootKeyFingerprintSha256,verificationInstant})`は、(1) 7 raw artifactのcanonical wire/shape、(2) source metadataと固定pathを持つsnapshot exact一致、(3) 4 snapshotVersion一致、(4) root fingerprint、(5) domain-separated keyring root signature、(6) revocation root signature、(7) delegated key unknown判定、(8) master delegated signature、(9) document/key/record chain validity、(10) snapshot digestの順で静的検証し、requester/project/source contextを受け取らない。全documentで`issuedAt <= verificationInstant`、`validFrom <= issuedAt < validUntil`、`keyring.issuedAt <= master.issuedAt`、`revocations.issuedAt <= master.issuedAt`を必須とし、keyring/revocations/master documentは`validFrom <= verificationInstant < validUntil`でなければstartup publishしない。master signature kidはkeyring exact 1件、master `issuedAt`とverificationInstantの両方でactive、各時刻までに失効しておらず、全master recordの`signerKid`はこのsignature kidとbyte一致しなければならない。historical/future recordはverificationInstantでinactiveでもよいが、全projectのrecord versionは1から連続し、version順の`validUntil`と次versionの`validFrom`がbyte一致してgap/overlap 0とする。snapshot digestはsource metadata、root fingerprint、root key、3 document、3 signature envelopeを前記root field順で組み立てたsnapshot全体のRFC 8785 canonical UTF-8 bytesのSHA-256である。verifierはimmutable `VerifiedOperationApproverSnapshot`とsnapshot digestを返し、request時のactive cardinalityを判定せず、wall clock/filesystem/network/environmentを直接読まない。providerはverificationInstantにもinjected trusted PostgreSQL `clock_timestamp()`を渡す。
+
+T02 verifier failure codeは`approver_source_invalid|approver_root_mismatch|approver_keyring_invalid|approver_revocation_invalid|approver_signature_invalid|approver_key_revoked|approver_validity_invalid`のexact setとする。T02のpure resolver inputはexact `{projectId,requester:{tid,oid,profiles},sourceContext,trustedInstant}`。profilesはactive caller profileの`PRF-01|PRF-02|PRF-03`をpermission表順で1..3件、重複不可、sourceContextはexact `{kind:"teams_channel",tid,teamId,channelId}|{kind:"outlook_folder",tid,mailboxObjectId,folderId}|{kind:"interactive_agent",tid,clientId}`である。`resolveOperationApprover(verifiedSnapshot,input)`は呼出しごとのtrusted PostgreSQL `clock_timestamp()`を受け、keyring/revocations/master document、master signature key、target recordの全validityをその時刻で再判定し、`revokedAt <= trustedInstant`のkidを拒否する。その後target projectのactive record exact 1、`requester.tid===sourceContext.tid===approver.tid`、requesterとapproverの別人性、active profile、source entitlementを判定する。outputはexact `{projectId,approver,approvalDelivery,matchedSourceEntitlement,masterVersion,snapshotVersion,snapshotDigest,recordVersion,recordValidFrom,recordValidUntil,signerKid}`。failureは`approver_cardinality_invalid|approver_entitlement_invalid|approver_self|approver_validity_invalid|approver_key_revoked`だけとする。conversation reference/Exchange RBAC/live source accessはprovider/agentが実APIで解決し、外部responseは全failureを`approver_unavailable`へ写像する。
+
+F01-T04 providerはprotected configのexact `{repositoryOwner,repositoryName:"prjops-data",repositoryId,repositoryNodeId,commitSha,expectedSnapshotVersion,expectedSnapshotDigest,trustedRootKeyFingerprintSha256}`とGitHub repository/commit readbackを照合し、同一commitから7 pathを取得してT02 verifierへ渡す。verified version/digestがprotected expected値とexact一致したsnapshotだけをstartup時にatomic publishするため、version rollback、same-version digest drift、process restart後rollbackを永続DB stateなしで拒否する。明示config/SHA変更は新deployment/startup検証を必要とし、runtimeでhigher versionを自動選択しない。fetch/verify失敗時は新processをreadyにせず、既存processは既にverifiedなsnapshotをdocument `validUntil`まで保持するが、各proposal/approval/executionのresolverがrequest時刻でfail-closeする。
+
 - proposal作成時、serverは署名済みproject masterの`operationApprover`から単一のactive Entra `(tid,oid)`を解決し、Plan 010 `intended_approver_tid/oid`へ固定する。request/LLM payload、email、display name、列挙順、最初に応答した人物から選ばない。
-- authoritative masterはowner管理のprivate `prjops-data` repositoryに`operation-approvers.v1.json`とdetached signatureとして置き、protected environmentが指定するimmutable 40-character commit SHAからread-only machine identityで取得する。mutable branch/latest/local fallbackを禁止する。
+- authoritative snapshotはowner管理のprivate `prjops-data` repositoryに前記7 artifactとして置き、protected environmentのexact repository owner/name/stable numeric ID/node ID、immutable 40-character commit SHA、snapshot versionと照合してread-only machine identityで同一commitから取得する。mutable branch/latest/local fallback、別repository同名ファイル、artifactごとのcommit混在を禁止する。
 - master recordは`projectId`、approver `(tid,oid)`、exact `approvalDelivery` union、1..32件のexact `sourceEntitlements` union、validity/version/signerを持つ。Teams outboundはSDK 2.0.13 `app.send/app.reply`だけ、Key Vault bot credential、事前installを必須とする。`teams_conversation_references`はpersonal/channel discriminated union、tenant/bot/recipient、conversation ID、HTTPS `service_url_base`、install/revoke/versionを持つ。`service_url_base`はuserinfo/query/fragmentなし、approved exact host+normalized nonempty pathを保持し、末尾slashだけ除去する。origin-onlyやpath除去は禁止する。SDK Appのfull `serviceUrl`とstored baseが完全一致するreferenceだけ送信できる。active keyはpersonal `(tenant,bot,approver)`、channel `(tenant,bot,team,channel)`各exact 1、raw activity/body/card/address 0。Graph chat POST、delegated token、`Teamwork.Migrate.All`は禁止。opaque ID/UUID、same-tenant/container/client/profile、memory-only mail address、RFC8785+Ed25519、active record exact 1の検証を行う。
 - Teams command ingressはSDK/Graphの共通durable `teams_intent_ingress`をCASする。schemaは前段のPK/source IDs/revision/int-index/origin bits/status/lease/timestamps/nullable subject mapping/result correlationとexact unique keyを持つ。`source_revision_sha256`はUTF-8 `aiops-teams-command-revision-v1\n`+RFC8785 canonical `{tenantId,teamId,channelId,messageId,etag,lastModifiedDateTime,sanitizedTextSha256}`+LFのSHA-256で、single source messageだけを対象にしthread/replyを含めない。same etag duplicateは同row、same-text new-etag、edit→revertは各new row、bot replyはsource message revisionを変えない。SDK executionはactivity IDだけでなくetag/lastModified/text hashがGraph値と一致するsandbox proofがある場合だけ有効、なければGraph-onlyとする。claim/reclaim/loser/self-bot/system拒否は前段contractどおりで、text-only ID推測とbot loopを禁止する。
-- protected environmentにはoffline owner rootのEd25519 public-key fingerprintだけをpinする。root署名済みdelegated keyring/revocation listも同じimmutable SHAから取得し、unknown/revoked keyを拒否する。startupと明示SHA変更時だけ全artifactを検証してatomic swapし、refresh失敗時は旧snapshotの`validUntil`までは維持、期限後はfail-closedにする。network failureからmutable source/local cacheへfallbackしない。
+- protected environmentにはoffline owner rootのEd25519 public-key fingerprint、exact source identity/SHA、expected snapshot version/digestだけをpinする。root署名済みdelegated keyring/revocation listも同じimmutable SHAから取得し、unknown/revoked keyを拒否する。startupと明示config/SHA変更時だけstatic artifactを検証してatomic publishし、各request時はcached verified snapshotへtrusted DB時刻を与えてvalidity/revocation/cardinalityを再判定する。期限切れ後はfail-closedとし、network failureからmutable source/local cacheへfallbackしない。
 - requesterとintended approverが同じ、候補0件、候補2件以上、inactive/expired、署名不正、key revoked、validity gapの場合はproposal/approval requestを作らず`approver_unavailable`でclarificationする。
 - 休職・代理は既存recordへのfallbackではなく、ownerが新versionのmasterを署名・発行し、旧versionを失効させる。発行済みpending proposalはapprover mapping versionが変われば`stale`となり、新proposalを必要とする。
-- approval時とexecution直前にも同じmaster version/signature/active subjectを再検証する。Plan 010 routeは固定済みintended approver以外を403で拒否する。
+- proposal作成時にresolver outputからexact binding `{snapshotVersion,snapshotDigest,recordVersion,recordValidFrom,recordValidUntil,signerKid,approvalDeliveryDigest,matchedSourceEntitlementDigest}`を固定する。後二digestは各exact union objectのRFC 8785 canonical UTF-8 bytesのSHA-256である。generic operationは同名snake_case 8 DB column、coding taskは`approver_` prefixの同じ8 columnへinitializer transaction内で保存し、NULL/更新を禁止する。approval GET/POST、generic execution、coding dispatch直前に同じverified snapshotへ各時点のtrusted DB `clock_timestamp()`でresolverを再実行し、8 fieldとintended approver `(tid,oid)`をbyte一致比較する。署名bytesをrequestごとに再canonicalizeしないが、document/key/record validityとeffective revocation、active subjectを必ず再判定する。1 fieldでも変化した場合、またはresolverが`approver_cardinality_invalid|approver_entitlement_invalid|approver_self|approver_validity_invalid|approver_key_revoked`のどれかを返してoutputを生成しない場合は、generic operationをattempt/queue 0の`stale`+terminal `errorCode="approver_mapping_stale"`、coding taskをworkflow dispatch 0の`failed+dispatch_error_code=approver_mapping_stale`へCASする。双方でpayload/instruction redaction、Plan 010 approvalを`expired`、append-only auditを`approver_mapping_stale`、requester/intended-approver terminal outboxを同じtransactionでcommitし、statement failureは全件rollbackする。approval GET/POSTはこのcommit後にgeneric terminal/coding adapter statusをHTTP 200で返し、503へ戻したり別approverへfallbackしない。Plan 010 routeは固定済みintended approver以外を403で拒否する。
 - approval notificationはmasterのexact `approvalDelivery`へsingle-attempt送信する。Teams proactiveはactive conversation referenceとbot credentialを送信直前に再検証し、mailはExchange Application RBACで限定したsender/recipient mailboxを再解決する。Teams sourceのapproval GET/POSTはintended approverのdelegated Graph session、Outlook sourceはintended approverのdelegated Graph sessionまたはowner承認済みshared-mailbox access contextでexact container entitlementとlive source hashを再検証する。interactive agentはGraphを要求せずauthenticated requester `(tid,oid,clientId)`、active profile、one-time POST body hash、stored derived payload hashを再検証する。coding taskは元source kindと同じ検証を行う。no-store画面はmemory-only sanitized sourceまたはderived payloadだけを表示し、scope/access/hash不一致、live fetch不能、delivery不能はapproval不可かつattempt 0の`verification_failed`とする。
 
 ### Interactive agent credential contract
@@ -206,7 +362,36 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 
 ### Evidence contract
 
-各taskの権威ある証跡は`.orchestration/evidence/<task-id>/`の`commands.json`、`readback.json`、`evidence.json`の3ファイルに固定する。各JSONはPlan 011 schemaに従い、task ID、target SHA、command/exit、redacted resource ID、artifact SHA-256、review outcome、human/ENV gate reference、cleanupを記録する。`verification/`は人が読む非権威な集約reportだけに使い、Plan 011 verifierの入力や外部受入の根拠にしない。
+115 executable taskすべては、各task節のAllowed filesに加えてfull task IDから先頭`P012-`を除いた`<SHORT_TASK_ID>`（例: full=`P012-F00-T01`、short=`F00-T01`）を大文字のまま代入したexact 3 path `.orchestration/evidence/P012-<SHORT_TASK_ID>/commands.json`、`.orchestration/evidence/P012-<SHORT_TASK_ID>/readback.json`、`.orchestration/evidence/P012-<SHORT_TASK_ID>/evidence.json`だけを常に変更できる。このglobal exceptionは41 formal taskと74 Steps taskの両方へ適用し、task節の`readback.json`/`evidence.json`という短縮表記もこのexact directory内だけを意味する。各JSONはPlan 011 schemaに従い、task ID、target SHA、command/exit、redacted resource ID、artifact SHA-256、review outcome、human/ENV gate reference、cleanupを記録する。3件のいずれかが欠落するtaskはACCEPTEDにできない。`verification/`は人が読む非権威な集約reportだけに使い、Plan 011 verifierの入力や外部受入の根拠にしない。
+
+各task lifecycleはexact `unclaimed→in_progress→ACCEPTED|BLOCKED`とする。`completionModes:["executed"]` taskは実装/外部作業と全Verifyを完了したevidenceだけ、`completionModes:["executed","signed_not_applicable"]` taskは同じexecuted evidenceまたはclaim後に作るsigned-NA evidenceだけでACCEPTEDにできる。signed-NAは「未claim」や省略ではない。task ownerがinventory/readbackを実行し、`docs/contracts/plan-012-signed-na-evidence.schema.json`のexact `{schemaVersion:1,planId:"P012",taskId,targetSha,completionMode:"signed_not_applicable",branchDecisionId,reasonCode,inventoryDigest,providerReadbackDigest,ownerRole,ownerApprovalEvidenceId,signedAt,signature}`を`evidence.json.signedNotApplicable`に含め、`commands.json`/`readback.json`とdigest一致し、別context reviewerが受理して初めてtask statusをACCEPTEDへ遷移する。taskIdはfull ID、targetShaはlowercase Git SHA-1 hex[40]、inventoryDigest/providerReadbackDigestはlowercase hex[64]、branchDecisionId/ownerApprovalEvidenceIdは`sha256:<lowercase hex[64]>`、reasonCodeは下表enum、ownerRoleは`security_owner|data_owner|platform_owner`、signedAtはUTC RFC 3339、signatureはaccepted Plan 011 `verification/schemas/acceptance-receipt.schema.json`に一致するstrict owner receipt objectだけを許可する。
+
+署名対象は`signature`と`ownerApprovalEvidenceId`を除いたexact `{schemaVersion,planId,taskId,targetSha,completionMode,branchDecisionId,reasonCode,inventoryDigest,providerReadbackDigest,ownerRole,signedAt}`である。署名subject bytesはUTF-8 domain separator `aiops-plan-012-signed-na-owner-approval-v1\n`、前記objectのRFC 8785 canonical UTF-8 bytes、LFをこの順で連結し、`signedPayloadDigest=SHA-256(bytes)`とする。receiptのJSON Pointer `/task_id`=`taskId`、`/target_commit`=`targetSha`、`/artifact_digest`=`sha256:<signedPayloadDigest>`、`/predicate_type`=`plan_012_signed_not_applicable`、`/role`=`governance`、`/issued_at`=`signedAt`でなければならない。`ownerApprovalEvidenceId`は`sha256:`+RFC 8785 canonical `signature` objectのSHA-256と完全一致させる。`/not_before<=signedAt</expires_at`かつ検証時刻`</expires_at`、Plan 011 policy/revocation bundleは24時間以内、nonce/attestationは未消費でなければならない。`ownerRole`からprotected Environment名への写像はexact `security_owner→plan-012-security-owner`、`data_owner→plan-012-data-owner`、`platform_owner→plan-012-platform-owner`とし、receipt `/environment`、GitHub API deployment environment、`/approver_id`の当該Environment required-reviewer membershipが発行時と検証時の両方で一致することをPlan 011 verifierのonline readbackで要求する。`node scripts/verify-acceptance-attestation.mjs`のexit 0だけでなく、これらのverified claimを照合してからP011 one-time consumptionをcommitする。
+
+validatorがworker申告hashを信用しないため、`commands.json`のJSON Pointer `/signedNotApplicable/inventory`はexact `{schemaVersion:1,planId:"P012",taskId,targetSha,branchDecisionId,reasonCode,evidenceRefs:[{taskId,artifactSha256}],resources:[{provider,resourceType,stableIdHash}]}`とする。`readback.json`の`/signedNotApplicable/providerReadback`はexact `{schemaVersion:1,planId:"P012",taskId,targetSha,branchDecisionId,reasonCode,observedAt,queries}`で、queryはSQL exact `{transport:"sql",provider:"postgresql",operation,scope:[{name,valueSha256}],authorizationEvidenceSha256,resultCode:"success",pages}`またはHTTP exact `{transport:"http",provider:"github"|"azure",operation,scope:[{name,valueSha256}],authorizationEvidenceSha256,resultCode:"success",httpStatus:200,pages}`のstrict unionだけを許可する。404を含むnot-foundはこの12 branchの不在証明に使わず、例外status 0件である。pageはfirst/intermediate exact `{pageOrdinal,requestCursorSha256,responseSha256,hasContinuation:true,continuationSha256,items:[{stableIdHash}]}`またはterminal exact `{pageOrdinal,requestCursorSha256,responseSha256,hasContinuation:false,items:[{stableIdHash}]}`のstrict unionとし、pagesは1件以上、pageOrdinalは1から連続、first requestCursorSha256はSHA-256(empty bytes)、前page continuationSha256と次page requestCursorSha256が一致、terminal pageは最後のexact 1件だけとする。authorizationEvidenceSha256は同target SHAのcommands/readbackにあるverified principal、credential expiry、provider permission、scope readback objectのRFC 8785 SHA-256と再照合し、list/read権限不足・期限切れ・scope不一致を拒否する。
+
+Azure Key Vaultをcurrent-state evidenceへ使う場合、authorityはmanagement-plane Activity Logではなく、署名済みresource URIが指すsecret/key/certificateのexact versionに対する同一principalのdata-plane GETとする。initial readbackとvalidation readbackの双方でHTTP 200、resource ID、version、enabled、notBefore/expires、content/digest metadataを取得し、authorizationEvidenceSha256へ同じprincipal/object ID・data-plane role assignment・scope・credential expiryを結合する。Activity Log、list結果、version省略URI、latest alias、control-plane deployment success、404/403/timeoutをcurrent versionの存在・内容・不変性の根拠にしない。
+
+全objectは`additionalProperties:false`、targetShaはlowercase hex[40]、それ以外の`*Hash|*Digest|*Sha256` fieldはlowercase hex[64]、observedAtはUTC RFC 3339、null禁止である。scope nameは`repository_id|tenant_id|subscription_id|resource_group|database_id|key_vault_id`だけを1..6件、同名duplicate 0とする。stableIdHashはprovider readbackのimmutable IDをUTF-8 `provider\nresourceType\n<immutable-id>`でSHA-256した値で、raw IDは保存しない。evidenceRefsはtaskId、resourcesは`(provider,resourceType,stableIdHash)`、queriesは`(provider,operation,scope列,authorizationEvidenceSha256)`、scopeはname、各page itemsはstableIdHashのUnicode code point昇順、全pageを通したduplicate 0とする。`inventoryDigest`はUTF-8 `aiops-plan-012-signed-na-inventory-v1\n`+RFC 8785 canonical `/signedNotApplicable/inventory`+LF、`providerReadbackDigest`はUTF-8 `aiops-plan-012-signed-na-provider-readback-v1\n`+RFC 8785 canonical `/signedNotApplicable/providerReadback`+LFの各SHA-256で、validator自身がsource objectから再計算する。artifactSha256は参照taskのaccepted `evidence.json` artifact SHAと再照合する。表の`refs`、`resourceTypes`、`queries`はexact setで、`queries`の括弧内は全page結合後の期待items cardinality、各rowのquery scopeは当該task targetShaとprovider種類に必要な前記scope nameの全非null値を含む。期待0件queryはsuccessful authorized full paginationとterminal continuation不在を満たし、全page item 0でなければdigest一致やowner署名に関係なく拒否する。
+
+| Task     | Branch/condition              | reasonCode                                 | ownerRole      | refs                                             | resourceTypes                                                   | queries                                                                                   |
+| -------- | ----------------------------- | ------------------------------------------ | -------------- | ------------------------------------------------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| F02-T07R | open orphan generation 0      | `no_open_orphaned_installation`            | security_owner | `[F02-T07H]`                                     | `[postgresql:orphan_generation]`                                | `[postgresql:orphan-generation-list(0),github:installation-suspension-list(0)]`           |
+| F03-T03C | B=`same_cluster`              | `same_cluster_no_replacement_resource`     | platform_owner | `[F03-T03B,F03-T03Q]`                            | `[azure:current_platform_database]`                             | `[azure:replacement-database-list(0)]`                                                    |
+| F03-T03S | B=`same_cluster`              | `same_cluster_no_migration_identity`       | platform_owner | `[F00-T05P,F03-T03B,F03-T03C]`                   | `[azure:current_runtime_identity]`                              | `[azure:migration-identity-list(0),azure:cutover-identity-list(0),azure:journal-list(0)]` |
+| F03-T03R | B=`same_cluster`              | `same_cluster_no_replacement_schema`       | data_owner     | `[F03-T03B,F03-T03C,F03-T03D,F03-T03Q,F03-T03S]` | `[postgresql:current_catalog]`                                  | `[postgresql:replacement-schema-request-list(0)]`                                         |
+| F03-T03T | B=`same_cluster`              | `same_cluster_no_target_acceptance`        | data_owner     | `[F03-T03B,F03-T03Q,F03-T03R]`                   | `[postgresql:current_target_acceptance]`                        | `[azure:shadow-acceptance-resource-list(0)]`                                              |
+| F03-T03F | B=`same_cluster`              | `same_cluster_no_cross_database_copy`      | data_owner     | `[F03-T03B,F03-T03D,F03-T03Q,F03-T03T]`          | `[postgresql:current_catalog,postgresql:current_data]`          | `[postgresql:replacement-copy-job-list(0)]`                                               |
+| F03-T03H | B=`same_cluster`              | `same_cluster_no_cutover_rollback`         | data_owner     | `[F03-T03B,F03-T03G]`                            | `[azure:current_route_etag,azure:current_route_value]`          | `[azure:rollback-journal-list(0),azure:cutover-journal-list(0)]`                          |
+| F03-T03I | B=`same_cluster`              | `same_cluster_no_replacement_decommission` | platform_owner | `[F03-T03B,F03-T03H]`                            | `[azure:current_runtime_identity,azure:current_network]`        | `[azure:replacement-identity-revoke-list(0),azure:replacement-network-revoke-list(0)]`    |
+| F03-T03J | B=`same_cluster`              | `same_cluster_no_replacement_key`          | security_owner | `[F03-T03B,F03-T03I]`                            | `[azure:current_content_key]`                                   | `[azure:replacement-key-operation-list(0)]`                                               |
+| F03-T03J | B=`replacement`, key=`shared` | `shared_key_crypto_shred_not_applicable`   | security_owner | `[F03-T03B,F03-T03I]`                            | `[azure:shared_key_dependency]`                                 | `[azure:key-mutation-list(0)]`                                                            |
+| F03-T03K | B=`same_cluster`              | `same_cluster_no_replacement_copy_delete`  | data_owner     | `[F03-T03B,F03-T03J]`                            | `[azure:current_copy_inventory,azure:current_backup_inventory]` | `[azure:replacement-copy-deletion-list(0)]`                                               |
+| F03-T03L | B=`same_cluster`              | `same_cluster_no_restore_negative_test`    | data_owner     | `[F03-T03B,F03-T03K]`                            | `[azure:current_copy_inventory,azure:current_backup_inventory]` | `[azure:restore-attempt-list(0)]`                                                         |
+
+前表以外のtask/branch/reasonCode/ownerRole組合せはsigned-NA不可とする。`scripts/validate-plan-012-evidence.mjs <plan> <dag> <commands.json> <readback.json> <evidence.json>`がtask=`in_progress`、3 file full task ID/target SHA、exact refs/resourceTypes/query cardinality、認可済みsuccessful full pagination、source objectから再計算した2 digest、署名subject bytes、P011 receipt claims/online owner-role readback/one-time consumptionを照合し、ACCEPTED transition入力だけを出力する。未claim、BLOCKED、wrong task/branch/owner/reason/digest、self-reported hashだけ、401/403/404/429/5xx、SQL error/timeout、partial/truncated page、continuation残存、page gap/cursor不一致、receipt substitution/cross-task/cross-branch/old-target replay、wrong Environment/approver/time、P011 verifier nonzeroではexit 1とする。
+
+DAG edgeの`acceptance:"accepted"`はpredecessorが`completionMode:"executed"`でACCEPTEDだけを許可し、`acceptance:"accepted_or_signed_not_applicable"`は`executed|signed_not_applicable`のどちらでACCEPTEDでも許可する。後者はPlanで列挙したedgeだけに使い、署名receiptのない未claim/skipを許可しない。
 
 ### Meeting source, revision, and retention contract
 
@@ -222,7 +407,7 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 - `script`だけはallowlist外element拒否の例外としてdrop-onlyで受理し、elementと全descendant textを出力しない。属性値は全elementで出力せず、URL取得、CSS解釈、script実行、network accessを行わない。
 - Outlook message canonical serialization version 1は全GET/delta pageへ`Prefer: IdType="ImmutableId"`を付け、UTF-8 header `aiops-outlook-message-v1\n`の後へRFC 8785でcanonicalizeした`{tenantId,mailboxObjectId,parentFolderId,immutableMessageId,changeKey,etag,receivedDateTime,lastModifiedDateTime,deleted,subjectSha256,bodyTextSha256,senderSubjectHmac,fromSubjectHmac,senderMasterVersion,senderMasterDigest}`とLFを連結してSHA-256する。moveでimmutable message IDが維持されても`parentFolderId`変更で必ずstaleとなる。初期scopeのGraph `sender/from.emailAddress.address`はExchange owner承認済みinternal ASCII SMTP addr-specだけを許可し、WHATWG/Unicode/IDNA変換を行わず、ASCII全体をlowercaseしたUS-ASCII bytesをprotected key/versionでHMACしてraw addressを破棄する。non-ASCII、quoted local-part、comment、display-name混在、invalid addr-spec、external domainはrejectする。runtime tenant-wide directory lookupは行わない。immutable SHAから取得してRFC 8785/Ed25519検証した`meeting-senders.v1.json`だけがaddress HMAC→same-tenant Entra subject OID/shared-mailbox object IDと期限付きdelegate OID→shared mailbox規則を解決する。通常送信はsender/from HMACが同じactive subject、代理送信はsenderがactive delegate、fromとtarget mailboxがactive shared mailbox、delegate ruleが全て一致する場合だけ受理する。external/unresolved/ambiguous/expired/revoked mapping、display name/email文字列だけの一致を拒否する。
 - serializerはfull GETまたはfull delta active itemの`deleted=false`だけを受ける。Graph delta `@removed`は欠落fieldを補完して新message hashを捏造しない。同じImmutableIdを`Prefer: IdType="ImmutableId"`付きでGETし、200ならmove/editとして現parentFolderId/full itemを再canonicalize、404/410なら既存source evidenceのprior message hashを参照するmetadata-only `deleted=true` tombstoneをappendしてpending proposalをstaleにする。tombstone unique keyは`(mailboxObjectId,immutableMessageId,priorEvidenceId,deleted=true)`、`observedAt`はapplication観測時刻でsource timestampではない。同prior retryはexact 1、new active evidence後の再削除はnew priorEvidenceIdでexact 1。429/5xx/timeoutは`verification_failed`、unknown ImmutableId tombstoneは監査だけでmetadata/proposal 0とし、全分岐でGitHub write 0。
-- Teams/Outlookは各ingestion開始時に`readAndAssertIngestionEnabled()`でenabled+epochを取得し、disabledならGraph/LLM/metadata/proposal callを全て0にする。proposal作成時、approval POST直前、execution直前にGraphからroot/reply全pageまたはmessageを再取得し、署名済みsender masterの同一immutable source/version/digest/validity/revocationを再検証してsource hashを再計算する。一致しなければ`stale`、proposal作成前のGraph/master readback不能はproposalを作らずHTTP 503 `{status:"verification_failed",errorCode:"source_read_unavailable"}`+clarification、approval/execution前はattempt row 0の`verification_failed`とし、いずれもGitHub write 0とする。proposal commit直前は取得済みepochを`FOR SHARE` lock下で再検証する。executionではさらにsession-level shared minutes gate lockをattempt commit前からexternal terminal/indeterminate commit後まで保持し、detectorのdisable commitを排他する。これによりdisable commit時点以降の新規/既存meeting mutationを0にする。`indeterminate`はexternal mutation request送信後だけである。interactive agentはGraph sourceを要求せず、authenticated requester `(tid,oid,clientId)`、one-time POST body SHA-256、signed project mappingを同じ3時点で検証し、stored derived payloadだけをno-store reviewへ表示する。coding taskはこのverified master/source contextをP010 approval context providerへ必須入力し、approval/dispatch直前に同じ規則で再検証する。
+- Teams/Outlookは各ingestion開始時に`readAndAssertIngestionEnabled()`でenabled+epochを取得し、disabledならGraph/LLM/metadata/proposal callを全て0にする。proposal作成時、approval POST直前、execution直前にGraphからroot/reply全pageまたはmessageを再取得し、署名済みsender masterの同一immutable source/version/digest/validity/revocationを再検証してsource hashを再計算する。一致しなければ`stale`、proposal作成前のGraph/master readback不能はproposalを作らずHTTP 503 exact `{operationId:null,kind:<parsed kind|null>,projectId:<parsed PJ-ID|null>,status:"error",httpStatus:503,errorCode:"source_read_unavailable",retryable:true}`+clarification、approval/execution前は採番済みoperationをattempt row 0のterminal `verification_failed`としてstatus GET 200で返し、いずれもGitHub write 0とする。proposal commit直前は取得済みepochを`FOR SHARE` lock下で再検証する。executionではさらにsession-level shared minutes gate lockをattempt commit前からexternal terminal/indeterminate commit後まで保持し、detectorのdisable commitを排他する。これによりdisable commit時点以降の新規/既存meeting mutationを0にする。`indeterminate`はexternal mutation request送信後だけである。interactive agentはGraph sourceを要求せず、authenticated requester `(tid,oid,clientId)`、one-time POST body SHA-256、signed project mappingを同じ3時点で検証し、stored derived payloadだけをno-store reviewへ表示する。coding taskはこのverified master/source contextをP010 approval context providerへ必須入力し、approval/dispatch直前に同じ規則で再検証する。
 - applicationがraw本文を保持しないため、90日raw retentionと5年LTRは衝突しない。legal holdはMicrosoft 365/Purviewのsource-system policyだけを正本とし、本applicationに第二のhold table/APIを作らない。sourceがhold/retentionにより再取得不能ならpending proposalを`stale`へ終了し、hashだけを監査に残す。
 - 移行前inventoryでlive heap/toast、replica、WAL/PITR、snapshot/base backup/export/provider backupの全対象にraw本文が存在しないと証明できる場合だけ自動移行できる。1件以上またはinventory不明なら前記replacement cutoverとcrypto-shred/delete/expiry/readbackを完了するまでSTOPする。Records/Data Ownerの例外はhold継続理由を記録できるがproduction gate/Doneを解除できない。migration後のdirect SQLで旧raw/display columnへINSERT/UPDATEするとPostgreSQLが`undefined_column`で拒否しなければならない。
 - raw non-persistence SLOはraw/display column 0、raw write privilege/path 0を常時維持すること。singleton `minutes_ingestion_gate(id=1,enabled,epoch,incident_id)`をDB正本とし、各pollerは外部Graph read前のepochを記録し、metadata/proposal write直前の短いtransactionでgate rowを`FOR SHARE` lockして`enabled=true`かつepoch一致を検証してからwriteする。detectorは同rowをexclusive lockし、incident open、`enabled=false`、epoch incrementを同一transactionでcommitする。これにより外部read中にdisableされたworkerはwrite 0で停止する。startup/毎時schema guardが禁止column/pathを検出したらdurable `raw_content_incidents`をexact 1件openして全minutes ingestionをdisableし、即時SEV-1/Data Owner通知する。schema cleanup、live/replica/WAL/PITR/backup復元不能readback、root-cause evidence、Plan 010の別人owner承認が揃いincidentをcloseするまで、restartしても再開しない。
@@ -243,8 +428,11 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 | Baseline SHA            | `git rev-parse --short HEAD`                                                                                                                                                                                                                                                                                                       | planned SHAまたはdrift確認済みSHA                                     |
 | Scope check             | `git diff --name-only origin/main...HEAD`                                                                                                                                                                                                                                                                                          | task packetのAllowed filesだけ                                        |
 | Focused shared tests    | `pnpm --filter @aiops/shared test -- githubClient graphClient`                                                                                                                                                                                                                                                                     | all pass                                                              |
-| Focused PrjOps tests    | `pnpm --filter @aiops/prjops test -- commandParser minutes`                                                                                                                                                                                                                                                                        | all pass                                                              |
-| Focused server tests    | `pnpm --filter @aiops/server test -- teamsConversation operationProposal graphNotifications minutes`                                                                                                                                                                                                                               | all pass                                                              |
+| Plan DAG validation     | `node scripts/validate-plan-012-dag.mjs plans/012-conversational-github-operations-and-minutes.md docs/contracts/plan-012-task-dag.json`                                                                                                                                                                                           | 115 task/edge/field/hash、cycleなし、exit 0                           |
+| Plan DAG Node test      | `node --test scripts/validate-plan-012-dag.test.mjs`                                                                                                                                                                                                                                                                               | positive/adversarial fixture all pass                                 |
+| Signed-NA evidence test | `node --test scripts/validate-plan-012-evidence.test.mjs`                                                                                                                                                                                                                                                                          | lifecycle/matrix/P011 receipt/digest fixture all pass                 |
+| Focused PrjOps tests    | `pnpm --filter @aiops/prjops test -- conversationalGithubContract.test.ts commandParser minutes`                                                                                                                                                                                                                                   | all pass                                                              |
+| Focused server tests    | `pnpm --filter @aiops/server test -- operationApproverMaster.test.ts operationApproverProvider.test.ts teamsConversation operationProposal graphNotifications minutes`                                                                                                                                                             | all pass                                                              |
 | Focused web tests       | `pnpm --filter @aiops/web test -- ProjectPicker ProjectBoard`                                                                                                                                                                                                                                                                      | all pass                                                              |
 | Workflow lint           | `mise run actionlint`                                                                                                                                                                                                                                                                                                              | pinned actionlint v1.7.12、workflow filesだけを検査してexit 0         |
 | Composite action policy | `pnpm --filter @aiops/server test -- agentOperationAssets.test.ts`                                                                                                                                                                                                                                                                 | composite metadataとcredential/command policyがgreen                  |
@@ -264,7 +452,7 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 - Mechanical worker: current public Codex manualの`gpt-5.6-terra`、`model_reasoning_effort=medium`を、read-only探索、既知fixture、docs parityだけに使える。runtime inventoryに表示されない場合は強制せず、利用可能なモデルをorchestratorが比例性に基づいて選び、resolved slugを記録する。認証、migration、concurrency、外部write、CI publisherは担当させない。
 - Escalation: high workerの明示修正後に同じ`root_cause_key`が再発した場合だけ、runtimeで利用可能と確認できる`xhigh`/`max`へ上げる。名称やavailabilityを確認できなければSTOPする。
 - Reviewerはworkerと別thread・別contextでread-only実行し、correctness/security/privacy/operations/accessibility/negative pathを確認する。
-- Ponytail full: 既存`GitHubClient`、Graph subscription/delta、events queue、Plan 010 approval、GitHub Projects v2 snapshotを再利用する。MCP server、第二のboard DB、汎用operation DSLは追加しない。新dependencyはexact `@microsoft/teams.apps@2.0.13`、`parse5@7.3.0`、`@azure/app-configuration@1.12.1`、`@azure/identity@4.13.1`、`@azure/keyvault-secrets@4.11.2`、`@azure/keyvault-keys@4.10.2`、`@azure/storage-blob@12.33.0`、`@kubernetes/client-node@1.4.0`だけを許可し、`pnpm-lock.yaml`で固定する。各SDK client/fetch/credentialはconstructorまたは引数で注入し、unit testはnetwork 0で実行する。
+- Ponytail full: 既存`GitHubClient`、Graph subscription/delta、events queue、Plan 010 approval、GitHub Projects v2 snapshotを再利用する。MCP server、第二のboard DB、汎用operation DSLは追加しない。新dependencyはexact `canonicalize@3.0.0`、`@microsoft/teams.apps@2.0.13`、`parse5@7.3.0`、`@azure/app-configuration@1.12.1`、`@azure/identity@4.13.1`、`@azure/keyvault-secrets@4.11.2`、`@azure/keyvault-keys@4.10.2`、`@azure/storage-blob@12.33.0`、`@kubernetes/client-node@1.4.0`だけを許可し、`pnpm-lock.yaml`で固定する。各SDK client/fetch/credentialはconstructorまたは引数で注入し、unit testはnetwork 0で実行する。
 
 ## Scope
 
@@ -306,111 +494,127 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 
 `docs/contracts/plan-012-task-dag.json`は次のdirect prerequisite集合を完全一致でmachine-readable化する。rangeの暗黙展開、表にない依存、推測した並列化は禁止する。
 
-| Task     | Direct prerequisites                                                                              |
-| -------- | ------------------------------------------------------------------------------------------------- |
-| F00-T01  | clean isolated checkout、`origin/main`                                                            |
-| F00-T02  | F00-T01                                                                                           |
-| F00-T03  | F00-T02、DEC-SPEC-008                                                                             |
-| F00-T04  | F00-T03                                                                                           |
-| F00-T05  | F00-T04,DEC-ENV-002                                                                               |
-| F00-T05P | F00-T01                                                                                           |
-| F00-T06  | F00-T01,F00-T02,F00-T03,F00-T04,F00-T05,F00-T05P                                                  |
-| F01-T01  | F00-T06                                                                                           |
-| F01-T02  | F01-T01                                                                                           |
-| F01-T03  | F01-T01                                                                                           |
-| F01-T04  | F01-T02,F01-T03                                                                                   |
-| F01-T05  | F01-T04,P010-F03-T05                                                                              |
-| F01-T06  | F01-T05                                                                                           |
-| F01-T07  | F01-T06,P010-F03-T08                                                                              |
-| F01-T08  | F01-T07                                                                                           |
-| F01-T09  | F01-T01,F01-T02,F01-T03,F01-T04,F01-T05,F01-T06,F01-T07,F01-T08                                   |
-| F02-T01A | F01-T09,P010-F02-T14                                                                              |
-| F02-T01B | F02-T01A                                                                                          |
-| F02-T01C | F02-T01B                                                                                          |
-| F02-T01D | F02-T01B                                                                                          |
-| F02-T01E | F02-T01C,F02-T01D                                                                                 |
-| F02-T01F | F02-T01E                                                                                          |
-| F02-T02  | F02-T01F,P010-F05-T14                                                                             |
-| F02-T03  | F02-T02,P010-F03-T08                                                                              |
-| F02-T04  | F02-T03                                                                                           |
-| F02-T05  | F02-T04                                                                                           |
-| F02-T06  | F02-T05                                                                                           |
-| F02-T07  | F02-T06,P010-F05-T10,P010-F05-T11,P010-F05-T12,P010-F05-T13,P010-F05-T14                          |
-| F02-T07R | F02-T07                                                                                           |
-| F02-T08  | F02-T07R                                                                                          |
-| F02-T09  | F02-T01F,F02-T02,F02-T03,F02-T04,F02-T05,F02-T06,F02-T07,F02-T07R,F02-T08                         |
-| F03-T01  | F00-T06,F01-T09,F02-T04,P010-F03-T08,P010-F04-T03                                                 |
-| F03-T02  | F03-T01                                                                                           |
-| F03-T03A | F03-T02                                                                                           |
-| F03-T03B | F03-T03A                                                                                          |
-| F03-T03P | F03-T03B                                                                                          |
-| F03-T03Q | F03-T03P                                                                                          |
-| F03-T03C | F03-T03Q                                                                                          |
-| F03-T03D | F03-T03C                                                                                          |
-| F03-T03E | F03-T03D                                                                                          |
-| F03-T03S | F03-T03C,F00-T05P                                                                                 |
-| F03-T03R | F03-T03D,F03-T03S                                                                                 |
-| F03-T03T | F03-T03R                                                                                          |
-| F03-T03F | F03-T03E,F03-T03T                                                                                 |
-| F03-T03G | F03-T03F                                                                                          |
-| F03-T03H | F03-T03G                                                                                          |
-| F03-T03I | F03-T03H                                                                                          |
-| F03-T03J | F03-T03I                                                                                          |
-| F03-T03K | F03-T03J                                                                                          |
-| F03-T03L | F03-T03K                                                                                          |
-| F03-T03M | F03-T03L                                                                                          |
-| F03-T03N | F03-T03M                                                                                          |
-| F03-T03O | F03-T03N                                                                                          |
-| F03-T04A | F03-T03O,DEC-ENV-001                                                                              |
-| F03-T04B | F03-T04A                                                                                          |
-| F03-T05  | F03-T04B                                                                                          |
-| F03-T06  | F03-T05                                                                                           |
-| F03-T07  | F03-T06                                                                                           |
-| F03-T08  | F03-T07                                                                                           |
-| F03-T09  | F03-T08                                                                                           |
-| F03-T10  | F03-T09,F01-T09                                                                                   |
-| F03-T11  | F03-T10                                                                                           |
-| F03-T12  | F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11         |
-| F03-T13  | F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11,F03-T12 |
-| F04-T01  | F00-T06,F01-T09,F02-T04,P010-F03-T08                                                              |
-| F04-T02  | F04-T01                                                                                           |
-| F04-T03  | F04-T02                                                                                           |
-| F04-T04  | F04-T03                                                                                           |
-| F04-T05A | F04-T04,DEC-ENV-004                                                                               |
-| F04-T05B | F04-T05A                                                                                          |
-| F04-T05C | F04-T05B                                                                                          |
-| F04-T05D | F04-T05A,F04-T05C                                                                                 |
-| F04-T05E | F04-T05B,F04-T05D                                                                                 |
-| F04-T05F | F04-T05D                                                                                          |
-| F04-T05G | F04-T05D                                                                                          |
-| F04-T05H | F04-T05E,F04-T05F,F04-T05G                                                                        |
-| F04-T06A | F04-T04,F04-T05H                                                                                  |
-| F04-T06B | F04-T06A                                                                                          |
-| F04-T06C | F04-T06A                                                                                          |
-| F04-T06D | F04-T06A                                                                                          |
-| F04-T06E | F04-T06B,F04-T06C,F04-T06D                                                                        |
-| F04-T07  | F04-T04,F04-T05H,F04-T06E                                                                         |
-| F04-T08  | F04-T01,F04-T02,F04-T03,F04-T04,F04-T05H,F04-T06E,F04-T07                                         |
-| F05-T01  | P010-F02-T10                                                                                      |
-| F05-T02  | F05-T01,P010-F02-T11                                                                              |
-| F05-T03  | F05-T02,P010-F02-T12,P010-F02-T13,P010-F02-T14,P012-F00-T03                                       |
-| F06-T01  | F02-T09,F03-T13,F04-T08,F05-T03,P010-F05-T14,Plan 011 acceptance                                  |
-| F06-T02  | F06-T01                                                                                           |
-| F06-T03  | F06-T02                                                                                           |
-| F06-T04  | F06-T03                                                                                           |
-| F06-T05  | F06-T04                                                                                           |
-| F06-T06  | F06-T05                                                                                           |
-| F06-T07  | F06-T06                                                                                           |
-| F06-T08  | F06-T01,F06-T02,F06-T03,F06-T04,F06-T05,F06-T06,F06-T07                                           |
-| F06-T09  | F06-T01,F06-T02,F06-T03,F06-T04,F06-T05,F06-T06,F06-T07,F06-T08                                   |
-| F07-T01  | F06-T09                                                                                           |
-| F07-T02  | F07-T01                                                                                           |
-| F07-T03  | F07-T02                                                                                           |
-| F07-T04  | F07-T01,F07-T02,F07-T03                                                                           |
+| Task     | Direct prerequisites                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| F00-T01  | clean isolated checkout、`origin/main`                                                             |
+| F00-T02A | F00-T01                                                                                            |
+| F00-T02B | F00-T02A                                                                                           |
+| F00-T02C | F00-T02B,Plan 011 acceptance                                                                       |
+| F00-T02D | F00-T02C,Plan 011 acceptance                                                                       |
+| F00-T02E | F00-T02D,Plan 011 acceptance                                                                       |
+| F00-T03  | F00-T02E、DEC-SPEC-008                                                                             |
+| F00-T04  | F00-T03                                                                                            |
+| F00-T05  | F00-T04,DEC-ENV-002                                                                                |
+| F00-T05P | F00-T01                                                                                            |
+| F00-T06  | F00-T01,F00-T02A,F00-T02B,F00-T02C,F00-T02D,F00-T02E,F00-T03,F00-T04,F00-T05,F00-T05P              |
+| F01-T01  | F00-T06                                                                                            |
+| F01-T02  | F01-T01                                                                                            |
+| F01-T03  | F01-T01                                                                                            |
+| F01-T04  | F01-T02,F01-T03                                                                                    |
+| F01-T05  | F01-T04,P010-F03-T05                                                                               |
+| F01-T06  | F01-T05                                                                                            |
+| F01-T07  | F01-T06,P010-F03-T08                                                                               |
+| F01-T08  | F01-T07                                                                                            |
+| F01-T08A | F01-T08                                                                                            |
+| F01-T09  | F01-T01,F01-T02,F01-T03,F01-T04,F01-T05,F01-T06,F01-T07,F01-T08,F01-T08A                           |
+| F02-T01A | F01-T09,P010-F02-T14                                                                               |
+| F02-T01B | F02-T01A                                                                                           |
+| F02-T01C | F02-T01B                                                                                           |
+| F02-T01D | F02-T01C                                                                                           |
+| F02-T01E | F02-T01C,F02-T01D                                                                                  |
+| F02-T01F | F02-T01E                                                                                           |
+| F02-T02  | F02-T01F,P010-F05-T14                                                                              |
+| F02-T03  | F02-T02,P010-F03-T08                                                                               |
+| F02-T04  | F02-T03                                                                                            |
+| F02-T05  | F02-T04                                                                                            |
+| F02-T06  | F02-T05                                                                                            |
+| F02-T07A | F02-T06,P010-F05-T10,P010-F05-T11,P010-F05-T12,P010-F05-T13,P010-F05-T14                           |
+| F02-T07B | F02-T07A                                                                                           |
+| F02-T07C | F02-T07B                                                                                           |
+| F02-T07D | F02-T07C                                                                                           |
+| F02-T07E | F02-T07D                                                                                           |
+| F02-T07F | F02-T07E                                                                                           |
+| F02-T07G | F02-T07F                                                                                           |
+| F02-T07H | F02-T07A,F02-T07B,F02-T07C,F02-T07D,F02-T07E,F02-T07F,F02-T07G                                     |
+| F02-T07R | F02-T07H                                                                                           |
+| F02-T08  | F02-T07R                                                                                           |
+| F02-T09  | F02-T01F,F02-T02,F02-T03,F02-T04,F02-T05,F02-T06,F02-T07H,F02-T07R,F02-T08                         |
+| F03-T01  | F00-T06,F01-T09,F02-T09,P010-F03-T08,P010-F04-T03                                                  |
+| F03-T02  | F03-T01                                                                                            |
+| F03-T03A | F03-T02                                                                                            |
+| F03-T03B | F03-T03A                                                                                           |
+| F03-T03P | F03-T03B                                                                                           |
+| F03-T03Q | F03-T03P                                                                                           |
+| F03-T03C | F03-T03Q                                                                                           |
+| F03-T03D | F03-T03C                                                                                           |
+| F03-T03E | F03-T03D                                                                                           |
+| F03-T03S | F03-T03C,F00-T05P                                                                                  |
+| F03-T03R | F03-T03D,F03-T03S                                                                                  |
+| F03-T03T | F03-T03R                                                                                           |
+| F03-T03F | F03-T03E,F03-T03T                                                                                  |
+| F03-T03G | F03-T03F                                                                                           |
+| F03-T03H | F03-T03G                                                                                           |
+| F03-T03I | F03-T03H                                                                                           |
+| F03-T03J | F03-T03I                                                                                           |
+| F03-T03K | F03-T03J                                                                                           |
+| F03-T03L | F03-T03K                                                                                           |
+| F03-T03M | F03-T03L                                                                                           |
+| F03-T03N | F03-T03M                                                                                           |
+| F03-T03O | F03-T03N                                                                                           |
+| F03-T04A | F03-T03O,DEC-ENV-001                                                                               |
+| F03-T04B | F03-T04A                                                                                           |
+| F03-T05  | F03-T04B                                                                                           |
+| F03-T06  | F03-T05                                                                                            |
+| F03-T07  | F03-T06                                                                                            |
+| F03-T08  | F03-T07                                                                                            |
+| F03-T09  | F03-T08                                                                                            |
+| F03-T10  | F03-T09,F01-T09                                                                                    |
+| F03-T11  | F03-T10                                                                                            |
+| F03-T12A | F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11          |
+| F03-T12B | F03-T12A                                                                                           |
+| F03-T12C | F03-T03O,F03-T12A,F03-T12B                                                                         |
+| F03-T12D | F03-T12C                                                                                           |
+| F03-T12E | F03-T12A,F03-T12B,F03-T12C,F03-T12D                                                                |
+| F03-T13  | F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11,F03-T12E |
+| F04-T01  | F00-T06,F01-T09,F02-T09,F03-T13,P010-F03-T08                                                       |
+| F04-T02  | F04-T01                                                                                            |
+| F04-T03  | F04-T02                                                                                            |
+| F04-T04  | F04-T03                                                                                            |
+| F04-T05A | F04-T04,DEC-ENV-004                                                                                |
+| F04-T05B | F04-T05A                                                                                           |
+| F04-T05C | F04-T05B                                                                                           |
+| F04-T05D | F04-T05A,F04-T05C                                                                                  |
+| F04-T05E | F04-T05B,F04-T05D                                                                                  |
+| F04-T05F | F04-T05D                                                                                           |
+| F04-T05G | F04-T05F                                                                                           |
+| F04-T05H | F04-T05E,F04-T05F,F04-T05G                                                                         |
+| F04-T06A | F04-T04,F04-T05H                                                                                   |
+| F04-T06B | F04-T06A                                                                                           |
+| F04-T06C | F04-T06A                                                                                           |
+| F04-T06D | F04-T06A                                                                                           |
+| F04-T06E | F04-T06B,F04-T06C,F04-T06D                                                                         |
+| F04-T07  | F04-T04,F04-T05H,F04-T06E                                                                          |
+| F04-T08  | F04-T01,F04-T02,F04-T03,F04-T04,F04-T05H,F04-T06E,F04-T07                                          |
+| F05-T01  | F04-T08,P010-F02-T10                                                                               |
+| F05-T02  | F05-T01,P010-F02-T11                                                                               |
+| F05-T03  | F05-T02,P010-F02-T12,P010-F02-T13,P010-F02-T14,P012-F00-T03                                        |
+| F06-T01  | F02-T09,F03-T13,F04-T08,F05-T03,P010-F05-T14,Plan 011 acceptance                                   |
+| F06-T02  | F06-T01                                                                                            |
+| F06-T03  | F06-T02                                                                                            |
+| F06-T04  | F06-T03                                                                                            |
+| F06-T05  | F06-T04                                                                                            |
+| F06-T06  | F06-T05                                                                                            |
+| F06-T07  | F06-T06                                                                                            |
+| F06-T08  | F06-T01,F06-T02,F06-T03,F06-T04,F06-T05,F06-T06,F06-T07                                            |
+| F06-T09  | F06-T01,F06-T02,F06-T03,F06-T04,F06-T05,F06-T06,F06-T07,F06-T08                                    |
+| F07-T01  | F06-T09                                                                                            |
+| F07-T02  | F07-T01                                                                                            |
+| F07-T03  | F07-T02                                                                                            |
+| F07-T04  | F07-T01,F07-T02,F07-T03                                                                            |
 
 ### Formal atomic tasks for decomposed gate groups
 
-直後の40 formal task節が実行指示・Allowed filesの正本である。全formal taskは各節のAllowed filesに加え、task IDを大文字のまま代入したexact 3 path `.orchestration/evidence/P012-<TASK-ID>/commands.json`、`.orchestration/evidence/P012-<TASK-ID>/readback.json`、`.orchestration/evidence/P012-<TASK-ID>/evidence.json`だけを常に変更できる。この3件は実行command/exit、provider readback、SHA/receipt/cleanupの必須証跡であり、欠落taskはACCEPTEDにできない。後段の旧F02-T01/F03-T03/F03-T04/F04-T05/F04-T06節はcontractをまとめる非実行gate-group summaryで、変更を直接行わない。各groupは末尾task ACCEPTED時だけaccepted aliasとなる。
+直後の41 formal task節が実行指示・Allowed filesの正本である。証跡pathのglobal exceptionは前記Evidence contractをそのまま適用する。後段の旧F02-T01/F03-T03/F03-T04/F04-T05/F04-T06節はcontractをまとめる非実行gate-group summaryで、変更を直接行わない。各groupは末尾task ACCEPTED時だけaccepted aliasとなる。
 
 #### P012-F02-T01A Teams SDK/config/manifest/IaCを固定する
 
@@ -444,7 +648,7 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 
 #### P012-F02-T01D canonical Teams ingress CASを実装する
 
-- **Preconditions**: F02-T01B ACCEPTED。
+- **Preconditions**: F02-T01C ACCEPTED。
 - **Allowed files**: `packages/devops/src/db/schema.sql`、新規`packages/devops/src/db/migrations/202607140147_teams_intent_ingress.sql`、新規`packages/server/src/db/teamsIntentIngressRepo.ts`、新規`packages/server/tests/teamsIntentIngressRepo.test.ts`だけ。
 - **Work**: revision-v1、unique/CHECK/lease/CAS/origin bits/self-sender filterを実装する。
 - **Complete**: processed/failed immutable、crash reclaim、downstream correlation exact 1。
@@ -556,8 +760,8 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 
 - **Preconditions**: F03-T03D、F03-T03S ACCEPTED。
 - **Allowed files**: 新規`scripts/apply-platform-replacement-schema.mjs`、新規`scripts/platform-db-object-manifest.mjs`、新規`packages/server/tests/platformReplacementSchemaApply.test.ts`だけ。
-- **Work**: replacement時だけmigration UAMIでtargetへsame-SHA fresh schemaとaccepted migrationsを適用する。source/target PostgreSQL engine majorと`pg_auth_members`/`pg_db_role_setting` column digestをsigned masterへ照合し、supported matrix外をSTOPする。manifestはschema/table/column/partition/sequence/type/domain/enum/constraint/index/view/materialized-view/function/procedure/trigger/extension/RLS/default privilege/role/owner/grantをcatalog化し、function/procedureのnormalized definition/owner/ACL/volatility/parallel/leakproof/security-definer/search_pathを含む。cluster manifestは前段exact schemaの`rolesSorted`、`membershipEdgesSorted`、`ownershipEdgesSorted`、`roleSettingsSorted`を別配列にする。identifierはSQL quote/連結せずUnicode NFC field、ownershipはdatabase/schema/object kind/name/function・procedure identity argumentのposition/type schema/type name/modeを個別保持する。`setconfig`は最初の`=`だけでname/valueへ分割し残りの`=`をvalueへ保持し、settingsをname順・duplicate 0にする。database-only/role-only/DB-role settingを`(databaseName|null,roleName|null)`で一意に所有する。authBinding.roleNameは外側roleNameと一致、NOLOGINはnull、LOGINはowner-signed Entra/managed-identity binding exact 1にする。password hash/credentialはcopyせずtarget `rolpassword`はNULLとし、Qのtoken取得+real login smokeを行う。non-system/application-owned scopeを全列挙し、system/provider-managedはengine-version別signed allowlist/digest一致時だけ除外する。未知kind/owner/role属性はfail-closeする。migration ledgerはversion/name/checksum/orderを別manifestにし、target=accepted set exact、source=accepted setからpending Dだけを除いたexact setを要求する。source DBは変更しない。
-- **Complete**: target catalog/ledger/role auth mappingはaccepted oracle、source catalog/ledgerはpending Dだけを除くpre-D oracleへ各exact一致し、source data不変、target raw/password hash 0、login可用性をowner-signed identityで証明し、未列挙/未知object/role attribute 0。
+- **Work**: B decisionが`same_cluster`ならclaimしたData Ownerがreplacement resource/secret/target DB request 0、Q old-target acceptance digest、C/S signed-NA evidenceをreadbackし、Evidence contractのsigned-NA receiptへreasonCode=`same_cluster_no_replacement_schema`、branchDecisionId=B evidence IDを保存する。`replacement`時だけmigration UAMIでtargetへsame-SHA fresh schemaとaccepted migrationsを適用する。source/target PostgreSQL engine majorと`pg_auth_members`/`pg_db_role_setting` column digestをsigned masterへ照合し、supported matrix外をSTOPする。manifestはschema/table/column/partition/sequence/type/domain/enum/constraint/index/view/materialized-view/function/procedure/trigger/extension/RLS/default privilege/role/owner/grantをcatalog化し、function/procedureのnormalized definition/owner/ACL/volatility/parallel/leakproof/security-definer/search_pathを含む。cluster manifestは前段exact schemaの`rolesSorted`、`membershipEdgesSorted`、`ownershipEdgesSorted`、`roleSettingsSorted`を別配列にする。identifierはSQL quote/連結せずUnicode NFC field、ownershipはdatabase/schema/object kind/name/function・procedure identity argumentのposition/type schema/type name/modeを個別保持する。`setconfig`は最初の`=`だけでname/valueへ分割し残りの`=`をvalueへ保持し、settingsをname順・duplicate 0にする。database-only/role-only/DB-role settingを`(databaseName|null,roleName|null)`で一意に所有する。authBinding.roleNameは外側roleNameと一致、NOLOGINはnull、LOGINはowner-signed Entra/managed-identity binding exact 1にする。password hash/credentialはcopyせずtarget `rolpassword`はNULLとし、Qのtoken取得+real login smokeを行う。non-system/application-owned scopeを全列挙し、system/provider-managedはengine-version別signed allowlist/digest一致時だけ除外する。未知kind/owner/role属性はfail-closeする。migration ledgerはversion/name/checksum/orderを別manifestにし、target=accepted set exact、source=accepted setからpending Dだけを除いたexact setを要求する。source DBは変更しない。
+- **Complete**: same_clusterはreplacement provider call 0とsigned-NA 3 evidence filesがdigest一致する。replacementはtarget catalog/ledger/role auth mappingがaccepted oracle、source catalog/ledgerがpending Dだけを除くpre-D oracleへ各exact一致し、source data不変、target raw/password hash 0、login可用性をowner-signed identityで証明し、未列挙/未知object/role attribute 0。
 - **Verify Positive**: baseline functionsと全object kind、quoted/dot-containing identifiers、同名で異なるobject kind、overloaded function/procedure identity arguments、NOLOGIN、nested role edge 6属性、ALTER DATABASE SET/ALTER ROLE SET/DB-role SET、`=`を含むsetting value、ownership/Entra login smoke、fresh/second apply、stable normalized digest、source-missing-D ledger、same-cluster NAがgreen。
 - **Verify Adversarial**: SQL quoted identifier文字列化、schema/object連結、object kind/identity argument欠落、function overload衝突、function body/owner/ACL/search_path/security drift、membershipのrole/member/grantor/admin/inherit/set各1属性の欠落・反転、DB-only/global-role/DB-role settingの欠落・重複・順序・scope・first-`=`分割drift、authBindingの外側roleName不一致、validUntil mode/value、NOLOGIN binding捏造、LOGIN binding欠落、auth type/tenant/object/validity/artifact/signature drift、`rolsuper|rolcreaterole|rolcreatedb|rolreplication|rolbypassrls`昇格、inherit/login/connlimit drift、password hash copy、real login不能、engine major/catalog column drift、unknown kind/migration/raw/source/partial applyをrejectする。
 - **STOP**: source不変またはfull object equalityを証明できない。
@@ -754,7 +958,7 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 
 #### P012-F04-T05G LLM gateway/data controlsを実装する
 
-- **Preconditions**: F04-T05D ACCEPTED。
+- **Preconditions**: F04-T05F ACCEPTED。
 - **Allowed files**: 新規`packages/server/src/http/routes/agentLlmGateway.ts`、`packages/server/src/lib/agentGatewayDlp.ts`、`packages/server/src/http/app.ts`、`packages/server/src/config.ts`、`packages/server/src/index.ts`、新規`packages/server/tests/agentLlmGateway.test.ts`、`packages/server/tests/agentGatewayDlp.test.ts`、`packages/server/tests/config.test.ts`だけ。
 - **Work**: Claude/Responses wire、model/budget、OpenAI jp/ZDR/store/background controlsを実装する。
 - **Complete**: provider key job0、body log/trace/replay/local cache0。
@@ -822,7 +1026,7 @@ Plan 010 F03のaccepted成果は`approval_requests`、`approval_decisions`、`pa
 - **Verify Adversarial**: direct write/host fallback/unknown CA/secret observationをrejectする。
 - **STOP**: 一providerでもcontract不一致。
 
-Executable task countは99 formal `#### P012-...` task heading。DAG JSON、plan validator、agent asset validatorはこの99 ID exact set、7必須field、direct prerequisiteを検証し、navigation tableとgate-group summaryを実行taskとして数えない。
+Executable task countは115 formal `#### P012-...` task heading。DAG JSON、plan validator、agent asset validatorはこの115 ID exact set、7必須field、direct prerequisiteを検証し、navigation tableとgate-group summaryを実行taskとして数えない。
 
 orchestrator、認証・migration・concurrency・外部write・CI publisherを扱うhigh-risk worker、F04各taskとF07-T04の別context reviewerは`gpt-5.6-sol high`を使う。機械的read-only探索、既知fixture、docs parityだけはSuggested executor toolkitの条件を満たす場合に限り`gpt-5.6-terra medium`へ委譲し、resolved model/reasoningをtask evidenceへ記録する。runtime inventoryに指定slugがなければ黙ってfallbackせずSTOPする。
 
@@ -840,19 +1044,60 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - **Verify Adversarial**: API 403/404、stale SHA、secret値を含むoutputを受入れない。Pages 404を「機能故障」ではなく「未設定」と記録する。lock checksum、URL、versionのいずれかをfixtureで変えるとlocked installを失敗させ、元へ戻す。
 - **STOP**: remote mainがlocal SHAと異なる、またはprimary dirty checkoutしか利用できない。
 
-#### P012-F00-T02 operation matrixをmachine-readable contractへ固定する
+#### P012-F00-T02A operation matrixをmachine-readable contractへ固定する
 
 - **Preconditions**: F00-T01 ACCEPTED。
-- **Allowed files**: 新規`docs/contracts/conversational-github-operations.json`、新規`docs/contracts/conversational-github-operations.schema.json`、新規`docs/contracts/project-operation-approver.schema.json`、新規`docs/contracts/plan-012-task-dag.json`、新規`scripts/validate-plan-012-dag.mjs`、新規`scripts/validate-plan-012-dag.test.mjs`、新規`packages/server/tests/conversationalGithubOperationsContract.test.ts`。
-- **Work**: Operation schema and permission matrixを値変更せずJSON化する。別schemaでintended-approver masterのexact fields、RFC 8785/Ed25519、immutable source SHA、keyring/revocation、delivery/source entitlement、validity、projectごとのactive cardinality=1を固定する。task headingとPreconditionsをmachine-readable DAGへ一度転記し、表/DAG/各task-level Preconditionsの欠落・余剰・cycle・未知taskをvalidatorで拒否する。executorはfield、limit、profile、permission、target、result、approverを追加・削除・選択しない。
-- **Complete**: Markdown表とJSON contractが一対一。禁止operationはcontractにhandlerを持たず、approverは署名済みmaster以外から解決できない。
-- **Verify Positive**: schema validate、全99 executable taskのDAG/golden testがexit 0。
-- **Verify Adversarial**: `pull_request.merge`、任意URL、任意GraphQL、未知field、project省略、approver 0/2件、expired/revoked/invalid signature、task依存1件欠落/余剰/cycleをfixtureへ入れるとexit 1。
-- **STOP**: operation kindまたはprofile matrixが正本仕様と衝突する。
+- **Allowed files**: 新規`docs/contracts/conversational-github-operations.json`、新規`docs/contracts/conversational-github-operations.schema.json`、新規`packages/prjops/src/lib/conversationalGithubContract.ts`、新規`packages/prjops/tests/conversationalGithubContract.test.ts`だけ。
+- **Work**: `conversationalGithubContract.ts`をMachine-readable operation contractのproduction正本として実装し、exact kind順の10 operation row、定数、Unicode scalar helper、Zod runtime schema、checked-in JSON/JSON Schema objectを同じ値から構築する。checked-in JSONとschemaをexport objectへdeep equalityにし、handler名、repository、node ID、任意URL/GraphQL/shell fieldを持たせない。全request/success/error response/item branchを`additionalProperties:false`にし、server生成`nextPageUrl`をrequestへ入れない。PrjOpsのdirect dependencyであるZod 4.4.3だけをruntime validationに使い、推移的Ajvをimportしない。F01以降はこのproduction exportをimportし、schemaを転記しない。
+- **Complete**: Markdown表、production export、checked-in JSON/schemaが10 kind、permission、payload、HTTP/error/coding status mappingまで一対一で、禁止operation handler 0。
+- **Verify Positive**: request/read/proposal/terminal/errorの全branch、Unicode scalar、URL binding、P010 coding adapter mapping fixtureがgreen。
+- **Verify Adversarial**: `pull_request.merge`、payloadの`url`/`graphql`/未知field、project省略、全境界±1、unsafe/fractional integer、BMP/emoji/結合文字/lone surrogate、raw body/PII/token/stack/未知field、status-error code不正pair、approved origin外URLをrejectする。
+- **STOP**: operation kind、profile、permission、HTTP mappingが正本仕様と衝突する。
+
+#### P012-F00-T02B intended-approver署名snapshotとresolverを固定する
+
+- **Preconditions**: F00-T02A ACCEPTED。
+- **Allowed files**: 新規`docs/contracts/project-operation-approver.schema.json`、新規`packages/server/src/lib/operationApproverMaster.ts`、新規`packages/server/tests/operationApproverMaster.test.ts`、`packages/server/package.json`、`pnpm-lock.yaml`だけ。
+- **Work**: Intended approver artifact schemaをexact JSON化する。`packages/server`へApache-2.0、zero-dependencyのexact `canonicalize@3.0.0`を直接追加しlockfile integrity `sha512-yYLfHyDMIXRyRqsKBRLX023riFLpXY2YOfdtqKXZRZy9qsfOJ9U+4F9YZL7MEzL5+ziN2x2nlBvY/Voi3EBljA==`で固定する。RFC 8785を自作せずraw byte equalityにも同packageを使う。Ed25519はNode 22 `node:crypto`だけを使い、32-byte raw public keyへDER SPKI prefix hex `302a300506032b6570032100`を前置して`createPublicKey({format:"der",type:"spki"})`し、`verify(null,data,key,signature)`で64-byte signatureを検証する。RFC 8032/RFC 8785 official vectorをfixtureにする。`verifyOperationApproverSnapshot()`はstatic crypto/chain/digest、`resolveOperationApprover()`は各request時刻のvalidity/revocation/target cardinality/self/entitlementだけをpure検証する。
+- **Complete**: protected fingerprintと7 artifactからだけimmutable snapshotを作れ、request時刻を変えたresolverが期限/失効を再判定する。filesystem/network/environment依存0。
+- **Verify Positive**: root/delegated署名、snapshot digest、version chain、future revocation前後、active target exact 1、全source entitlement variantがgreen。
+- **Verify Adversarial**: approver 0/2件、self、validity gap/overlap/expired/not-yet-valid、future/effective revocation、record/signature kid不一致、entitlement 0/33/duplicate、source identity/SHA/version混在、noncanonical base64url、root三者fingerprint不一致、unknown/revoked key、invalid signature、RFC 8785非canonical bytesをrejectする。
+- **STOP**: offline root fingerprint、immutable source、request-time fail-closeのいずれかを維持できない。
+
+#### P012-F00-T02C Plan 012 DAG validatorをCIへ接続する
+
+- **Preconditions**: F00-T02B、Plan 011 acceptance ACCEPTED。
+- **Allowed files**: 新規`docs/contracts/plan-012-task-dag.json`、新規`docs/contracts/plan-012-signed-na-evidence.schema.json`、新規`scripts/validate-plan-012-dag.mjs`、新規`scripts/validate-plan-012-dag.test.mjs`、新規`scripts/validate-plan-012-evidence.mjs`、新規`scripts/validate-plan-012-evidence.test.mjs`、`packages/prjops/tests/conversationalGithubContract.test.ts`だけ。
+- **Work**: `plan-012-task-dag.json` rootはexact `{schemaVersion:1,planId:"P012",tasks}`。各taskはexact `{id,title,prerequisites,externalPrerequisites,completionModes,preconditionsSha256}`を持つ。`id`と`prerequisites[].taskId`はfull ID、edgeはexact `{taskId,acceptance}`。全edgeは`accepted`、次のdownstream→predecessor 13 edgeだけ`accepted_or_signed_not_applicable`: F02-T08→F02-T07R、F02-T09→F02-T07R、F03-T03D→F03-T03C、F03-T03S→F03-T03C、F03-T03R→F03-T03S、F03-T03T→F03-T03R、F03-T03F→F03-T03T、F03-T03G→F03-T03F、F03-T03I→F03-T03H、F03-T03J→F03-T03I、F03-T03K→F03-T03J、F03-T03L→F03-T03K、F03-T03M→F03-T03L。completionModesが`["executed","signed_not_applicable"]`なのはF02-T07R、F03-T03C、F03-T03S、F03-T03R、F03-T03T、F03-T03F、F03-T03H、F03-T03I、F03-T03J、F03-T03K、F03-T03Lのexact 11件、その他104件は`["executed"]`とする。全IDは`P012-`を付ける。external exact allowlistは`P010-F02-T10`、`P010-F02-T11`、`P010-F02-T12`、`P010-F02-T13`、`P010-F02-T14`、`P010-F03-T05`、`P010-F03-T08`、`P010-F04-T03`、`P010-F05-T10`、`P010-F05-T11`、`P010-F05-T12`、`P010-F05-T13`、`P010-F05-T14`、`DEC-SPEC-008`、`DEC-ENV-001`、`DEC-ENV-002`、`DEC-ENV-004`、`EXT:P011-acceptance`、`EXT:clean-isolated-checkout`、`EXT:origin/main`の20件だけ。dependency表の`clean isolated checkout`→`EXT:clean-isolated-checkout`、`origin/main`→`EXT:origin/main`、`Plan 011 acceptance`→`EXT:P011-acceptance`だけを写像する。tasks/edgeはdependency表順、titleはH4のID直後から行末、preconditions hashは先頭`-`から末尾`。`までのraw UTF-8、CR/LF/normalizationなしとする。
+  DAG validatorはdependency表115 row、実行H4 115件、DAG 115件、Markdown 7必須field、DAG 6 exact field、direct edge/acceptance/completion mode/title/hash、missing/extra/duplicate/unknown/cycleを比較する。evidence validatorはEvidence contractのclaim state、11 task/12 branch matrix、3 evidence file、source objectからのdigest再計算、P011 verified owner receiptを別fixtureで比較する。5 gate-group summaryとnavigationを除外し、suffixを保持し、P010をinternalへ誤分類しない。PrjOps Vitestが`spawnSync(process.execPath,["--test","scripts/validate-plan-012-dag.test.mjs"],{cwd:repoRoot})`と`spawnSync(process.execPath,["--test","scripts/validate-plan-012-evidence.test.mjs"],{cwd:repoRoot})`をexact実行しroot CIから両方へ到達させる。
+- **Complete**: 115 tasks=`41 formal+74 Steps`、dependency table/DAG/task sectionが完全一致し、signed-NA lifecycle/matrixがinstance evidence validatorで強制され、root test/coverage/CIから両Node adversarial testへ到達する。
+- **Verify Positive**: DAG/evidence validator、両Node test、PrjOps test、root `pnpm test`が全115 taskと12 signed-NA branchのgolden fixtureでexit 0。
+- **Verify Adversarial**: task/edge/heading/table rowの欠落/余剰/重複/unknown、suffix drift、gate summary混入、13 edge acceptance/11 completion mode drift、true cycleをDAG fixtureへ入れるとexit 1。未claim/BLOCKED signed-NA、wrong task/branch/reason/owner、self-reported digest、401/403/404/429/5xx、SQL error/timeout、partial/truncated page、continuation残存、page/cursor drift、receipt substitution/cross-task/cross-branch/old-target replay、wrong Environment/approver/time、P011 receiptをevidence fixtureへ入れるとexit 1。
+- **STOP**: Plan本文とDAGのどちらかを自動的に唯一正本として検証できない。
+
+#### P012-F00-T02D evidence publication registryをquoted ETag CASで固定する
+
+- **Preconditions**: F00-T02C、Plan 011 acceptance ACCEPTED。
+- **Allowed files**: 新規`docs/contracts/plan-012-evidence-publication.schema.json`、新規`packages/server/src/lib/plan012EvidenceRegistry.ts`、新規`packages/server/tests/plan012EvidenceRegistry.test.ts`、新規`infra/bicep/modules/plan-012-evidence-registry.bicep`だけ。
+- **Work**: Plan 011に存在しない外部registryを前提にせず、T02Dが所有する旧新DB非依存のprivate Azure Blobをpublication正本にする。recordはtask/target SHA/3 evidence digest/reviewer receipt/trust epoch/publication stateをRFC 8785 canonical bytesで固定し、Blobのquoted opaque ETagをdequote/requoteせず`If-None-Match:"*"`または`If-Match:<quoted-etag>`へ渡す。versioning、distinct CMK、private endpoint、public access 0、writer/reader identity分離、append-only version retentionをIaCとpure validatorで強制する。
+- **Complete**: task+target SHAごとにactive publication exact 0/1、同一digest replayは同じversion、異なるdigest conflictはexternal overwrite 0。DB、Activity Log、worker自己申告hashをauthorityにしない。
+- **Verify Positive**: create/read/identical replay/trust-epoch rotationをfake Blob clientとBicep compositionで検証し、quoted ETagとcanonical digestが一致する。
+- **Verify Adversarial**: unquoted/weak/foreign/stale ETag、public endpoint、shared CMK、DB fallback、unknown field、digest substitution、concurrent divergent publisherを拒否する。
+- **STOP**: private Blob、conditional write、identity/RBAC、version retentionのいずれかをprovider readbackできない。
+
+#### P012-F00-T02E evidence validation jobとtrust epoch lifecycleを固定する
+
+- **Preconditions**: F00-T02D、Plan 011 acceptance ACCEPTED。
+- **Allowed files**: 新規`docs/contracts/plan-012-evidence-validation.schema.json`、新規`infra/bicep/modules/plan-012-evidence-validation-job.bicep`、新規`scripts/validate-plan-012-publication.mjs`、新規`scripts/validate-plan-012-publication.test.mjs`だけ。
+- **Work**: trusted validatorをfixed Service Bus event triggerのAzure Container Apps Jobとして固定し、workflow principalへJob start/write/exec権限を与えない。owner-approved eventはtask/target SHA/evidence digest/Blob version/quoted ETag/Plan 011 trust epochを結合し、Jobの同一principalがinitial readbackとvalidation readbackを行う。Key Vault参照はversion省略やActivity Logではなくexact version data-plane GET、GitHub attestationはreceiptごとのexact subjectをonline readbackする。validated publicationを一度だけCASし、response不明時は再POSTせずBlob/provider GETだけでreconcileする。Plan 011 trust epoch rotation後は旧epoch publicationを再利用しない。
+- **Complete**: event 1件につきJob execution 0/1、initial/validation principal一致、全provider readback digest一致、publication successまたはindeterminateが一意。workflowのJob start/write/exec permission 0。
+- **Verify Positive**: Service Bus event→Job identity→Blob/Key Vault/GitHub/P011 readback→publication CASを同じcorrelation IDで検証する。
+- **Verify Adversarial**: duplicate event、wrong subject/epoch/principal/version、Key Vault latest alias/Activity Log、publisher response loss、CAS conflict、workflowからのJob startを拒否し、validation POST 0/1を確認する。
+- **STOP**: fixed event trigger、same-principal dual readback、exact-version Key Vault GET、receipt-subject readback、無再POSTreconciliationの一つでも実証できない。
 
 #### P012-F00-T03 ProjectV2 write除外decisionを記録する
 
-- **Preconditions**: F00-T02 ACCEPTED、DEC-SPEC-008確認済み。
+- **Preconditions**: F00-T02E ACCEPTED、DEC-SPEC-008確認済み。
 - **Allowed files**: 新規`docs/adr/0017-conversational-projectv2-status-write.md`、`docs/spec/productization-decisions.md`だけ。
 - **Work**: GitHub `updateProjectV2ItemFieldValue`にprovider CAS/version/If-MatchがないTOCTOUを記録し、`project_v2.status.set`をinitial operation contractから除外する。Kanban/自然言語boardはread-only、editは認可済みGitHub deep linkだけとし、provider CAS追加またはownerのlast-writer risk受容をreconsideration triggerにする。
 - **Complete**: Plan 012のconversation/Web Kanban/agent surfaceではProjectV2 mutation全種、item reorder、DnDを明示禁止し、operation JSON/schema/narrow port/handlerにwrite kindが存在しない。既存XLSX importは別decision/credential境界として非対象。
@@ -895,7 +1140,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 #### P012-F00-T06 Phase 0 acceptance
 
-- **Preconditions**: F00-T01,F00-T02,F00-T03,F00-T04,F00-T05,F00-T05P ACCEPTED。
+- **Preconditions**: F00-T01,F00-T02A,F00-T02B,F00-T02C,F00-T03,F00-T04,F00-T05,F00-T05P ACCEPTED。
 - **Allowed files**: `.orchestration/evidence/P012-F00-T06/commands.json`、`readback.json`、`evidence.json`だけ。
 - **Work**: source evidence、decision、contract、rejected alternatives、review outcomeを一つのreceiptへまとめる。
 - **Complete**: CRITICAL/HIGH 0、MEDIUMはowner/date/mitigation付き。baseline SHAとartifact hashが一致。
@@ -903,7 +1148,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - **Verify Adversarial**:会話文だけを渡しても追加operationやPagesを推測できないことを確認。
 - **STOP**: reviewer間でoperation setまたはapproval境界の解釈が一致しない。
 
-**Phase 0 completion**: T01,T02,T03,T04,T05,T05P,T06がACCEPTEDで、以後のexecutorが会話履歴なしにexact contract、対象外、DAG、モデルを再現できる。
+**Phase 0 completion**: T01,T02A,T02B,T02C,T03,T04,T05,T05P,T06がACCEPTEDで、以後のexecutorが会話履歴なしにexact contract、対象外、DAG、モデルを再現できる。
 
 ### Phase 1: typed proposal・承認・冪等GitHub executorを実装する
 
@@ -921,7 +1166,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 - **Preconditions**: F01-T01 ACCEPTED。
 - **Allowed files**: `packages/prjops/src/lib/commandParser.ts`、`packages/prjops/tests/commandParser.test.ts`、`packages/server/src/lib/freeTextIntent.ts`、`packages/server/tests/freeTextIntent.test.ts`だけ。
-- **Work**: Operation schema and permission matrixのexact kind/field/nullability/min/max/defaultをstrict schemaで転記する。LLMはproject/repo/node/field/option IDを決めず、人間可読targetだけ抽出する。
+- **Work**: T02の`conversationalGithubContract.ts`からruntime schema、kind、limit、default、scalar-length helperを直接importし、slash/free-textのsource固有syntaxだけを同じinternal unionへadapterする。別schema、別kind union、別length定数へ転記しない。LLMはproject/repo/node/field/option IDを決めず、人間可読targetだけ抽出する。
 - **Complete**: slashとfree-textが同じinternal discriminated unionへ収束する。
 - **Verify Positive**: 各kindの日本語/英語valid fixture。
 - **Verify Adversarial**: 曖昧target、複数operation、oversize、HTML/script、unknown kindはproposalを作らずunknown/400。
@@ -940,18 +1185,18 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 #### P012-F01-T04 authorization/target/idempotency pure policyを追加する
 
 - **Preconditions**: F01-T02,F01-T03 ACCEPTED。
-- **Allowed files**: 新規`packages/server/src/lib/operationProposal.ts`、新規`packages/server/src/lib/operationApproverMaster.ts`、新規`packages/server/src/agents/operationApproverProvider.ts`、`packages/server/src/config.ts`、新規`packages/server/tests/operationProposal.test.ts`、新規`packages/server/tests/operationApproverMaster.test.ts`、新規`packages/server/tests/operationApproverProvider.test.ts`、`packages/server/tests/config.test.ts`だけ。
-- **Work**: RFC 8785 canonicalization/Ed25519 verificationをpure lib、immutable-SHA fetch/atomic refreshをproviderに分離する。protected environmentのroot fingerprint、private repo、40-char SHA、machine identity configをfail-closed検証し、root-signed keyring/revocation→delegated signature→active cardinality/delivery/source entitlementの順で検証する。そのverified snapshotだけをactive subject/persona/project scope、channel project、署名済みrepo mapping、source revision/thread hash、expected Issue state、payload size、reason、idempotency policyへ入力する。
+- **Allowed files**: 新規`packages/server/src/lib/operationProposal.ts`、新規`packages/server/src/agents/operationApproverProvider.ts`、`packages/server/src/config.ts`、新規`packages/server/tests/operationProposal.test.ts`、新規`packages/server/tests/operationApproverProvider.test.ts`、`packages/server/tests/config.test.ts`だけ。
+- **Work**: T02のpure `verifyOperationApproverSnapshot()`と`resolveOperationApprover()`を変更せず再利用する。protected configのexact repository owner/name/stable numeric ID/node ID、40-char immutable commit SHA、expected snapshot version/digest、root fingerprintをproviderがGitHub readbackと照合する。同一commitの7 artifactをatomic fetchし、static crypto/chain/digest検証とexpected version/digest一致後だけstartup snapshotをpublishする。rollback version/digest、repository/commit/path混在を拒否し、runtimeでmutable latestやhigher versionを選ばない。proposal/approval/executionごとにtrusted DB時刻でresolverを呼び、target project active cardinality=1、requester≠approver、same-tenant/persona/delivery/source entitlement、current validity/effective revocationを判定する。conversation reference、Exchange RBAC、delegated live-source accessはprovider/agentが送信/approval/executionの各時点に実APIで検証する。そのverified resolutionだけをchannel project、署名済みrepo mapping、source revision/thread hash、expected Issue state、payload size、reason、idempotency policyへ入力する。
 - **Complete**: policy outputは`read_now | propose | reject`とmachine code。LLM confidenceを入力にしない。
 - **Verify Positive**: 全kindの最小valid inputがexpected decision。
-- **Verify Adversarial**: wrong tenant/persona/project/repo、inactive、approver 0/2件、self approver、mutable/non-40-char source SHA、unknown/revoked key、bad root fingerprint、RFC 8785 byte差、expired/invalid signature/version gap、atomic refresh途中failure、stale hash、duplicate key、blank reasonをreject。期限切れ後のcache fallback 0。
+- **Verify Adversarial**: wrong tenant/persona/project/repo、inactive、approver 0/2件、self approver、mutable/non-40-char source SHA、unknown/effective-revoked key、bad root fingerprint、RFC 8785 byte差、expired/invalid signature/version gap、protected expected version/digest rollback、same-version digest drift、partial fetch、stale hash、duplicate key、blank reasonをreject。期限切れ後のcache fallback 0。
 - **STOP**: policyがDB/API/LLMへ依存する形になる。
 
 #### P012-F01-T05 proposal schema・migration・repoを実装する
 
 - **Preconditions**: P010-F03-T05 ACCEPTED、F01-T04 ACCEPTED。
 - **Allowed files**: `packages/devops/src/db/schema.sql`、新規`packages/devops/src/db/migrations/202607140100_operation_proposals.sql`、新規`packages/server/src/db/operationProposalsRepo.ts`、新規`packages/server/src/db/operationExecutionQueueRepo.ts`、新規`packages/server/src/db/operationExecutionAttemptsRepo.ts`、新規`packages/server/src/db/operationNotificationsRepo.ts`、新規`packages/server/tests/operationProposalsRepo.test.ts`、新規`packages/server/tests/operationExecutionQueueRepo.test.ts`、新規`packages/server/tests/operationExecutionAttemptsRepo.test.ts`、新規`packages/server/tests/operationNotificationsRepo.test.ts`だけ。固定migration名が既に存在すればSTOPする。
-- **Work**: `operation_proposals`へUUID、source type/key/hash/revision、project/repo、requester stable subject、approver master version/digest、GitHub 5-kind strict payload（coding task除外）、payload SHA/redacted_at、expected state、`approval_request_id` FK、`context_provider_kind`、`context_provider_version`、`context_provider_digest`、`context_activated_at`、idempotency key unique、status、result、trace/timestampsを持たせる。context 4列は初期NULLで、activation transactionだけが一度設定し、以後immutableとする。同migrationでlease/statusだけの`operation_execution_queue`、`operation_id UNIQUE`の`operation_execution_attempts`、`operation_notification_outbox`を作る。初期outbox schemaからoperation ID+notification kind unique、opaque delivery key、`requester_status|approval_request|operation_result|approval_terminal|clarification` kind、`blocked_context|pending|claimed|sending|sent|failed|indeterminate|expired` status、lease/attempt、typed `http_status smallint`、nullable fixed `error_code`、`provider_request_id_hash`、`provider_message_id_hash`、nullable sealed-envelope ciphertext/96-bit IV/tag/key-version/AAD-digestだけを持たせ、raw/generic provider response/result/error/body/URL/email/address列を作らない。`UNIQUE(key_version,iv)`を設定してraw nonce/URL列を持たない。proposal/queueにattempt countを置かない。proposal statusは`pending|approved|executing|succeeded|failed|verification_failed|indeterminate|rejected|expired|stale`。
+- **Work**: `operation_proposals`へUUID、source type/key/hash/revision、project/repo、requester stable subject、approver intended `(tid,oid)`、`approver_snapshot_version`、`approver_snapshot_digest`、`approver_record_version`、`approver_record_valid_from`、`approver_record_valid_until`、`approver_signer_kid`、`approver_delivery_digest`、`approver_source_entitlement_digest`、GitHub 5-kind strict payload（coding task除外）、payload SHA/redacted_at、expected state、`approval_request_id` FK、`context_provider_kind`、`context_provider_version`、`context_provider_digest`、`context_activated_at`、idempotency key unique、status、result、trace/timestampsを持たせる。approver binding 8列はproposal initializerが非NULLで一度保存しimmutable、context 4列は初期NULLでactivation transactionだけが一度設定し以後immutableとする。同migrationでlease/statusだけの`operation_execution_queue`、`operation_id UNIQUE`の`operation_execution_attempts`、`operation_notification_outbox`を作る。初期outbox schemaからoperation ID+notification kind unique、opaque delivery key、`requester_status|approval_request|operation_result|approval_terminal|clarification` kind、`blocked_context|pending|claimed|sending|sent|failed|indeterminate|expired` status、lease/attempt、typed `http_status smallint`、nullable fixed `error_code`、`provider_request_id_hash`、`provider_message_id_hash`、nullable sealed-envelope ciphertext/96-bit IV/tag/key-version/AAD-digestだけを持たせ、raw/generic provider response/result/error/body/URL/email/address列を作らない。`UNIQUE(key_version,iv)`を設定してraw nonce/URL列を持たない。proposal/queueにattempt countを置かない。proposal statusは`pending|approved|executing|succeeded|failed|verification_failed|indeterminate|rejected|expired|stale`。
 - **Complete**: Plan 010正本decision後のadapterだけが`pending→approved`を行い、executorがpreflight後にattempt insertと`approved→executing`/queue claimを同transactionでCASする。`completeAndEnqueueNotification()`がterminal更新、text payload redaction、append-only audit、outbox insertを同transactionで行い、raw正文をproposal/outboxへ複製しない。
 - **Verify Positive**: fresh、upgrade、second run、insert/find/CAS/unique conflictがreal PostgreSQLでgreen。
 - **Verify Adversarial**: 20 concurrent approvals/attempt insertsで勝者1、proposal/queueに偽attempt column、片側だけclaimed/attemptあり、duplicate source/idempotency、terminal overwrite、redaction/audit欠落時にexternal call 0またはtransaction rollback。
@@ -981,15 +1226,25 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 - **Preconditions**: F01-T07 ACCEPTED。
 - **Allowed files**: `packages/server/src/db/operationProposalsRepo.ts`、`packages/server/src/db/operationExecutionQueueRepo.ts`、`packages/server/src/db/operationExecutionAttemptsRepo.ts`、新規`packages/server/src/scheduler/tasks/approvedOperationDispatchTask.ts`、`packages/server/src/index.ts`、`packages/server/tests/operationProposalsRepo.test.ts`、`packages/server/tests/operationExecutionQueueRepo.test.ts`、`packages/server/tests/operationExecutionAttemptsRepo.test.ts`、新規`packages/server/tests/approvedOperationDispatchTask.test.ts`だけ。
-- **Work**: Plan 010のdecision/expiryと`operation_proposals.approval_request_id`を定期的にjoinする。acceptedは1つのPostgreSQL transaction内で`operation_execution_queue`へ`INSERT ... ON CONFLICT DO NOTHING`しproposalを`pending→approved`へCASする。rejected/30分expiredは`completeAndEnqueueNotification()`でproposal terminal、payload redaction、audit、source/intended-approver terminal outboxをatomic作成し、queue/attemptを作らない。consumerはbounded preflight後にproposal/queueをlockし、authoritative attempt row不存在の場合だけattempt insert+queue claim+`approved→executing`を同transactionで行う。attempt既存/state不一致はmutationを送らずT06 read-only reconciliationへ進む。coding taskはこのgeneric dispatcherへ一切入れずF02-T07のP010 state machineだけが扱う。
+- **Work**: Plan 010のdecision/expiryと`operation_proposals.approval_request_id`を定期的にjoinする。acceptedは1つのPostgreSQL transaction内で`operation_execution_queue`へ`INSERT ... ON CONFLICT DO NOTHING`しproposalを`pending→approved`へCASする。rejected/30分expiredは`completeAndEnqueueNotification()`でproposal terminal、payload redaction、audit、source/intended-approver terminal outboxをatomic作成し、queue/attemptを作らない。consumerはbounded preflight後にproposal/queueをlockし、authoritative attempt row不存在の場合だけattempt insert+queue claim+`approved→executing`を同transactionで行う。attempt既存/state不一致はmutationを送らずT06 read-only reconciliationへ進む。coding taskはこのgeneric dispatcherへ一切入れずF02-T07A..T07HのP010 state machineだけが扱う。
 - **Complete**: approval responseとworker crashの間でもevent lost 0。各operation IDのoutbound mutation requestは最大1、結果不明はindeterminate。
 - **Verify Positive**: enqueue→claim→execute→doneのtrace ID相関。
 - **Verify Adversarial**: enqueue後crash、external call後crash、markDone前crash、lease reclaim、proposal/queue/attempt片側corruption、dead-letterでoutbound 0/1とexpected terminal state。
 - **STOP**: event doneとproposal terminalが相互に矛盾し、reconcileで閉じられない。
 
+#### P012-F01-T08A operation status routeと404 wire contractを実装する
+
+- **Preconditions**: F01-T08 ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/http/routes/operationStatus.ts`、`packages/server/src/http/app.ts`、新規`packages/server/tests/operationStatus.test.ts`だけ。
+- **Work**: authenticated GETのoperation IDをcanonical UUIDとして検証し、generic proposalとP010 coding taskを認可scope内で一度ずつ解決する。pending/terminalはMachine-readable operation contractのresponse refへ写像してHTTP 200、双方に存在しないIDだけを`statusNotFoundResponse`へ写像してHTTP 404にする。foreign project/personaは403、provider/readback failureは503とし、raw provider body、存在するforeign target、PII、token、stackを返さない。
+- **Complete**: machine contract rootの`responseSchemaRefs.statusNotFound`と`httpStatusByOutcome.statusNotFound=404`をroute/testが同じproduction exportから再利用し、独自schema転記0。
+- **Verify Positive**: generic pending/terminal、coding pending/terminal、unknown UUID 404の全responseがchecked-in schemaとdeep equalityでgreen。
+- **Verify Adversarial**: malformed UUID、foreign project/persona、generic/coding両方に同じID、DB/provider failure、404/403/503混同、unknown field/raw error leakageをrejectする。
+- **STOP**: generic proposalとcoding taskを一意に解決できない、または存在するforeign operationを404で隠す以外に認可境界を維持できない。
+
 #### P012-F01-T09 Phase 1 acceptance
 
-- **Preconditions**: F01-T01,F01-T02,F01-T03,F01-T04,F01-T05,F01-T06,F01-T07,F01-T08 ACCEPTED。
+- **Preconditions**: F01-T01,F01-T02,F01-T03,F01-T04,F01-T05,F01-T06,F01-T07,F01-T08,F01-T08A ACCEPTED。
 - **Allowed files**: `.orchestration/evidence/P012-F01-T09/commands.json`、`readback.json`、`evidence.json`だけ。
 - **Work**: real PostgreSQL concurrency/failure injection、GitHub mock contract、security reviewをまとめる。
 - **Complete**: cross-project external call 0、20 concurrent approvalのenqueue eligibility 1、各operationのoutbound mutation request 0/1、全writeにhuman approval、all terminal state/audit相関。
@@ -1015,7 +1270,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 - **Preconditions**: F02-T01F、P010-F05-T14 ACCEPTED。
 - **Allowed files**: `packages/devops/src/db/schema.sql`、新規`packages/devops/src/db/migrations/202607140150_coding_task_context_outbox.sql`、`packages/server/src/agents/teamsConversationAgent.ts`、新規`packages/server/src/lib/codingTaskOperationAdapter.ts`、新規`packages/server/src/lib/sealedApprovalDeliveryEnvelope.ts`、`packages/server/src/db/operationProposalsRepo.ts`、`packages/server/src/db/operationNotificationsRepo.ts`、`packages/server/src/db/approvalRequestsRepo.ts`、`packages/server/src/db/codingTasksRepo.ts`、`packages/server/src/config.ts`、`packages/server/tests/teamsConversationAgent.test.ts`、`packages/server/tests/operationProposalsRepo.test.ts`、`packages/server/tests/operationNotificationsRepo.test.ts`、`packages/server/tests/approvalRequestsRepo.test.ts`、`packages/server/tests/codingTasksRepo.test.ts`、新規`packages/server/tests/codingTaskOperationAdapter.test.ts`、新規`packages/server/tests/sealedApprovalDeliveryEnvelope.test.ts`、`packages/server/tests/config.test.ts`だけ。固定migration名が存在すればSTOPする。
-- **Work**: 現`gh_issue_create`直接callを削除する。GitHub mutation 5 kindはverified master/source contextとsource revision/hashを固定し、`initializeWithApprovalAndNotifications()`でproposal、Plan 010 approval request、requester status outbox、`blocked_context` intended-approver outboxを同一transactionへ1/1/1/1作成する。migrationは`coding_tasks`へ`context_provider_kind/version/digest/activated_at`を追加し、初期NULL・activation後immutableとする。`operation_notification_outbox`の最終DDLは本taskだけが所有し、`subject_kind='operation'|'coding_task'`、nullable `operation_id`/`coding_task_id`、exact-one-subject CHECK、両FK、subject別partial unique、`requester_status|approval_request|operation_result|approval_terminal|clarification` kind、`blocked_context|pending|claimed|sending|sent|failed|indeterminate|expired` status、lease/attempt、typed `http_status smallint`、nullable fixed `error_code=destination_unavailable|transport_rejected|transport_timeout|transport_protocol_invalid|context_provider_mismatch`、`provider_request_id_hash`、`provider_message_id_hash`、terminal/status/error compatibility CHECKをfresh schemaと`202607140150_coding_task_context_outbox.sql`へ完成形で入れる。approval raw nonce/relative pathはKey Vault管理AES-256-GCM current keyとCSPRNG 96-bit IVでsealし、AADをrequest ID、delivery SHA-256、expiry、key versionのcanonical bytesへ固定する。DBはnonce hashとciphertext/IV/tag/key versionだけを保存し、`(key_version,iv)` unique conflictをfail-closeする。decrypt keyringは未期限ciphertext参照中の全versionを保持し、該当row 0かつ最大expiry+24時間後だけkeyを廃棄する。`coding_task.create`はP010 adapterへ渡し、P010 initializerでcoding row、approval request、`subject_kind='coding_task'`のrequester/approver outboxをatomic作成し、generic proposal/queue/attemptを作らない。
+- **Work**: 現`gh_issue_create`直接callを削除する。GitHub mutation 5 kindはverified master/source contextとsource revision/hashを固定し、`initializeWithApprovalAndNotifications()`でproposal、Plan 010 approval request、requester status outbox、`blocked_context` intended-approver outboxを同一transactionへ1/1/1/1作成する。migrationは`coding_tasks`へ`context_provider_kind/version/digest/activated_at`とexact non-null immutable `approver_snapshot_version/digest`、`approver_record_version/valid_from/valid_until`、`approver_signer_kid`、`approver_delivery_digest`、`approver_source_entitlement_digest`を追加する。context 4列だけ初期NULL・activation後immutable、approver 8列はinitializer時から非NULL・immutableとする。`operation_notification_outbox`の最終DDLは本taskだけが所有し、`subject_kind='operation'|'coding_task'`、nullable `operation_id`/`coding_task_id`、exact-one-subject CHECK、両FK、subject別partial unique、`requester_status|approval_request|operation_result|approval_terminal|clarification` kind、`blocked_context|pending|claimed|sending|sent|failed|indeterminate|expired` status、lease/attempt、typed `http_status smallint`、nullable fixed `error_code=destination_unavailable|transport_rejected|transport_timeout|transport_protocol_invalid|context_provider_mismatch`、`provider_request_id_hash`、`provider_message_id_hash`、terminal/status/error compatibility CHECKをfresh schemaと`202607140150_coding_task_context_outbox.sql`へ完成形で入れる。approval raw nonce/relative pathはKey Vault管理AES-256-GCM current keyとCSPRNG 96-bit IVでsealし、AADをrequest ID、delivery SHA-256、expiry、key versionのcanonical bytesへ固定する。DBはnonce hashとciphertext/IV/tag/key versionだけを保存し、`(key_version,iv)` unique conflictをfail-closeする。decrypt keyringは未期限ciphertext参照中の全versionを保持し、該当row 0かつ最大expiry+24時間後だけkeyを廃棄する。`coding_task.create`はP010 adapterへ渡し、P010 initializerでcoding row、approval request、`subject_kind='coding_task'`のrequester/approver outboxをatomic作成し、generic proposal/queue/attemptを作らない。
 - **Complete**: Teams handlerからGitHub write methodの直接call 0。proposal commit後に4 row欠落state 0、context provider未登録時のapprover delivery/approval 0、DB dumpからraw nonce/URL復元不能。
 - **Verify Positive**: GitHub 5 kindはoperation pending row 1/coding row 0、coding taskはP010 queued row 1/operation row 0、GitHub/Actions write 0。
 - **Verify Adversarial**: ambient会話、曖昧対象、project mismatch、duplicate notification、4 statement各失敗、commit直後crash、restart、20 concurrent initializer、DB theft、wrong key/version/AAD/request/delivery/expiry、IV長≠96-bit、forced IV reuse、30分内2回rotation、参照中key削除で各正本row 0またはcardinality 1/1/1/1、partial commit/raw nonce/generic-P010二重row 0。
@@ -1062,23 +1317,91 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - **Verify Adversarial**: deleted thread、429/5xx、timeout、secret-bearing GitHub error、send後crashで二回目POST 0。
 - **STOP**:通知失敗をGitHub mutation失敗へ誤変換する、または自動retryを要求する設計になる。
 
-#### P012-F02-T07 coding taskのPlan 010適合性を回帰検証する
+#### P012-F02-T07A coding publisherのDB state machineを固定する
 
 - **Preconditions**: F02-T06、P010-F05-T10,P010-F05-T11,P010-F05-T12,P010-F05-T13,P010-F05-T14 ACCEPTED。
-- **Allowed files**: `packages/devops/src/db/schema.sql`、`packages/server/package.json`、`pnpm-lock.yaml`、新規`packages/devops/src/db/migrations/202607140200_coding_task_dispatch_retention.sql`、`packages/server/src/lib/codingTaskOperationAdapter.ts`、`packages/server/src/http/routes/codingTasks.ts`、新規`packages/server/src/http/routes/codingTaskInstructionBroker.ts`、`packages/server/src/http/app.ts`、`packages/server/src/db/codingTasksRepo.ts`、新規`packages/server/src/scheduler/tasks/codingTaskRetentionTask.ts`、`packages/server/src/index.ts`、`packages/server/src/config.ts`、`packages/server/tests/config.test.ts`、`packages/shared/src/clients/githubClient.ts`、`packages/shared/tests/githubClient.test.ts`、`.github/workflows/coding-task.yml`、`.github/actions/run-coding-agent/action.yml`、`packages/server/tests/codingTaskOperationAdapter.test.ts`、新規`packages/server/tests/codingTaskApprovalCompatibility.test.ts`、新規`packages/server/tests/codingTaskInstructionBroker.test.ts`、新規`packages/server/tests/codingTaskRetentionTask.test.ts`、新規`packages/server/tests/codingTasksRepo.integration.test.ts`だけ。固定migration名が存在すればSTOPする。
-- **Work**: exact `@azure/identity@4.13.1`と`@azure/keyvault-keys@4.10.2`をpinし、migrationへfull ACK/receipt、`publish_authorized|publish_delivering|publishing`、5分authorization expiry、前段exact token-attempt state、bounded transaction/transport timestamps、可変長`bytea` delivery/revocation二ciphertext+IV/tag、provider expiry、suspension attempt/readback/confirmed timestamp、unique token/push/PR attempt、expanded error CHECKを追加する。plaintext token column/format fieldは0、tokenは1..16384 UTF-8 bytesのopaque string、ciphertext envelope上限32768 bytes、digest SHA-256とする。callbackはexact tuple+30秒以内heartbeatで`running→publish_authorized`だけを許す。専用publisher installationごとにjobをserializeし、protected OIDC exchangeはauthorization consume、lock/statement/total deadline、`clock_timestamp()`再検証、mint transport CASをすべて満たした後だけmint1とする。2xxは`response_received_at<provider_expires_at<=response_received_at+PT60M`、異なるIV/AAD purposeの二ciphertext+expiry+digestをatomic保存して`deliverable`へCASする。seal definitive failureでmemory tokenがあればimmediate revoke1、seal commit response lossはreadbackだけで収束する。response unknown/コピーなしorphanはdelivery/write 0、App JWT suspend1、read-only GET確認、確認後65分suspendとする。ACKはdeliveryを永久消費するがrevocation copyを保持する。known tokenのterminal/stale/ACKなし/expiry時は`revoking` CAS後にrevoke1、204またはknown expiry経過だけでciphertextを消去する。deterministic branch/commit/PR markerを各single-attempt+read-only reconciliationで閉じる。start receiptはRFC8785 digest→Key Vault Sign→raw `R||S`とする。
-  workflow startup/jobはF01-T03と同じ3-row identity tableでApp ID、installation ID、repository selection、permission set、cache namespace、protected environmentをreadbackする。coding-dispatchだけがActions write、publisherだけがallowlisted Contents/Pull requests writeを持ち、publisher Actions writeまたはdispatch Contents/Pull requests writeはjob開始前にrejectする。
-  orphan suspension CASはinstallation row lock下で単調`suspension_generation`を採番し、token attemptへ固定する。同migrationで`publisher_installation_recovery_attempts(recovery_id PRIMARY KEY,installation_id,suspension_generation,orphan_token_attempt_id UNIQUE REFERENCES publisher_token_attempts, state,approval_digest,requested_at,provider_request_id_hash,provider_readback_hash,completed_at, UNIQUE(installation_id,suspension_generation))`、`installation_id WHERE state='unsuspending'` partial unique、terminal compatibility CHECKを完成形として追加し、T07Rは適用済みmigrationを変更しない。
-- **Complete**: 正常経路は`queued→dispatching→running→publish_authorized→publish_delivering→publishing→pr_created`、known token attemptは`minting→deliverable→delivery_consumed→revoking→revoked|expired`、unknown tokenは`minting→orphaned_suspending→orphaned_suspended→orphaned_expired`。各CAS winner1、token/push/PR/revoke/suspend request各0/1。ACK後delivery GET 0、失効確定までrevocation copy保持。unknown tokenを時刻推定でexpiredにせず、suspend confirmed+65分またはinstallation手動deleteへ収束し、確認不能時はpublisher write永続0。late/indeterminate childのpublisher call 0。
-- **Verify Positive**: sandboxでconfirmation→ACK/start/heartbeat→callback→OIDC exchange→二ciphertext atomic seal→sealed delivery replay→ACK/readback→redelivery拒否→push→draft PR→revoke 204→sealed copies消去を実行し、receipt wire、state、attempt、marker、instruction leak 0を確認する。
-- **Verify Adversarial**: lock T+2秒、statement T+5秒、transaction T+10秒、attempt/mint transport各T+1秒、authorization残30秒を境界検証する。2xx expiryはresponse_received_at直後/正確+60分/>60分/malformedを検証する。classic opaque token、sandbox overrideでstateless `ghs_APPID_JWT`約520文字、`.`/`_`/`-`、520超可変長をmint/seal/delivery/Bearer/revokeし、prefix/JWT/segment/fixed-length introspectionを入れるとredにする。空/16384/16385 bytes、AEAD envelope境界も検証する。exchange/mint response loss、server側遅延発行、2xx直後crash、各seal/expiry保存/commit前/commit response loss、DB unavailable、memory revoke 204/timeout、copyなしorphan、suspend 2xx/timeout/response loss、suspended_at欠落、既発行/後着token write、confirmed+64/+65分、unauthorized unsuspend、delivery/ACK loss、ACK後GET、unused 5分expiry、ACKなし60秒、known expiry、publishing stale、revoke/push/PR response loss、marker ambiguous、OIDC replay、late child、20 concurrent各stepでresend 0、terminal一意、external request 0/1を確認する。DER/padding/wrong curve/JWK driftもrejectする。
-- **STOP**: bounded transaction/transportまたは専用installation serializationなしのmint、2xx tokenの単一copy、seal persistence gapの無視、publisherが`publishing` readback前にwrite、ACK後redelivery、失効確定前にrevocation copy消去、response unknown再送、orphan tokenの時刻推定expiry、suspend未確認のpublisher再開、自動unsuspend。
+- **Allowed files**: `packages/devops/src/db/schema.sql`、新規`packages/devops/src/db/migrations/202607140200_coding_task_dispatch_retention.sql`、`packages/server/src/db/codingTasksRepo.ts`、`packages/server/tests/codingTasksRepo.test.ts`だけ。固定migration名が存在すればSTOPする。
+- **Work**: migrationへfull ACK/start receipt、`publish_authorized|publish_delivering|publishing`、5分authorization expiry、token attempt、bounded timestamps、delivery/revocation二ciphertext、provider expiry、suspension generation/readback、unique token/push/PR attempt、recovery attempt table/partial unique、terminal/error CHECKを完成形で追加する。plaintext token/format列0、ciphertextはbytea、全transitionをrepoのCAS methodへ閉じる。
+- **Complete**: fresh/upgrade/second runでstate/foreign key/unique/CHECKが一致し、20 concurrent transitionのwinner 1、部分state 0。
+- **Verify Positive**: real PostgreSQLで正常state sequenceと同tuple idempotent replayがgreen。
+- **Verify Adversarial**: illegal transition、terminal overwrite、duplicate attempt、partial seal/recovery row、migration再実行driftをrejectする。
+- **STOP**: Plan 010 tableをforkする、またはmigration/repo/testを同一taskで閉じられない。
+
+#### P012-F02-T07B coding approval callbackをpublish authorizationへ変換する
+
+- **Preconditions**: F02-T07A ACCEPTED。
+- **Allowed files**: `packages/server/src/lib/codingTaskOperationAdapter.ts`、`packages/server/src/http/routes/codingTasks.ts`、`packages/server/src/http/app.ts`、`packages/server/src/db/codingTasksRepo.ts`、`packages/server/tests/codingTaskOperationAdapter.test.ts`、新規`packages/server/tests/codingTaskApprovalCompatibility.test.ts`だけ。
+- **Work**: verified terminal callbackのexact task/run/repo/base/artifact tupleとserver受信時刻基準30秒heartbeat、approver 8-field bindingを再検証し、成功時だけ`running→publish_authorized`と5分expiry opaque authorization IDをCASする。token mint/push/PRは行わない。
+- **Complete**: callbackはauthorization rowを最大1件作り、外部GitHub write/token request 0。
+- **Verify Positive**: exact callback/heartbeatでauthorization 1、same tuple replayは同結果。
+- **Verify Adversarial**: stale heartbeat、tuple/approver binding drift、late/replay/concurrent callbackでauthorization 0/1、workflow dispatch 0。
+- **STOP**: callbackがtokenを返す、またはpublisher writeを直接開始する。
+
+#### P012-F02-T07C one-time instruction deliveryとstart receiptを実装する
+
+- **Preconditions**: F02-T07B ACCEPTED。
+- **Allowed files**: `packages/server/package.json`、`pnpm-lock.yaml`、新規`packages/server/src/http/routes/codingTaskInstructionBroker.ts`、`packages/server/src/http/app.ts`、`packages/server/src/index.ts`、`packages/server/src/config.ts`、`packages/server/src/db/codingTasksRepo.ts`、`packages/server/tests/config.test.ts`、新規`packages/server/tests/codingTaskInstructionBroker.test.ts`だけ。
+- **Work**: exact `@azure/identity@4.13.1`と`@azure/keyvault-keys@4.10.2`をpinする。OIDC exact tupleでinstructionをmemoryへ最大1回配送し、ACK transactionでinstruction NULL+SHAへredact、`dispatching→running`、RFC 8785 start payload digest→Key Vault P-256 Signのraw `R||S` receiptをatomic保存する。OIDC/receipt/tokenをlogしない。
+- **Complete**: ACK後instruction redelivery 0、DBにplaintext instruction 0、receipt verifyは公開鍵だけでgreen。
+- **Verify Positive**: exact OIDC/ACK/replay/start receipt wireとredaction transactionがgreen。
+- **Verify Adversarial**: wrong tuple/audience/workflow/run、ACK loss、commit response loss、DER/padding/wrong curve/JWK drift、20 concurrent deliveryでplaintext/receipt重複0。
+- **STOP**: instructionをworkflow input/artifact/logへ渡す、またはprivate signing keyをexportする。
+
+#### P012-F02-T07D publisher token mint・seal・失効を実装する
+
+- **Preconditions**: F02-T07C ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/lib/publisherTokenBroker.ts`、`packages/server/src/db/codingTasksRepo.ts`、`packages/server/src/config.ts`、新規`packages/server/tests/publisherTokenBroker.test.ts`だけ。
+- **Work**: installation serialize、protected OIDC、lock/statement/total deadline、authorization consume、mint transport CAS後だけmint 1。1..16384 UTF-8 byteのopaque tokenを異なるIV/AAD purposeのdelivery/revocation二ciphertextへatomic sealし、envelope上限32768、provider expiryを保存する。known tokenはwrite-ahead revoke 1、unknown response/copyなしはinstallation suspend 1+GET確認+65分維持へ収束させる。ACKはdeliveryを永久消費しrevocation copyを保持する。
+- **Complete**: known attempt=`minting→deliverable→delivery_consumed→revoking→revoked|expired`、unknown=`minting→orphaned_suspending→orphaned_suspended→orphaned_expired`、各external request 0/1。
+- **Verify Positive**: classic/stateless opaque token、二seal、delivery replay/ACK、revoke 204、suspend/65分がgreen。
+- **Verify Adversarial**:全deadline境界、2xx malformed/expiry、空/16384/16385、seal/commit response loss、orphan/suspend response loss、ACK後GET、known expiry前ciphertext消去、自動retry/unsuspendをrejectする。
+- **STOP**: opaque tokenをparseする、単一copy、response unknown再送、suspend未確認publisher再開。
+
+#### P012-F02-T07E coding workflowの3 identityを強制する
+
+- **Preconditions**: F02-T07D ACCEPTED。
+- **Allowed files**: `.github/workflows/coding-task.yml`、`.github/actions/run-coding-agent/action.yml`、`packages/server/src/config.ts`、`packages/server/tests/config.test.ts`、新規`packages/server/tests/codingWorkflowIdentity.test.ts`だけ。
+- **Work**: startup/jobでdispatch・unprivileged agent・publisherのApp/installation/repository/permission/cache/environmentをreadbackする。dispatch=Actions write+Contents read、agent=Contents read、publisher=allowlisted branch Contents/PR writeだけとし、instruction/token cross-injectionを禁止する。
+- **Complete**: agent jobはpush credential 0、publisherはActions/merge/admin/deploy 0、各identity/cache/environmentがdistinct。
+- **Verify Positive**: exact 3-row readbackでjobが開始しopaque task IDだけを受ける。
+- **Verify Adversarial**: same App/installation/cache、permission増減、main/既存branch/non-draft、instruction workflow inputでjob開始前failure。
+- **STOP**: job単位のcredential分離をproviderで強制できない。
+
+#### P012-F02-T07F draft PR publisherとreconciliationを実装する
+
+- **Preconditions**: F02-T07E ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/lib/codingTaskPublisher.ts`、`packages/server/src/db/codingTasksRepo.ts`、`packages/shared/src/clients/githubClient.ts`、`packages/shared/tests/githubClient.test.ts`、新規`packages/server/tests/codingTaskPublisher.test.ts`だけ。
+- **Work**: token delivery ACK/readback後だけ`publish_delivering→publishing`へCASし、deterministic `agent/<taskId>` branch、base/artifact SHA、commit/PR marker、unique write-ahead push/PR attemptでdraft PRだけを作る。各write最大1回、response不明はread-only marker reconciliationだけとし、resendしない。
+- **Complete**: successは`pr_created`+exact URL、unknown/ambiguousは`indeterminate`、late/terminal child write 0。
+- **Verify Positive**: sandbox push→draft PR→readback→token revokeがsingle-attemptでgreen。
+- **Verify Adversarial**: push/PR timeout/response loss、marker absent/ambiguous、base/artifact drift、main/non-draft/duplicate attemptでoutbound各0/1。
+- **STOP**: response unknownを再送する、またはpublisherがmerge/approvalを行う。
+
+#### P012-F02-T07G coding instruction retentionを実装する
+
+- **Preconditions**: F02-T07F ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/scheduler/tasks/codingTaskRetentionTask.ts`、`packages/server/src/index.ts`、`packages/server/src/db/codingTasksRepo.ts`、新規`packages/server/tests/codingTaskRetentionTask.test.ts`だけ。
+- **Work**: 1分schedulerがqueued 30分、dispatching orphan 5分、terminal/ACKを検出し、instruction NULL+SHA+redacted_at、audit/outboxを同一transactionでCASする。source holdで延長しない。
+- **Complete**: redaction SLO 5分、restart/concurrencyでplaintext残存/二重terminal 0。
+- **Verify Positive**: fake clock境界、restart、20 concurrent sweepがwinner 1。
+- **Verify Adversarial**: ACK/terminal transaction failure、late worker、hold、旧binaryでinstruction再生をrejectする。
+- **STOP**: workflow/provider側へinstruction copyが残る。
+
+#### P012-F02-T07H coding task E2E回帰を実証する
+
+- **Preconditions**: F02-T07A,F02-T07B,F02-T07C,F02-T07D,F02-T07E,F02-T07F,F02-T07G ACCEPTED。
+- **Allowed files**: 新規`packages/server/tests/codingTasksRepo.integration.test.ts`、`.orchestration/evidence/P012-F02-T07H/commands.json`、`readback.json`、`evidence.json`だけ。
+- **Work**: sandboxでconfirmation→instruction ACK/start→heartbeat/callback→OIDC token exchange→dual seal→delivery ACK→push→draft PR→revoke→retentionを一つのtraceへ結合し、各前段taskのevidence digestを照合する。
+- **Complete**:正常経路、known/unknown token、failed/expired/indeterminate/cancelled、restart/crashでstate/receipt/attempt一意、instruction/token leak 0。
+- **Verify Positive**: end-to-end trace、GitHub readback、DB terminal、sealed copy cleanupが一致。
+- **Verify Adversarial**: 各境界でprocess kill/response loss/concurrencyを注入し、token/push/PR/revoke/suspend各0/1、late write 0。
+- **STOP**: sandboxでないrepository、cleanup不完全、前段単体testの要約だけでE2Eを代用する。
 
 #### P012-F02-T07R suspended publisher installationをbreak-glass復旧する
 
-- **Preconditions**: F02-T07 ACCEPTED。通常実行はしない。`orphaned_expired` installationの復旧が必要な場合だけclaimする。
+- **Preconditions**: F02-T07H ACCEPTED。orchestratorが必ずassessment taskとしてclaimし、security ownerをactorに固定する。
 - **Allowed files**: 新規`packages/server/src/tools/publisherInstallationRecovery.ts`、新規`packages/server/tests/publisherInstallationRecovery.test.ts`、新規`runbooks/publisher-installation-recovery.md`だけ。
-- **Work**: conversational operation kindを追加しない。open `orphaned_expired` generationが0ならprovider/DB inventory SHA付きsigned not-applicable receiptだけを作る。復旧時はGitHub App owner/managerであることをowner-signed masterとlive membership evidenceで確認した人間security ownerが、protected environmentへinstallation ID、latest unresolved `suspension_generation`、`orphan_token_attempt_id`へbindingしたone-time approval recordを提出する。toolは専用installation、latest generationのattempt `state=orphaned_expired`、`suspension_confirmed_at`非NULL、trusted DB `now>=suspension_confirmed_at+PT65M`、他のopen token/push/PR attempt 0、open recovery 0、publisher App/installation/repository/exact permissions一致をtransaction内でlock・再検証し、composite unique recovery rowとappend-only auditをwrite-ahead commitする。Key Vault内App private keyをmemory署名だけに使ったApp JWTでexact `DELETE /app/installations/{installation_id}/suspended`を最大1回送り、直後のread-only installation GETで`suspended_at=null`とApp/installation/account/repository selection/permissions不変を確認して`unsuspended`へCASする。response不明はDELETEを再送せずGETだけでreconcileする。成功後も旧task/authorization/attemptを再開せず、新しいtaskだけを許可する。
+- **Work**: conversational operation kindを追加しない。claimしたsecurity ownerがDBのopen `orphaned_expired` generationとprovider installation suspensionをread-only inventoryする。両方0ならEvidence contractのsigned-NA receiptを3 evidence fileへ保存し、providerReadbackDigestにはinstallation list/readback、branchDecisionIdにはinventory evidence ID、reasonCode=`no_open_orphaned_installation`を入れる。1件以上ならGitHub App owner/managerであることをowner-signed masterとlive membership evidenceで確認した人間security ownerが、protected environmentへinstallation ID、latest unresolved `suspension_generation`、`orphan_token_attempt_id`へbindingしたone-time approval recordを提出する。toolは専用installation、latest generationのattempt `state=orphaned_expired`、`suspension_confirmed_at`非NULL、trusted DB `now>=suspension_confirmed_at+PT65M`、他のopen token/push/PR attempt 0、open recovery 0、publisher App/installation/repository/exact permissions一致をtransaction内でlock・再検証し、composite unique recovery rowとappend-only auditをwrite-ahead commitする。Key Vault内App private keyをmemory署名だけに使ったApp JWTでexact `DELETE /app/installations/{installation_id}/suspended`を最大1回送り、直後のread-only installation GETで`suspended_at=null`とApp/installation/account/repository selection/permissions不変を確認して`unsuspended`へCASする。response不明はDELETEを再送せずGETだけでreconcileする。成功後も旧task/authorization/attemptを再開せず、新しいtaskだけを許可する。
 - **Complete**: no-open-orphan時はDB/provider cardinality 0のsigned not-applicable receipt、復旧時はexact actor、approval digest、App JWT key version、installation/repository/permission pre/post readback、DELETE request 0/1、GET reconciliation、append-only audit、terminal `unsuspended|indeterminate|abandoned`が一意で、private key/JWT/token log 0。条件不成立またはreadback不明はsuspendを維持し、App owner/managerがinstallationをdeleteして正式config PRでfresh installationを作るか永久suspendを選ぶ。
 - **Verify Positive**: sandboxでApp owner/manager approval→write-ahead→App JWT DELETE 204→GET `suspended_at=null`→new taskだけmintを実行し、installation account ownerのWeb UIを使わず復旧する。
 - **Verify Adversarial**: App owner/managerでないactor、installation account ownerだけの操作、approval欠落/期限切れ、T+64:59、state違い、open attempt 1、wrong App/installation/repo/permission、publisher jobからのcall、DELETE timeout/response loss、GET mismatchでunsuspend再送・publisher再開を0にする。同一installationでgeneration N orphan→suspend→recover→new task→generation N+1 orphan→suspend→recoverを成功させ、N approval/recoveryのN+1 replayを拒否し、N/N+1各20 concurrent callerのwinnerをgenerationごとに1件、open recoveryをinstallation当たり1件にする。旧task再開、private key/JWT出力もrejectする。
@@ -1086,7 +1409,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 #### P012-F02-T08 command/help/docsを同期する
 
-- **Preconditions**: F02-T07R ACCEPTEDまたは未claimのsigned not-applicable receipt。
+- **Preconditions**: F02-T07Rがexecutedまたはsigned_not_applicable evidenceでACCEPTED。
 - **Allowed files**: `docs/reference/teams-commands.md`、`docs/reference/http-api.md`、新規`packages/server/tests/conversationalOperationsDocs.test.ts`だけ。
 - **Work**: exact operation set、read/write差、confirmation、禁止operation、examplesを生成元contractと同期する。
 - **Complete**: helpが未実装operationを表示しない。
@@ -1096,7 +1419,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 #### P012-F02-T09 Phase 2 acceptance
 
-- **Preconditions**: F02-T01F,F02-T02,F02-T03,F02-T04,F02-T05,F02-T06,F02-T07,F02-T07R,F02-T08 ACCEPTED（T07Rは未claimならsigned not-applicable receipt）。
+- **Preconditions**: F02-T01F,F02-T02,F02-T03,F02-T04,F02-T05,F02-T06,F02-T07H,F02-T08 ACCEPTED、F02-T07Rがexecutedまたはsigned_not_applicable evidenceでACCEPTED。
 - **Allowed files**: `.orchestration/evidence/P012-F02-T09/commands.json`、`readback.json`、`evidence.json`だけ。
 - **Work**: Teams sandboxでread、atomic proposal/approval/outbox、context activation、durable delivery、approval、write、webhook、result/terminal replyの往復をtrace IDで保存する。
 - **Complete**: Issue create/comment/close/reopen、PR comment、coding task、rejected、expiredの各positive/negative、restart後outbox処理、sealed nonce非開示を実証し、Plan 012 surfaceからのProjectV2 writeが0件である。
@@ -1110,7 +1433,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 #### P012-F03-T01 Graph webhook boundaryを先に強化する
 
-- **Preconditions**: F00-T06、F01-T09、F02-T04、P010-F03-T08、P010-F04-T03 ACCEPTED。`operationProposalsRepo`、`operationApprovalAdapter`、Plan 010 approval repo/routeの実pathとexport symbolがPlan記載と異なる場合は実装せずPlan改訂へ戻す。
+- **Preconditions**: F00-T06、F01-T09、F02-T09、P010-F03-T08、P010-F04-T03 ACCEPTED。`operationProposalsRepo`、`operationApprovalAdapter`、Plan 010 approval repo/routeの実pathとexport symbolがPlan記載と異なる場合は実装せずPlan改訂へ戻す。
 - **Allowed files**: `packages/server/src/http/routes/graphNotifications.ts`、`packages/server/src/lib/graphNotificationValidator.ts`、`packages/server/tests/app.test.ts`、`packages/server/tests/graphNotificationValidator.test.ts`だけ。
 - **Work**: existing Hono bodyLimit patternを再利用し、body上限1,048,576 bytes、top-level object、`value` array最大100件、各string最大8,192 code points、nesting最大8、known notification kindをruntime validateする。Microsoft公式payloadがこの上限を超える実測証拠があれば値を推測変更せずSTOPしてADR改訂する。
 - **Complete**: oversized 413、malformed 400、invalid clientState 401/403、valid 202。
@@ -1219,19 +1542,59 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - **Verify Adversarial**: recipient injection、reply-all、external address、missing/revoked/wrong channel conversation reference、Graph chat POST、secret error、duplicate delivery。
 - **STOP**: Outlook source replyがsource immutable message IDを使わず新規`sendMail`/reply-allとなる、またはapproval mailが署名済みmasterのmailbox allowlistを迂回する。
 
-#### P012-F03-T12 raw非保存の定期guardと復旧手順を実装する
+#### P012-F03-T12A raw content guardとdurable incident gateを実装する
 
 - **Preconditions**: F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11 ACCEPTED。
-- **Allowed files**: 新規`packages/server/src/scheduler/tasks/rawContentGuardTask.ts`、`packages/server/src/db/rawContentSafetyRepo.ts`、新規`packages/server/src/lib/rawContentRecoveryAdapter.ts`、新規`packages/server/src/http/routes/rawContentRecovery.ts`、新規`packages/server/src/agents/rawContentIncidentNotifier.ts`、`packages/server/src/http/app.ts`、`packages/server/src/index.ts`、`runbooks/channel-messages-purge.md`、`runbooks/meeting-minutes-intake.md`、新規`packages/server/tests/rawContentGuardTask.test.ts`、新規`packages/server/tests/rawContentRecovery.test.ts`、新規`packages/server/tests/rawContentIncidentNotifier.test.ts`だけ。
-- **Work**: startupと毎時`inspectSchemaAndOpenIncident()`を実行し、禁止column/path検出時はgate rowをexclusive lockしてdurable incident open、ingestion disable、epoch increment、append-only SEV-1 auditを同一transactionで行い、configured Data Owner/operations recipientへmetadata-only通知する。cleanupはraw存在/不明ならP012-F03-T03のfull platform replacement primitiveを再利用し、全object/data copy、旧新metadata-only equality、quoted ETag CAS、rollback close、migration/runtime-old access revoke、旧隔離、dedicated key destroyまたはshared-key mutation 0、全copy delete/expiry、restore-negativeを必須とする。同一cluster migrationは全copy raw 0の事前証明時だけ許可する。operatorのauthenticated CSRF POSTは全evidence hashが揃った時だけ`markRemediated`とPlan 010 `raw_content_ingestion_reenable` approval requestを作る。署名済みRecords/Data Ownerの別人accepted decision、全copyの復元不能、clean guardをrecoverable dispatcherが確認した後だけ`closeAfterAcceptedApproval`し、同transactionでgate enabledとepoch incrementをcommitする。legal hold/unknown copy/期限付き例外では再開しない。
-- **Complete**: prohibited column/path 0、open incident中/restart後ingestion 0、replacement cutover+全copy復元不能readback+root cause+別人owner approval+clean guardの全条件後だけ再開し、metadata/hash/auditは維持。
-- **Verify Positive**: real PostgreSQLでhourly guard→exclusive gate lock/epoch increment→incident open→restart disabled→replacement cutover/crypto-shred/delete readback→remediated→owner approval→clean guard→close/re-enable/epoch incrementを時計注入で再現。
-- **Verify Adversarial**: old heap/WAL/PITR/replica/backup restore可能、legal hold、unknown provider copy、期限付き例外、scheduler restart、notification failure、statement failure、operator自己承認、approval/clean guard前close、paused poller、1000 concurrent detectorでexternal ingestion/proposal 0、open incident 1。
+- **Allowed files**: 新規`packages/server/src/scheduler/tasks/rawContentGuardTask.ts`、`packages/server/src/db/rawContentSafetyRepo.ts`、新規`packages/server/tests/rawContentGuardTask.test.ts`だけ。
+- **Work**: startupと毎時`inspectSchemaAndOpenIncident()`を実行する。禁止column/path検出時は固定advisory keyのexclusive lockを取得し、gate row exclusive lock、durable incident open、ingestion disable、epoch increment、append-only SEV-1 auditを一つのPostgreSQL transactionでCASする。外部通知、cleanup、approval、再開は行わない。
+- **Complete**: 1000 concurrent detectorでもopen incident exact 1、disable/epoch/audit exact 1で、commit後・restart後もingestion/proposal/GitHub write 0。
+- **Verify Positive**: real PostgreSQLのclean/violation/startup/hourly/commit直後restartを時計注入で再現する。
+- **Verify Adversarial**: scheduler重複、各statement failure、lock loser、paused poller、old binary、unknown schema pathでpartial incident/enable継続/外部call 0。
+- **STOP**: detectorとingestion writerの排他を同じDB authorityで強制できない。
+
+#### P012-F03-T12B raw incident metadata-only通知を実装する
+
+- **Preconditions**: F03-T12A ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/agents/rawContentIncidentNotifier.ts`、新規`packages/server/tests/rawContentIncidentNotifier.test.ts`だけ。
+- **Work**: open incidentのwrite-ahead outboxをclaimし、configured Data Owner/operations recipientへincident ID、検出schema/path hash、detectedAt、gate epochだけをsingle-attempt送信する。raw column名/value、本文、secret、provider bodyを通知/DB/logへ出さず、response不明は`indeterminate`で自動再送しない。通知成否はdisabled gateを変更しない。
+- **Complete**: incidentごとのapplication outbound 0/1、`sent|failed|indeterminate`がdurableで、失敗・restart中もingestion disabled。
+- **Verify Positive**: Teams/mail各allowlisted destinationのmetadata-only payloadとcorrelationを確認する。
+- **Verify Adversarial**: recipient injection、raw value/error body、429/5xx/timeout/send後crash、duplicate workerで送信2回目/enable 0。
+- **STOP**: notification transportがexact destinationまたはsingle-attempt境界を満たせない。
+
+#### P012-F03-T12C remediation evidence intakeと再開approvalを実装する
+
+- **Preconditions**: F03-T03O,F03-T12A,F03-T12B ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/lib/rawContentRecoveryAdapter.ts`、新規`packages/server/src/http/routes/rawContentRecovery.ts`、`packages/server/src/http/app.ts`、`runbooks/channel-messages-purge.md`、`runbooks/meeting-minutes-intake.md`、新規`packages/server/tests/rawContentRecovery.test.ts`だけ。
+- **Work**: raw存在/不明ならP012-F03-T03のaccepted full platform replacement evidenceだけを取り込む。全object/data copy、旧新metadata-only equality、quoted ETag CAS、rollback close、migration/runtime-old access revoke、旧隔離、dedicated key destroyまたはshared-key mutation 0、全copy delete/expiry、restore-negativeのtask ID/target SHA/artifact SHAをstrict adapterで照合する。同一clusterは全copy raw 0の事前証明時だけ許可する。authenticated operatorのCSRF POSTはopen incident/epoch/root-cause/全evidence hash一致時だけ`markRemediated`とPlan 010 `raw_content_ingestion_reenable` approval requestを同一transactionで作り、enableは行わない。
+- **Complete**: remediation row/approval requestはincidentごとexact 1で、replacement/restore/evidenceが一件でも欠落・不一致ならwrite 0、gate disabledのまま。
+- **Verify Positive**: valid replacement receipt集合とsame-cluster all-copy-raw0の各routeでremediated+approval 1、enable 0。
+- **Verify Adversarial**: old heap/WAL/PITR/replica/backup restore可能、legal hold、unknown provider copy、期限付き例外、wrong task/SHA/artifact、CSRF、operator自己approval、20 concurrent POSTでpartial/remediation重複/enable 0。
 - **STOP**: backup/restore影響またはRecords/Data Ownerのlegacy data決定が未解決。
+
+#### P012-F03-T12D accepted recovery decisionからingestionを再開する
+
+- **Preconditions**: F03-T12C ACCEPTED。
+- **Allowed files**: 新規`packages/server/src/agents/rawContentRecoveryDispatcher.ts`、`packages/server/src/index.ts`、新規`packages/server/tests/rawContentRecoveryDispatcher.test.ts`だけ。
+- **Work**: recoverable dispatcherがPlan 010の署名済みRecords/Data Owner別人accepted decision、incident/target SHA/epoch/remediation evidence、全copy復元不能readbackをjoinする。固定advisory keyのexclusive lock下でclean guardを再実行し、全条件一致時だけ`closeAfterAcceptedApproval`、gate enabled、epoch increment、append-only recovery auditを一つのtransactionでCASする。approval response handlerは直接enableせず、legal hold/unknown copy/期限付き例外/clean guard failureはdisabledを維持する。
+- **Complete**: concurrent/restartでclose/enable/epoch/audit exact 1、条件不足時0、accepted decision event loss 0。
+- **Verify Positive**: decision commit直後crash→scheduler recovery→clean guard→close/re-enable/epoch incrementをreal PostgreSQLで再現する。
+- **Verify Adversarial**: self/stale/wrong-owner approval、wrong incident/SHA/epoch、clean guard前close、statement failure、1000 concurrent dispatcher、detector競合で一瞬のunsafe enable/duplicate close 0。
+- **STOP**: decisionとclean readbackを同じexclusive gate transactionへ結合できない。
+
+#### P012-F03-T12E raw recovery lifecycle acceptanceを実証する
+
+- **Preconditions**: F03-T12A,F03-T12B,F03-T12C,F03-T12D ACCEPTED。
+- **Allowed files**: 新規`packages/server/tests/rawContentRecovery.integration.test.ts`、`.orchestration/evidence/P012-F03-T12E/commands.json`、`.orchestration/evidence/P012-F03-T12E/readback.json`、`.orchestration/evidence/P012-F03-T12E/evidence.json`だけ。
+- **Work**: 同一target SHAでguard→incident→restart disabled→metadata notification→replacement/crypto-shred/delete/restore-negative evidence intake→separate-owner approval→dispatcher clean guard→close/re-enableを一つのcorrelated traceへ結合し、T12A-D artifact SHAを照合する。
+- **Complete**: prohibited column/path 0、open incident中/restart後ingestion 0、全復元不能readback+root cause+別人owner approval+clean guard後だけ再開し、metadata/hash/auditは維持する。
+- **Verify Positive**: real PostgreSQLとprovider fixtureで全lifecycle、各transaction直後restart、clock boundaryを再現する。
+- **Verify Adversarial**: old heap/WAL/PITR/replica/backup restore可能、legal hold、unknown copy、notification failure、approval/clean guard前close、各境界process kill、1000 concurrent detector/dispatcherでexternal ingestion/proposal 0、incident/close各1。
+- **STOP**: A-Dのaccepted evidenceまたはend-to-end restart/復元不能証跡が一件でも欠落する。
 
 #### P012-F03-T13 Phase 3 acceptance
 
-- **Preconditions**: F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11,F03-T12 ACCEPTED。
+- **Preconditions**: F03-T01,F03-T02,F03-T03O,F03-T04B,F03-T05,F03-T06,F03-T07,F03-T08,F03-T09,F03-T10,F03-T11,F03-T12E ACCEPTED。
 - **Allowed files**: `.orchestration/evidence/P012-F03-T13/commands.json`、`readback.json`、`evidence.json`だけ。
 - **Work**: Teams/Outlook sandbox E2E、source edit/reply/delete→stale、approved mutation、raw非保存guard、M365 hold evidence、cleanupを同一SHAで実行する。
 - **Complete**: positive/negative intake、proposal数、approval、GitHub result、notification state、raw/display column・write path 0、source-system evidence/cleanupが一致。
@@ -1245,7 +1608,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 #### P012-F04-T01 interactive agent用の認証済みproposal intakeを追加する
 
-- **Preconditions**: F00-T06、F01-T09、F02-T04、P010-F03-T08 ACCEPTED。
+- **Preconditions**: F00-T06、F01-T09、F02-T09、F03-T13、P010-F03-T08 ACCEPTED。
 - **Allowed files**: 新規`packages/server/src/http/routes/operationProposalIntake.ts`、`packages/server/src/http/app.ts`、`packages/server/src/index.ts`、新規`packages/server/tests/operationProposalIntake.test.ts`だけ。
 - **Work**: query/path parameterを一切受けないauthenticated GETが空のescaped textarea formだけを返す。人間がagent出力のversion 1 JSONをtextareaへ貼り付ける。POSTは`application/x-www-form-urlencoded` raw body最大1,048,576 bytes、decoded JSON UTF-8最大270,336 bytesを先に制限し、その後Operation schemaのUnicode code point上限、same-origin/CSRF、active requester profile/project、source=`interactive_agent`を検証してpending proposalとPlan 010 approval requestを作る。agent processはsession/CSRF/approval tokenを受け取らない。responseへ`Cache-Control: no-store`、`Pragma: no-cache`、`Referrer-Policy: no-referrer`を付け、route access logはmethod/status/operation IDだけでquery/body/title/reasonを記録しない。
 - **Complete**: interactive agentはGitHub mutationを直接呼ばず、authenticated human POST後もpendingで停止する。
@@ -1312,7 +1675,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - **Allowed files**: 新規`scripts/validate-agent-operation-assets.mjs`、新規`packages/server/tests/agentOperationAssets.test.ts`、`package.json`、`.github/workflows/ci.yml`だけ。
 - **Work**: provider wrapperの存在、共通runbook link、全GitHub mutation禁止、proposal intake契約、exact `gpt-5.6-sol high`、credential launcher、hook target file、tracked statusを検証する。`validate-plan-012-dag.mjs`、agent asset validator、F00-T01でlock済みの`mise run actionlint`を`mise run ci`/GitHub CIへ接続する。composite `.github/actions/*/action.yml`は`agentOperationAssets.test.ts`でmetadata必須key、entrypoint、credential/forbidden command policyを別検証する。
 - **Complete**: asset/DAG削除・driftでlocal CIとhosted CIがfailure。
-- **Verify Positive**: actual tree、exact 99 executable task/direct prerequisite、workflowがgreen。
+- **Verify Positive**: actual tree、exact 115 executable task/direct prerequisite、workflowがgreen。
 - **Verify Adversarial**: wrapper1件削除、merge許可追加、dangling hook、untracked-only asset、DAG range/unknown/cycleでred。
 - **STOP**: validatorがprovider設定を実行して副作用を起こす。
 
@@ -1332,7 +1695,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 #### P012-F05-T01 P010 project picker受入証跡を再検証する
 
-- **Preconditions**: P010-F02-T10 ACCEPTED。
+- **Preconditions**: F04-T08、P010-F02-T10 ACCEPTED。
 - **Allowed files**: `.orchestration/evidence/P012-F05-T01/commands.json`、`readback.json`、`evidence.json`だけ。
 - **Work**: zero/one/multi project、URL propagation、400/403/409、persona切替を現HEADで再実行する。
 - **Complete**: unauthorized project data query 0、selection drift 0。
@@ -1504,6 +1867,11 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 ### Unit and contract tests
 
+- `packages/prjops/tests/conversationalGithubContract.test.ts`: Markdown/JSON/schema/runtimeの10 kind order/matrix deep equality、全request/read/proposal/terminal/error branchのunknown field拒否、scalar境界、lone surrogate、response URL/origin、raw provider body/PII/token/stack 0、Node DAG/evidence test spawn到達。
+- `packages/server/tests/operationApproverMaster.test.ts`: 7 artifact canonical bytes、RFC 8785/8032 official vector、root fingerprint、repository/commit/snapshot identity、4 snapshotVersion一致、root/delegated signature、record/signature kid、keyring/revocation effective time、base64url canonical wire、validity/version連続性、digest、static verifier/current-time resolver責務分離、0/2/self/entitlement。
+- `packages/server/tests/operationApproverProvider.test.ts`: protected exact source/version/digest/fingerprint、same-commit 7 artifact fetch、partial fetch、repository/path混在、version/digest rollback、restart、atomic startup publish、requestごとのtrusted DB時刻resolver、expired/revoked cache fallback 0。
+- `scripts/validate-plan-012-dag.test.mjs`: 115 H4/table/DAG exact set、Markdown 7 field、DAG 6 field、title/raw Preconditions hash、direct edge/acceptance/completion mode、external allowlist、signed-NA exact set、suffix、unknown/missing/duplicate/cycle。
+- `scripts/validate-plan-012-evidence.test.mjs`: lifecycle claim、full/short task path、11 task/12 branch reason/owner/digest matrix、3 evidence file、P011 receipt、ACCEPTED transitionのpositive/negative fixture。
 - `packages/server/tests/freeTextIntent.test.ts`: exact kind、unknown、oversize、prompt injection、multi-intent。
 - `packages/prjops/tests/commandParser.test.ts`: slash syntax、permission matrix、理由必須、project mismatch。
 - `packages/shared/tests/githubClient.test.ts`: Issue PATCH/comment marker、Plan 012 narrow portのProjectV2 mutation不在、既存XLSX ProjectV2 port回帰、official REST path/version/error。
@@ -1532,8 +1900,14 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - `packages/server/tests/sealedApprovalDeliveryEnvelope.test.ts`: AES-256-GCM AAD、key rotation、DB theft、wrong endpoint/request/expiry、plaintext nonce 0。
 - `packages/server/tests/githubOperationExecutor.test.ts`: kind別call、MAX_USER_BODY+marker、timeout/readback、indeterminate、minutes shared advisory lock/disable race/crash再送0。
 - `packages/server/tests/conversationalGithubCredential.test.ts`: Plan 012/XLSX App分離、permission readback、cross-injection拒否。
-- `packages/server/tests/codingTasksRepo.integration.test.ts`: full coding/publish states、authorization/token/push/PR attempt CAS、expiry/error CHECK、sealed cleanup、instruction redaction/sweep。
-- `packages/server/tests/codingTaskInstructionBroker.test.ts`: receipt wire、ACK/heartbeat/callback、bounded DB/transport clock、2xx expiry+各seal/commit failure、classic/stateless可変長opaque token、二ciphertext atomicity、orphan installation suspend/readback/65分保持、ACK後redelivery0+revocation copy保持、exchange/token/push/PR/revoke/suspend response-loss、marker reconciliation、known expiry後cleanup、late child publisher 0、instruction canary 0。
+- `packages/server/tests/codingTasksRepo.test.ts`: full coding/publish/token/recovery state、CAS、unique、expiry/error CHECK、fresh/upgrade/second run。
+- `packages/server/tests/codingTaskApprovalCompatibility.test.ts`: callback tuple、30秒heartbeat、approver 8-field binding、5分authorization、replay/concurrency。
+- `packages/server/tests/codingTaskInstructionBroker.test.ts`: OIDC one-time instruction、ACK/redaction、start receipt wire/ES256、commit response loss、instruction canary 0。
+- `packages/server/tests/publisherTokenBroker.test.ts`: bounded DB/transport clock、2xx expiry、classic/stateless opaque token、dual seal、delivery ACK、revoke/orphan suspend/readback/65分、response loss。
+- `packages/server/tests/codingWorkflowIdentity.test.ts`: dispatch/agent/publisherのexact permission/cache/environment、cross-injection、main/non-draft 0。
+- `packages/server/tests/codingTaskPublisher.test.ts`: deterministic branch/marker、push/PR single-attempt、read-only reconciliation、late child 0。
+- `packages/server/tests/codingTaskRetentionTask.test.ts`: queued/dispatching/ACK/terminal redaction、fake clock、restart/concurrency。
+- `packages/server/tests/codingTasksRepo.integration.test.ts`: confirmationからdraft PR/revoke/retentionまでのE2E trace、known/unknown token、crash/response-loss、external request 0/1。
 - `packages/server/tests/publisherInstallationRecovery.test.ts`: App owner/manager、generation/orphan-attempt-bound approval、orphaned_expired+65分/open attempt 0、write-ahead App JWT DELETE 0/1、response-loss GET reconciliation、同一installation二世代復旧、旧generation replay 0、permission readback、旧task再開0、permanent suspend/delete分岐。
 - `packages/server/tests/agentTokenBroker.test.ts`: broker UAMI/FIC/projected token、private API CA、offline JWKS+live TokenReview exact audience/username/UID/groups、Pod UID、RBAC allow/deny、proxy token audience/600秒、suspended Job二段attestation、nonce/lease one-time、repository/permission/expiry。
 - `packages/server/tests/agentGithubReadGateway.test.ts`: live active launch+immutable lease generation、GHES `/api/v3`/`/api/graphql`、4 persisted operation、100/101件fail-close、unknown hash/alias/foreign variable/mutation拒否。
@@ -1565,6 +1939,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 
 ## Done criteria
 
+- [ ] `node scripts/validate-plan-012-dag.mjs plans/012-conversational-github-operations-and-minutes.md docs/contracts/plan-012-task-dag.json`、`node --test scripts/validate-plan-012-dag.test.mjs`、`node --test scripts/validate-plan-012-evidence.test.mjs`、`pnpm --filter @aiops/prjops test -- conversationalGithubContract.test.ts`、`pnpm --filter @aiops/server test -- operationApproverMaster.test.ts`、root `pnpm test`、`MISE_LOCKED=1 mise run ci`、`git diff --check`が全てexit 0で、root test logにcontract/DAG/evidence test名が存在する。
 - [ ] Exact product contractの10 kind（`unknown`を含む）以外をparser、API、agent、skillが実行できない。
 - [ ] Teams intentのproject IDはsource channel projectと完全一致し、cross-project外部callは0。
 - [ ] Teams SDK/Graph dual ingressは同一source keyのdurable CASへ収束し、SDK/Graph ID相関不能時はGraph-onlyとなる。同一message/revisionのparse/reply/proposal/coding/outboxは各1、self-bot/system messageはreply 0でloopしない。
@@ -1669,6 +2044,7 @@ orchestrator、認証・migration・concurrency・外部write・CI publisherを�
 - mise lockfile exact versions/checksums: https://mise.jdx.dev/dev-tools/mise-lock.html
 - mise aqua backend and integrity verification: https://mise.jdx.dev/dev-tools/backends/aqua.html
 - RFC 8785 JSON Canonicalization Scheme: https://www.rfc-editor.org/rfc/rfc8785
+- Zod 4 JSON Schema conversion（Draft 2020-12 default）: https://zod.dev/json-schema
 - RFC 7518 JSON Web Algorithms ECDSA signature format: https://www.rfc-editor.org/rfc/rfc7518#section-3.4
 - RFC 8032 Ed25519: https://www.rfc-editor.org/rfc/rfc8032
 - GitHub REST API versions: https://docs.github.com/en/rest/about-the-rest-api/api-versions
