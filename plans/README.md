@@ -28,6 +28,7 @@ Current notes:
 - Plan 005: local core accepted; real adapter is TODO; tenant evidence remains pending。
 - Plan 009: Plan 010 decision, DAG, and task mapping take precedence; Plan 009 is a detailed source ledger only。
 - Plan 011: Plan 010の86 task universeは変更せず、P010-F01-T10の自己発行可能な証跡方式を外部信頼基盤で是正する。Enterprise Cloud Organization、repository移管、別人policy admin 2名、別人reviewerがHUMAN/ENV gate。
+- Plan 011: dev-phase の DEV-DEFAULT decision record を docs/decisions/ に確立（操作者指示 2026-07-18）。本番 go-live 前に実値差し替え必須。表の Status は本番基準のため BLOCKED: HUMAN/ENV を維持。
 - Plan 012: Plan 010のpicker、read-only Kanban、Graph、coding workflow、承認境界を前提にし、Teams・Outlook議事録・Claude Code・Droidの自然言語操作をtyped proposalへ統一する。新しいtask universeをPlan 010へ追加しない。
 - Plan 013: ADR-0018の範囲のみ。projectBoardデータ経路はPlan 010の領分で、公開ゲートの `true` 化はPlan 010成果到達後の作業。
 
