@@ -6,7 +6,7 @@
 
 ## Status
 
-`IN PROGRESS`
+`BLOCKED — PLAN 011 HUMAN/ENV`
 
 - Priority: P0
 - Risk: CRITICAL

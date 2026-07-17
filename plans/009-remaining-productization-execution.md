@@ -12,7 +12,7 @@
 
 ## Status
 
-`TODO`
+`BLOCKED — SUPERSEDED BY PLAN 010`
 
 - **Effort**: XL
 - **Priority**: P0
