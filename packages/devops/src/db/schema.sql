@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS grants (
 CREATE INDEX IF NOT EXISTS idx_grants_expires_at ON grants (expires_at) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_grants_subject ON grants (subject);
 
--- DevOps:SPEC-INT-054 配信名簿（recipients）
+-- P010-F02-T03 / DEC-SPEC-002 / DevOps:SPEC-INT-054: stable subject配信名簿。
 CREATE TABLE IF NOT EXISTS recipients (
   user_id  TEXT PRIMARY KEY,
   profile  TEXT NOT NULL CHECK (profile IN ('PRF-M', 'PRF-L', 'PRF-G', 'PRF-01', 'PRF-02', 'PRF-03', 'PRF-04', 'PRF-05')),
@@ -147,9 +147,36 @@ CREATE TABLE IF NOT EXISTS recipients (
   projects TEXT[] NOT NULL DEFAULT '{}',
   language TEXT NOT NULL CHECK (language IN ('ja', 'en')) DEFAULT 'ja',
   active   BOOLEAN NOT NULL DEFAULT true,
+  entra_tenant_id UUID,
+  entra_object_id UUID,
+  scope_mode TEXT NOT NULL CHECK (scope_mode IN ('project', 'global')),
+  backfill_disposition TEXT CHECK (backfill_disposition IN ('migrate_active', 'deactivate', 'erase_after_retention')),
+  backfill_state TEXT NOT NULL CHECK (backfill_state IN ('pending', 'applied')),
   teams_team_id TEXT,
-  teams_channel_id TEXT
+  teams_channel_id TEXT,
+  CONSTRAINT recipients_stable_subject_state_check CHECK (
+    (
+      backfill_state = 'pending'
+      AND active = false
+      AND entra_tenant_id IS NULL
+      AND entra_object_id IS NULL
+      AND backfill_disposition IS NULL
+    )
+    OR
+    (
+      backfill_state = 'applied'
+      AND entra_tenant_id IS NOT NULL
+      AND entra_object_id IS NOT NULL
+      AND backfill_disposition IS NOT NULL
+    )
+  ),
+  CONSTRAINT recipients_active_mapping_check CHECK (
+    active = false OR backfill_disposition = 'migrate_active'
+  )
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_recipients_stable_subject
+  ON recipients (entra_tenant_id, entra_object_id)
+  WHERE entra_tenant_id IS NOT NULL AND entra_object_id IS NOT NULL;
 
 -- ADR-0014 / DevOps:REQ-042 / SPEC-INT-069: 標準report受領。
 CREATE TABLE IF NOT EXISTS standard_reports (
