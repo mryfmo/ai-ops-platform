@@ -1,6 +1,7 @@
 {
   "name": "@aiops/server",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "description": "常駐サーバ（ADR-0005）: Graph/GitHub webhook受信、常駐ループ（ヘルスチェック/JIT失効/購読更新）、WebUIプロキシ",
   "type": "module",
   "main": "dist/index.js",

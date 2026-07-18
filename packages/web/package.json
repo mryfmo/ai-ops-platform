@@ -1,6 +1,7 @@
 {
   "name": "@aiops/web",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "description": "WebUIダッシュボード（Next.js App Router + Tailwind CSS v4 + Vercel AI SDKチャット。ADR-0005）",
   "private": true,
   "type": "module",

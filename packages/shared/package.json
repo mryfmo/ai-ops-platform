@@ -1,6 +1,7 @@
 {
   "name": "@aiops/shared",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "description": "PrjOps/DevOps共通基盤: 営業日カレンダー、ID体系、言語選択、監査ログ、秘密情報サニタイザ、外部APIクライアント（Anthropic/Claude Agent SDK/Microsoft Graph/GitHub）",
   "type": "module",
   "main": "dist/index.js",
