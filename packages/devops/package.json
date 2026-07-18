@@ -1,6 +1,7 @@
 {
   "name": "@aiops/devops",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "description": "AIエージェント主導DevOps運用基盤: AGT-ORCH/BLD/DEP/INC/CHG/RPT/SEC",
   "type": "module",
   "main": "dist/index.js",

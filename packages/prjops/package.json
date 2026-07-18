@@ -1,6 +1,7 @@
 {
   "name": "@aiops/prjops",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "description": "PrjOps AI基盤: AGT-01〜07（オーケストレーター/収集/分析/レポート生成/配信/追跡/検証）",
   "type": "module",
   "main": "dist/index.js",

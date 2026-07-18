@@ -1,6 +1,7 @@
 {
   "name": "@aiops/traceability",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "description": "仕様ID(REQ/SPEC-EXT/SPEC-INT/TH/AC)⇔実装コード⇔検証コードの相互参照検証ツール",
   "type": "module",
   "private": true,
