@@ -1,0 +1,8 @@
+{
+  "task_id": "P010-F01-T10",
+  "requester": "codex-gpt56sol-high",
+  "reviewer": "orchestrator-fable5",
+  "outcome": "ACCEPTED",
+  "reviewed_at": "2026-07-18",
+  "review_basis": "orchestrator adversarial verification: 10 forged-receipt attacks all rejected; green --through P010-F01-T09 with mandatory DEV-TRUST warning; --final exits 1 at 13/86; scope exactly matches immutable plan Allowed files; record in .orchestration/acceptance/A006-accepted.md"
+}
