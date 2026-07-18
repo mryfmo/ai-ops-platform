@@ -1,0 +1,248 @@
+{
+  "_evidence": "P010-F02-T01",
+  "algorithm": "prjops-data-canonical-manifest-v1",
+  "vectors": [
+    {
+      "id": "empty-snapshot",
+      "category": "empty",
+      "inputs": [],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W119Cg==",
+      "expected_content_sha256": "72094c8b2dcf0bfb4f1d7ef1e19f4be87352e3165051f0a9f28b3169215a5896",
+      "expected_error_code": null
+    },
+    {
+      "id": "one-regular-file",
+      "category": "one",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDEK"
+        }
+      ],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W3sicGF0aCI6Im9yZ2FuaXphdGlvbnMvT1JHLTAwMS55YW1sIiwic2hhMjU2IjoiNTY5MWRhNTEzYjEyNmU3ZGRkYjU4NWY3ZmJmZTEzOWE2MTRkN2QxNDVjOTBlYTdkNDEzMDU4ZDU2NTRmMTEzMSIsInNpemUiOjEyfV19Cg==",
+      "expected_content_sha256": "722770f6e9c22a22223d85fea68040c82ac4060c1ddeaf08a6b69df75d2fef23",
+      "expected_error_code": null
+    },
+    {
+      "id": "multiple-regular-files",
+      "category": "multi",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDEK"
+        },
+        {
+          "path": "projects/PJ-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IFBKLTAwMQo="
+        }
+      ],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W3sicGF0aCI6Im9yZ2FuaXphdGlvbnMvT1JHLTAwMS55YW1sIiwic2hhMjU2IjoiNTY5MWRhNTEzYjEyNmU3ZGRkYjU4NWY3ZmJmZTEzOWE2MTRkN2QxNDVjOTBlYTdkNDEzMDU4ZDU2NTRmMTEzMSIsInNpemUiOjEyfSx7InBhdGgiOiJwcm9qZWN0cy9QSi0wMDEueWFtbCIsInNoYTI1NiI6IjEzODZmYTU1YjNlYTI3YjQxM2RkOGQ2ZmJiN2VjNWZjZjk4YTFjYWFjNWU5Zjc0NGE4YzE3YjUwMzNmNzMxM2EiLCJzaXplIjoxMX1dfQo=",
+      "expected_content_sha256": "6e71a1f487ce0c13c43c26fa67e9417e4e37852c1e22033ffaec2bfc815b8b78",
+      "expected_error_code": null
+    },
+    {
+      "id": "input-order-is-ignored",
+      "category": "order",
+      "inputs": [
+        {
+          "path": "projects/PJ-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IFBKLTAwMQo="
+        },
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDEK"
+        }
+      ],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W3sicGF0aCI6Im9yZ2FuaXphdGlvbnMvT1JHLTAwMS55YW1sIiwic2hhMjU2IjoiNTY5MWRhNTEzYjEyNmU3ZGRkYjU4NWY3ZmJmZTEzOWE2MTRkN2QxNDVjOTBlYTdkNDEzMDU4ZDU2NTRmMTEzMSIsInNpemUiOjEyfSx7InBhdGgiOiJwcm9qZWN0cy9QSi0wMDEueWFtbCIsInNoYTI1NiI6IjEzODZmYTU1YjNlYTI3YjQxM2RkOGQ2ZmJiN2VjNWZjZjk4YTFjYWFjNWU5Zjc0NGE4YzE3YjUwMzNmNzMxM2EiLCJzaXplIjoxMX1dfQo=",
+      "expected_content_sha256": "6e71a1f487ce0c13c43c26fa67e9417e4e37852c1e22033ffaec2bfc815b8b78",
+      "expected_error_code": null
+    },
+    {
+      "id": "single-final-lf",
+      "category": "lf",
+      "inputs": [
+        {
+          "path": "organizations/ORG-002.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDIK"
+        }
+      ],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W3sicGF0aCI6Im9yZ2FuaXphdGlvbnMvT1JHLTAwMi55YW1sIiwic2hhMjU2IjoiYWZiMmUyZWI3Y2VhNWFjZTM3NTQxZWJkMDE0YjcyMDU0N2FkZGZhMjQxM2NmM2UzOTMzMzc1YWJhMmI3OGYxMiIsInNpemUiOjEyfV19Cg==",
+      "expected_content_sha256": "825cde6af565c7bdbcb487c55209f8086694e95e8c71e6034c4625f8d4dff047",
+      "expected_error_code": null
+    },
+    {
+      "id": "crlf-is-rejected",
+      "category": "crlf",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDENCg=="
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-NEWLINE"
+    },
+    {
+      "id": "bom-is-rejected",
+      "category": "bom",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "77u/aWQ6IE9SRy0wMDEK"
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-BOM"
+    },
+    {
+      "id": "nfc-is-accepted",
+      "category": "nfc",
+      "inputs": [
+        {
+          "path": "organizations/ORG-003.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDMKbmFtZTogQ2Fmw6kK"
+        }
+      ],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W3sicGF0aCI6Im9yZ2FuaXphdGlvbnMvT1JHLTAwMy55YW1sIiwic2hhMjU2IjoiZDdiYjdhZTNhMTkyYjgyNzMyMTZlNDA0NmUwZWJhNmNhMTdjNjYxMmNjYmE2NTNmZmVlYWJkYjc2ZGM3NjIyNyIsInNpemUiOjI0fV19Cg==",
+      "expected_content_sha256": "23673be284c9bc25632cbdbe1e85782d3d25e44d8af3e901c3ac304ba25fa096",
+      "expected_error_code": null
+    },
+    {
+      "id": "nfd-is-rejected",
+      "category": "nfd",
+      "inputs": [
+        {
+          "path": "organizations/ORG-003.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDMKbmFtZTogQ2FmZcyBCg=="
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-NFC"
+    },
+    {
+      "id": "dot-segment-path-is-rejected",
+      "category": "path",
+      "inputs": [
+        {
+          "path": "organizations/../ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDEK"
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-UNKNOWN-PATH"
+    },
+    {
+      "id": "symlink-is-rejected",
+      "category": "symlink",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "symlink",
+          "bytes_base64": "Li4vb3JnYW5pemF0aW9ucy9PUkctMDAxLnlhbWw="
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-SYMLINK"
+    },
+    {
+      "id": "zero-byte-checksum-boundary",
+      "category": "boundary",
+      "inputs": [
+        {
+          "path": "organizations/ORG-999.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": ""
+        }
+      ],
+      "expected_manifest_bytes_base64": "eyJmaWxlcyI6W3sicGF0aCI6Im9yZ2FuaXphdGlvbnMvT1JHLTk5OS55YW1sIiwic2hhMjU2IjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsInNpemUiOjB9XX0K",
+      "expected_content_sha256": "dad17ff58bc97b7a35c78d6e16b83e7a2e616c9189b6db6398b02781593fbba5",
+      "expected_error_code": null
+    },
+    {
+      "id": "invalid-utf8-is-rejected",
+      "category": "utf8",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IMMoCg=="
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-UTF8"
+    },
+    {
+      "id": "directory-is-rejected",
+      "category": "nonregular",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "directory",
+          "bytes_base64": ""
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-NONREGULAR"
+    },
+    {
+      "id": "missing-final-lf-is-rejected",
+      "category": "lf",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDE="
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-NEWLINE"
+    },
+    {
+      "id": "lone-cr-is-rejected",
+      "category": "crlf",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDEN"
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-NEWLINE"
+    },
+    {
+      "id": "multiple-final-lf-is-rejected",
+      "category": "lf",
+      "inputs": [
+        {
+          "path": "organizations/ORG-001.yaml",
+          "entry_kind": "regular",
+          "bytes_base64": "aWQ6IE9SRy0wMDEKCg=="
+        }
+      ],
+      "expected_manifest_bytes_base64": null,
+      "expected_content_sha256": null,
+      "expected_error_code": "E-SNAPSHOT-NEWLINE"
+    }
+  ]
+}
