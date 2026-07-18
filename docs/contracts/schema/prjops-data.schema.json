@@ -1,0 +1,712 @@
+{
+  "$comment": "Evidence: P010-F02-T01 / DEC-SPEC-001..003",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.invalid/contracts/prjops-data.schema.json",
+  "title": "prjops-data normalized snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "files"],
+  "properties": {
+    "version": { "$ref": "#/$defs/version" },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/file" }
+    }
+  },
+  "$defs": {
+    "idOrganization": { "type": "string", "pattern": "^ORG-[0-9]+$" },
+    "idProject": { "type": "string", "pattern": "^PJ-[0-9]+$" },
+    "idStakeholder": { "type": "string", "pattern": "^ST-[0-9]+$" },
+    "idIssue": { "type": "string", "pattern": "^ISSUE-[0-9]+$" },
+    "idAction": { "type": "string", "pattern": "^ACT-[0-9]+$" },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "date": { "type": "string", "format": "date" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "month": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lifecycle": {
+      "type": "object",
+      "required": ["active", "created_at", "updated_at", "updated_by", "deactivated_at", "deactivation_reason"],
+      "properties": {
+        "active": { "type": "boolean" },
+        "created_at": { "$ref": "#/$defs/dateTime" },
+        "updated_at": { "$ref": "#/$defs/dateTime" },
+        "updated_by": { "$ref": "#/$defs/idStakeholder" },
+        "deactivated_at": {
+          "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }]
+        },
+        "deactivation_reason": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "active": { "const": true } }, "required": ["active"] },
+          "then": {
+            "properties": {
+              "deactivated_at": { "type": "null" },
+              "deactivation_reason": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": {
+              "deactivated_at": { "$ref": "#/$defs/dateTime" },
+              "deactivation_reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "generated_at", "content_sha256"],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "generated_at": { "$ref": "#/$defs/dateTime" },
+        "content_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "profile", "scope_mode", "project_id", "active"],
+      "properties": {
+        "domain": { "enum": ["prjops", "devops"] },
+        "profile": {
+          "enum": ["PRF-01", "PRF-M", "PRF-02", "PRF-L", "PRF-03", "PRF-G", "PRF-04", "PRF-05", "investor"]
+        },
+        "scope_mode": { "enum": ["project", "global"] },
+        "project_id": {
+          "oneOf": [{ "$ref": "#/$defs/idProject" }, { "type": "null" }]
+        },
+        "active": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "scope_mode": { "const": "project" } }, "required": ["scope_mode"] },
+          "then": { "properties": { "project_id": { "$ref": "#/$defs/idProject" } } },
+          "else": { "properties": { "project_id": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "scope_mode": { "const": "global" } }, "required": ["scope_mode"] },
+          "then": { "properties": { "profile": { "enum": ["PRF-04", "PRF-G"] } } }
+        },
+        {
+          "if": { "properties": { "domain": { "const": "prjops" } }, "required": ["domain"] },
+          "then": {
+            "properties": {
+              "profile": { "enum": ["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05", "investor"] }
+            }
+          },
+          "else": {
+            "properties": {
+              "profile": { "enum": ["PRF-M", "PRF-L", "PRF-G"] }
+            }
+          }
+        }
+      ]
+    },
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "country",
+        "domestic_or_overseas",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/idOrganization" },
+        "name": { "type": "string", "minLength": 1 },
+        "country": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "domestic_or_overseas": { "enum": ["domestic", "overseas"] },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "leader_id",
+        "manager_id",
+        "organization_ids",
+        "start_date",
+        "end_date",
+        "report_frequency",
+        "status",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/idProject" },
+        "name": { "type": "string", "minLength": 1 },
+        "leader_id": { "$ref": "#/$defs/idStakeholder" },
+        "manager_id": { "$ref": "#/$defs/idStakeholder" },
+        "organization_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/idOrganization" }
+        },
+        "start_date": { "$ref": "#/$defs/date" },
+        "end_date": { "$ref": "#/$defs/date" },
+        "report_frequency": { "const": "weekly" },
+        "status": { "enum": ["active", "suspended", "closed"] },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "stakeholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "organization_id",
+        "entra_tenant_id",
+        "entra_object_id",
+        "assignments",
+        "invested_project_ids",
+        "email",
+        "teams_user_id",
+        "preferred_language",
+        "timezone",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/idStakeholder" },
+        "name": { "type": "string", "minLength": 1 },
+        "organization_id": { "$ref": "#/$defs/idOrganization" },
+        "entra_tenant_id": { "$ref": "#/$defs/uuid" },
+        "entra_object_id": { "$ref": "#/$defs/uuid" },
+        "assignments": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/assignment" }
+        },
+        "invested_project_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/idProject" }
+        },
+        "email": { "type": "string", "format": "email" },
+        "teams_user_id": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "preferred_language": { "enum": ["ja", "en"] },
+        "timezone": { "type": "string", "minLength": 1 },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project_id",
+        "title",
+        "detail",
+        "severity",
+        "severity_proposed",
+        "status",
+        "closed_by",
+        "closed_reason",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/idIssue" },
+        "project_id": { "$ref": "#/$defs/idProject" },
+        "title": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string" },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "severity_proposed": {
+          "oneOf": [{ "enum": ["low", "medium", "high", "critical"] }, { "type": "null" }]
+        },
+        "status": { "enum": ["open", "closed"] },
+        "closed_by": {
+          "oneOf": [{ "$ref": "#/$defs/idStakeholder" }, { "type": "null" }]
+        },
+        "closed_reason": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project_id",
+        "title",
+        "assignee",
+        "due",
+        "status",
+        "reminders_sent",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/idAction" },
+        "project_id": { "$ref": "#/$defs/idProject" },
+        "title": { "type": "string", "minLength": 1 },
+        "assignee": { "$ref": "#/$defs/idStakeholder" },
+        "due": { "$ref": "#/$defs/date" },
+        "status": { "enum": ["open", "done", "cancelled"] },
+        "reminders_sent": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/dateTime" }
+        },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "statusUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project_id",
+        "period",
+        "channel",
+        "reporter",
+        "progress_pct",
+        "self_status",
+        "achievements",
+        "plans",
+        "issues",
+        "risks",
+        "complete",
+        "raw_source",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^SU-[A-Za-z0-9-]+$" },
+        "project_id": { "$ref": "#/$defs/idProject" },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "$ref": "#/$defs/date" },
+            "end": { "$ref": "#/$defs/date" }
+          }
+        },
+        "channel": { "enum": ["email", "teams", "web"] },
+        "reporter": { "$ref": "#/$defs/idStakeholder" },
+        "progress_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "self_status": { "enum": ["green", "yellow", "red", "grey"] },
+        "achievements": { "type": "string" },
+        "plans": { "type": "string" },
+        "issues": { "$ref": "#/$defs/referenceList" },
+        "risks": { "$ref": "#/$defs/referenceList" },
+        "complete": { "type": "boolean" },
+        "raw_source": { "type": "string", "minLength": 1 },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "referenceList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref"],
+        "properties": { "ref": { "type": "string", "pattern": "^[A-Z]+-[A-Za-z0-9-]+$" } }
+      }
+    },
+    "reportJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "profile",
+        "scope",
+        "period",
+        "recipient",
+        "status",
+        "transitions",
+        "delivery_log_ref",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^RPT-[A-Za-z0-9-]+$" },
+        "profile": { "enum": ["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05"] },
+        "scope": { "$ref": "#/$defs/idProject" },
+        "period": { "type": "string", "minLength": 1 },
+        "recipient": { "$ref": "#/$defs/idStakeholder" },
+        "status": { "enum": ["generated", "verified", "pending_approval", "approved", "delivered", "failed"] },
+        "transitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "at"],
+            "properties": {
+              "state": {
+                "enum": ["generated", "verified", "pending_approval", "approved", "delivered", "failed"]
+              },
+              "at": { "$ref": "#/$defs/dateTime" }
+            }
+          }
+        },
+        "delivery_log_ref": { "type": "string", "minLength": 1 },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "rag": { "enum": ["green", "yellow", "red", "grey"] },
+    "sevenKeysAnswers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stakeholders_committed", "business_benefits", "risk_mitigation", "delivery_org_benefits"],
+      "properties": {
+        "stakeholders_committed": { "$ref": "#/$defs/rag" },
+        "business_benefits": { "$ref": "#/$defs/rag" },
+        "risk_mitigation": { "$ref": "#/$defs/rag" },
+        "delivery_org_benefits": { "$ref": "#/$defs/rag" }
+      }
+    },
+    "sevenKeysQuestionnaire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project_id",
+        "month",
+        "answers",
+        "active",
+        "created_at",
+        "updated_at",
+        "updated_by",
+        "deactivated_at",
+        "deactivation_reason"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^SKQ-[A-Za-z0-9-]+$" },
+        "project_id": { "$ref": "#/$defs/idProject" },
+        "month": { "$ref": "#/$defs/month" },
+        "answers": { "$ref": "#/$defs/sevenKeysAnswers" },
+        "active": { "$ref": "#/$defs/lifecycle/properties/active" },
+        "created_at": { "$ref": "#/$defs/lifecycle/properties/created_at" },
+        "updated_at": { "$ref": "#/$defs/lifecycle/properties/updated_at" },
+        "updated_by": { "$ref": "#/$defs/lifecycle/properties/updated_by" },
+        "deactivated_at": { "$ref": "#/$defs/lifecycle/properties/deactivated_at" },
+        "deactivation_reason": { "$ref": "#/$defs/lifecycle/properties/deactivation_reason" }
+      },
+      "allOf": [{ "$ref": "#/$defs/lifecycle/allOf/0" }]
+    },
+    "sevenKeyAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key_id", "rag", "basis"],
+      "properties": {
+        "key_id": { "enum": ["K1", "K2", "K3", "K4", "K5", "K6", "K7"] },
+        "rag": { "$ref": "#/$defs/rag" },
+        "basis": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sevenKeysSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "project_id",
+        "month",
+        "name",
+        "keys",
+        "improved_keys",
+        "worsened_keys",
+        "trace_id",
+        "created_at"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^SKS-[A-Za-z0-9-]+$" },
+        "project_id": { "$ref": "#/$defs/idProject" },
+        "month": { "$ref": "#/$defs/month" },
+        "name": { "type": "string", "minLength": 1 },
+        "keys": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": { "$ref": "#/$defs/sevenKeyAssessment" }
+        },
+        "improved_keys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["K1", "K2", "K3", "K4", "K5", "K6", "K7"] }
+        },
+        "worsened_keys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["K1", "K2", "K3", "K4", "K5", "K6", "K7"] }
+        },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "created_at": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "financialInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "as_of", "projects", "updated_at", "updated_by"],
+      "properties": {
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "as_of": { "$ref": "#/$defs/date" },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["project_id", "ownership_pct", "revenue", "ebitda"],
+            "properties": {
+              "project_id": { "$ref": "#/$defs/idProject" },
+              "ownership_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+              "revenue": { "type": ["number", "null"] },
+              "ebitda": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "updated_at": { "$ref": "#/$defs/dateTime" },
+        "updated_by": { "$ref": "#/$defs/idStakeholder" }
+      }
+    },
+    "boardPack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets", "history", "updated_at", "updated_by"],
+      "properties": {
+        "targets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["revenue", "ebitda"],
+          "properties": {
+            "revenue": { "type": ["number", "null"] },
+            "ebitda": { "type": ["number", "null"] }
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["as_of", "companies"],
+            "properties": {
+              "as_of": { "$ref": "#/$defs/date" },
+              "companies": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["project_id", "ownership_pct", "revenue", "ebitda"],
+                  "properties": {
+                    "project_id": { "$ref": "#/$defs/idProject" },
+                    "ownership_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+                    "revenue": { "type": ["number", "null"] },
+                    "ebitda": { "type": ["number", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "updated_at": { "$ref": "#/$defs/dateTime" },
+        "updated_by": { "$ref": "#/$defs/idStakeholder" }
+      }
+    },
+    "file": {
+      "oneOf": [
+        { "$ref": "#/$defs/organizationFile" },
+        { "$ref": "#/$defs/projectFile" },
+        { "$ref": "#/$defs/stakeholderFile" },
+        { "$ref": "#/$defs/issueFile" },
+        { "$ref": "#/$defs/actionFile" },
+        { "$ref": "#/$defs/statusUpdateFile" },
+        { "$ref": "#/$defs/reportJobFile" },
+        { "$ref": "#/$defs/sevenKeysQuestionnaireFile" },
+        { "$ref": "#/$defs/sevenKeysSnapshotFile" },
+        { "$ref": "#/$defs/financialInputsFile" },
+        { "$ref": "#/$defs/boardPackFile" }
+      ]
+    },
+    "organizationFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^organizations/ORG-[0-9]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/organization" }
+      }
+    },
+    "projectFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^projects/PJ-[0-9]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/project" }
+      }
+    },
+    "stakeholderFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^stakeholders/ST-[0-9]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/stakeholder" }
+      }
+    },
+    "issueFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^issues/ISSUE-[0-9]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/issue" }
+      }
+    },
+    "actionFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^actions/ACT-[0-9]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/action" }
+      }
+    },
+    "statusUpdateFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^status_updates/SU-[A-Za-z0-9-]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/statusUpdate" }
+      }
+    },
+    "reportJobFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^report_jobs/RPT-[A-Za-z0-9-]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/reportJob" }
+      }
+    },
+    "sevenKeysQuestionnaireFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^seven_keys/questionnaires/SKQ-[A-Za-z0-9-]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/sevenKeysQuestionnaire" }
+      }
+    },
+    "sevenKeysSnapshotFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^seven_keys/snapshots/SKS-[A-Za-z0-9-]+\\.yaml$" },
+        "document": { "$ref": "#/$defs/sevenKeysSnapshot" }
+      }
+    },
+    "financialInputsFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "const": "investor/financial_inputs.yaml" },
+        "document": { "$ref": "#/$defs/financialInputs" }
+      }
+    },
+    "boardPackFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "document"],
+      "properties": {
+        "path": { "const": "investor/board_pack.yaml" },
+        "document": { "$ref": "#/$defs/boardPack" }
+      }
+    }
+  }
+}

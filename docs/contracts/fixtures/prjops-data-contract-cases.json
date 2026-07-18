@@ -1,0 +1,198 @@
+{
+  "_evidence": "P010-F02-T01",
+  "contract_version": "1.0.0",
+  "cases": [
+    {
+      "id": "valid-organization-document",
+      "stage": "schema",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/organization",
+      "input": {
+        "id": "ORG-001",
+        "name": "Example Organization",
+        "country": "JP",
+        "domestic_or_overseas": "domestic",
+        "active": true,
+        "created_at": "2026-07-18T00:00:00Z",
+        "updated_at": "2026-07-18T00:00:00Z",
+        "updated_by": "ST-001",
+        "deactivated_at": null,
+        "deactivation_reason": null
+      },
+      "expected": {
+        "valid": true,
+        "error_code": null
+      }
+    },
+    {
+      "id": "valid-project-document",
+      "stage": "schema",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/project",
+      "input": {
+        "id": "PJ-001",
+        "name": "Example Project",
+        "leader_id": "ST-001",
+        "manager_id": "ST-002",
+        "organization_ids": ["ORG-001"],
+        "start_date": "2026-01-01",
+        "end_date": "2026-12-31",
+        "report_frequency": "weekly",
+        "status": "active",
+        "active": true,
+        "created_at": "2026-07-18T00:00:00Z",
+        "updated_at": "2026-07-18T00:00:00Z",
+        "updated_by": "ST-002",
+        "deactivated_at": null,
+        "deactivation_reason": null
+      },
+      "expected": {
+        "valid": true,
+        "error_code": null
+      }
+    },
+    {
+      "id": "unknown-field",
+      "stage": "schema",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/organization",
+      "input": {
+        "id": "ORG-001",
+        "name": "Example Organization",
+        "country": "JP",
+        "domestic_or_overseas": "domestic",
+        "active": true,
+        "created_at": "2026-07-18T00:00:00Z",
+        "updated_at": "2026-07-18T00:00:00Z",
+        "updated_by": "ST-001",
+        "deactivated_at": null,
+        "deactivation_reason": null,
+        "unexpected": true
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-UNKNOWN-FIELD"
+      }
+    },
+    {
+      "id": "duplicate-record-id",
+      "stage": "identity",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/organization",
+      "input": {
+        "records": [
+          { "path": "organizations/ORG-001.yaml", "id": "ORG-001" },
+          { "path": "organizations/ORG-002.yaml", "id": "ORG-001" }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-DUPLICATE-ID"
+      }
+    },
+    {
+      "id": "filename-id-mismatch",
+      "stage": "identity",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/organizationFile",
+      "input": {
+        "path": "organizations/ORG-002.yaml",
+        "document": { "id": "ORG-001" }
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-FILENAME-ID"
+      }
+    },
+    {
+      "id": "duplicate-assignment",
+      "stage": "identity",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/assignment",
+      "input": {
+        "stakeholder_id": "ST-001",
+        "assignments": [
+          {
+            "domain": "prjops",
+            "profile": "PRF-02",
+            "scope_mode": "project",
+            "project_id": "PJ-001",
+            "active": true
+          },
+          {
+            "domain": "prjops",
+            "profile": "PRF-02",
+            "scope_mode": "project",
+            "project_id": "PJ-001",
+            "active": true
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-DUPLICATE-MAPPING"
+      }
+    },
+    {
+      "id": "dangling-project-reference",
+      "stage": "cross-reference",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/action",
+      "input": {
+        "record": {
+          "id": "ACT-001",
+          "project_id": "PJ-404",
+          "assignee": "ST-001"
+        },
+        "available_project_ids": ["PJ-001"],
+        "available_stakeholder_ids": ["ST-001"]
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-REFERENCE"
+      }
+    },
+    {
+      "id": "ownership-above-100",
+      "stage": "schema",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/financialInputs",
+      "input": {
+        "currency": "JPY",
+        "as_of": "2026-06-30",
+        "projects": [
+          {
+            "project_id": "PJ-001",
+            "ownership_pct": 101,
+            "revenue": 1000,
+            "ebitda": 100
+          }
+        ],
+        "updated_at": "2026-07-18T00:00:00Z",
+        "updated_by": "ST-001"
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-OWNERSHIP"
+      }
+    },
+    {
+      "id": "missing-required-singleton",
+      "stage": "cross-reference",
+      "schema_ref": "../schema/prjops-data.schema.json",
+      "input": {
+        "present_paths": ["schema/version.yaml", "investor/financial_inputs.yaml"],
+        "missing_paths": ["investor/board_pack.yaml"]
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-PARTIAL"
+      }
+    },
+    {
+      "id": "checksum-mismatch",
+      "stage": "checksum",
+      "schema_ref": "../schema/prjops-data.schema.json#/$defs/version",
+      "input": {
+        "version_content_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "computed_content_sha256": "72094c8b2dcf0bfb4f1d7ef1e19f4be87352e3165051f0a9f28b3169215a5896"
+      },
+      "expected": {
+        "valid": false,
+        "error_code": "E-SNAPSHOT-CHECKSUM"
+      }
+    }
+  ]
+}

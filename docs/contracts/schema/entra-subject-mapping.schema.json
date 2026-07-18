@@ -1,0 +1,74 @@
+{
+  "$comment": "Evidence: P010-F02-T01 / DEC-SPEC-002",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.invalid/contracts/entra-subject-mapping.schema.json",
+  "title": "Legacy stakeholder to Entra stable-subject mapping",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "environment", "owner_approval", "entries"],
+  "properties": {
+    "contract_version": { "const": "1.0.0" },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured_tenant_id", "source_repository_id", "source_repository_node_id", "source_commit_sha"],
+      "properties": {
+        "configured_tenant_id": { "$ref": "#/$defs/uuid" },
+        "source_repository_id": { "type": "integer", "minimum": 1 },
+        "source_repository_node_id": { "type": "string", "minLength": 1 },
+        "source_commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "owner_approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_id",
+        "owner_role",
+        "approved_at",
+        "payload_sha256",
+        "signature_algorithm",
+        "signing_key_id",
+        "signature_base64"
+      ],
+      "properties": {
+        "owner_id": { "type": "string", "minLength": 1 },
+        "owner_role": { "const": "Data Owner" },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "payload_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signature_algorithm": { "enum": ["ES256", "Ed25519"] },
+        "signing_key_id": { "type": "string", "minLength": 1 },
+        "signature_base64": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "minLength": 4
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legacy_record_id", "entra_tenant_id", "entra_object_id", "disposition", "reason"],
+      "properties": {
+        "legacy_record_id": { "type": "string", "pattern": "^ST-[0-9]+$" },
+        "entra_tenant_id": { "$ref": "#/$defs/uuid" },
+        "entra_object_id": { "$ref": "#/$defs/uuid" },
+        "disposition": {
+          "enum": ["migrate_active", "deactivate", "erase_after_retention"]
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
