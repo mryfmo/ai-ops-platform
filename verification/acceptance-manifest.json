@@ -1,0 +1,357 @@
+{
+  "_basis": "P010-F01-T10",
+  "plan": {
+    "path": "plans/010-recommended-spec-environment-execution.md",
+    "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+    "blob": "76137212e6878edb193aeb0f41c6a37f7c3eab5f",
+    "sha256": "ca3c85cf311b3942f3913032a71c721acdced370c4bc4c869515f4ed50bb9136"
+  },
+  "records": [
+    {
+      "task_id": "P010-F00-T01",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "d007e10acced7cbbdc3d3dad55f2abfe0a8fa1f4",
+      "commands": [{ "command": "git diff --check", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "docs/audit/00-summary.md",
+          "sha256": "e853804290250a7d354a5ef10edeccf248f6758a9b77fd09ea3f7d97be78666f"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local documentation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F00-T02",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "8c3875f84192187c8e0b6a6e5312c3c58e3ad9fa",
+      "commands": [{ "command": "pnpm run format", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "docs/spec/productization-decisions.md",
+          "sha256": "2a6e07b00001dd05eceed05e37a5fcbdfb631a4e96490d8e17b9a33fc24f8931"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local decision task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F00-T03",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "8c3875f84192187c8e0b6a6e5312c3c58e3ad9fa",
+      "commands": [{ "command": "unzip -t docs/AI_Ops_Platform_Summary.pptx", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "docs/AI_Ops_Platform_Summary.pptx",
+          "sha256": "b5451e0417b77220f45a5193f0097ec2f72849aef4a1d7388cac043e4a2055f9"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local binary review task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F00-T04",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "bdeb6ace8c64a660f1ca6f6252a81a397e2a82ca",
+      "commands": [{ "command": "mise run ci", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "plans/010-recommended-spec-environment-execution.md",
+          "sha256": "d043f54d41d9c9de1bc75fc553e5bf65b1ecc99da0a591349a77581ac1864bde"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": {
+        "required": true,
+        "scope": "GitHub pull request #82",
+        "approver": "DEV-REVIEWER-1",
+        "evidence": {
+          "kind": "merge-commit",
+          "commit": "bdeb6ace8c64a660f1ca6f6252a81a397e2a82ca"
+        }
+      },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T01",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "f52ebeb3a91b6df77d729742b1fc9fd84c5d6cbf",
+      "commands": [{ "command": "node -e JSON.parse catalog files", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/traceability/spec-ids/prjops.json",
+          "sha256": "b1722f9cde177ec5169e9d60cc479939b9b07598ac04ac37fe588d03d68ae9e3"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local implementation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T02",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "a38ecd744f7aa9380777711f861bd89d0c447316",
+      "commands": [{ "command": "pnpm --filter @aiops/traceability test", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/traceability/tests/verifyTraceability.test.ts",
+          "sha256": "8be1a865a52d22dba0c0de4eb945bd2f39d3973535195c0b642f98fc8dd580de"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local test task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T03",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "4dceb333be784084760acd626d759858df546ef4",
+      "commands": [{ "command": "mise run traceability", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/traceability/src/verifyTraceability.ts",
+          "sha256": "4e5946d35679f10ea1c75709888fef071b473fd8c3c53cc7a85d3737eb2bd535"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local implementation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T04",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "451c8558e98eb43ba663aef1106a42b57c54ac65",
+      "commands": [{ "command": "mise run traceability", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/shared/src/auditLog.ts",
+          "sha256": "ea3cf4bf8de5333f3c311e18e2bfb71ccec848972638d9f1fb0fd6b86b81045e"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local mechanical task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T05",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "48c8842278a35f3cc15aa580ec0c65509bf3a276",
+      "commands": [{ "command": "pnpm --filter @aiops/web test", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/web/tests/chat/tools.test.ts",
+          "sha256": "853de1b4cd6ab48f9e52d33969fb008ed51cb9384af1e8b985bf0086ebe29022"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local test task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T06",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "728fde6888d4259fc2512185309784d442e2ecb6",
+      "commands": [{ "command": "pnpm --filter @aiops/web test", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/web/src/server/viewSpec.ts",
+          "sha256": "f79e4a00861fc3a745aa3510b5f3ef17f42b353f3e60b8be49663fe9a7bfd295"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local implementation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T07",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "06967065d9d235a1dfccfcddee8148fa035f34a3",
+      "commands": [{ "command": "pnpm --filter @aiops/shared test", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/shared/src/reporting/reportSchema.ts",
+          "sha256": "47a806eb4c948f063965af3c01bdd7137b8556d8a954e41912f1eb80d1ee187b"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local implementation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T08",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "d717bd913d2ad77468bd63e1c2dbe084ecf72c51",
+      "commands": [{ "command": "pnpm --filter @aiops/devops test", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/shared/src/periodBuckets.ts",
+          "sha256": "8781179336ad8bc053a7aaa8385fbb46fbeb20ead2ba8494503afc02f22ab9dc"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local implementation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T09",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "468d947019719852a13b19ca0c265db34a1bb9a1",
+      "commands": [{ "command": "pnpm --filter @aiops/prjops test", "exit_code": 0 }],
+      "artifacts": [
+        {
+          "path": "packages/prjops/src/agents/AGT04_reportGenerator.ts",
+          "sha256": "35866b4a98a6f759f704095f585f704342fcd028da54493e423fe6615b3c7515"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "DEV-REVIEWER-1",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "cf21b5edaff036adacb0002ecfa3fa825ba268a9",
+          "path": "docs/decisions/acceptance-trust-bootstrap.md",
+          "sha256": "fb187124303722604eb613f66651a46952d06f622ea609de7b3123e6294a9632"
+        }
+      },
+      "external": { "required": false, "reason": "repository-local implementation task" },
+      "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    }
+  ]
+}
