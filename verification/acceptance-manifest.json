@@ -352,6 +352,52 @@
       },
       "external": { "required": false, "reason": "repository-local implementation task" },
       "human": { "required": false, "reason": "no human gate in immutable task definition" }
+    },
+    {
+      "task_id": "P010-F01-T10",
+      "status": "ACCEPTED",
+      "requester": "codex-gpt56sol-high",
+      "target_commit": "54a23a42a353f45cc12e90daa2ff648ede67676b",
+      "commands": [
+        {
+          "command": "node scripts/validate-acceptance-manifest.mjs --through P010-F01-T09 verification/acceptance-manifest.json",
+          "exit_code": 0
+        },
+        { "command": "MISE_LOCKED=1 mise run ci", "exit_code": 0 }
+      ],
+      "artifacts": [
+        {
+          "path": "scripts/validate-acceptance-manifest.mjs",
+          "sha256": "c5e2d0164865cc76d208f523a7319f14afd089b13207a368e92502536392e65d"
+        },
+        {
+          "path": "tests/validate-acceptance-manifest.test.mjs",
+          "sha256": "0ab9d2350e7128741b604e0c299611d4df3ee76f12e4e52f48cf6bb4389b552a"
+        },
+        {
+          "path": "verification/acceptance-manifest.json",
+          "sha256": "d0208c2e32482113fd8ad654aab5d9c6d4c924fa4e76a7885cda55a57b2d0e92"
+        }
+      ],
+      "review": {
+        "requester": "codex-gpt56sol-high",
+        "reviewer": "orchestrator-fable5",
+        "outcome": "ACCEPTED",
+        "evidence": {
+          "kind": "git-file",
+          "commit": "8b6538a40f4d3319eaf7d66a2997ba844f3cade3",
+          "path": ".orchestration/evidence/P010-F01-T10/orchestrator-review.json",
+          "sha256": "b9903f5824bfe32e22253f8f11b3258d88afd45270eb5abaa335dc81cf9ad1be"
+        }
+      },
+      "external": {
+        "required": false,
+        "reason": "repository-local verification tooling task"
+      },
+      "human": {
+        "required": false,
+        "reason": "no human gate in immutable task definition"
+      }
     }
   ]
 }
