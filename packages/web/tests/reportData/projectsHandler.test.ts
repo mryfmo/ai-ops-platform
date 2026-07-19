@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/reportData/projectsHandler.test.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。GET /api/data/projects の
+ * 根拠: P010-F02-T10 / DEC-SPEC-008 / ADR-0005（WebUIダッシュボード）。GET /api/data/projects の
  *   未認証401・権限外403・正当なセッションでのデータ返却（PrjOps/DevOps双方）を検証する。
  */
 import { describe, it, expect, vi } from "vitest";
@@ -10,6 +10,16 @@ import type { PgQueryable } from "@aiops/shared";
 import type { PersonaResolver, ResolvedPersona } from "../../src/server/personaResolver";
 import { handleProjects } from "../../src/server/reportData/projectsHandler";
 import { InMemoryPrjopsReportDataProvider } from "../../src/server/reportData/prjopsReportData";
+
+const productionInit = vi.hoisted(() => ({
+  auth: vi.fn(),
+  loadConfig: vi.fn(() => {
+    throw new Error("production DI must not run");
+  }),
+}));
+
+vi.mock("../../src/auth", () => ({ auth: productionInit.auth }));
+vi.mock("../../src/server/config", () => ({ loadWebConfig: productionInit.loadConfig }));
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
   return { resolveBySubject: async () => personas };
@@ -74,7 +84,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
         domain: "devops",
         profile: "PRF-L",
         scope: { mode: "project", projectId: "PJ-002" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"], scopeMode: "project" },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PJ-002"], scopeMode: "project" },
       },
     ];
     const res = await handleProjects({
@@ -82,9 +92,13 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       resolver: resolverWith(personas),
       selectedPersona: "devops:PRF-L:PJ-002",
       prjopsProvider: new InMemoryPrjopsReportDataProvider([], []),
-      devopsDb: { query: vi.fn().mockResolvedValue({ rows: [{ project_id: "PRJ-0002" }] }) },
+      devopsDb: { query: vi.fn().mockResolvedValue({ rows: [{ project_id: "PJ-002" }] }) },
     });
-    expect(await res.json()).toEqual({ domain: "devops", projects: [{ id: "PRJ-0002", name: "PRJ-0002" }] });
+    expect(await res.json()).toEqual({
+      domain: "devops",
+      projects: [{ id: "PJ-002", name: "PJ-002" }],
+      portfolioAllowed: false,
+    });
   });
 
   it("prjopsペルソナが先頭ならPrjOps側のプロジェクト一覧を返す", async () => {
@@ -97,7 +111,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
           recipientStakeholderId: "STK-001",
           recipientManagedProjectIds: [],
           recipientAssignedProjectIds: [],
-          recipientParticipatingProjectIds: ["PRJ-0001"],
+          recipientParticipatingProjectIds: ["PJ-001"],
           investedProjectIds: [],
         },
       },
@@ -108,7 +122,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       prjopsProvider: new InMemoryPrjopsReportDataProvider(
         [
           {
-            projectId: "PRJ-0001",
+            projectId: "PJ-001",
             name: "案件A",
             color: "green",
             startDate: "2026-01-01",
@@ -126,7 +140,11 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ domain: "prjops", projects: [{ id: "PRJ-0001", name: "案件A" }] });
+    expect(body).toEqual({
+      domain: "prjops",
+      projects: [{ id: "PJ-001", name: "案件A" }],
+      portfolioAllowed: false,
+    });
   });
 
   it("devopsペルソナが先頭ならDevOps側のプロジェクト一覧を返す", async () => {
@@ -135,11 +153,11 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
         domain: "devops",
         profile: "PRF-L",
         scope: { mode: "project", projectId: "PJ-002" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"], scopeMode: "project" },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PJ-002"], scopeMode: "project" },
       },
     ];
     const db: PgQueryable = {
-      query: vi.fn().mockResolvedValue({ rows: [{ project_id: "PRJ-0002" }] }),
+      query: vi.fn().mockResolvedValue({ rows: [{ project_id: "PJ-002" }] }),
     };
     const res = await handleProjects({
       getSession: sessionWithEmail,
@@ -149,7 +167,11 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ domain: "devops", projects: [{ id: "PRJ-0002", name: "PRJ-0002" }] });
+    expect(body).toEqual({
+      domain: "devops",
+      projects: [{ id: "PJ-002", name: "PJ-002" }],
+      portfolioAllowed: false,
+    });
   });
 
   it("investorペルソナが先頭なら出資対象プロジェクト一覧を返す [REQ-039]", async () => {
@@ -163,7 +185,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
           recipientManagedProjectIds: [],
           recipientAssignedProjectIds: [],
           recipientParticipatingProjectIds: [],
-          investedProjectIds: ["PRJ-0003"],
+          investedProjectIds: ["PJ-003"],
         },
       },
     ];
@@ -173,7 +195,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       prjopsProvider: new InMemoryPrjopsReportDataProvider(
         [
           {
-            projectId: "PRJ-0003",
+            projectId: "PJ-003",
             name: "会社C",
             color: "green",
             startDate: "2026-01-01",
@@ -189,6 +211,71 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       ),
       devopsDb: emptyDb(),
     });
-    expect(await res.json()).toEqual({ domain: "investor", projects: [{ id: "PRJ-0003", name: "会社C" }] });
+    expect(await res.json()).toEqual({
+      domain: "investor",
+      projects: [{ id: "PJ-003", name: "会社C" }],
+      portfolioAllowed: false,
+    });
+  });
+});
+
+describe("handleProjects（DEC-SPEC-008: project parameter拒否）", () => {
+  it("routeはproduction provider初期化より先にproject parameterを拒否する", async () => {
+    const { GET } = await import("../../src/app/api/data/projects/route");
+    const res = await GET(new Request("https://dashboard.example/app/api/data/projects?project=PJ-001"));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "E-AUTH05: unexpected_project_parameter" });
+    expect(productionInit.loadConfig).not.toHaveBeenCalled();
+  });
+
+  it.each(["?project=", "?project=PJ-001", "?project=pj-001", "?project=all", "?project=PJ-001&project=PJ-002"])(
+    "parameter present %s は400 E-AUTH05かつquery 0",
+    async (query) => {
+      const getSession = vi.fn(sessionWithEmail);
+      const resolver = { resolveBySubject: vi.fn(async () => []) };
+      const provider = new InMemoryPrjopsReportDataProvider([], []);
+      const db = emptyDb();
+      const res = await handleProjects(
+        {
+          getSession,
+          resolver,
+          prjopsProvider: provider,
+          devopsDb: db,
+        },
+        new Request(`https://dashboard.example/app/api/data/projects${query}`),
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "E-AUTH05: unexpected_project_parameter" });
+      expect(getSession).not.toHaveBeenCalled();
+      expect(resolver.resolveBySubject).not.toHaveBeenCalled();
+      expect(db.query).not.toHaveBeenCalled();
+    },
+  );
+
+  it("parameter absentは200でglobal PRF-04だけportfolioAllowedを返す", async () => {
+    const persona: ResolvedPersona = {
+      domain: "prjops",
+      profile: "PRF-04",
+      scope: { mode: "global", projectId: null },
+      visibility: {
+        recipientStakeholderId: "STK-001",
+        recipientManagedProjectIds: [],
+        recipientAssignedProjectIds: [],
+        recipientParticipatingProjectIds: [],
+        investedProjectIds: [],
+        scopeMode: "global",
+      },
+    };
+    const res = await handleProjects(
+      {
+        getSession: sessionWithEmail,
+        resolver: resolverWith([persona]),
+        prjopsProvider: new InMemoryPrjopsReportDataProvider([], []),
+        devopsDb: emptyDb(),
+      },
+      new Request("https://dashboard.example/app/api/data/projects"),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ domain: "prjops", projects: [], portfolioAllowed: true });
   });
 });
