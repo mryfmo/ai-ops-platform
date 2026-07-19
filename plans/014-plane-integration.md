@@ -1,6 +1,6 @@
 # Plan 014: Plane CEを人間・エージェント共用作業台として統合し、GitHub正本へ安全に昇格する
 
-> Planned at: `main` commit `ffffd75d82c340e6ef47c77893c7c9c71661c2d3`
+> Planned at: `main` commit `5c441d06a60f920f27f0a8ac0c9dca9509e4f561`
 > Decision source: `docs/adr/0019-plane-workflow-backend.md`（本Planと同一PRの提案。採用とDEC-SPEC-008改訂はowner gate）
 > Executor: Claude Code orchestrator / Codex autonomous worker
 

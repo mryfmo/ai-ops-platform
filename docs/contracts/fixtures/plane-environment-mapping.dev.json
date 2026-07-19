@@ -1,0 +1,32 @@
+{
+  "_evidence": "ADR-0019 / P014-FA-T02",
+  "contract_version": "1.0.0",
+  "environment": "development",
+  "provenance": {
+    "approved_by": "mryfmo",
+    "approval_basis": "ADR-0019 owner approval 2026-07-19",
+    "signature": "DEV-DEFAULT-unsigned",
+    "replace_before_go_live": true,
+    "replace_before_go_live_declaration": "This DEV-DEFAULT mapping must be replaced with owner-signed real environment values before go-live."
+  },
+  "projects": {
+    "PJ-001": {
+      "plane_workspace_id": "11111111-1111-4111-8111-111111111111",
+      "plane_workspace_slug": "dev-workspace",
+      "plane_project_id": "00000000-0000-4000-8000-000000000001",
+      "authorized_url": "https://plane.invalid/dev-workspace/projects/00000000-0000-4000-8000-000000000001"
+    },
+    "PJ-002": {
+      "plane_workspace_id": "11111111-1111-4111-8111-111111111111",
+      "plane_workspace_slug": "dev-workspace",
+      "plane_project_id": "00000000-0000-4000-8000-000000000002",
+      "authorized_url": "https://plane.invalid/dev-workspace/projects/00000000-0000-4000-8000-000000000002"
+    },
+    "PJ-404": {
+      "plane_workspace_id": "11111111-1111-4111-8111-111111111111",
+      "plane_workspace_slug": "dev-workspace",
+      "plane_project_id": "00000000-0000-4000-8000-000000000404",
+      "authorized_url": "https://plane.invalid/dev-workspace/projects/00000000-0000-4000-8000-000000000404"
+    }
+  }
+}
