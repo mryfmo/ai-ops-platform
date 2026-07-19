@@ -5,7 +5,12 @@
  * URL の project 値を scoped project 一覧へ照合し、domain query 前の 200/409/400/403 境界を検証する。
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ProjectSelectionError, parseProjectSelection, resolveProjectSelection } from "../src/server/projectSelection";
+import {
+  portfolioAllowedForPersona,
+  ProjectSelectionError,
+  parseProjectSelection,
+  resolveProjectSelection,
+} from "../src/server/projectSelection";
 
 const pageMocks = vi.hoisted(() => {
   const projects = [
@@ -153,6 +158,42 @@ describe("project selection resolver [PrjOps:REQ-041 / DevOps:REQ-041 / DEC-SPEC
   it("非canonicalなscoped optionは自動選択もURL化もしない", () => {
     expect(statusOf(undefined, [{ id: "PRJ-001", name: "legacy" }])).toBe(403);
     expect(statusOf("PJ-001", [{ id: "PRJ-001", name: "legacy" }])).toBe(403);
+  });
+});
+
+describe("portfolio selection roles [PrjOps:REQ-041 / DevOps:REQ-041 / DEC-SPEC-008]", () => {
+  it("active global PRF-04/PRF-Gだけを許可し、project-scoped PRF-Gを拒否する", () => {
+    expect(
+      portfolioAllowedForPersona({
+        domain: "prjops",
+        profile: "PRF-04",
+        scope: { mode: "global", projectId: null },
+        visibility: {
+          recipientStakeholderId: "ST-001",
+          recipientManagedProjectIds: [],
+          recipientAssignedProjectIds: [],
+          recipientParticipatingProjectIds: [],
+          investedProjectIds: [],
+          scopeMode: "global",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      portfolioAllowedForPersona({
+        domain: "devops",
+        profile: "PRF-G",
+        scope: { mode: "global", projectId: null },
+        visibility: { recipientUserId: "U-001", recipientAssignedProjectIds: [], scopeMode: "global" },
+      }),
+    ).toBe(true);
+    expect(
+      portfolioAllowedForPersona({
+        domain: "devops",
+        profile: "PRF-G",
+        scope: { mode: "project", projectId: "PJ-001" },
+        visibility: { recipientUserId: "U-001", recipientAssignedProjectIds: ["PJ-001"], scopeMode: "project" },
+      }),
+    ).toBe(false);
   });
 });
 
