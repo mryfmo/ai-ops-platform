@@ -1,7 +1,7 @@
 /**
  * packages/web/src/app/dashboard/page.tsx
  *
- * 根拠: ADR-0005 / DevOps:SPEC-INT-054。resolveBySubject結果と検証済みの選択ペルソナに応じて
+ * 根拠: P010-F02-T08 / ADR-0005 / DevOps:SPEC-INT-054。resolveBySubject結果と検証済みの選択ペルソナに応じて
  *   ペルソナ別ビューの初期データを取得するサーバーコンポーネント。
  *
  *   - PRF-04（経営陣）: ExecutiveSevenKeysView（セブンキー）
@@ -13,10 +13,7 @@
  *   ペルソナに応じて公開されるtool（buildToolsForPersona参照）によりshowExecutiveSummary /
  *   showManagerSummary / listProjects を呼び分ける。
  *
- * DIの暫定実装（共有pg.Pool取得・InMemoryStakeholderMasterProvider・
- * InMemoryPrjopsReportDataProvider）は既存の方式を踏襲する。
- * 残課題: PrjopsReportDataProviderの本番実装（prjops-dataリポジトリ連携）が無いため、
- * 現状は空データで暫定配線する（表示自体はゼロ件のセブンキー/マネージャーサマリになる）。
+ * production compositionは共有pg.Poolとpinned PrjOps providerを全表示で共用する。
  */
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -35,19 +32,17 @@ import {
   requireSession,
   selectPersona,
 } from "../../server/authGuard";
+import { CompositePersonaResolver, DevopsPersonaSource, PrjopsPersonaSource } from "../../server/personaResolver";
 import {
-  CompositePersonaResolver,
-  DevopsPersonaSource,
-  InMemoryStakeholderMasterProvider,
-  PrjopsPersonaSource,
-} from "../../server/personaResolver";
-import {
-  InMemoryPrjopsReportDataProvider,
   buildExecutiveSummary,
   buildInvestorSummary,
   buildManagerSummary,
 } from "../../server/reportData/prjopsReportData";
 import { buildDevOpsManagerSummary } from "../../server/reportData/devopsReportData";
+import {
+  createPinnedPrjopsReportDataProvider,
+  PrjopsDataUnavailableError,
+} from "../../server/reportData/pinnedPrjopsReportDataProvider";
 
 function defaultPeriod(): { periodStart: string; periodEnd: string } {
   const periodEnd = new Date();
@@ -66,10 +61,21 @@ export default async function DashboardPage() {
 
   const config = loadWebConfig();
   const pool = getPool(config.DATABASE_URL);
-  const resolver = new CompositePersonaResolver(
-    new DevopsPersonaSource(pool),
-    new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
-  );
+  let provider;
+  try {
+    provider = createPinnedPrjopsReportDataProvider(config);
+  } catch (error) {
+    if (!(error instanceof PrjopsDataUnavailableError)) throw error;
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">ダッシュボード</h1>
+        <Card title="PrjOps データを利用できません">
+          <p className="text-sm text-gray-600">データ接続の設定を確認してください。</p>
+        </Card>
+      </div>
+    );
+  }
+  const resolver = new CompositePersonaResolver(new DevopsPersonaSource(pool), new PrjopsPersonaSource(provider));
   const personas = await resolver.resolveBySubject(session.user.subject);
 
   if (personas.length === 0) {
@@ -108,7 +114,6 @@ export default async function DashboardPage() {
   const { periodStart, periodEnd } = defaultPeriod();
 
   if (persona.domain === "prjops" && persona.profile === "PRF-04") {
-    const provider = new InMemoryPrjopsReportDataProvider([], []);
     const numeric = await buildExecutiveSummary(provider, persona.profile, persona.visibility);
     return (
       <>
@@ -125,7 +130,6 @@ export default async function DashboardPage() {
   }
 
   if (persona.domain === "investor") {
-    const provider = new InMemoryPrjopsReportDataProvider([], []);
     const summary = await buildInvestorSummary(provider, persona.visibility);
     return (
       <>
@@ -139,7 +143,6 @@ export default async function DashboardPage() {
   }
 
   if (persona.domain === "prjops" && persona.profile === "PRF-03") {
-    const provider = new InMemoryPrjopsReportDataProvider([], []);
     const summary = await buildManagerSummary(provider, persona.profile, persona.visibility, periodStart, periodEnd);
     return (
       <>

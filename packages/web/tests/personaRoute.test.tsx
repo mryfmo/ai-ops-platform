@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/personaRoute.test.tsx
  *
- * 根拠: ADR-0005 / ADR-0013 / REQ-041 / SPEC-INT-068。
+ * 根拠: P010-F02-T08 / ADR-0005 / ADR-0013 / REQ-041 / SPEC-INT-068。
  * ペルソナ選択 route の入力・same-origin・認可と、古いSSR選択時の表示を検証する。
  */
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,6 +22,20 @@ vi.mock("pg", () => ({
 }));
 vi.mock("../src/auth", () => ({ auth: mocks.auth }));
 vi.mock("../src/server/config", () => ({ loadWebConfig: () => ({ DATABASE_URL: "postgres://test" }) }));
+vi.mock("../src/server/reportData/pinnedPrjopsReportDataProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/server/reportData/pinnedPrjopsReportDataProvider")>()),
+  createPinnedPrjopsReportDataProvider: () => ({
+    findBySubject: async () => [],
+    query: async () => ({
+      projects: [],
+      issuesAndActions: [],
+      sevenKeysMonthlySnapshots: [],
+      sevenKeysQuestionnaires: [],
+      investorFinancialInputs: {},
+      investorBoardPackInputs: {},
+    }),
+  }),
+}));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: mocks.cookie }) }) }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 

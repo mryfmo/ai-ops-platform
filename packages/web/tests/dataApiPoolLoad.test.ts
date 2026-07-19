@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/dataApiPoolLoad.test.ts
  *
- * 根拠: ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / AUD-REL-001。
+ * 根拠: P010-F02-T08 / ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / AUD-REL-001。
  * データAPI 500連投でもprocess-wide pool constructorが増えないことを測定する。
  */
 import { performance } from "node:perf_hooks";
@@ -49,6 +49,20 @@ vi.mock("../src/auth", () => ({
   }),
 }));
 vi.mock("../src/server/config", () => ({ loadWebConfig: () => ({ DATABASE_URL: "postgresql://load-stub" }) }));
+vi.mock("../src/server/reportData/pinnedPrjopsReportDataProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/server/reportData/pinnedPrjopsReportDataProvider")>()),
+  createPinnedPrjopsReportDataProvider: () => ({
+    findBySubject: async () => [],
+    query: async () => ({
+      projects: [],
+      issuesAndActions: [],
+      sevenKeysMonthlySnapshots: [],
+      sevenKeysQuestionnaires: [],
+      investorFinancialInputs: {},
+      investorBoardPackInputs: {},
+    }),
+  }),
+}));
 
 describe("web data API pool load baseline [PrjOps:REQ-041 / DevOps:REQ-041 PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
   beforeEach(() => {

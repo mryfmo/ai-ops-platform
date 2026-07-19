@@ -1,7 +1,7 @@
 /**
  * packages/web/tests/dataApiPoolRealPgLoad.test.ts
  *
- * 根拠: ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068。
+ * 根拠: P010-F02-T08 / ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068。
  * T-P2-05是正証跡 AUD-REL-001: production route/getPoolの実PostgreSQL物理接続数を測定する。
  */
 import pg from "pg";
@@ -32,6 +32,20 @@ vi.mock("../src/auth", () => ({
   }),
 }));
 vi.mock("../src/server/config", () => ({ loadWebConfig: () => ({ DATABASE_URL: routeDatabaseUrl }) }));
+vi.mock("../src/server/reportData/pinnedPrjopsReportDataProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/server/reportData/pinnedPrjopsReportDataProvider")>()),
+  createPinnedPrjopsReportDataProvider: () => ({
+    findBySubject: async () => [],
+    query: async () => ({
+      projects: [],
+      issuesAndActions: [],
+      sevenKeysMonthlySnapshots: [],
+      sevenKeysQuestionnaires: [],
+      investorFinancialInputs: {},
+      investorBoardPackInputs: {},
+    }),
+  }),
+}));
 
 const globalPool = globalThis as typeof globalThis & { __aiopsPgPool?: unknown };
 let admin: pg.Client | undefined;
