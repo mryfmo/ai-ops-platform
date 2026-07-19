@@ -2,12 +2,11 @@
 
 # Plane data governance proposal
 
-Status: **PROPOSED — pending Data Owner approval**
+Status: **APPROVED — 2026-07-19**
 
 Every field, purpose, retention period, procedure, role, and control in this
-document is **PROPOSED**. Nothing here is approved or operationally binding
-until the Data Owner records explicit approval. No Plane sandbox or production
-integration may rely on this proposal before that approval.
+document is **APPROVED** by the Data Owner. The approval details and evidence
+are recorded in the Approval record below.
 
 ## References
 
@@ -39,42 +38,42 @@ listed here are denied.
 
 | Proposed field                | Proposed use                                                                  | Status   |
 | ----------------------------- | ----------------------------------------------------------------------------- | -------- |
-| `trace_id`                    | Internal processing correlation                                               | PROPOSED |
-| `delivery_id`                 | Delivery deduplication                                                        | PROPOSED |
-| `entity_type`                 | Select the deterministic state handler                                        | PROPOSED |
-| `canonical_project_id`        | Canonical `PJ-*` scope key                                                    | PROPOSED |
-| `plane_workspace_id`          | Plane entity correlation                                                      | PROPOSED |
-| `plane_project_id`            | Plane entity correlation                                                      | PROPOSED |
-| `plane_entity_id`             | Work item or cycle correlation                                                | PROPOSED |
-| `external_source`             | Identify the authoritative source namespace                                   | PROPOSED |
-| `external_id`                 | Correlate the authoritative source entity                                     | PROPOSED |
-| `action`                      | Represent the normalized lifecycle action                                     | PROPOSED |
-| `from_state`                  | Represent the prior normalized state                                          | PROPOSED |
-| `to_state`                    | Represent the next normalized state                                           | PROPOSED |
-| `occurred_at`                 | Source event timestamp                                                        | PROPOSED |
-| `received_at`                 | Platform receipt timestamp                                                    | PROPOSED |
-| `source_updated_at`           | Reconciliation ordering timestamp                                             | PROPOSED |
-| `actor_entra_correlatable_id` | Optional opaque reference to the existing authoritative Entra subject mapping | PROPOSED |
+| `trace_id`                    | Internal processing correlation                                               | APPROVED |
+| `delivery_id`                 | Delivery deduplication                                                        | APPROVED |
+| `entity_type`                 | Select the deterministic state handler                                        | APPROVED |
+| `canonical_project_id`        | Canonical `PJ-*` scope key                                                    | APPROVED |
+| `plane_workspace_id`          | Plane entity correlation                                                      | APPROVED |
+| `plane_project_id`            | Plane entity correlation                                                      | APPROVED |
+| `plane_entity_id`             | Work item or cycle correlation                                                | APPROVED |
+| `external_source`             | Identify the authoritative source namespace                                   | APPROVED |
+| `external_id`                 | Correlate the authoritative source entity                                     | APPROVED |
+| `action`                      | Represent the normalized lifecycle action                                     | APPROVED |
+| `from_state`                  | Represent the prior normalized state                                          | APPROVED |
+| `to_state`                    | Represent the next normalized state                                           | APPROVED |
+| `occurred_at`                 | Source event timestamp                                                        | APPROVED |
+| `received_at`                 | Platform receipt timestamp                                                    | APPROVED |
+| `source_updated_at`           | Reconciliation ordering timestamp                                             | APPROVED |
+| `actor_entra_correlatable_id` | Optional opaque reference to the existing authoritative Entra subject mapping | APPROVED |
 
 ### Snapshots
 
 | Proposed field                     | Proposed use                                                                  | Status   |
 | ---------------------------------- | ----------------------------------------------------------------------------- | -------- |
-| `capture_id`                       | Snapshot identity                                                             | PROPOSED |
-| `trace_id`                         | Capture correlation                                                           | PROPOSED |
-| `captured_at`                      | Snapshot timestamp                                                            | PROPOSED |
-| `capture_complete`                 | Prevent partial snapshots from being treated as complete                      | PROPOSED |
-| `canonical_project_id`             | Canonical `PJ-*` scope key                                                    | PROPOSED |
-| `plane_workspace_id`               | Plane entity correlation                                                      | PROPOSED |
-| `plane_project_id`                 | Plane entity correlation                                                      | PROPOSED |
-| `plane_entity_id`                  | Work item or cycle correlation                                                | PROPOSED |
-| `external_source`                  | Identify the authoritative source namespace                                   | PROPOSED |
-| `external_id`                      | Correlate the authoritative source entity                                     | PROPOSED |
-| `state`                            | Current normalized entity state                                               | PROPOSED |
-| `position`                         | Current normalized workflow position                                          | PROPOSED |
-| `source_updated_at`                | Reconciliation ordering timestamp                                             | PROPOSED |
-| `assignee_entra_correlatable_id`   | Optional opaque reference to the existing authoritative Entra subject mapping | PROPOSED |
-| `last_actor_entra_correlatable_id` | Optional opaque reference to the existing authoritative Entra subject mapping | PROPOSED |
+| `capture_id`                       | Snapshot identity                                                             | APPROVED |
+| `trace_id`                         | Capture correlation                                                           | APPROVED |
+| `captured_at`                      | Snapshot timestamp                                                            | APPROVED |
+| `capture_complete`                 | Prevent partial snapshots from being treated as complete                      | APPROVED |
+| `canonical_project_id`             | Canonical `PJ-*` scope key                                                    | APPROVED |
+| `plane_workspace_id`               | Plane entity correlation                                                      | APPROVED |
+| `plane_project_id`                 | Plane entity correlation                                                      | APPROVED |
+| `plane_entity_id`                  | Work item or cycle correlation                                                | APPROVED |
+| `external_source`                  | Identify the authoritative source namespace                                   | APPROVED |
+| `external_id`                      | Correlate the authoritative source entity                                     | APPROVED |
+| `state`                            | Current normalized entity state                                               | APPROVED |
+| `position`                         | Current normalized workflow position                                          | APPROVED |
+| `source_updated_at`                | Reconciliation ordering timestamp                                             | APPROVED |
+| `assignee_entra_correlatable_id`   | Optional opaque reference to the existing authoritative Entra subject mapping | APPROVED |
+| `last_actor_entra_correlatable_id` | Optional opaque reference to the existing authoritative Entra subject mapping | APPROVED |
 
 An Entra-correlatable field is proposed only as a reference to an existing
 authoritative subject mapping. It must not duplicate a name, email address,
@@ -107,14 +106,14 @@ handling contract.
 
 | Proposed data class                                         | Proposed retention                                                                               | Status   |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------- |
-| Raw webhook bytes                                           | No persistence; discard immediately after signature verification and allowlist projection        | PROPOSED |
-| Terminal normalized queue envelope                          | 7 days after successful terminal processing                                                      | PROPOSED |
-| Failed/dead normalized queue envelope                       | 30 days after terminal failure                                                                   | PROPOSED |
-| Normalized event metadata                                   | 365 days from `occurred_at`                                                                      | PROPOSED |
-| Complete snapshot metadata                                  | 90 days from `captured_at`                                                                       | PROPOSED |
-| Entra-correlatable fields                                   | Earlier of the containing row's expiry or the canonical active-lifetime-plus-365-day ceiling     | PROPOSED |
-| Erasure evidence without direct entity or actor identifiers | 5 years from completion                                                                          | PROPOSED |
-| Backups containing allowlisted Plane data                   | At most 35 days from backup creation; primary deletion may remain only until that backup expires | PROPOSED |
+| Raw webhook bytes                                           | No persistence; discard immediately after signature verification and allowlist projection        | APPROVED |
+| Terminal normalized queue envelope                          | 7 days after successful terminal processing                                                      | APPROVED |
+| Failed/dead normalized queue envelope                       | 30 days after terminal failure                                                                   | APPROVED |
+| Normalized event metadata                                   | 365 days from `occurred_at`                                                                      | APPROVED |
+| Complete snapshot metadata                                  | 90 days from `captured_at`                                                                       | APPROVED |
+| Entra-correlatable fields                                   | Earlier of the containing row's expiry or the canonical active-lifetime-plus-365-day ceiling     | APPROVED |
+| Erasure evidence without direct entity or actor identifiers | 5 years from completion                                                                          | APPROVED |
+| Backups containing allowlisted Plane data                   | At most 35 days from backup creation; primary deletion may remain only until that backup expires | APPROVED |
 
 ## Proposed erasure procedure
 
@@ -131,7 +130,8 @@ handling contract.
 5. Verify zero matching primary rows or correlatable fields with a readback
    query, record the result, and enqueue the corresponding backup purge.
 
-All five steps and their values are **PROPOSED** pending Data Owner approval.
+All five steps and their values were **APPROVED** by the Data Owner on
+2026-07-19.
 
 ## Proposed backup purge procedure
 
@@ -146,32 +146,40 @@ All five steps and their values are **PROPOSED** pending Data Owner approval.
 4. Verify provider deletion/expiry status and record hashed evidence without
    Plane entity IDs or actor identifiers.
 
-All four steps and their values are **PROPOSED** pending Data Owner approval.
+All four steps and their values were **APPROVED** by the Data Owner on
+2026-07-19.
 
 ## Proposed access roles
 
 | Proposed role                          | Proposed access                                                                         | Status   |
 | -------------------------------------- | --------------------------------------------------------------------------------------- | -------- |
-| Data Owner                             | Approve the allowlist, purposes, retention, erasure, backup purge, and role assignments | PROPOSED |
-| Plane integration service              | Write only allowlisted normalized fields for an already-authorized canonical project    | PROPOSED |
-| Scoped board/report service            | Read only rows filtered at retrieval by the canonical `PJ-*` project scope              | PROPOSED |
-| Security/Operations retention operator | Run scheduled expiry and backup purge with recorded change authority                    | PROPOSED |
-| Erasure maintenance operator           | Time-bound, approved delete/null capability for the stated erasure scope                | PROPOSED |
-| Database break-glass operator          | Time-bound emergency access with reason validation and append-only audit evidence       | PROPOSED |
-| LLM or agent prompt context            | No access                                                                               | PROPOSED |
+| Data Owner                             | Approve the allowlist, purposes, retention, erasure, backup purge, and role assignments | APPROVED |
+| Plane integration service              | Write only allowlisted normalized fields for an already-authorized canonical project    | APPROVED |
+| Scoped board/report service            | Read only rows filtered at retrieval by the canonical `PJ-*` project scope              | APPROVED |
+| Security/Operations retention operator | Run scheduled expiry and backup purge with recorded change authority                    | APPROVED |
+| Erasure maintenance operator           | Time-bound, approved delete/null capability for the stated erasure scope                | APPROVED |
+| Database break-glass operator          | Time-bound emergency access with reason validation and append-only audit evidence       | APPROVED |
+| LLM or agent prompt context            | No access                                                                               | APPROVED |
 
 ## Approval record
 
-The proposal remains unapproved until all boxes have linked, signed evidence:
+Approval:
 
-- [ ] Data Owner identity, approval date, and approval record
-- [ ] Webhook event field allowlist
-- [ ] Snapshot field allowlist
-- [ ] Purpose and prohibited uses
-- [ ] Retention periods and legal-hold behavior
-- [ ] Primary erasure procedure
-- [ ] Backup purge and restore procedure
-- [ ] Access roles and retrieval-side project filtering
+- Approver: `mryfmo` (Data Owner)
+- Date: `2026-07-19`
+- Basis:
+  `.orchestration/acceptance/plane-data-governance-owner-approval.md`
+
+Approved scope:
+
+- [x] Data Owner identity, approval date, and approval record
+- [x] Webhook event field allowlist
+- [x] Snapshot field allowlist
+- [x] Purpose and prohibited uses
+- [x] Retention periods and legal-hold behavior
+- [x] Primary erasure procedure
+- [x] Backup purge and restore procedure
+- [x] Access roles and retrieval-side project filtering
 
 Any added field, purpose, retention value, or role requires a new Data Owner
 approval. A change that alters the ADR-0019 data boundary also requires an ADR
