@@ -185,7 +185,7 @@ describe("buildInvestorSummary（investor: 出資対象のみ）", () => {
       value: 100,
       target: 80,
       variance: 20,
-      trend: [80, 140],
+      trend: [60, 100],
     });
   });
 });

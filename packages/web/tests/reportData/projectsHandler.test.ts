@@ -74,7 +74,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
         domain: "devops",
         profile: "PRF-L",
         scope: { mode: "project", projectId: "PJ-002" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"] },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"], scopeMode: "project" },
       },
     ];
     const res = await handleProjects({
@@ -135,7 +135,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
         domain: "devops",
         profile: "PRF-L",
         scope: { mode: "project", projectId: "PJ-002" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"] },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"], scopeMode: "project" },
       },
     ];
     const db: PgQueryable = {

@@ -13,6 +13,7 @@
 import type { Session } from "next-auth";
 import type { PersonaResolver, ResolvedPersona } from "../personaResolver";
 import { ConflictError, ForbiddenError, requirePersona, requireSession, UnauthorizedError } from "../authGuard";
+import { PrjopsDataAccessDeniedError, PrjopsDataUnavailableError } from "./pinnedPrjopsReportDataProvider";
 
 /** stable subject を requirePersona へ渡す（未認証401/権限外403/選択必須409はここで例外化）。 */
 export async function resolvePersonas(
@@ -34,7 +35,13 @@ export async function resolvePersonas(
  * 返却し、詳細はサーバ側ログにのみ出力する。
  */
 export function toErrorResponse(err: unknown): Response {
-  if (err instanceof UnauthorizedError || err instanceof ForbiddenError || err instanceof ConflictError) {
+  if (
+    err instanceof UnauthorizedError ||
+    err instanceof ForbiddenError ||
+    err instanceof ConflictError ||
+    err instanceof PrjopsDataAccessDeniedError ||
+    err instanceof PrjopsDataUnavailableError
+  ) {
     return Response.json({ error: err.message }, { status: err.status });
   }
   console.error("[api/data] unhandled error:", err);

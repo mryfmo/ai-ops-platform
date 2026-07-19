@@ -57,7 +57,7 @@ describe("handleAgentActivity（PRF-G以外403）", () => {
         domain: "devops",
         profile: "PRF-M",
         scope: { mode: "project", projectId: "PJ-001" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [], scopeMode: "project" },
       },
     ];
     const res = await handleAgentActivity({
@@ -74,7 +74,7 @@ describe("handleAgentActivity（PRF-G以外403）", () => {
         domain: "devops",
         profile: "PRF-L",
         scope: { mode: "project", projectId: "PJ-001" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0001"] },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0001"], scopeMode: "project" },
       },
     ];
     const res = await handleAgentActivity({
@@ -116,7 +116,7 @@ describe("handleAgentActivity（PRF-G: 正当なセッションでデータ返�
         domain: "devops",
         profile: "PRF-G",
         scope: { mode: "global", projectId: null },
-        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [], scopeMode: "global" },
       },
     ];
     const db: PgQueryable = {

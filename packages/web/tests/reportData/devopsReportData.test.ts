@@ -59,6 +59,12 @@ function fakeDb(
 const leaderCtx: DevOpsVisibilityContext = {
   recipientUserId: "U1",
   recipientAssignedProjectIds: ["PRJ-0001"],
+  scopeMode: "project",
+};
+const globalCtx: DevOpsVisibilityContext = {
+  recipientUserId: "U9",
+  recipientAssignedProjectIds: [],
+  scopeMode: "global",
 };
 
 describe("buildDevOpsManagerSummary（PRF-G: 全プロジェクト横断）", () => {
@@ -70,7 +76,11 @@ describe("buildDevOpsManagerSummary（PRF-G: 全プロジェクト横断）", ()
         { detected_at: "2026-01-06T00:00:00Z", resolved_at: "2026-01-07T00:00:00Z", affected_projects: ["PRJ-0002"] },
       ],
     );
-    const gCtx: DevOpsVisibilityContext = { recipientUserId: "U9", recipientAssignedProjectIds: [] };
+    const gCtx: DevOpsVisibilityContext = {
+      recipientUserId: "U9",
+      recipientAssignedProjectIds: [],
+      scopeMode: "global",
+    };
     const result = await buildDevOpsManagerSummary(db, "PRF-G", gCtx, "2026-01-01", "2026-01-15");
     expect(result.totalProjectCount).toBe(2);
     expect(result.totalTicketCount).toBe(2);
@@ -95,7 +105,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
     const result = await buildDevOpsManagerSummary(
       db,
       "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      { recipientUserId: "U9", recipientAssignedProjectIds: [], scopeMode: "global" },
       "2026-01-01",
       "2026-01-08",
     );
@@ -143,7 +153,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
     const result = await buildDevOpsManagerSummary(
       db,
       "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      { recipientUserId: "U9", recipientAssignedProjectIds: [], scopeMode: "global" },
       "2026-01-01",
       "2026-01-08",
     );
@@ -178,13 +188,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.velocity).toEqual({ issueThroughput: 1, prThroughput: 1 });
   });
 
@@ -208,13 +212,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.velocity.issueThroughput).toBe(2);
   });
 
@@ -250,13 +248,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.velocity.issueThroughput).toBe(1);
   });
 
@@ -284,13 +276,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.failedDeploymentRecoveryTimeHours).toBe(2);
   });
 
@@ -313,13 +299,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.changeFailureRatePct).toBe(0);
   });
 
@@ -342,13 +322,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.failedDeploymentRecoveryTimeHours).toBeNull();
   });
 
@@ -377,13 +351,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.failedDeploymentRecoveryTimeHours).toBe(2);
     expect(result.dora.changeFailureRatePct).toBe(0);
   });
@@ -407,13 +375,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.failedDeploymentRecoveryTimeHours).toBeNull();
   });
 
@@ -433,13 +395,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
       })),
     ];
     const db = fakeDb(["A", "B"], [], deployments);
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.changeFailureRatePct).toBeCloseTo((2 / 101) * 100);
   });
 
@@ -485,13 +441,7 @@ describe("buildDevOpsManagerSummary（DORA 5 + coverage枠）", () => {
         },
       ],
     );
-    const result = await buildDevOpsManagerSummary(
-      db,
-      "PRF-G",
-      { recipientUserId: "U9", recipientAssignedProjectIds: [] },
-      "2026-01-01",
-      "2026-01-08",
-    );
+    const result = await buildDevOpsManagerSummary(db, "PRF-G", globalCtx, "2026-01-01", "2026-01-08");
     expect(result.dora.failedDeploymentRecoveryTimeHours).toBe(51);
     expect(result.doraByProject.find((row) => row.projectId === "B")?.dora.failedDeploymentRecoveryTimeHours).toBe(2);
   });

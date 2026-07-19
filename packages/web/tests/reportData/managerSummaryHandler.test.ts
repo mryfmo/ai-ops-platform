@@ -53,7 +53,7 @@ describe("handleManagerSummary（権限外403）", () => {
         domain: "devops",
         profile: "PRF-M",
         scope: { mode: "project", projectId: "PJ-001" },
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [], scopeMode: "project" },
       },
     ];
     const res = await handleManagerSummary({
@@ -118,7 +118,7 @@ describe("handleManagerSummary（正当なセッション: データ返却）", 
         domain: "devops",
         profile: "PRF-G",
         scope: { mode: "global", projectId: null },
-        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [], scopeMode: "global" },
       },
     ];
     const db: PgQueryable = {
@@ -146,7 +146,7 @@ describe("handleManagerSummary（正当なセッション: データ返却）", 
         domain: "devops",
         profile: "PRF-G",
         scope: { mode: "global", projectId: null },
-        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [], scopeMode: "global" },
       },
       {
         domain: "prjops",

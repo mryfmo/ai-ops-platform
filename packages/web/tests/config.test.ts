@@ -37,4 +37,29 @@ describe("loadWebConfig model configuration [PrjOps:SPEC-INT-060]", () => {
   it("不正なpricing JSONを起動時に拒否する [PrjOps:SPEC-INT-060]", () => {
     expect(() => loadWebConfig({ ...validEnv, ANTHROPIC_PRICING_USD_PER_MTOK: "{}" })).toThrow("E-CFG02");
   });
+
+  it("P010-F02-T07: pinned prjops-data identityを4項目そろった場合だけ受理する", () => {
+    const config = loadWebConfig({
+      ...validEnv,
+      PRJOPS_DATA_DIR: "/srv/prjops-data",
+      PRJOPS_DATA_COMMIT_SHA: "1".repeat(40),
+      PRJOPS_DATA_SOURCE_COMMIT_SHA: "1".repeat(40),
+      PRJOPS_DATA_CONTENT_SHA256: "2".repeat(64),
+    });
+    expect(config.PRJOPS_DATA_DIR).toBe("/srv/prjops-data");
+    expect(config.PRJOPS_DATA_COMMIT_SHA).toBe("1".repeat(40));
+  });
+
+  it("P010-F02-T07: partial/relative/noncanonical snapshot configをfail closedにする", () => {
+    expect(() => loadWebConfig({ ...validEnv, PRJOPS_DATA_DIR: "/srv/prjops-data" })).toThrow("E-CFG02");
+    expect(() =>
+      loadWebConfig({
+        ...validEnv,
+        PRJOPS_DATA_DIR: "relative/prjops-data",
+        PRJOPS_DATA_COMMIT_SHA: "A".repeat(40),
+        PRJOPS_DATA_SOURCE_COMMIT_SHA: "1".repeat(40),
+        PRJOPS_DATA_CONTENT_SHA256: "2".repeat(64),
+      }),
+    ).toThrow("E-CFG02");
+  });
 });
