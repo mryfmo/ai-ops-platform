@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/tools/backfillRecipients.ts
  *
- * 根拠: P010-F02-T04 / DEC-SPEC-002。
+ * 根拠: P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054。
  * Signed mappingのpure検証結果をPostgreSQL transactionへ結線する管理CLI。
  */
 import { readFileSync } from "node:fs";

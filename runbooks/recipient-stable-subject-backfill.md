@@ -1,4 +1,4 @@
-<!-- 根拠: P010-F02-T04 / DEC-SPEC-002 -->
+<!-- 根拠: P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054 -->
 
 # Recipient stable-subject backfill
 

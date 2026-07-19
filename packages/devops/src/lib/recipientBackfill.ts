@@ -1,7 +1,7 @@
 /**
  * packages/devops/src/lib/recipientBackfill.ts
  *
- * 根拠: P010-F02-T04 / DEC-SPEC-002。
+ * 根拠: P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054。
  * Signed legacy mappingのparse、検証、適用計画は外部I/Oを持たないpure functionに限定する。
  */
 import { createHash, createPublicKey, verify } from "node:crypto";

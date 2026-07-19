@@ -1,7 +1,7 @@
 /**
  * packages/devops/tests/recipientBackfill.test.ts
  *
- * 根拠: P010-F02-T04 / DEC-SPEC-002。
+ * 根拠: P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054。
  */
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -144,7 +144,7 @@ function pendingRow(userId: string, objectId: string | null = null) {
   };
 }
 
-describe("legacy recipient mapping parser [P010-F02-T04 / DEC-SPEC-002]", () => {
+describe("legacy recipient mapping parser [P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054]", () => {
   it("signed JSONとRFC4180 CSVを同じmappingへ正規化しraw digestを固定する", () => {
     const artifact = signedArtifact([
       {
@@ -290,7 +290,7 @@ function fakePool(
   return { pool: { connect: async () => client }, calls };
 }
 
-describe("legacy recipient backfill transaction [P010-F02-T04 / DEC-SPEC-002]", () => {
+describe("legacy recipient backfill transaction [P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054]", () => {
   const parsed = parseSignedMapping(jsonBytes(), "json", trust);
 
   it("CLIはapply confirmationを必須にしunknown/duplicate引数を拒否する", () => {
@@ -384,7 +384,7 @@ const testDatabaseName = process.env["AIOPS_TEST_DATABASE_NAME"];
 const postgresDescribe = testDatabaseName ? describe : describe.skip;
 const schema = readFileSync(new URL("../src/db/schema.sql", import.meta.url), "utf8");
 
-postgresDescribe("legacy recipient backfill PostgreSQL [P010-F02-T04 / DEC-SPEC-002]", () => {
+postgresDescribe("legacy recipient backfill PostgreSQL [P010-F02-T04 / DEC-SPEC-002 / DevOps:SPEC-INT-054]", () => {
   it("dry-run無書込み、rollback、apply、idempotent reapplyを実測する", async () => {
     if (!testDatabaseName) throw new Error("AIOPS_TEST_DATABASE_NAME is required");
     const namespace = `t04_${randomUUID().replaceAll("-", "")}`;
