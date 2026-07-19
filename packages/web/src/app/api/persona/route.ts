@@ -1,18 +1,15 @@
 /**
  * packages/web/src/app/api/persona/route.ts
  *
- * 根拠: ADR-0005 / AUD-IMP-006。認証ユーザーの現在の保有ペルソナだけを選択状態として保存する。
+ * 根拠: P010-F02-T08 / ADR-0005 / AUD-IMP-006。認証ユーザーの現在の保有ペルソナだけを選択状態として保存する。
  */
-import pg from "pg";
 import { auth } from "../../../auth";
 import { loadWebConfig } from "../../../server/config";
-import {
-  CompositePersonaResolver,
-  DevopsPersonaSource,
-  InMemoryStakeholderMasterProvider,
-  PrjopsPersonaSource,
-} from "../../../server/personaResolver";
+import { getPool } from "../../../server/db/pool";
+import { CompositePersonaResolver, DevopsPersonaSource, PrjopsPersonaSource } from "../../../server/personaResolver";
 import { handlePersonaSelection } from "../../../server/personaSelectionHandler";
+import { createPinnedPrjopsReportDataProvider } from "../../../server/reportData/pinnedPrjopsReportDataProvider";
+import { toErrorResponse } from "../../../server/reportData/dataApiSupport";
 
 export const dynamic = "force-dynamic";
 
@@ -38,11 +35,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const config = loadWebConfig();
-  const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
-  const resolver = new CompositePersonaResolver(
-    new DevopsPersonaSource(pool),
-    new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
-  );
+  const pool = getPool(config.DATABASE_URL);
+  let provider;
+  try {
+    provider = createPinnedPrjopsReportDataProvider(config);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+  const resolver = new CompositePersonaResolver(new DevopsPersonaSource(pool), new PrjopsPersonaSource(provider));
   return handlePersonaSelection({
     getSession: async () => auth(),
     resolver,
