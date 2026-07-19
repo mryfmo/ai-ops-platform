@@ -1,0 +1,26 @@
+{
+  "_evidence": "DEC-SPEC-008 / A020",
+  "contract_version": "1.0.0-dev",
+  "environment": "development",
+  "provenance": {
+    "approved_by": "mryfmo",
+    "approval_basis": "dev-phase instruction 2026-07-18",
+    "signature": "DEV-DEFAULT-unsigned",
+    "replace_before_go_live": true,
+    "replace_before_go_live_declaration": "This DEV-DEFAULT mapping must be replaced with owner-signed real environment values before go-live."
+  },
+  "projects": {
+    "PJ-001": {
+      "project_v2_node_id": "DEV-NODE-PJ-001",
+      "authorized_url": "https://github.com/mryfmo/ai-ops-platform-dev-sandbox"
+    },
+    "PJ-002": {
+      "project_v2_node_id": "DEV-NODE-PJ-002",
+      "authorized_url": "https://github.com/mryfmo/ai-ops-platform-dev-sandbox"
+    },
+    "PJ-404": {
+      "project_v2_node_id": "DEV-NODE-PJ-404",
+      "authorized_url": "https://github.com/mryfmo/ai-ops-platform-dev-sandbox"
+    }
+  }
+}

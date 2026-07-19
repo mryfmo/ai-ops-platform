@@ -1,0 +1,58 @@
+{
+  "$comment": "Evidence: DEC-SPEC-008 / A020",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.invalid/contracts/projectv2-environment-mapping.schema.json",
+  "title": "ProjectV2 environment mapping DEV-DEFAULT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_evidence", "contract_version", "environment", "provenance", "projects"],
+  "properties": {
+    "_evidence": { "const": "DEC-SPEC-008 / A020" },
+    "contract_version": { "const": "1.0.0-dev" },
+    "environment": { "const": "development" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approved_by",
+        "approval_basis",
+        "signature",
+        "replace_before_go_live",
+        "replace_before_go_live_declaration"
+      ],
+      "properties": {
+        "approved_by": { "const": "mryfmo" },
+        "approval_basis": { "const": "dev-phase instruction 2026-07-18" },
+        "signature": { "const": "DEV-DEFAULT-unsigned" },
+        "replace_before_go_live": { "const": true },
+        "replace_before_go_live_declaration": {
+          "const": "This DEV-DEFAULT mapping must be replaced with owner-signed real environment values before go-live."
+        }
+      }
+    },
+    "projects": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^PJ-[0-9]+$": { "$ref": "#/$defs/projectMapping" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "projectMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_v2_node_id", "authorized_url"],
+      "properties": {
+        "project_v2_node_id": {
+          "type": "string",
+          "pattern": "^DEV-NODE-PJ-[0-9]+$"
+        },
+        "authorized_url": {
+          "const": "https://github.com/mryfmo/ai-ops-platform-dev-sandbox"
+        }
+      }
+    }
+  }
+}
