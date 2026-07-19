@@ -4,21 +4,22 @@
 
 ## 実行順序と状態
 
-| Plan | Phase | Title                                                                        | Priority | Effort | Depends on | Status              |
-| ---- | ----- | ---------------------------------------------------------------------------- | -------- | ------ | ---------- | ------------------- |
-| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる                      | P0       | L      | —          | DONE                |
-| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                          | P0       | L      | 001        | TODO                |
-| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる                  | P0       | L      | 002, 005   | TODO                |
-| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する                      | P0       | L      | 001, 005   | TODO                |
-| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる            | P0       | L      | 001        | BLOCKED: ENV        |
-| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする          | P0       | L      | 001, 002   | TODO                |
-| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する                      | P1       | L      | 001, 002   | TODO                |
-| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる              | P0       | XL     | 001–007    | TODO                |
-| 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる                      | P0       | XL     | 001        | BLOCKED: SUPERSEDED |
-| 010  | 0–7   | 推奨仕様・推奨環境で残存製品化工程を完了する                                 | P0       | XL     | 001        | BLOCKED: PLAN 011   |
-| 011  | 0–3   | 受入証跡の信頼基盤を構築する                                                 | P0       | XL     | —          | BLOCKED: HUMAN/ENV  |
-| 012  | 0–7   | 自然言語GitHub操作と議事録同期を承認付きで安全に稼働させる                   | P0       | XL     | 010, 011   | IN PROGRESS         |
-| 013  | 0–5   | 内部ページエージェントを全ペルソナで動かしalibaba/page-agent不採用を確定する | P1       | L      | 001        | TODO                |
+| Plan | Phase | Title                                                                        | Priority | Effort | Depends on   | Status              |
+| ---- | ----- | ---------------------------------------------------------------------------- | -------- | ------ | ------------ | ------------------- |
+| 001  | 0     | PostgreSQL初期化・監査台帳・migrationを実DBで成立させる                      | P0       | L      | —            | DONE                |
+| 002  | 1     | PrjOps正本データとEntra主体による認可を本番配線する                          | P0       | L      | 001          | TODO                |
+| 003  | 2     | PrjOps AGT-01〜07の収集・分析・報告・配信ループを稼働させる                  | P0       | L      | 002, 005     | TODO                |
+| 004  | 3     | DevOps agentをGitHub/監視イベントと状態台帳へ実配線する                      | P0       | L      | 001, 005     | TODO                |
+| 005  | 1     | Microsoft Graph Teams/Outlook購読・送信経路を公式仕様へ適合させる            | P0       | L      | 001          | BLOCKED: ENV        |
+| 006  | 2     | Claude Code/Droid codingと標準report workflowを安全に実行可能にする          | P0       | L      | 001, 002     | TODO                |
+| 007  | 4     | Web・Excel・APIの認可、接続、入力境界、冪等性を強化する                      | P1       | L      | 001, 002     | TODO                |
+| 008  | 5     | supported runtime・CI・HA・監視・実環境E2Eでgo-live判定を閉じる              | P0       | XL     | 001–007      | TODO                |
+| 009  | 0–9   | 残存製品化工程を依存ゲート順に完遂しgo-live判定を閉じる                      | P0       | XL     | 001          | BLOCKED: SUPERSEDED |
+| 010  | 0–7   | 推奨仕様・推奨環境で残存製品化工程を完了する                                 | P0       | XL     | 001          | BLOCKED: PLAN 011   |
+| 011  | 0–3   | 受入証跡の信頼基盤を構築する                                                 | P0       | XL     | —            | BLOCKED: HUMAN/ENV  |
+| 012  | 0–7   | 自然言語GitHub操作と議事録同期を承認付きで安全に稼働させる                   | P0       | XL     | 010, 011     | IN PROGRESS         |
+| 013  | 0–5   | 内部ページエージェントを全ペルソナで動かしalibaba/page-agent不採用を確定する | P1       | L      | 001          | TODO                |
+| 014  | A–D   | Plane CEを人間・エージェント共用作業台としてGitHub正本へ安全に接続する       | P1       | XL     | ADR-0019承認 | TODO                |
 
 Status: `TODO | IN PROGRESS | DONE | BLOCKED: <reason> | REJECTED: <reason>`。
 
@@ -31,6 +32,7 @@ Current notes:
 - Plan 011: dev-phase の DEV-DEFAULT decision record を docs/decisions/ に確立（操作者指示 2026-07-18）。本番 go-live 前に実値差し替え必須。表の Status は本番基準のため BLOCKED: HUMAN/ENV を維持。
 - Plan 012: Plan 010のpicker、read-only Kanban、Graph、coding workflow、承認境界を前提にし、Teams・Outlook議事録・Claude Code・Droidの自然言語操作をtyped proposalへ統一する。新しいtask universeをPlan 010へ追加しない。
 - Plan 013: ADR-0018の範囲のみ。projectBoardデータ経路はPlan 010の領分で、公開ゲートの `true` 化はPlan 010成果到達後の作業。
+- Plan 014: ADR-0019承認後に開始する。Gitはrecord-grade truth、Planeはhigh-frequency operating flux、platformは観測・監査・昇格を担い、board source変更は別のDEC-SPEC-008 owner decisionまで行わない。
 
 ## フェーズゲート
 
