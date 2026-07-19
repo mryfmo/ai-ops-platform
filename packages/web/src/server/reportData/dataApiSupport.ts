@@ -12,9 +12,9 @@
  */
 import type { Session } from "next-auth";
 import type { PersonaResolver, ResolvedPersona } from "../personaResolver";
-import { requirePersona, requireSession, UnauthorizedError, ForbiddenError } from "../authGuard";
+import { ConflictError, ForbiddenError, requirePersona, requireSession, UnauthorizedError } from "../authGuard";
 
-/** requireSession/requirePersonaを経由してResolvedPersona[]を取得する（未認証401/権限外403はここで例外化） */
+/** stable subject を requirePersona へ渡す（未認証401/権限外403/選択必須409はここで例外化）。 */
 export async function resolvePersonas(
   getSession: () => Promise<Session | null>,
   resolver: PersonaResolver,
@@ -22,19 +22,19 @@ export async function resolvePersonas(
   selectedPersona?: string,
 ): Promise<ResolvedPersona[]> {
   const session = await requireSession(getSession);
-  return requirePersona(session.user!.email!, resolver, domain, selectedPersona);
+  return requirePersona(session.user.subject, resolver, domain, selectedPersona);
 }
 
 /**
- * UnauthorizedError/ForbiddenError（statusプロパティ持ち）をNext.js Responseへ変換する。
+ * 既知のauth error（statusプロパティ持ち）をNext.js Responseへ変換する。
  *
  * security-reviewer指摘(中〜高): 401/403以外（DB接続エラー等）で`err.message`をそのまま
  * 返すと、pgのエラーメッセージに含まれうるホスト名・DB名等の内部情報が外部に漏洩しうる。
- * 401/403（authGuard.tsが定義する既知の安全な文言のみ）はそのまま返し、それ以外は固定文言のみ
+ * 401/403/409（authGuard.tsが定義する既知の安全な文言のみ）はそのまま返し、それ以外は固定文言のみ
  * 返却し、詳細はサーバ側ログにのみ出力する。
  */
 export function toErrorResponse(err: unknown): Response {
-  if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+  if (err instanceof UnauthorizedError || err instanceof ForbiddenError || err instanceof ConflictError) {
     return Response.json({ error: err.message }, { status: err.status });
   }
   console.error("[api/data] unhandled error:", err);

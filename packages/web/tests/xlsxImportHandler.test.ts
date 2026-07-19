@@ -9,7 +9,17 @@ import { handleXlsxImport, handleXlsxTemplate, type XlsxImportHandlerDeps } from
 import { XLSX_IMPORT_MAX_BYTES } from "../src/server/xlsxImportPolicy";
 
 const SECRET = "xlsx-import-secret-32-bytes-minimum";
-const session = async () => ({ user: { email: "user@example.com" }, expires: "2099-01-01" }) as Session;
+const session = async () =>
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01",
+  }) as Session;
 
 function deps(fetchImpl: typeof fetch, authenticated = true): XlsxImportHandlerDeps {
   return {

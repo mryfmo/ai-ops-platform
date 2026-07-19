@@ -121,6 +121,23 @@ describe("reportPermissionFilter [DOC-03 §4.5, PrjOps:REQ-011, PrjOps:SPEC-INT-
   it("PRF-04は全プロジェクトが対象範囲", () => {
     expect(isProjectInScope("PRF-04", "PJ-999", ctx)).toBe(true);
   });
+  it("stable subjectのproject PRF-04はallowlist外を拒否する [PrjOps:REQ-041]", () => {
+    const projectCtx: ProjectVisibilityContext = {
+      ...ctx,
+      recipientManagedProjectIds: ["PJ-001"],
+      scopeMode: "project",
+    };
+    expect(isProjectInScope("PRF-04", "PJ-001", projectCtx)).toBe(true);
+    expect(isProjectInScope("PRF-04", "PJ-002", projectCtx)).toBe(false);
+  });
+  it("explicit globalはPRF-04だけ、null/unknown scopeはfail closedにする [PrjOps:REQ-041]", () => {
+    const globalCtx: ProjectVisibilityContext = { ...ctx, scopeMode: "global" };
+    expect(isProjectInScope("PRF-04", "PJ-999", globalCtx)).toBe(true);
+    expect(isProjectInScope("PRF-03", "PJ-001", globalCtx)).toBe(false);
+    expect(
+      isProjectInScope("PRF-04", "PJ-001", { ...ctx, scopeMode: null } as unknown as ProjectVisibilityContext),
+    ).toBe(false);
+  });
   it("PRF-05は出資対象プロジェクトのみ", () => {
     expect(isProjectInScope("PRF-05", "PJ-001", ctx)).toBe(false);
     expect(isProjectInScope("PRF-05", "PJ-002", ctx)).toBe(true);

@@ -13,10 +13,17 @@ export type Profile = "PRF-M" | "PRF-L" | "PRF-G";
 export interface DevOpsVisibilityContext {
   recipientUserId: string;
   recipientAssignedProjectIds: string[];
+  /** stable-subject persona resolver が明示する assignment scope。legacy delivery context では未設定。 */
+  scopeMode?: "project" | "global";
 }
 
 /** DevOps:REQ-021/022: プロジェクトが受信者の対象範囲に含まれるか */
 export function isProjectInScope(profile: Profile, projectId: string, ctx: DevOpsVisibilityContext): boolean {
+  if (ctx.scopeMode === "project") return ctx.recipientAssignedProjectIds.includes(projectId);
+  if (ctx.scopeMode === "global") return profile === "PRF-G";
+  if (Object.prototype.hasOwnProperty.call(ctx, "scopeMode")) return false;
+
+  // legacy report-delivery context: A016 Web stable-subject path always sets scopeMode above.
   if (profile === "PRF-G") return true;
   if (profile === "PRF-L") return ctx.recipientAssignedProjectIds.includes(projectId);
   return true;

@@ -1,21 +1,21 @@
 /**
  * packages/web/src/server/authGuard.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。/api/data/* や /api/chat 等が今後利用する
- *   認可ゲートの共通部品。本タスクではゲート関数の実装とユニットテストまでを対象とし、
- *   実際のAPI Routeへの接続は次タスクの担当とする。
- *
- * 設計: 呼び出し側（将来のAPI Route）が catch して任意のHTTPステータス（401/403）に
- *   変換できるよう、判別可能なエラークラスを例外として投げる方式にする
- *   （テスト容易性・呼び出し側の自由度を優先）。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-054 / PrjOps:REQ-041。
+ * stable subject を request-time persona lookup へ渡し、申告 selector を active assignment と照合する。
  */
 import type { Session } from "next-auth";
-import type { PersonaResolver, ResolvedPersona } from "./personaResolver";
+import type { EntraSubject, PersonaResolver, ResolvedPersona } from "./personaResolver";
 
 export const PERSONA_COOKIE = "aiops-persona";
 
+export type AuthenticatedSession = Session & {
+  user: NonNullable<Session["user"]> & { subject: EntraSubject; roles: string[] };
+};
+
 export function personaKey(persona: ResolvedPersona): string {
-  return `${persona.domain}:${persona.profile}`;
+  const scope = persona.scope.mode === "global" ? "global" : persona.scope.projectId;
+  return `${persona.domain}:${persona.profile}:${scope}`;
 }
 
 export function selectedPersonaFromRequest(request: Request): string | undefined {
@@ -29,11 +29,13 @@ export function selectedPersonaFromRequest(request: Request): string | undefined
 }
 
 export function selectPersona(personas: ResolvedPersona[], selectedPersona?: string): ResolvedPersona {
-  const [defaultPersona] = personas;
+  if (selectedPersona === undefined && personas.length > 1) {
+    throw new ConflictError();
+  }
   const persona =
-    selectedPersona !== undefined
-      ? personas.find((candidate) => personaKey(candidate) === selectedPersona)
-      : defaultPersona;
+    selectedPersona === undefined
+      ? personas[0]
+      : personas.find((candidate) => personaKey(candidate) === selectedPersona);
   if (!persona) {
     throw new ForbiddenError(
       selectedPersona
@@ -60,34 +62,37 @@ export class ForbiddenError extends Error {
   }
 }
 
-/**
- * Auth.js のセッション取得関数を受け取り、認証済みセッションを検証する。
- * セッション自体の取得方法（auth()）は呼び出し側から注入する
- * （web パッケージのテストが next-auth の実行時解決に依存しないようにするため）。
- */
-export async function requireSession(getSession: () => Promise<Session | null>): Promise<Session> {
-  const session = await getSession();
-  if (!session || !session.user || !session.user.email) {
-    throw new UnauthorizedError();
+export class ConflictError extends Error {
+  public readonly status = 409 as const;
+  constructor(message = "E-AUTH03: persona selection required") {
+    super(message);
+    this.name = "ConflictError";
   }
-  return session;
 }
 
-/**
- * email に対応するペルソナを resolver で解決し、0件であれば ForbiddenError を投げる。
- * domain を指定した場合は該当ドメインのペルソナのみへ絞り込む。
- */
+export async function requireSession(getSession: () => Promise<Session | null>): Promise<AuthenticatedSession> {
+  const session = await getSession();
+  const subject = session?.user?.subject;
+  if (
+    !session?.user ||
+    !subject ||
+    typeof subject.tenantId !== "string" ||
+    typeof subject.objectId !== "string" ||
+    !Array.isArray(session.user.roles)
+  ) {
+    throw new UnauthorizedError();
+  }
+  return session as AuthenticatedSession;
+}
+
 export async function requirePersona(
-  email: string,
+  subject: EntraSubject,
   resolver: PersonaResolver,
   domain?: ResolvedPersona["domain"],
   selectedPersona?: string,
 ): Promise<ResolvedPersona[]> {
-  const personas = await resolver.resolveByEmail(email);
-  const filtered = domain ? personas.filter((p) => p.domain === domain) : personas;
-  if (selectedPersona === undefined) {
-    if (filtered.length === 0) throw new ForbiddenError();
-    return filtered;
-  }
+  const personas = await resolver.resolveBySubject(subject);
+  if (selectedPersona === undefined && personas.length > 1) throw new ConflictError();
+  const filtered = domain ? personas.filter((persona) => persona.domain === domain) : personas;
   return [selectPersona(filtered, selectedPersona)];
 }

@@ -27,6 +27,11 @@ import {
 
 const fixtureDirectory = fileURLToPath(new URL("./fixtures/stakeholders", import.meta.url));
 const validYaml = await readFile(new URL("./fixtures/stakeholders/ST-010.yaml", import.meta.url), "utf8");
+const SUBJECT = {
+  tenantId: "11111111-1111-1111-1111-111111111111",
+  objectId: "22222222-2222-2222-2222-222222222222",
+};
+const OTHER_SUBJECT = { ...SUBJECT, objectId: "33333333-3333-3333-3333-333333333333" };
 
 interface FakeEntry {
   content: string;
@@ -55,44 +60,58 @@ function fakeFs(files: Record<string, string | FakeEntry>, entries = Object.keys
   return { fs, open, close };
 }
 
-function yaml(id: string, email = "yamada@example.com", assignments = "  - project_id: PJ-001\n    profile: PRF-02") {
+function yaml(
+  id: string,
+  email = "yamada@example.com",
+  assignments = "  - project_id: PJ-001\n    profile: PRF-02",
+  objectId = SUBJECT.objectId,
+  investedProjectIds: string[] = [],
+) {
+  const expandedAssignments = assignments.replace(
+    / {2}- project_id: (.+)\n {4}profile: (.+)/g,
+    "  - domain: prjops\n    profile: $2\n    scope_mode: project\n    project_id: $1\n    active: true",
+  );
   return `id: ${id}
 name: Test User
 organization_id: ORG-001
+entra_tenant_id: ${SUBJECT.tenantId}
+entra_object_id: ${objectId}
 assignments:
-${assignments}
+${expandedAssignments}
+invested_project_ids:${investedProjectIds.length === 0 ? " []" : `\n${investedProjectIds.map((id) => `  - ${id}`).join("\n")}`}
 email: ${email}
 teams_user_id: teams-${id}
 preferred_language: ja
 timezone: Asia/Tokyo
+active: true
 `;
 }
 
 describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, PrjOps:SPEC-INT-022]", () => {
-  it("fixtureからemailに一致する全プロファイルと可視範囲を解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
+  it("fixtureからstable subjectに一致するactive assignmentを解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const provider = new YamlStakeholderMasterProvider(fixtureDirectory);
 
-    await expect(provider.findByEmail("yamada@example.com")).resolves.toEqual([
+    await expect(provider.findBySubject(SUBJECT)).resolves.toEqual([
       {
         stakeholderId: "ST-010",
-        email: "yamada@example.com",
+        subject: SUBJECT,
+        active: true,
+        assignmentActive: true,
+        domain: "prjops",
         profile: "PRF-02",
-        managedProjectIds: [],
-        assignedProjectIds: ["PJ-001"],
-        participatingProjectIds: ["PJ-002"],
-        investedProjectIds: [],
+        scope: { mode: "project", projectId: "PJ-001" },
       },
       {
         stakeholderId: "ST-010",
-        email: "yamada@example.com",
+        subject: SUBJECT,
+        active: true,
+        assignmentActive: true,
+        domain: "prjops",
         profile: "PRF-01",
-        managedProjectIds: [],
-        assignedProjectIds: ["PJ-001"],
-        participatingProjectIds: ["PJ-002"],
-        investedProjectIds: [],
+        scope: { mode: "project", projectId: "PJ-002" },
       },
     ]);
-    await expect(provider.findByEmail("unknown@example.com")).resolves.toEqual([]);
+    await expect(provider.findBySubject(OTHER_SUBJECT)).resolves.toEqual([]);
   });
 
   it("同じhardened scanからTeams userとprojectのprofileを解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
@@ -104,14 +123,12 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
     await expect(provider.findProfileByTeamsUserId(null, "PJ-001")).resolves.toBeNull();
   });
 
-  it("ST-1000以降を読み、emailをtrim+casefoldして比較・出力する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
+  it("email変更後も同じstable subjectならassignmentを解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const { fs } = fakeFs({ "ST-1000.yaml": yaml("ST-1000", "  YAMADA@Example.COM  ") });
-    const records = await new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail(
-      " Yamada@example.COM ",
-    );
+    const records = await new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT);
 
     expect(records).toEqual([
-      expect.objectContaining({ stakeholderId: "ST-1000", email: "yamada@example.com", profile: "PRF-02" }),
+      expect.objectContaining({ stakeholderId: "ST-1000", subject: SUBJECT, profile: "PRF-02" }),
     ]);
   });
 
@@ -125,26 +142,29 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
     ]
       .map(([project, profile]) => `  - project_id: ${project}\n    profile: ${profile}`)
       .join("\n");
-    const { fs } = fakeFs({ "ST-1000.yaml": yaml("ST-1000", "roles@example.com", assignments) });
-    const records = await new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("roles@example.com");
+    const { fs } = fakeFs({
+      "ST-1000.yaml": yaml("ST-1000", "roles@example.com", assignments, undefined, ["PJ-005"]),
+    });
+    const records = await new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT);
 
     expect(records.map((record) => record.profile)).toEqual(["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05"]);
-    expect(records[0]).toMatchObject({
-      participatingProjectIds: ["PJ-001"],
-      assignedProjectIds: ["PJ-002"],
-      managedProjectIds: ["PJ-003"],
-      investedProjectIds: ["PJ-005"],
-    });
+    expect(records.map((record) => record.scope)).toEqual([
+      { mode: "project", projectId: "PJ-001" },
+      { mode: "project", projectId: "PJ-002" },
+      { mode: "project", projectId: "PJ-003" },
+      { mode: "project", projectId: "PJ-004" },
+      { mode: "project", projectId: "PJ-005" },
+    ]);
   });
 
   it("無関係ファイルだけを無視し、stakeholderらしい不正yaml名はfail closedにする [PrjOps:REQ-002]", async () => {
     const unrelated = fakeFs({ "ST-010.yaml": validYaml }, ["README.md", "ORG-001.yaml", "ST-010.yml", "ST-010.yaml"]);
-    await new YamlStakeholderMasterProvider("/data/stakeholders", unrelated.fs).findByEmail("yamada@example.com");
+    await new YamlStakeholderMasterProvider("/data/stakeholders", unrelated.fs).findBySubject(SUBJECT);
     expect(unrelated.open).toHaveBeenCalledTimes(1);
 
     const malformed = fakeFs({}, ["ST-abc.yaml"]);
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", malformed.fs).findByEmail("x@example.com"),
+      new YamlStakeholderMasterProvider("/data/stakeholders", malformed.fs).findBySubject(SUBJECT),
     ).rejects.toThrow(/invalid stakeholder filename.*ST-abc\.yaml/i);
     expect(malformed.open).not.toHaveBeenCalled();
   });
@@ -170,7 +190,7 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
     };
 
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
+      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT),
     ).resolves.toHaveLength(2);
     expect(directoryTarget).toContain("ST-999");
     expect(readFromHandle).toHaveBeenCalledOnce();
@@ -187,18 +207,18 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
       }),
     };
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", symlinkFs).findByEmail("x@example.com"),
+      new YamlStakeholderMasterProvider("/data/stakeholders", symlinkFs).findBySubject(SUBJECT),
     ).rejects.toThrow(/invalid stakeholder YAML.*ST-010\.yaml/i);
 
     const nonFile = fakeFs({ "ST-010.yaml": { content: validYaml, isFile: false } });
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", nonFile.fs).findByEmail("x@example.com"),
+      new YamlStakeholderMasterProvider("/data/stakeholders", nonFile.fs).findBySubject(SUBJECT),
     ).rejects.toThrow(/invalid stakeholder YAML.*ST-010\.yaml/i);
     expect(nonFile.close).toHaveBeenCalledOnce();
 
     const invalid = fakeFs({ "ST-010.yaml": "id: [" });
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", invalid.fs).findByEmail("x@example.com"),
+      new YamlStakeholderMasterProvider("/data/stakeholders", invalid.fs).findBySubject(SUBJECT),
     ).rejects.toThrow(/invalid stakeholder YAML.*ST-010\.yaml/i);
     expect(invalid.close).toHaveBeenCalledOnce();
   });
@@ -206,19 +226,22 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
   it("全fileをscanしnormalized emailが異なるST IDに重複したらfail closedにする [PrjOps:REQ-002]", async () => {
     const { fs, open } = fakeFs({
       "ST-010.yaml": yaml("ST-010", " User@Example.com "),
-      "ST-011.yaml": yaml("ST-011", "user@example.COM"),
+      "ST-011.yaml": yaml("ST-011", "user@example.COM", undefined, OTHER_SUBJECT.objectId),
     });
 
-    await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("USER@example.com"),
-    ).rejects.toThrow(/duplicate normalized stakeholder email.*user@example\.com.*ST-010.*ST-011/i);
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /duplicate normalized stakeholder email.*user@example\.com.*ST-010.*ST-011/i,
+    );
     expect(open).toHaveBeenCalledTimes(2);
   });
 
   it("異なるST IDでteams_user_idが重複したら認可をfail closedにする [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({
       "ST-010.yaml": yaml("ST-010"),
-      "ST-011.yaml": yaml("ST-011", "other@example.com").replace("teams-ST-011", "teams-ST-010"),
+      "ST-011.yaml": yaml("ST-011", "other@example.com", undefined, OTHER_SUBJECT.objectId).replace(
+        "teams-ST-011",
+        "teams-ST-010",
+      ),
     });
 
     await expect(
@@ -229,12 +252,12 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
   it("Unicode正規等価なemailが異なるST IDに重複したらfail closedにする [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({
       "ST-010.yaml": yaml("ST-010", "usér@example.com"),
-      "ST-011.yaml": yaml("ST-011", "use\u0301r@example.com"),
+      "ST-011.yaml": yaml("ST-011", "use\u0301r@example.com", undefined, OTHER_SUBJECT.objectId),
     });
 
-    await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("usér@example.com"),
-    ).rejects.toThrow(/duplicate normalized stakeholder email.*usér@example\.com.*ST-010.*ST-011/i);
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /duplicate normalized stakeholder email.*usér@example\.com.*ST-010.*ST-011/i,
+    );
   });
 
   it.each([
@@ -248,34 +271,78 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
     ["whitespace project", "ST-010.yaml", yaml("ST-010").replace("PJ-001", '" PJ-001 "')],
   ])("canonical ID/trimmed nonempty違反(%s)を拒否する [PrjOps:REQ-002]", async (_case, filename, content) => {
     const { fs } = fakeFs({ [filename]: content });
-    await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
-    ).rejects.toThrow(/invalid stakeholder YAML/i);
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /invalid stakeholder YAML/i,
+    );
   });
 
-  it.each([
-    [
-      "exact duplicate",
-      "  - project_id: PJ-001\n    profile: PRF-02\n  - project_id: PJ-001\n    profile: PRF-02",
-      /duplicate stakeholder assignment/i,
-    ],
-    [
-      "same-project conflicting profile",
-      "  - project_id: PJ-001\n    profile: PRF-01\n  - project_id: PJ-001\n    profile: PRF-02",
-      /conflicting stakeholder assignment/i,
-    ],
-  ])("assignment ambiguity(%s)をfail closedにする [PrjOps:REQ-002]", async (_case, assignments, message) => {
+  it("exact duplicate assignmentをfail closedにする [PrjOps:REQ-002]", async () => {
+    const assignments = "  - project_id: PJ-001\n    profile: PRF-02\n  - project_id: PJ-001\n    profile: PRF-02";
     const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-010", "yamada@example.com", assignments) });
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /duplicate stakeholder assignment/i,
+    );
+  });
+
+  it("同一projectの異なるprofileを別personaとして保持する [PrjOps:REQ-002]", async () => {
+    const assignments = "  - project_id: PJ-001\n    profile: PRF-01\n  - project_id: PJ-001\n    profile: PRF-02";
+    const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-010", "yamada@example.com", assignments) });
+    const provider = new YamlStakeholderMasterProvider("/data/stakeholders", fs);
+    await expect(provider.findBySubject(SUBJECT)).resolves.toEqual([
+      expect.objectContaining({ profile: "PRF-01", scope: { mode: "project", projectId: "PJ-001" } }),
+      expect.objectContaining({ profile: "PRF-02", scope: { mode: "project", projectId: "PJ-001" } }),
+    ]);
+    await expect(provider.findProfileByTeamsUserId("teams-ST-010", "PJ-001")).resolves.toBeNull();
+  });
+
+  it("investor scopeはinvested_project_idsとの積に限定する [PrjOps:REQ-041]", async () => {
+    const assignment = "  - project_id: PJ-002\n    profile: PRF-05";
+    const denied = fakeFs({
+      "ST-010.yaml": yaml("ST-010", "investor@example.com", assignment, undefined, ["PJ-001"]),
+    });
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
-    ).rejects.toThrow(message);
+      new YamlStakeholderMasterProvider("/data/stakeholders", denied.fs).findBySubject(SUBJECT),
+    ).resolves.toEqual([]);
+
+    const allowed = fakeFs({
+      "ST-010.yaml": yaml("ST-010", "investor@example.com", assignment, undefined, ["PJ-002"]),
+    });
+    await expect(
+      new YamlStakeholderMasterProvider("/data/stakeholders", allowed.fs).findBySubject(SUBJECT),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        domain: "investor",
+        profile: "PRF-05",
+        scope: { mode: "project", projectId: "PJ-002" },
+      }),
+    ]);
+  });
+
+  it("PRF-05/investor aliasの同時assignmentをfail closedにする [PrjOps:REQ-041]", async () => {
+    const assignments = "  - project_id: PJ-001\n    profile: PRF-05\n  - project_id: PJ-001\n    profile: investor";
+    const { fs } = fakeFs({
+      "ST-010.yaml": yaml("ST-010", "investor@example.com", assignments, undefined, ["PJ-001"]),
+    });
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /duplicate stakeholder assignment/i,
+    );
+  });
+
+  it("異なるST IDのstable subject重複をfail closedにする [DevOps:SPEC-INT-054]", async () => {
+    const { fs } = fakeFs({
+      "ST-010.yaml": yaml("ST-010"),
+      "ST-011.yaml": yaml("ST-011", "other@example.com"),
+    });
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /duplicate stakeholder stable subject.*ST-010.*ST-011/i,
+    );
   });
 
   it("filename/id不一致を拒否する [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({ "ST-010.yaml": yaml("ST-011") });
-    await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("yamada@example.com"),
-    ).rejects.toThrow(/filename.*ST-010.*ST-011/i);
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /filename.*ST-010.*ST-011/i,
+    );
   });
 
   it.each(["data/stakeholders", "/data/../stakeholders"])(
@@ -289,9 +356,9 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
   it("configured pathがdirectoryでなければ拒否する [PrjOps:REQ-002]", async () => {
     const { fs } = fakeFs({ "ST-010.yaml": validYaml });
     fs.lstat = vi.fn(async () => ({ dev: 1, ino: 1, isDirectory: () => false }));
-    await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fs).findByEmail("x@example.com"),
-    ).rejects.toThrow(/not a directory/i);
+    await expect(new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT)).rejects.toThrow(
+      /not a directory/i,
+    );
   });
 
   it("実FSでconfigured directory symlinkをAからBへ差し替えても拒否する [PrjOps:REQ-002]", async () => {
@@ -330,7 +397,7 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
     };
 
     try {
-      await expect(new YamlStakeholderMasterProvider(current, fs).findByEmail("attacker@example.com")).rejects.toThrow(
+      await expect(new YamlStakeholderMasterProvider(current, fs).findBySubject(SUBJECT)).rejects.toThrow(
         /canonical|symlink/i,
       );
       await expect(realpath(current)).resolves.toBe(second);
@@ -350,7 +417,7 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
       .mockResolvedValueOnce({ dev, ino, isDirectory: () => true });
 
     await expect(
-      new YamlStakeholderMasterProvider("/data/stakeholders", fixture.fs).findByEmail("yamada@example.com"),
+      new YamlStakeholderMasterProvider("/data/stakeholders", fixture.fs).findBySubject(SUBJECT),
     ).rejects.toThrow(/directory changed during scan/i);
     expect(fixture.open).toHaveBeenCalledOnce();
     expect(fixture.close).toHaveBeenCalledOnce();

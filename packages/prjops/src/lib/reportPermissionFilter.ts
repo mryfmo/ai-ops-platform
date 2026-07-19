@@ -27,10 +27,15 @@ export interface ProjectVisibilityContext {
   recipientAssignedProjectIds: string[]; // PRF-02が担当するプロジェクトID一覧
   recipientParticipatingProjectIds: string[]; // PRF-01が参加するプロジェクトID一覧
   investedProjectIds: string[]; // PRF-05の出資対象プロジェクトID一覧
+  /** stable-subject persona resolver が明示する assignment scope。legacy delivery context では未設定。 */
+  scopeMode?: "project" | "global";
 }
 
 /** プロジェクトが受信者のレポート対象範囲に含まれるかどうか（DOC-03 §4.5「対象範囲」列） */
 export function isProjectInScope(profile: ReportAudience, projectId: string, ctx: ProjectVisibilityContext): boolean {
+  if (ctx.scopeMode === "global") return profile === "PRF-04";
+  if (Object.prototype.hasOwnProperty.call(ctx, "scopeMode") && ctx.scopeMode !== "project") return false;
+
   switch (profile) {
     case "PRF-01":
       return ctx.recipientParticipatingProjectIds.includes(projectId);
@@ -39,7 +44,7 @@ export function isProjectInScope(profile: ReportAudience, projectId: string, ctx
     case "PRF-03":
       return ctx.recipientManagedProjectIds.includes(projectId);
     case "PRF-04":
-      return true; // 全プロジェクト
+      return ctx.scopeMode === "project" ? ctx.recipientManagedProjectIds.includes(projectId) : true;
     case "PRF-05":
     case "investor":
       return ctx.investedProjectIds.includes(projectId);

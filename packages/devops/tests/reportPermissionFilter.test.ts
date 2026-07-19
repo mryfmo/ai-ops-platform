@@ -17,6 +17,31 @@ describe("isProjectInScope [DevOps:REQ-021/022/023]", () => {
     expect(isProjectInScope("PRF-L", "PRJ-001", ctx)).toBe(true);
     expect(isProjectInScope("PRF-L", "PRJ-002", ctx)).toBe(false);
   });
+
+  it("stable subjectのproject scopeはPRF-M/L/Gすべてallowlist外を拒否する [DevOps:SPEC-INT-054]", () => {
+    const projectCtx: DevOpsVisibilityContext = {
+      recipientUserId: "U-010",
+      recipientAssignedProjectIds: ["PJ-001"],
+      scopeMode: "project",
+    };
+    for (const profile of ["PRF-M", "PRF-L", "PRF-G"] as const) {
+      expect(isProjectInScope(profile, "PJ-001", projectCtx)).toBe(true);
+      expect(isProjectInScope(profile, "PJ-002", projectCtx)).toBe(false);
+    }
+  });
+
+  it("explicit globalはPRF-Gだけ、null/unknown scopeはfail closedにする [DevOps:SPEC-INT-054]", () => {
+    const globalCtx: DevOpsVisibilityContext = {
+      recipientUserId: "U-010",
+      recipientAssignedProjectIds: [],
+      scopeMode: "global",
+    };
+    expect(isProjectInScope("PRF-G", "PJ-999", globalCtx)).toBe(true);
+    expect(isProjectInScope("PRF-M", "PJ-999", globalCtx)).toBe(false);
+    expect(
+      isProjectInScope("PRF-G", "PJ-999", { ...globalCtx, scopeMode: null } as unknown as DevOpsVisibilityContext),
+    ).toBe(false);
+  });
 });
 
 describe("filterOwnPrsForMember [DevOps:REQ-021 AC-021b]", () => {

@@ -21,6 +21,7 @@
  */
 import { z } from "zod";
 import { tool, type ToolSet } from "ai";
+import { isProjectInScope as isDevopsProjectInScope } from "@aiops/devops";
 import { isProjectInScope as isPrjopsProjectInScope } from "@aiops/prjops";
 import type { ResolvedPersona } from "../personaResolver";
 import { parseViewSpec, type ViewSpec } from "../viewSpec";
@@ -119,7 +120,7 @@ function buildListProjectsTool() {
 
 function isProjectInPersonaScope(persona: ResolvedPersona, projectId: string): boolean {
   if (persona.domain === "devops") {
-    return persona.profile === "PRF-G" || persona.visibility.recipientAssignedProjectIds.includes(projectId);
+    return isDevopsProjectInScope(persona.profile, projectId, persona.visibility);
   }
   return isPrjopsProjectInScope(persona.profile, projectId, persona.visibility);
 }

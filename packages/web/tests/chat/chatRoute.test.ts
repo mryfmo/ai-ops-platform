@@ -17,15 +17,25 @@ import { handleChat, type ChatHandlerDeps } from "../../src/server/chat/chatHand
 import { buildSystemPrompt } from "../../src/server/chat/systemPrompt";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "exec@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 const prjopsExecutive: ResolvedPersona = {
   domain: "prjops",
   profile: "PRF-04",
+  scope: { mode: "global", projectId: null },
   visibility: {
     recipientStakeholderId: "STK-EXEC",
     recipientManagedProjectIds: [],
@@ -38,6 +48,7 @@ const prjopsExecutive: ResolvedPersona = {
 const devopsManager: ResolvedPersona = {
   domain: "devops",
   profile: "PRF-G",
+  scope: { mode: "global", projectId: null },
   visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
 };
 
@@ -141,7 +152,7 @@ describe("handleChat（権限外403）", () => {
     const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive]),
-      selectedPersona: "devops:PRF-G",
+      selectedPersona: "devops:PRF-G:global",
       languageModel: mockTextModel("hello"),
       costGuard: new PgCostGuard(emptyCostDb()),
       messages: userMessage("こんにちは"),
@@ -191,7 +202,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
     const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([prjopsExecutive, devopsManager]),
-      selectedPersona: "devops:PRF-G",
+      selectedPersona: "devops:PRF-G:global",
       languageModel: model,
       costGuard: new PgCostGuard(emptyCostDb()),
       messages: userMessage("こんにちは"),
@@ -337,7 +348,7 @@ describe("handleChat costGuard reservation and configured pricing [PrjOps:SPEC-I
     const res = await handleTestChat({
       getSession: sessionWithEmail,
       resolver: resolverWith([devopsManager]),
-      selectedPersona: "devops:PRF-G",
+      selectedPersona: "devops:PRF-G:global",
       languageModel: mockTextModel("表示を切り替えました。"),
       costGuard: new PgCostGuard(db),
       auditLogForDomain: (domain) => new PgAuditLog(db, domain === "devops" ? "devops_1y" : "prjops_5y"),

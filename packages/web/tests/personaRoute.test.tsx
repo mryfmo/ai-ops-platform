@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  cookie: "prjops:PRF-04",
+  cookie: "prjops:PRF-04:global",
   query: vi.fn(),
   auth: vi.fn(),
 }));
@@ -38,13 +38,28 @@ function request(body: string, origin?: string): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.cookie = "prjops:PRF-04";
+  mocks.cookie = "prjops:PRF-04:global";
   mocks.auth.mockResolvedValue({
-    user: { email: "user@example.com" },
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
     expires: "2099-01-01T00:00:00.000Z",
   });
   mocks.query.mockResolvedValue({
-    rows: [{ user_id: "U1", profile: "PRF-G", projects: ["PRJ-1"], active: true }],
+    rows: [
+      {
+        user_id: "U1",
+        profile: "PRF-G",
+        projects: [],
+        scope_mode: "global",
+        active: true,
+        backfill_state: "applied",
+      },
+    ],
   });
 });
 
@@ -60,7 +75,7 @@ describe("POST /api/persona [REQ-041 / SPEC-INT-068]", () => {
 
   it("Origin欠落・別サイト・same-site別originを403にする [REQ-041 / SPEC-INT-068]", async () => {
     for (const origin of [undefined, "https://evil.example", "https://other.dashboard.example"]) {
-      const response = await POST(request('{"persona":"devops:PRF-G"}', origin));
+      const response = await POST(request('{"persona":"devops:PRF-G:global"}', origin));
       expect(response.status).toBe(403);
       expect(await response.json()).toEqual({ error: "E-ORIGIN01: same-origin request required" });
     }
@@ -68,13 +83,13 @@ describe("POST /api/persona [REQ-041 / SPEC-INT-068]", () => {
   });
 
   it("exact same-originかつ保有中の選択だけを保存する [REQ-041 / SPEC-INT-068]", async () => {
-    const response = await POST(request('{"persona":"devops:PRF-G"}', "https://dashboard.example"));
+    const response = await POST(request('{"persona":"devops:PRF-G:global"}', "https://dashboard.example"));
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("aiops-persona=devops:PRF-G");
+    expect(response.headers.get("set-cookie")).toContain("aiops-persona=devops:PRF-G:global");
   });
 
   it("構文上正しい未保有・古いペルソナは403にする [REQ-041 / SPEC-INT-068]", async () => {
-    const response = await POST(request('{"persona":"prjops:PRF-04"}', "https://dashboard.example"));
+    const response = await POST(request('{"persona":"prjops:PRF-04:PJ-001"}', "https://dashboard.example"));
     expect(response.status).toBe(403);
     expect(response.headers.get("set-cookie")).toBeNull();
   });

@@ -12,11 +12,20 @@ import { handleProjects } from "../../src/server/reportData/projectsHandler";
 import { InMemoryPrjopsReportDataProvider } from "../../src/server/reportData/prjopsReportData";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "user@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 function emptyDb(): PgQueryable {
   return { query: vi.fn().mockResolvedValue({ rows: [] }) };
@@ -52,6 +61,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       {
         domain: "prjops",
         profile: "PRF-01",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "STK-001",
           recipientManagedProjectIds: [],
@@ -63,13 +73,14 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       {
         domain: "devops",
         profile: "PRF-L",
+        scope: { mode: "project", projectId: "PJ-002" },
         visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"] },
       },
     ];
     const res = await handleProjects({
       getSession: sessionWithEmail,
       resolver: resolverWith(personas),
-      selectedPersona: "devops:PRF-L",
+      selectedPersona: "devops:PRF-L:PJ-002",
       prjopsProvider: new InMemoryPrjopsReportDataProvider([], []),
       devopsDb: { query: vi.fn().mockResolvedValue({ rows: [{ project_id: "PRJ-0002" }] }) },
     });
@@ -81,6 +92,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       {
         domain: "prjops",
         profile: "PRF-01",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "STK-001",
           recipientManagedProjectIds: [],
@@ -122,6 +134,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       {
         domain: "devops",
         profile: "PRF-L",
+        scope: { mode: "project", projectId: "PJ-002" },
         visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0002"] },
       },
     ];
@@ -144,6 +157,7 @@ describe("handleProjects（正当なセッション: データ返却）", () => 
       {
         domain: "investor",
         profile: "investor",
+        scope: { mode: "project", projectId: "PJ-0001" },
         visibility: {
           recipientStakeholderId: "STK-INV",
           recipientManagedProjectIds: [],

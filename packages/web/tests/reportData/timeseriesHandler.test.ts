@@ -10,10 +10,19 @@ import type { PersonaResolver, ResolvedPersona } from "../../src/server/personaR
 import { handleTimeseries } from "../../src/server/reportData/timeseriesHandler";
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "exec@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 describe("handleTimeseries (ADR-0007)", () => {
@@ -22,6 +31,7 @@ describe("handleTimeseries (ADR-0007)", () => {
       {
         domain: "prjops",
         profile: "PRF-03",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "ST-001",
           recipientManagedProjectIds: ["PJ-001"],
@@ -92,6 +102,7 @@ describe("handleTimeseries (ADR-0007)", () => {
       {
         domain: "prjops",
         profile: "PRF-03",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "ST-001",
           recipientManagedProjectIds: ["PJ-001"],
@@ -116,6 +127,7 @@ describe("handleTimeseries (ADR-0007)", () => {
       {
         domain: "devops",
         profile: "PRF-G",
+        scope: { mode: "global", projectId: null },
         visibility: {
           recipientUserId: "ST-001",
           recipientAssignedProjectIds: [],

@@ -13,11 +13,11 @@ declare module "*.css";
 declare module "next-auth" {
   interface Session {
     user?: DefaultSession["user"] & {
-      subject?: {
+      subject: {
         tenantId: string;
         objectId: string;
       };
-      roles?: string[];
+      roles: string[];
     };
   }
 }

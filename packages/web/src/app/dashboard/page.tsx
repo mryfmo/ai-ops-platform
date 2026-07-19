@@ -1,7 +1,7 @@
 /**
  * packages/web/src/app/dashboard/page.tsx
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。resolveByEmail結果と検証済みの選択ペルソナに応じて
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-054。resolveBySubject結果と検証済みの選択ペルソナに応じて
  *   ペルソナ別ビューの初期データを取得するサーバーコンポーネント。
  *
  *   - PRF-04（経営陣）: ExecutiveSevenKeysView（セブンキー）
@@ -26,7 +26,15 @@ import { DashboardClient } from "../../components/DashboardClient";
 import { PersonaSelector } from "../../components/PersonaSelector";
 import { loadWebConfig } from "../../server/config";
 import { getPool } from "../../server/db/pool";
-import { ForbiddenError, PERSONA_COOKIE, personaKey, selectPersona } from "../../server/authGuard";
+import {
+  ConflictError,
+  ForbiddenError,
+  PERSONA_COOKIE,
+  UnauthorizedError,
+  personaKey,
+  requireSession,
+  selectPersona,
+} from "../../server/authGuard";
 import {
   CompositePersonaResolver,
   DevopsPersonaSource,
@@ -48,9 +56,12 @@ function defaultPeriod(): { periodStart: string; periodEnd: string } {
 }
 
 export default async function DashboardPage() {
-  const session = await auth();
-  if (!session?.user?.email) {
-    redirect("/login");
+  let session;
+  try {
+    session = await requireSession(auth);
+  } catch (error) {
+    if (error instanceof UnauthorizedError) redirect("/login");
+    throw error;
   }
 
   const config = loadWebConfig();
@@ -59,14 +70,14 @@ export default async function DashboardPage() {
     new DevopsPersonaSource(pool),
     new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
   );
-  const personas = await resolver.resolveByEmail(session.user.email);
+  const personas = await resolver.resolveBySubject(session.user.subject);
 
   if (personas.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">ダッシュボード</h1>
         <Card title="表示できるペルソナがありません">
-          <p className="text-sm text-gray-600">{session.user.email} に紐づくペルソナが見つかりませんでした。</p>
+          <p className="text-sm text-gray-600">現在利用できる割り当てが見つかりませんでした。</p>
         </Card>
       </div>
     );
@@ -75,18 +86,20 @@ export default async function DashboardPage() {
   const selectedPersona = (await cookies()).get(PERSONA_COOKIE)?.value;
   const options = personas.map((persona) => ({
     key: personaKey(persona),
-    label: `${persona.domain === "prjops" ? "PrjOps" : persona.domain === "devops" ? "DevOps" : "Investor"} ${persona.profile}`,
+    label: `${persona.domain === "prjops" ? "PrjOps" : persona.domain === "devops" ? "DevOps" : "Investor"} ${
+      persona.profile
+    } (${persona.scope.mode === "global" ? "global" : persona.scope.projectId})`,
   }));
   let persona;
   try {
     persona = selectPersona(personas, selectedPersona);
   } catch (err) {
-    if (!(err instanceof ForbiddenError)) throw err;
+    if (!(err instanceof ForbiddenError) && !(err instanceof ConflictError)) throw err;
     return (
       <div className="space-y-6">
         <PersonaSelector options={options} />
-        <Card title="選択したペルソナを利用できません">
-          <p className="text-sm text-gray-600">現在割り当てられているペルソナを選び直してください。</p>
+        <Card title={err instanceof ConflictError ? "ペルソナを選択してください" : "選択したペルソナを利用できません"}>
+          <p className="text-sm text-gray-600">現在利用できる割り当てから選択してください。</p>
         </Card>
       </div>
     );
