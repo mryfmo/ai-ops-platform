@@ -259,9 +259,9 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
       (candidate) =>
         candidate.domain === "prjops" &&
         candidate.active &&
-        candidate.scope_mode === "project" &&
-        candidate.project_id === projectId &&
-        candidate.profile !== "investor",
+        candidate.profile !== "investor" &&
+        ((candidate.scope_mode === "project" && candidate.project_id === projectId) ||
+          (candidate.scope_mode === "global" && candidate.profile === "PRF-04")),
     );
     return assignments.length === 1 ? (assignments[0]!.profile as Profile) : null;
   }

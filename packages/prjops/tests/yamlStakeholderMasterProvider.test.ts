@@ -123,6 +123,29 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
     await expect(provider.findProfileByTeamsUserId(null, "PJ-001")).resolves.toBeNull();
   });
 
+  it("global PRF-04を全projectで解決し、project assignmentとの競合はfail closedにする [PrjOps:REQ-041]", async () => {
+    const global = [
+      "  - domain: prjops",
+      "    profile: PRF-04",
+      "    scope_mode: global",
+      "    project_id: null",
+      "    active: true",
+    ].join("\n");
+    const globalOnly = fakeFs({ "ST-010.yaml": yaml("ST-010", "exec@example.com", global) });
+    await expect(
+      new YamlStakeholderMasterProvider("/data/stakeholders", globalOnly.fs).findProfileByTeamsUserId(
+        "teams-ST-010",
+        "PJ-999",
+      ),
+    ).resolves.toBe("PRF-04");
+
+    const project = "  - project_id: PJ-001\n    profile: PRF-02";
+    const mixed = fakeFs({ "ST-010.yaml": yaml("ST-010", "exec@example.com", `${global}\n${project}`) });
+    const provider = new YamlStakeholderMasterProvider("/data/stakeholders", mixed.fs);
+    await expect(provider.findProfileByTeamsUserId("teams-ST-010", "PJ-001")).resolves.toBeNull();
+    await expect(provider.findProfileByTeamsUserId("teams-ST-010", "PJ-999")).resolves.toBe("PRF-04");
+  });
+
   it("email変更後も同じstable subjectならassignmentを解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {
     const { fs } = fakeFs({ "ST-1000.yaml": yaml("ST-1000", "  YAMADA@Example.COM  ") });
     const records = await new YamlStakeholderMasterProvider("/data/stakeholders", fs).findBySubject(SUBJECT);
