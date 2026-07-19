@@ -1,7 +1,8 @@
 /**
  * packages/web/src/app/dashboard/page.tsx
  *
- * 根拠: P010-F02-T08 / ADR-0005 / DevOps:SPEC-INT-054。resolveBySubject結果と検証済みの選択ペルソナに応じて
+ * 根拠: P010-F02-T10 / DEC-SPEC-008 / P010-F02-T08 / ADR-0005 / DevOps:SPEC-INT-054。
+ * resolveBySubject結果と検証済みの選択ペルソナ・projectに応じて
  *   ペルソナ別ビューの初期データを取得するサーバーコンポーネント。
  *
  *   - PRF-04（経営陣）: ExecutiveSevenKeysView（セブンキー）
@@ -21,6 +22,7 @@ import { auth } from "../../auth";
 import { Card } from "../../components/ui/Card";
 import { DashboardClient } from "../../components/DashboardClient";
 import { PersonaSelector } from "../../components/PersonaSelector";
+import { ProjectPicker } from "../../components/ProjectPicker";
 import { loadWebConfig } from "../../server/config";
 import { getPool } from "../../server/db/pool";
 import {
@@ -37,12 +39,20 @@ import {
   buildExecutiveSummary,
   buildInvestorSummary,
   buildManagerSummary,
+  listScopedProjectSummaries,
 } from "../../server/reportData/prjopsReportData";
-import { buildDevOpsManagerSummary } from "../../server/reportData/devopsReportData";
+import { buildDevOpsManagerSummary, listDevOpsScopedProjectSummaries } from "../../server/reportData/devopsReportData";
 import {
   createPinnedPrjopsReportDataProvider,
   PrjopsDataUnavailableError,
 } from "../../server/reportData/pinnedPrjopsReportDataProvider";
+import {
+  canonicalProjectOptions,
+  parseProjectSelection,
+  portfolioAllowedForPersona,
+  ProjectSelectionError,
+  resolveProjectSelection,
+} from "../../server/projectSelection";
 
 function defaultPeriod(): { periodStart: string; periodEnd: string } {
   const periodEnd = new Date();
@@ -50,7 +60,11 @@ function defaultPeriod(): { periodStart: string; periodEnd: string } {
   return { periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString() };
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
   let session;
   try {
     session = await requireSession(auth);
@@ -111,6 +125,57 @@ export default async function DashboardPage() {
     );
   }
   const selector = <PersonaSelector options={options} selectedKey={personaKey(persona)} />;
+  const projectValue = (await searchParams)?.["project"];
+  const portfolioAllowed = portfolioAllowedForPersona(persona);
+  const selectionError = (error: ProjectSelectionError, projects: Array<{ id: string; name: string }>) => (
+    <div className="space-y-6">
+      {selector}
+      <ProjectPicker projects={projects} portfolioAllowed={portfolioAllowed} error={error.message} />
+      <Card
+        title={
+          error.status === 409
+            ? "プロジェクトを選択してください"
+            : error.status === 400
+              ? "プロジェクト指定が正しくありません"
+              : "選択したプロジェクトを利用できません"
+        }
+      >
+        <p className="text-sm text-gray-600">現在利用できるプロジェクトから選択してください。</p>
+      </Card>
+    </div>
+  );
+
+  try {
+    parseProjectSelection(projectValue);
+  } catch (error) {
+    if (!(error instanceof ProjectSelectionError)) throw error;
+    return selectionError(error, []);
+  }
+
+  const scopedProjects =
+    persona.domain === "devops"
+      ? await listDevOpsScopedProjectSummaries(pool, persona.profile, persona.visibility)
+      : await listScopedProjectSummaries(
+          provider,
+          persona.domain === "investor" ? "PRF-05" : persona.profile,
+          persona.visibility,
+        );
+  const sortedProjects = canonicalProjectOptions(scopedProjects);
+  let projectSelection;
+  try {
+    projectSelection = resolveProjectSelection(projectValue, sortedProjects, portfolioAllowed);
+  } catch (error) {
+    if (!(error instanceof ProjectSelectionError)) throw error;
+    return selectionError(error, sortedProjects);
+  }
+  const projectPicker = (
+    <ProjectPicker
+      projects={projectSelection.options}
+      portfolioAllowed={portfolioAllowed}
+      selected={projectSelection.selected}
+      autoSelected={projectSelection.autoSelected}
+    />
+  );
   const { periodStart, periodEnd } = defaultPeriod();
 
   if (persona.domain === "prjops" && persona.profile === "PRF-04") {
@@ -118,6 +183,7 @@ export default async function DashboardPage() {
     return (
       <>
         {selector}
+        {projectPicker}
         <DashboardClient
           initialViewSpec={{ kind: "executiveSummary" }}
           initialData={{
@@ -134,6 +200,7 @@ export default async function DashboardPage() {
     return (
       <>
         {selector}
+        {projectPicker}
         <DashboardClient
           initialViewSpec={{ kind: "investorSummary" }}
           initialData={{ kind: "investorSummary", data: summary }}
@@ -147,6 +214,7 @@ export default async function DashboardPage() {
     return (
       <>
         {selector}
+        {projectPicker}
         <DashboardClient
           initialViewSpec={{ kind: "managerSummary" }}
           initialData={{ kind: "managerSummary", domain: "prjops", data: summary }}
@@ -160,6 +228,7 @@ export default async function DashboardPage() {
     return (
       <>
         {selector}
+        {projectPicker}
         <DashboardClient
           initialViewSpec={{ kind: "managerSummary" }}
           initialData={{
@@ -185,6 +254,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {selector}
+      {projectPicker}
       <h1 className="text-2xl font-bold">ダッシュボード</h1>
       <Card
         title={`${persona.domain === "prjops" ? "PrjOps" : persona.domain === "devops" ? "DevOps" : "Investor"} ${

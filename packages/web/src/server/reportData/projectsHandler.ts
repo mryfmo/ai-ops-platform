@@ -1,7 +1,8 @@
 /**
  * packages/web/src/server/reportData/projectsHandler.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。GET /api/data/projects のハンドラ本体。
+ * 根拠: P010-F02-T10 / DEC-SPEC-008 / ADR-0005（WebUIダッシュボード）。
+ * GET /api/data/projects のハンドラ本体。
  *   全ペルソナ共通。スコープ内プロジェクト一覧を {id,name}[] のみで返す（数値を一切含まない）。
  *
  * 認可: requireSession（未認証401）→ requirePersona()（該当ペルソナなし403）を経由する。
@@ -16,6 +17,7 @@ import type { PersonaResolver } from "../personaResolver";
 import { resolvePersonas, toErrorResponse } from "./dataApiSupport";
 import { listScopedProjectSummaries, type PrjopsReportDataProvider } from "./prjopsReportData";
 import { listDevOpsScopedProjectSummaries } from "./devopsReportData";
+import { canonicalProjectOptions, portfolioAllowedForPersona } from "../projectSelection";
 
 export interface ProjectsHandlerDeps {
   getSession: () => Promise<Session | null>;
@@ -25,21 +27,31 @@ export interface ProjectsHandlerDeps {
   selectedPersona?: string;
 }
 
-export async function handleProjects(deps: ProjectsHandlerDeps): Promise<Response> {
+export function rejectUnexpectedProjectParameter(request?: Request): Response | undefined {
+  if (request && new URL(request.url).searchParams.has("project")) {
+    return Response.json({ error: "E-AUTH05: unexpected_project_parameter" }, { status: 400 });
+  }
+  return undefined;
+}
+
+export async function handleProjects(deps: ProjectsHandlerDeps, request?: Request): Promise<Response> {
   try {
+    const rejection = rejectUnexpectedProjectParameter(request);
+    if (rejection) return rejection;
     const [persona] = await resolvePersonas(deps.getSession, deps.resolver, undefined, deps.selectedPersona);
+    const portfolioAllowed = portfolioAllowedForPersona(persona!);
 
     if (persona!.domain === "prjops") {
       const projects = await listScopedProjectSummaries(deps.prjopsProvider, persona!.profile, persona!.visibility);
-      return Response.json({ domain: "prjops", projects });
+      return Response.json({ domain: "prjops", projects: canonicalProjectOptions(projects), portfolioAllowed });
     }
     if (persona!.domain === "investor") {
       const projects = await listScopedProjectSummaries(deps.prjopsProvider, "PRF-05", persona!.visibility);
-      return Response.json({ domain: "investor", projects });
+      return Response.json({ domain: "investor", projects: canonicalProjectOptions(projects), portfolioAllowed });
     }
 
     const projects = await listDevOpsScopedProjectSummaries(deps.devopsDb, persona!.profile, persona!.visibility);
-    return Response.json({ domain: "devops", projects });
+    return Response.json({ domain: "devops", projects: canonicalProjectOptions(projects), portfolioAllowed });
   } catch (err) {
     return toErrorResponse(err);
   }
