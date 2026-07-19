@@ -1,13 +1,12 @@
 /**
  * packages/web/tests/authGuard.test.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。/api/data/* や /api/chat が今後利用する
- *   認可ゲート（requireSession/requirePersona）のユニットテスト。
- *   未認証・該当ペルソナなしのハンドリングを検証する。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-054 / PrjOps:REQ-041。
  */
 import { describe, expect, it } from "vitest";
 import type { Session } from "next-auth";
 import {
+  ConflictError,
   ForbiddenError,
   UnauthorizedError,
   personaKey,
@@ -18,118 +17,104 @@ import {
 } from "../src/server/authGuard";
 import type { PersonaResolver, ResolvedPersona } from "../src/server/personaResolver";
 
-describe("requireSession（ADR-0005: 未認証のハンドリング）", () => {
-  it("セッションが無い場合 UnauthorizedError(401) を投げる", async () => {
-    await expect(requireSession(async () => null)).rejects.toMatchObject({
-      status: 401,
-    });
+const subject = {
+  tenantId: "11111111-1111-1111-1111-111111111111",
+  objectId: "22222222-2222-2222-2222-222222222222",
+};
+const manager: ResolvedPersona = {
+  domain: "devops",
+  profile: "PRF-G",
+  scope: { mode: "global", projectId: null },
+  visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+};
+
+function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
+  return { resolveBySubject: async () => personas };
+}
+
+describe("requireSession [DevOps:SPEC-INT-054]", () => {
+  it("sessionまたはstable subjectが無ければ401にする", async () => {
     await expect(requireSession(async () => null)).rejects.toBeInstanceOf(UnauthorizedError);
+    await expect(
+      requireSession(async () => ({ user: { email: "legacy@example.com" }, expires: "2099-01-01" }) as Session),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
-  it("セッションはあるがemailが無い場合も UnauthorizedError を投げる", async () => {
-    const session = { user: {}, expires: "2099-01-01T00:00:00.000Z" } as Session;
-    await expect(requireSession(async () => session)).rejects.toBeInstanceOf(UnauthorizedError);
-  });
-
-  it("email付きセッションがあればそのまま返す", async () => {
-    const session = {
-      user: { email: "user@example.com" },
-      expires: "2099-01-01T00:00:00.000Z",
-    } as Session;
+  it("stable subjectとroles付きsessionだけを認証済みcallerとして返す", async () => {
+    const session = { user: { subject, roles: ["Reader"] }, expires: "2099-01-01" } as Session;
     const result = await requireSession(async () => session);
-    expect(result.user?.email).toBe("user@example.com");
+    expect(result.user.subject).toEqual(subject);
+    expect(result.user.roles).toEqual(["Reader"]);
   });
 });
 
-describe("requirePersona（ADR-0005: 該当ペルソナなしのハンドリング）", () => {
-  function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-    return { resolveByEmail: async () => personas };
-  }
-
-  it("該当ペルソナが0件の場合 ForbiddenError(403) を投げる", async () => {
+describe("requirePersona [PrjOps:REQ-041 / DevOps:SPEC-INT-054]", () => {
+  it("stable subjectで毎回解決し0件なら403にする", async () => {
     const resolver = resolverWith([]);
-    await expect(requirePersona("nobody@example.com", resolver)).rejects.toMatchObject({
-      status: 403,
+    await expect(requirePersona(subject, resolver)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("1件だけなら選択省略で自動選択する", async () => {
+    await expect(requirePersona(subject, resolverWith([manager]))).resolves.toEqual([manager]);
+  });
+
+  it("複数件で選択省略ならE-AUTH03の409にする", async () => {
+    const second: ResolvedPersona = {
+      domain: "devops",
+      profile: "PRF-L",
+      scope: { mode: "project", projectId: "PJ-001" },
+      visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PJ-001"] },
+    };
+    await expect(requirePersona(subject, resolverWith([manager, second]))).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("E-AUTH03"),
     });
-    await expect(requirePersona("nobody@example.com", resolver)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(requirePersona(subject, resolverWith([manager, second]))).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it("該当ペルソナがある場合はそのまま返す", async () => {
-    const personas: ResolvedPersona[] = [
-      {
-        domain: "devops",
-        profile: "PRF-G",
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+  it("全domainの単一性を先に判定し、exact assignmentだけを選ぶ", async () => {
+    const executive: ResolvedPersona = {
+      domain: "prjops",
+      profile: "PRF-04",
+      scope: { mode: "project", projectId: "PJ-002" },
+      visibility: {
+        recipientStakeholderId: "ST-1",
+        recipientManagedProjectIds: [],
+        recipientAssignedProjectIds: [],
+        recipientParticipatingProjectIds: [],
+        investedProjectIds: [],
       },
-    ];
-    const resolver = resolverWith(personas);
-    const result = await requirePersona("user@example.com", resolver);
-    expect(result).toEqual(personas);
-  });
-
-  it("domain指定時は該当ドメインのみへ絞り込み、絞り込んだ結果が0件ならForbiddenError", async () => {
-    const personas: ResolvedPersona[] = [
-      {
-        domain: "prjops",
-        profile: "PRF-01",
-        visibility: {
-          recipientStakeholderId: "STK-001",
-          recipientManagedProjectIds: [],
-          recipientAssignedProjectIds: [],
-          recipientParticipatingProjectIds: [],
-          investedProjectIds: [],
-        },
-      },
-    ];
-    const resolver = resolverWith(personas);
-    await expect(requirePersona("user@example.com", resolver, "devops")).rejects.toBeInstanceOf(ForbiddenError);
-    const result = await requirePersona("user@example.com", resolver, "prjops");
-    expect(result).toEqual(personas);
-  });
-
-  it("申告ペルソナが現在の保有ペルソナに無ければ403にする [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
-    const personas: ResolvedPersona[] = [
-      {
-        domain: "devops",
-        profile: "PRF-G",
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
-      },
-    ];
-    await expect(
-      requirePersona("user@example.com", resolverWith(personas), undefined, "prjops:PRF-04"),
-    ).rejects.toMatchObject({
-      status: 403,
-    });
-  });
-
-  it("entitlement削除後の古い選択も毎回再解決して403にする [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
-    const resolver: PersonaResolver = { resolveByEmail: async () => [] };
-    await expect(requirePersona("user@example.com", resolver, undefined, "devops:PRF-G")).rejects.toBeInstanceOf(
-      ForbiddenError,
+    };
+    await expect(requirePersona(subject, resolverWith([manager, executive]), "prjops")).rejects.toBeInstanceOf(
+      ConflictError,
     );
+    await expect(
+      requirePersona(subject, resolverWith([manager, executive]), "prjops", "prjops:PRF-04:PJ-002"),
+    ).resolves.toEqual([executive]);
+    await expect(
+      requirePersona(subject, resolverWith([manager, executive]), undefined, "prjops:PRF-04:PJ-999"),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      requirePersona(subject, resolverWith([manager, executive]), undefined, "prjops:PRF-04:PJ-002"),
+    ).resolves.toEqual([executive]);
   });
 
-  it("選択省略時は先頭、正当な選択時は該当ペルソナを返す [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
-    const personas: ResolvedPersona[] = [
-      {
-        domain: "devops",
-        profile: "PRF-L",
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
-      },
-      {
-        domain: "devops",
-        profile: "PRF-G",
-        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
-      },
-    ];
-    expect(selectPersona(personas)).toBe(personas[0]);
-    expect(personaKey(selectPersona(personas, "devops:PRF-G"))).toBe("devops:PRF-G");
+  it("selector keyはdomain/profile/projectまたはglobalを含む", () => {
+    const project: ResolvedPersona = {
+      domain: "devops",
+      profile: "PRF-L",
+      scope: { mode: "project", projectId: "PJ-001" },
+      visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PJ-001"] },
+    };
+    expect(personaKey(manager)).toBe("devops:PRF-G:global");
+    expect(personaKey(project)).toBe("devops:PRF-L:PJ-001");
+    expect(selectPersona([manager], "devops:PRF-G:global")).toBe(manager);
   });
 
-  it("API requestの選択Cookieを読み取る [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", () => {
+  it("API requestの選択Cookieを読み取る", () => {
     const request = new Request("https://example.test/app/api/data/projects", {
-      headers: { cookie: "other=x; aiops-persona=devops:PRF-G" },
+      headers: { cookie: "other=x; aiops-persona=devops:PRF-G:global" },
     });
-    expect(selectedPersonaFromRequest(request)).toBe("devops:PRF-G");
+    expect(selectedPersonaFromRequest(request)).toBe("devops:PRF-G:global");
   });
 });

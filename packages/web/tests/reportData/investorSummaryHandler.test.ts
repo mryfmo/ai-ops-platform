@@ -5,11 +5,20 @@ import { handleInvestorSummary } from "../../src/server/reportData/investorSumma
 import { InMemoryPrjopsReportDataProvider } from "../../src/server/reportData/prjopsReportData";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "investor@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 describe("handleInvestorSummary [REQ-039, SPEC-INT-066, AC-039-1]", () => {
   it("AC-039-1: investorペルソナで投資家サマリを返す", async () => {
@@ -17,6 +26,7 @@ describe("handleInvestorSummary [REQ-039, SPEC-INT-066, AC-039-1]", () => {
       {
         domain: "investor",
         profile: "investor",
+        scope: { mode: "project", projectId: "PJ-0001" },
         visibility: {
           recipientStakeholderId: "STK-INV",
           recipientManagedProjectIds: [],
@@ -61,6 +71,7 @@ describe("handleInvestorSummary [REQ-039, SPEC-INT-066, AC-039-1]", () => {
         {
           domain: "prjops",
           profile: "PRF-03",
+          scope: { mode: "project", projectId: "PJ-0001" },
           visibility: {
             recipientStakeholderId: "STK-MGR",
             recipientManagedProjectIds: ["PRJ-0001"],

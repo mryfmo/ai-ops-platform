@@ -12,6 +12,7 @@ import { buildSystemPrompt } from "../../src/server/chat/systemPrompt";
 const prjopsExecutive: ResolvedPersona = {
   domain: "prjops",
   profile: "PRF-04",
+  scope: { mode: "global", projectId: null },
   visibility: {
     recipientStakeholderId: "STK-EXEC",
     recipientManagedProjectIds: [],
@@ -24,12 +25,14 @@ const prjopsExecutive: ResolvedPersona = {
 const devopsManager: ResolvedPersona = {
   domain: "devops",
   profile: "PRF-G",
+  scope: { mode: "global", projectId: null },
   visibility: { recipientUserId: "U-G", recipientAssignedProjectIds: [] },
 };
 
 const investor: ResolvedPersona = {
   domain: "investor",
   profile: "investor",
+  scope: { mode: "project", projectId: "PJ-001" },
   visibility: {
     recipientStakeholderId: "STK-INV",
     recipientManagedProjectIds: [],

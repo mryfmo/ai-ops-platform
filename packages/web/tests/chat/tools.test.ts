@@ -14,60 +14,77 @@ import { buildToolsForPersona } from "../../src/server/chat/tools";
 const prjopsExecutive: ResolvedPersona = {
   domain: "prjops",
   profile: "PRF-04",
+  scope: { mode: "global", projectId: null },
   visibility: {
     recipientStakeholderId: "STK-EXEC",
     recipientManagedProjectIds: [],
     recipientAssignedProjectIds: [],
     recipientParticipatingProjectIds: [],
     investedProjectIds: [],
+    scopeMode: "global",
   },
 };
 
 const prjopsManager: ResolvedPersona = {
   domain: "prjops",
   profile: "PRF-03",
+  scope: { mode: "project", projectId: "PJ-001" },
   visibility: {
     recipientStakeholderId: "STK-MGR",
     recipientManagedProjectIds: ["PJ-001"],
     recipientAssignedProjectIds: [],
     recipientParticipatingProjectIds: [],
     investedProjectIds: [],
+    scopeMode: "project",
   },
 };
 
 const prjopsMember: ResolvedPersona = {
   domain: "prjops",
   profile: "PRF-01",
+  scope: { mode: "project", projectId: "PJ-001" },
   visibility: {
     recipientStakeholderId: "STK-MEM",
     recipientManagedProjectIds: [],
     recipientAssignedProjectIds: [],
     recipientParticipatingProjectIds: [],
     investedProjectIds: [],
+    scopeMode: "project",
   },
 };
 
 const devopsManager: ResolvedPersona = {
   domain: "devops",
   profile: "PRF-G",
-  visibility: { recipientUserId: "U-G", recipientAssignedProjectIds: [] },
+  scope: { mode: "global", projectId: null },
+  visibility: { recipientUserId: "U-G", recipientAssignedProjectIds: [], scopeMode: "global" },
 };
 
 const devopsMember: ResolvedPersona = {
   domain: "devops",
   profile: "PRF-M",
-  visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: ["PJ-002"] },
+  scope: { mode: "project", projectId: "PJ-002" },
+  visibility: { recipientUserId: "U-M", recipientAssignedProjectIds: ["PJ-002"], scopeMode: "project" },
+};
+
+const projectScopedDevopsManager: ResolvedPersona = {
+  domain: "devops",
+  profile: "PRF-G",
+  scope: { mode: "project", projectId: "PJ-002" },
+  visibility: { recipientUserId: "U-G", recipientAssignedProjectIds: ["PJ-002"], scopeMode: "project" },
 };
 
 const investor: ResolvedPersona = {
   domain: "investor",
   profile: "investor",
+  scope: { mode: "project", projectId: "PJ-003" },
   visibility: {
     recipientStakeholderId: "STK-INV",
     recipientManagedProjectIds: [],
     recipientAssignedProjectIds: [],
     recipientParticipatingProjectIds: [],
-    investedProjectIds: ["PRJ-0001"],
+    investedProjectIds: ["PJ-003"],
+    scopeMode: "project",
   },
 };
 
@@ -263,6 +280,16 @@ describe("show_project_board tool [PrjOps:REQ-041 / PrjOps:SPEC-INT-068]", () =>
     );
     await expect(
       tool.execute!({ projectId: "PJ-001" }, { toolCallId: "board-member-foreign", messages: [] }),
+    ).rejects.toThrow(/scope/i);
+  });
+
+  it("project-scoped PRF-Gはassigned project以外を拒否する [DevOps:SPEC-INT-054]", async () => {
+    const tool = buildToolsForPersona(projectScopedDevopsManager)["show_project_board"]!;
+    await expect(
+      tool.execute!({ projectId: "PJ-002" }, { toolCallId: "board-manager", messages: [] }),
+    ).resolves.toEqual({ kind: "projectBoard", projectId: "PJ-002" });
+    await expect(
+      tool.execute!({ projectId: "PJ-001" }, { toolCallId: "board-manager-foreign", messages: [] }),
     ).rejects.toThrow(/scope/i);
   });
 

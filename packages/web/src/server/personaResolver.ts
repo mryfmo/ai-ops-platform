@@ -1,134 +1,193 @@
 /**
  * packages/web/src/server/personaResolver.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード：ペルソナ別表示切替の起点）。
- *   - DevOps側: packages/devops/src/lib/reportPermissionFilter.ts の Profile
- *     （PRF-M/L/G）・DevOpsVisibilityContext・RecipientRecord・isActiveRecipient を用いる。
- *     recipientsテーブル（packages/devops/src/db/schema.sql）を **リクエスト毎に** 照会する
- *     （CLAUDE.md設計原則6: recipientsのactive判定はリクエスト毎、キャッシュ禁止）。
- *   - PrjOps側: packages/prjops/src/lib/reportPermissionFilter.ts の Profile
- *     （PRF-01〜05）・ProjectVisibilityContext を用いる。ステークホルダーマスタは
- *     本リポジトリ外（prjops-dataリポジトリのYAML）にあるため、StakeholderMasterProvider
- *     インターフェースで抽象化する。
- *
- * 残課題: StakeholderMasterProvider の本番実装（prjops-dataリポジトリからのYAML取得）は
- *   本タスクでは行わない。InMemoryStakeholderMasterProvider は開発/テスト用フィクスチャに限る。
- *   本番運用前に YamlStakeholderMasterProvider 等の実装を別タスクで追加すること。
- *
- * DB接続は @aiops/shared の PgQueryable（pg.Pool / pg.Client と構造的に互換な最小
- * クエリインターフェース）を注入する形にし、web パッケージのユニットテストは
- * ネットワーク・実DBなしで実行できるようにする（既存 FetchLike パターン踏襲）。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-054 / PrjOps:REQ-041。
+ * validated Entra stable subject と request-time active assignment の積だけを persona にする。
  */
-import type { PgQueryable } from "@aiops/shared";
+import { isValidId, type PgQueryable } from "@aiops/shared";
 import type { Profile as DevopsProfile, DevOpsVisibilityContext } from "@aiops/devops";
 import type { Profile as PrjopsProfile, ProjectVisibilityContext } from "@aiops/prjops";
+import type { EntraCaller } from "./entraClaims";
 
+export type EntraSubject = EntraCaller["subject"];
+export type PersonaScope = { mode: "project"; projectId: string } | { mode: "global"; projectId: null };
+
+type PersonaBase = { scope: PersonaScope };
 export type ResolvedPersona =
-  | { domain: "prjops"; profile: PrjopsProfile; visibility: ProjectVisibilityContext }
-  | { domain: "investor"; profile: "investor"; visibility: ProjectVisibilityContext }
-  | { domain: "devops"; profile: DevopsProfile; visibility: DevOpsVisibilityContext };
+  | (PersonaBase & { domain: "prjops"; profile: PrjopsProfile; visibility: ProjectVisibilityContext })
+  | (PersonaBase & { domain: "investor"; profile: "investor"; visibility: ProjectVisibilityContext })
+  | (PersonaBase & { domain: "devops"; profile: DevopsProfile; visibility: DevOpsVisibilityContext });
 
 export interface PersonaResolver {
-  resolveByEmail(email: string): Promise<ResolvedPersona[]>;
+  resolveBySubject(subject: EntraSubject): Promise<ResolvedPersona[]>;
 }
 
-/**
- * DevOps recipients テーブルからペルソナを解決する。
- * REQ-024 AC-024a（配信名簿から外れた宛先には配信しない）と同じ制約をWebUIでも維持するため、
- * active=false のレコードは除外する。呼び出しの都度DBへ問い合わせ、結果をフィールドに
- * キャッシュしない（recipientsの状態は運用中に変わりうるため）。
- */
+const DEVOPS_PROFILES = new Set<DevopsProfile>(["PRF-M", "PRF-L", "PRF-G"]);
+const PROFILE_ORDER = new Map<string, number>([
+  ["PRF-01", 0],
+  ["PRF-M", 1],
+  ["PRF-02", 2],
+  ["PRF-L", 3],
+  ["PRF-03", 4],
+  ["PRF-G", 5],
+  ["PRF-04", 6],
+  ["PRF-05", 7],
+  ["investor", 7],
+]);
+
+function sameSubject(left: EntraSubject, right: EntraSubject): boolean {
+  return left.tenantId === right.tenantId && left.objectId === right.objectId;
+}
+
+function asciiCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function comparePersonas(left: ResolvedPersona, right: ResolvedPersona): number {
+  const profile = (PROFILE_ORDER.get(left.profile) ?? 99) - (PROFILE_ORDER.get(right.profile) ?? 99);
+  if (profile !== 0) return profile;
+  const domain = asciiCompare(left.domain, right.domain);
+  if (domain !== 0) return domain;
+  if (left.scope.mode !== right.scope.mode) return left.scope.mode === "project" ? -1 : 1;
+  return left.scope.mode === "project" && right.scope.mode === "project"
+    ? asciiCompare(left.scope.projectId, right.scope.projectId)
+    : 0;
+}
+
+/** recipients を stable subject と active/applied 条件で毎リクエスト照会する。 */
 export class DevopsPersonaSource {
   constructor(private readonly db: PgQueryable) {}
 
-  async resolveByEmail(email: string): Promise<ResolvedPersona[]> {
-    const res = await this.db.query("SELECT user_id, profile, projects, active FROM recipients WHERE email = $1", [
-      email,
-    ]);
+  async resolveBySubject(subject: EntraSubject): Promise<ResolvedPersona[]> {
+    const result = await this.db.query(
+      `SELECT user_id, profile, projects, scope_mode, active, backfill_state
+         FROM recipients
+        WHERE entra_tenant_id = $1
+          AND entra_object_id = $2
+          AND active = TRUE
+          AND backfill_state = 'applied'`,
+      [subject.tenantId, subject.objectId],
+    );
+    if (result.rows.length !== 1) return [];
+
+    const row = result.rows[0]!;
+    if (row["active"] !== true || row["backfill_state"] !== "applied") return [];
+    if (typeof row["profile"] !== "string" || !DEVOPS_PROFILES.has(row["profile"] as DevopsProfile)) return [];
+    if (
+      !Array.isArray(row["projects"]) ||
+      row["projects"].some((id) => typeof id !== "string" || !isValidId("project", id))
+    ) {
+      return [];
+    }
+    const projects = row["projects"] as string[];
+    if (new Set(projects).size !== projects.length) return [];
+
+    const profile = row["profile"] as DevopsProfile;
+    const userId = typeof row["user_id"] === "string" ? row["user_id"] : "";
+    if (!userId) return [];
+    if (row["scope_mode"] === "global") {
+      if (profile !== "PRF-G" || projects.length !== 0) return [];
+      return [
+        {
+          domain: "devops",
+          profile,
+          scope: { mode: "global", projectId: null },
+          visibility: { recipientUserId: userId, recipientAssignedProjectIds: [], scopeMode: "global" },
+        },
+      ];
+    }
+    if (row["scope_mode"] !== "project" || projects.length === 0) return [];
+    return [...projects].sort(asciiCompare).map((projectId) => ({
+      domain: "devops" as const,
+      profile,
+      scope: { mode: "project" as const, projectId },
+      visibility: { recipientUserId: userId, recipientAssignedProjectIds: [projectId], scopeMode: "project" },
+    }));
+  }
+}
+
+/** PrjOps master の active assignment 1件。email は配送属性であり認可入力に含めない。 */
+export interface StakeholderRecord {
+  stakeholderId: string;
+  subject: EntraSubject;
+  active: boolean;
+  assignmentActive: boolean;
+  domain: "prjops" | "investor";
+  profile: PrjopsProfile | "investor";
+  scope: PersonaScope;
+}
+
+export interface StakeholderMasterProvider {
+  findBySubject(subject: EntraSubject): Promise<StakeholderRecord[]>;
+}
+
+/** 開発/テスト用。production composition では YAML provider に差し替える。 */
+export class InMemoryStakeholderMasterProvider implements StakeholderMasterProvider {
+  constructor(private readonly records: StakeholderRecord[] = []) {}
+
+  async findBySubject(subject: EntraSubject): Promise<StakeholderRecord[]> {
+    return this.records.filter((record) => sameSubject(record.subject, subject));
+  }
+}
+
+function prjopsVisibility(record: StakeholderRecord): ProjectVisibilityContext | undefined {
+  if (!record.active || !record.assignmentActive) return undefined;
+  if (record.scope.mode === "global") {
+    if (record.domain !== "prjops" || record.profile !== "PRF-04") return undefined;
+    return {
+      recipientStakeholderId: record.stakeholderId,
+      recipientManagedProjectIds: [],
+      recipientAssignedProjectIds: [],
+      recipientParticipatingProjectIds: [],
+      investedProjectIds: [],
+      scopeMode: "global",
+    };
+  }
+  if (!isValidId("project", record.scope.projectId)) return undefined;
+  const projectId = record.scope.projectId;
+  return {
+    recipientStakeholderId: record.stakeholderId,
+    recipientManagedProjectIds: record.profile === "PRF-03" || record.profile === "PRF-04" ? [projectId] : [],
+    recipientAssignedProjectIds: record.profile === "PRF-02" ? [projectId] : [],
+    recipientParticipatingProjectIds: record.profile === "PRF-01" ? [projectId] : [],
+    investedProjectIds: record.profile === "PRF-05" || record.profile === "investor" ? [projectId] : [],
+    scopeMode: "project",
+  };
+}
+
+export class PrjopsPersonaSource {
+  constructor(private readonly provider: StakeholderMasterProvider) {}
+
+  async resolveBySubject(subject: EntraSubject): Promise<ResolvedPersona[]> {
+    const records = await this.provider.findBySubject(subject);
     const personas: ResolvedPersona[] = [];
-    for (const row of res.rows) {
-      if (row["active"] !== true) continue;
-      const profile = row["profile"] as DevopsProfile;
-      const projects = Array.isArray(row["projects"]) ? (row["projects"] as string[]) : [];
-      const visibility: DevOpsVisibilityContext = {
-        recipientUserId: String(row["user_id"]),
-        recipientAssignedProjectIds: projects,
-      };
-      personas.push({ domain: "devops", profile, visibility });
+    for (const record of records) {
+      const visibility = prjopsVisibility(record);
+      if (!visibility) continue;
+      if (record.domain === "investor") {
+        if (record.profile !== "investor" && record.profile !== "PRF-05") continue;
+        personas.push({ domain: "investor", profile: "investor", scope: record.scope, visibility });
+      } else if (record.profile !== "investor" && record.profile !== "PRF-05") {
+        personas.push({ domain: "prjops", profile: record.profile, scope: record.scope, visibility });
+      } else if (record.profile === "PRF-05") {
+        personas.push({ domain: "investor", profile: "investor", scope: record.scope, visibility });
+      }
     }
     return personas;
   }
 }
 
-/** PrjOpsステークホルダーマスタの1レコード（prjops-dataリポジトリのYAML相当） */
-export interface StakeholderRecord {
-  stakeholderId: string;
-  email: string;
-  profile: PrjopsProfile | "investor";
-  managedProjectIds: string[];
-  assignedProjectIds: string[];
-  participatingProjectIds: string[];
-  investedProjectIds: string[];
-}
-
-/**
- * PrjOpsステークホルダーマスタへのアクセスを抽象化するインターフェース。
- * 本番実装（prjops-dataリポジトリのYAML取得）は残課題であり、本タスクでは実装しない。
- */
-export interface StakeholderMasterProvider {
-  findByEmail(email: string): Promise<StakeholderRecord[]>;
-}
-
-/**
- * 開発/テスト用のインメモリ実装。
- * 残課題: 本番運用では prjops-data リポジトリのYAMLを取得する実装
- * （例: YamlStakeholderMasterProvider）に差し替える必要がある。
- */
-export class InMemoryStakeholderMasterProvider implements StakeholderMasterProvider {
-  constructor(private readonly records: StakeholderRecord[] = []) {}
-
-  async findByEmail(email: string): Promise<StakeholderRecord[]> {
-    return this.records.filter((r) => r.email === email);
-  }
-}
-
-/** PrjOps側のペルソナ解決（StakeholderMasterProvider経由） */
-export class PrjopsPersonaSource {
-  constructor(private readonly provider: StakeholderMasterProvider) {}
-
-  async resolveByEmail(email: string): Promise<ResolvedPersona[]> {
-    const records = await this.provider.findByEmail(email);
-    return records.map((r) => {
-      const visibility: ProjectVisibilityContext = {
-        recipientStakeholderId: r.stakeholderId,
-        recipientManagedProjectIds: r.managedProjectIds,
-        recipientAssignedProjectIds: r.assignedProjectIds,
-        recipientParticipatingProjectIds: r.participatingProjectIds,
-        investedProjectIds: r.investedProjectIds,
-      };
-      if (r.profile === "PRF-05" || r.profile === "investor") {
-        return { domain: "investor", profile: "investor", visibility } as ResolvedPersona;
-      }
-      return { domain: "prjops", profile: r.profile, visibility } as ResolvedPersona;
-    });
-  }
-}
-
-/**
- * DevOps/PrjOps両ドメインのペルソナ解決を束ねる合成リゾルバ。
- * 該当ペルソナが1件もない場合は空配列を返す。
- */
 export class CompositePersonaResolver implements PersonaResolver {
   constructor(
     private readonly devopsSource: DevopsPersonaSource,
     private readonly prjopsSource: PrjopsPersonaSource,
   ) {}
 
-  async resolveByEmail(email: string): Promise<ResolvedPersona[]> {
+  async resolveBySubject(subject: EntraSubject): Promise<ResolvedPersona[]> {
     const [devopsPersonas, prjopsPersonas] = await Promise.all([
-      this.devopsSource.resolveByEmail(email),
-      this.prjopsSource.resolveByEmail(email),
+      this.devopsSource.resolveBySubject(subject),
+      this.prjopsSource.resolveBySubject(subject),
     ]);
-    return [...prjopsPersonas, ...devopsPersonas];
+    return [...devopsPersonas, ...prjopsPersonas].sort(comparePersonas);
   }
 }

@@ -12,11 +12,20 @@ import { handleManagerSummary } from "../../src/server/reportData/managerSummary
 import { InMemoryPrjopsReportDataProvider } from "../../src/server/reportData/prjopsReportData";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "mgr@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 function emptyDb(): PgQueryable {
   return { query: vi.fn().mockResolvedValue({ rows: [] }) };
@@ -40,7 +49,12 @@ describe("handleManagerSummary（未認証401）", () => {
 describe("handleManagerSummary（権限外403）", () => {
   it("PRF-03/PRF-Gいずれも無い場合403を返す", async () => {
     const personas: ResolvedPersona[] = [
-      { domain: "devops", profile: "PRF-M", visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] } },
+      {
+        domain: "devops",
+        profile: "PRF-M",
+        scope: { mode: "project", projectId: "PJ-001" },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+      },
     ];
     const res = await handleManagerSummary({
       getSession: sessionWithEmail,
@@ -59,6 +73,7 @@ describe("handleManagerSummary（正当なセッション: データ返却）", 
       {
         domain: "prjops",
         profile: "PRF-03",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "STK-001",
           recipientManagedProjectIds: ["PRJ-0001"],
@@ -99,7 +114,12 @@ describe("handleManagerSummary（正当なセッション: データ返却）", 
 
   it("PRF-Gペルソナがあれば（PRF-03が無い場合）DevOpsサマリを200で返す", async () => {
     const personas: ResolvedPersona[] = [
-      { domain: "devops", profile: "PRF-G", visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] } },
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        scope: { mode: "global", projectId: null },
+        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      },
     ];
     const db: PgQueryable = {
       query: vi.fn(async (text: string) => {
@@ -120,12 +140,18 @@ describe("handleManagerSummary（正当なセッション: データ返却）", 
     expect(body.totalProjectCount).toBe(1);
   });
 
-  it("PrjOps/DevOps両ペルソナを持つ場合PrjOps(PRF-03)を優先する", async () => {
+  it("PrjOps/DevOps両ペルソナを持つ場合exact selectorでPrjOps(PRF-03)を選ぶ", async () => {
     const personas: ResolvedPersona[] = [
-      { domain: "devops", profile: "PRF-G", visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] } },
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        scope: { mode: "global", projectId: null },
+        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      },
       {
         domain: "prjops",
         profile: "PRF-03",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "STK-001",
           recipientManagedProjectIds: [],
@@ -140,6 +166,7 @@ describe("handleManagerSummary（正当なセッション: データ返却）", 
       resolver: resolverWith(personas),
       prjopsProvider: new InMemoryPrjopsReportDataProvider([], []),
       devopsDb: emptyDb(),
+      selectedPersona: "prjops:PRF-03:PJ-001",
       ...basePeriod,
     });
     const body = await res.json();

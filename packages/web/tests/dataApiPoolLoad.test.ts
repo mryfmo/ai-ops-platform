@@ -10,7 +10,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { poolConstructor, query } = vi.hoisted(() => {
   const query = vi.fn(async (sql: string) => {
     if (sql.includes("FROM recipients")) {
-      return { rows: [{ user_id: "U1", profile: "PRF-G", projects: [], active: true }] };
+      return {
+        rows: [
+          {
+            user_id: "U1",
+            profile: "PRF-G",
+            projects: [],
+            scope_mode: "global",
+            active: true,
+            backfill_state: "applied",
+          },
+        ],
+      };
     }
     return { rows: [] };
   });
@@ -26,7 +37,16 @@ const { poolConstructor, query } = vi.hoisted(() => {
 
 vi.mock("pg", () => ({ default: { Pool: poolConstructor } }));
 vi.mock("../src/auth", () => ({
-  auth: async () => ({ user: { email: "manager@example.com" }, expires: "2099-01-01T00:00:00.000Z" }),
+  auth: async () => ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }),
 }));
 vi.mock("../src/server/config", () => ({ loadWebConfig: () => ({ DATABASE_URL: "postgresql://load-stub" }) }));
 

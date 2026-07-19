@@ -1,10 +1,8 @@
 /**
  * packages/web/tests/personaResolver.test.ts
  *
- * 根拠: ADR-0005（WebUIダッシュボード）。
- *   CLAUDE.md設計原則6（recipientsのactive判定はリクエスト毎、キャッシュ禁止）と
- *   devops/lib/reportPermissionFilter.ts の isActiveRecipient と同じ制約をWebUI側でも
- *   検証する。あわせて PrjOps側 InMemoryStakeholderMasterProvider の解決も検証する。
+ * 根拠: ADR-0005 / DevOps:SPEC-INT-054 / PrjOps:REQ-041。
+ * stable subject とリクエスト時点の active assignment の積だけが persona になることを検証する。
  */
 import { describe, expect, it, vi } from "vitest";
 import type { PgQueryable } from "@aiops/shared";
@@ -16,171 +14,229 @@ import {
   type StakeholderRecord,
 } from "../src/server/personaResolver";
 
+const SUBJECT = {
+  tenantId: "11111111-1111-1111-1111-111111111111",
+  objectId: "22222222-2222-2222-2222-222222222222",
+};
+const OTHER_SUBJECT = { ...SUBJECT, objectId: "33333333-3333-3333-3333-333333333333" };
+
 function fakeDb(rows: Array<Record<string, unknown>>): PgQueryable {
-  return {
-    query: vi.fn().mockResolvedValue({ rows }),
-  };
+  return { query: vi.fn().mockResolvedValue({ rows }) };
 }
 
-describe("DevopsPersonaSource（ADR-0005 / CLAUDE.md設計原則6: recipientsはリクエスト毎照会）", () => {
-  it("active=trueのrecipientsのみをdevopsペルソナとして解決する", async () => {
+describe("DevopsPersonaSource [DevOps:SPEC-INT-054]", () => {
+  it("stable subjectをactive/applied条件で毎回照会しproject assignmentを分離する", async () => {
     const db = fakeDb([
-      { user_id: "U1", profile: "PRF-L", projects: ["PRJ-0001"], active: true, email: "a@example.com" },
-      { user_id: "U2", profile: "PRF-M", projects: [], active: false, email: "a@example.com" },
+      {
+        user_id: "U1",
+        profile: "PRF-L",
+        projects: ["PJ-002", "PJ-001"],
+        scope_mode: "project",
+        active: true,
+        backfill_state: "applied",
+      },
     ]);
     const source = new DevopsPersonaSource(db);
-    const personas = await source.resolveByEmail("a@example.com");
-    expect(personas).toHaveLength(1);
-    expect(personas[0]).toEqual({
-      domain: "devops",
-      profile: "PRF-L",
-      visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0001"] },
-    });
+
+    await expect(source.resolveBySubject(SUBJECT)).resolves.toEqual([
+      {
+        domain: "devops",
+        profile: "PRF-L",
+        scope: { mode: "project", projectId: "PJ-001" },
+        visibility: {
+          recipientUserId: "U1",
+          recipientAssignedProjectIds: ["PJ-001"],
+          scopeMode: "project",
+        },
+      },
+      {
+        domain: "devops",
+        profile: "PRF-L",
+        scope: { mode: "project", projectId: "PJ-002" },
+        visibility: {
+          recipientUserId: "U1",
+          recipientAssignedProjectIds: ["PJ-002"],
+          scopeMode: "project",
+        },
+      },
+    ]);
+    await source.resolveBySubject(SUBJECT);
+
+    expect(db.query).toHaveBeenCalledTimes(2);
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringMatching(/entra_tenant_id.*entra_object_id.*active.*backfill_state/s),
+      [SUBJECT.tenantId, SUBJECT.objectId],
+    );
   });
 
-  it("該当するrecipientsが無い場合は空配列を返す", async () => {
+  it("globalはPRF-Gかつ空projectsだけを許可しnull/malformed/stale/inactiveをfail closedにする", async () => {
+    const valid = new DevopsPersonaSource(
+      fakeDb([
+        {
+          user_id: "U1",
+          profile: "PRF-G",
+          projects: [],
+          scope_mode: "global",
+          active: true,
+          backfill_state: "applied",
+        },
+      ]),
+    );
+    await expect(valid.resolveBySubject(SUBJECT)).resolves.toEqual([
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        scope: { mode: "global", projectId: null },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [], scopeMode: "global" },
+      },
+    ]);
+
+    for (const row of [
+      { user_id: "U1", profile: "PRF-L", projects: [], scope_mode: "global", active: true, backfill_state: "applied" },
+      { user_id: "U1", profile: "PRF-G", projects: null, scope_mode: null, active: true, backfill_state: "applied" },
+      { user_id: "U1", profile: "PRF-G", projects: [], scope_mode: "global", active: false, backfill_state: "applied" },
+      { user_id: "U1", profile: "PRF-G", projects: [], scope_mode: "global", active: true, backfill_state: "pending" },
+    ]) {
+      await expect(new DevopsPersonaSource(fakeDb([row])).resolveBySubject(SUBJECT)).resolves.toEqual([]);
+    }
+  });
+
+  it("別oidは同じemail属性でも一致せずpersonaを返さない", async () => {
     const db = fakeDb([]);
     const source = new DevopsPersonaSource(db);
-    const personas = await source.resolveByEmail("nobody@example.com");
-    expect(personas).toEqual([]);
-  });
-
-  it("全レコードがinactiveの場合は空配列を返す", async () => {
-    const db = fakeDb([{ user_id: "U3", profile: "PRF-G", projects: [], active: false, email: "b@example.com" }]);
-    const source = new DevopsPersonaSource(db);
-    const personas = await source.resolveByEmail("b@example.com");
-    expect(personas).toEqual([]);
-  });
-
-  it("問い合わせはメソッド呼び出しの都度実行され、結果をキャッシュしない（呼び出し毎に最新のDB応答を反映する）", async () => {
-    const query = vi
-      .fn()
-      .mockResolvedValueOnce({
-        rows: [{ user_id: "U1", profile: "PRF-M", projects: [], active: true, email: "c@example.com" }],
-      })
-      .mockResolvedValueOnce({
-        rows: [{ user_id: "U1", profile: "PRF-M", projects: [], active: false, email: "c@example.com" }],
-      });
-    const db: PgQueryable = { query };
-    const source = new DevopsPersonaSource(db);
-
-    const first = await source.resolveByEmail("c@example.com");
-    const second = await source.resolveByEmail("c@example.com");
-
-    expect(first).toHaveLength(1);
-    expect(second).toHaveLength(0);
-    expect(query).toHaveBeenCalledTimes(2);
+    await expect(source.resolveBySubject(OTHER_SUBJECT)).resolves.toEqual([]);
+    expect(db.query).toHaveBeenCalledWith(expect.any(String), [OTHER_SUBJECT.tenantId, OTHER_SUBJECT.objectId]);
   });
 });
 
-describe("PrjopsPersonaSource + InMemoryStakeholderMasterProvider（ADR-0005: 開発/テスト用フィクスチャ）", () => {
+describe("PrjopsPersonaSource [PrjOps:REQ-041 / DevOps:SPEC-INT-054]", () => {
   const records: StakeholderRecord[] = [
     {
-      stakeholderId: "STK-001",
-      email: "pm@example.com",
+      stakeholderId: "ST-001",
+      subject: SUBJECT,
+      active: true,
+      assignmentActive: true,
+      domain: "prjops",
       profile: "PRF-03",
-      managedProjectIds: ["PRJ-0001", "PRJ-0002"],
-      assignedProjectIds: [],
-      participatingProjectIds: [],
-      investedProjectIds: [],
+      scope: { mode: "project", projectId: "PJ-002" },
     },
     {
-      stakeholderId: "STK-002",
-      email: "member@example.com",
+      stakeholderId: "ST-001",
+      subject: SUBJECT,
+      active: true,
+      assignmentActive: true,
+      domain: "prjops",
       profile: "PRF-01",
-      managedProjectIds: [],
-      assignedProjectIds: [],
-      participatingProjectIds: ["PRJ-0003"],
-      investedProjectIds: [],
+      scope: { mode: "project", projectId: "PJ-001" },
     },
     {
-      stakeholderId: "STK-INV",
-      email: "investor@example.com",
+      stakeholderId: "ST-INV",
+      subject: SUBJECT,
+      active: true,
+      assignmentActive: true,
+      domain: "investor",
       profile: "PRF-05",
-      managedProjectIds: [],
-      assignedProjectIds: [],
-      participatingProjectIds: [],
-      investedProjectIds: ["PRJ-0009"],
+      scope: { mode: "project", projectId: "PJ-009" },
     },
   ];
 
-  it("emailに一致するステークホルダーのペルソナを解決する", async () => {
-    const provider = new InMemoryStakeholderMasterProvider(records);
-    const source = new PrjopsPersonaSource(provider);
-    const personas = await source.resolveByEmail("pm@example.com");
-    expect(personas).toEqual([
+  it("email変更に依存せずstable subject一致のassignmentを権限集約せず解決する", async () => {
+    const source = new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider(records));
+    await expect(source.resolveBySubject(SUBJECT)).resolves.toEqual([
       {
         domain: "prjops",
         profile: "PRF-03",
+        scope: { mode: "project", projectId: "PJ-002" },
         visibility: {
-          recipientStakeholderId: "STK-001",
-          recipientManagedProjectIds: ["PRJ-0001", "PRJ-0002"],
+          recipientStakeholderId: "ST-001",
+          recipientManagedProjectIds: ["PJ-002"],
           recipientAssignedProjectIds: [],
           recipientParticipatingProjectIds: [],
           investedProjectIds: [],
+          scopeMode: "project",
         },
       },
-    ]);
-  });
-
-  it("該当ステークホルダーが無い場合は空配列を返す", async () => {
-    const provider = new InMemoryStakeholderMasterProvider(records);
-    const source = new PrjopsPersonaSource(provider);
-    const personas = await source.resolveByEmail("unknown@example.com");
-    expect(personas).toEqual([]);
-  });
-
-  it("PRF-05をinvestorペルソナとして解決する [REQ-039, SPEC-INT-066]", async () => {
-    const provider = new InMemoryStakeholderMasterProvider(records);
-    const source = new PrjopsPersonaSource(provider);
-    const personas = await source.resolveByEmail("investor@example.com");
-    expect(personas).toEqual([
+      {
+        domain: "prjops",
+        profile: "PRF-01",
+        scope: { mode: "project", projectId: "PJ-001" },
+        visibility: {
+          recipientStakeholderId: "ST-001",
+          recipientManagedProjectIds: [],
+          recipientAssignedProjectIds: [],
+          recipientParticipatingProjectIds: ["PJ-001"],
+          investedProjectIds: [],
+          scopeMode: "project",
+        },
+      },
       {
         domain: "investor",
         profile: "investor",
+        scope: { mode: "project", projectId: "PJ-009" },
         visibility: {
-          recipientStakeholderId: "STK-INV",
+          recipientStakeholderId: "ST-INV",
           recipientManagedProjectIds: [],
           recipientAssignedProjectIds: [],
           recipientParticipatingProjectIds: [],
-          investedProjectIds: ["PRJ-0009"],
+          investedProjectIds: ["PJ-009"],
+          scopeMode: "project",
         },
       },
     ]);
   });
+
+  it("inactive/stale assignmentと別oidを拒否する", async () => {
+    const stale = records.map((record) => ({ ...record, assignmentActive: false }));
+    const source = new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider(stale));
+    await expect(source.resolveBySubject(SUBJECT)).resolves.toEqual([]);
+    await expect(
+      new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider(records)).resolveBySubject(OTHER_SUBJECT),
+    ).resolves.toEqual([]);
+  });
 });
 
-describe("CompositePersonaResolver（ADR-0005: DevOps/PrjOps両ドメインの合成）", () => {
-  it("同一emailがPrjOps/DevOps両方に存在する場合、両ドメインのペルソナを返す", async () => {
-    const db = fakeDb([{ user_id: "U9", profile: "PRF-G", projects: [], active: true, email: "both@example.com" }]);
+describe("CompositePersonaResolver [PrjOps:REQ-041 / DevOps:SPEC-INT-054]", () => {
+  it("profile/domain/project順を固定し、同じsubjectの両domainを合成する", async () => {
+    const db = fakeDb([
+      {
+        user_id: "U9",
+        profile: "PRF-G",
+        projects: [],
+        scope_mode: "global",
+        active: true,
+        backfill_state: "applied",
+      },
+    ]);
     const stakeholders: StakeholderRecord[] = [
       {
-        stakeholderId: "STK-009",
-        email: "both@example.com",
+        stakeholderId: "ST-009",
+        subject: SUBJECT,
+        active: true,
+        assignmentActive: true,
+        domain: "prjops",
         profile: "PRF-04",
-        managedProjectIds: [],
-        assignedProjectIds: [],
-        participatingProjectIds: [],
-        investedProjectIds: [],
+        scope: { mode: "project", projectId: "PJ-009" },
+      },
+      {
+        stakeholderId: "ST-009",
+        subject: SUBJECT,
+        active: true,
+        assignmentActive: true,
+        domain: "prjops",
+        profile: "PRF-01",
+        scope: { mode: "project", projectId: "PJ-001" },
       },
     ];
     const resolver = new CompositePersonaResolver(
       new DevopsPersonaSource(db),
       new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider(stakeholders)),
     );
-    const personas = await resolver.resolveByEmail("both@example.com");
-    expect(personas).toHaveLength(2);
-    expect(personas.some((p) => p.domain === "devops")).toBe(true);
-    expect(personas.some((p) => p.domain === "prjops")).toBe(true);
-  });
 
-  it("該当ペルソナが1件も無い場合は空配列を返す", async () => {
-    const db = fakeDb([]);
-    const resolver = new CompositePersonaResolver(
-      new DevopsPersonaSource(db),
-      new PrjopsPersonaSource(new InMemoryStakeholderMasterProvider([])),
-    );
-    const personas = await resolver.resolveByEmail("nobody@example.com");
-    expect(personas).toEqual([]);
+    const personas = await resolver.resolveBySubject(SUBJECT);
+    expect(personas.map(({ domain, profile, scope }) => ({ domain, profile, scope }))).toEqual([
+      { domain: "prjops", profile: "PRF-01", scope: { mode: "project", projectId: "PJ-001" } },
+      { domain: "devops", profile: "PRF-G", scope: { mode: "global", projectId: null } },
+      { domain: "prjops", profile: "PRF-04", scope: { mode: "project", projectId: "PJ-009" } },
+    ]);
   });
 });

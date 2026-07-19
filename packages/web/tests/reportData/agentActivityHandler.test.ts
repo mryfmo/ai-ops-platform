@@ -11,11 +11,20 @@ import type { PersonaResolver, ResolvedPersona } from "../../src/server/personaR
 import { handleAgentActivity } from "../../src/server/reportData/agentActivityHandler";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "mgr@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 function emptyDb(): PgQueryable {
   return { query: vi.fn().mockResolvedValue({ rows: [] }) };
@@ -44,7 +53,12 @@ describe("handleAgentActivity（PRF-G以外403）", () => {
 
   it("devops PRF-M（PRF-Gではない）の場合403を返す", async () => {
     const personas: ResolvedPersona[] = [
-      { domain: "devops", profile: "PRF-M", visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] } },
+      {
+        domain: "devops",
+        profile: "PRF-M",
+        scope: { mode: "project", projectId: "PJ-001" },
+        visibility: { recipientUserId: "U1", recipientAssignedProjectIds: [] },
+      },
     ];
     const res = await handleAgentActivity({
       getSession: sessionWithEmail,
@@ -59,6 +73,7 @@ describe("handleAgentActivity（PRF-G以外403）", () => {
       {
         domain: "devops",
         profile: "PRF-L",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: { recipientUserId: "U1", recipientAssignedProjectIds: ["PRJ-0001"] },
       },
     ];
@@ -75,6 +90,7 @@ describe("handleAgentActivity（PRF-G以外403）", () => {
       {
         domain: "prjops",
         profile: "PRF-04",
+        scope: { mode: "global", projectId: null },
         visibility: {
           recipientStakeholderId: "STK-EXEC",
           recipientManagedProjectIds: [],
@@ -96,7 +112,12 @@ describe("handleAgentActivity（PRF-G以外403）", () => {
 describe("handleAgentActivity（PRF-G: 正当なセッションでデータ返却）", () => {
   it("PRF-Gペルソナがあれば200でcoding_tasks集計を返す", async () => {
     const personas: ResolvedPersona[] = [
-      { domain: "devops", profile: "PRF-G", visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] } },
+      {
+        domain: "devops",
+        profile: "PRF-G",
+        scope: { mode: "global", projectId: null },
+        visibility: { recipientUserId: "U9", recipientAssignedProjectIds: [] },
+      },
     ];
     const db: PgQueryable = {
       query: vi.fn(async (text: string) => {

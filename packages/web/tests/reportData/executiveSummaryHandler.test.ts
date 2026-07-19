@@ -14,11 +14,20 @@ import {
 } from "../../src/server/reportData/prjopsReportData";
 
 function resolverWith(personas: ResolvedPersona[]): PersonaResolver {
-  return { resolveByEmail: async () => personas };
+  return { resolveBySubject: async () => personas };
 }
 
 const sessionWithEmail = async (): Promise<Session | null> =>
-  ({ user: { email: "exec@example.com" }, expires: "2099-01-01T00:00:00.000Z" }) as Session;
+  ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }) as Session;
 
 describe("handleExecutiveSummary（未認証401）", () => {
   it("セッションが無い場合401を返す", async () => {
@@ -46,6 +55,7 @@ describe("handleExecutiveSummary（権限外403）", () => {
       {
         domain: "prjops",
         profile: "PRF-03",
+        scope: { mode: "project", projectId: "PJ-001" },
         visibility: {
           recipientStakeholderId: "STK-001",
           recipientManagedProjectIds: [],
@@ -70,6 +80,7 @@ describe("handleExecutiveSummary（正当なセッション: データ返却）"
       {
         domain: "prjops",
         profile: "PRF-04",
+        scope: { mode: "global", projectId: null },
         visibility: {
           recipientStakeholderId: "STK-EXEC",
           recipientManagedProjectIds: [],

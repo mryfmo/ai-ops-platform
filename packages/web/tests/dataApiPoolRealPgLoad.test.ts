@@ -20,7 +20,16 @@ const { baseDatabaseUrl, confirmDatabase, databaseName, applicationName, routeDa
 });
 
 vi.mock("../src/auth", () => ({
-  auth: async () => ({ user: { email: "manager@example.com" }, expires: "2099-01-01T00:00:00.000Z" }),
+  auth: async () => ({
+    user: {
+      subject: {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        objectId: "22222222-2222-2222-2222-222222222222",
+      },
+      roles: [],
+    },
+    expires: "2099-01-01T00:00:00.000Z",
+  }),
 }));
 vi.mock("../src/server/config", () => ({ loadWebConfig: () => ({ DATABASE_URL: routeDatabaseUrl }) }));
 
@@ -56,7 +65,14 @@ describe.skipIf(!baseDatabaseUrl)(
       schemaCreated = true;
       await admin.query(
         `CREATE TABLE "${schema}".recipients (
-         user_id text PRIMARY KEY, email text NOT NULL, profile text NOT NULL, projects text[] NOT NULL, active boolean NOT NULL
+         user_id text PRIMARY KEY,
+         entra_tenant_id uuid NOT NULL,
+         entra_object_id uuid NOT NULL,
+         profile text NOT NULL,
+         projects text[] NOT NULL,
+         scope_mode text NOT NULL,
+         active boolean NOT NULL,
+         backfill_state text NOT NULL
        )`,
       );
       await admin.query(
@@ -65,8 +81,18 @@ describe.skipIf(!baseDatabaseUrl)(
        )`,
       );
       await admin.query(
-        `INSERT INTO "${schema}".recipients (user_id, email, profile, projects, active)
-       VALUES ('U-load', 'manager@example.com', 'PRF-G', ARRAY['PJ-load'], true)`,
+        `INSERT INTO "${schema}".recipients
+           (user_id, entra_tenant_id, entra_object_id, profile, projects, scope_mode, active, backfill_state)
+       VALUES (
+         'U-load',
+         '11111111-1111-1111-1111-111111111111',
+         '22222222-2222-2222-2222-222222222222',
+         'PRF-G',
+         ARRAY[]::text[],
+         'global',
+         true,
+         'applied'
+       )`,
       );
       await admin.query(
         `INSERT INTO "${schema}".project_channels (project_id, github_owner, github_repo)
