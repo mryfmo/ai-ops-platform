@@ -5,18 +5,18 @@
  *   （経営層セブンキー、マネージャーサマリ+バーンダウン）を組み立てる薄い結線層。
  *
  * 設計: packages/prjops/src/lib/executiveSevenKeys.ts / issueActionBurndown.ts の純粋関数へ
- *   入力データを渡す前に、必ず isProjectInScope（reportPermissionFilter.js）でプロジェクトを
- *   フィルタする（CLAUDE.md設計原則6: 権限フィルタはデータ取得側で強制。表示層での後付け
- *   マスキングは禁止）。
+ *   入力データを渡す前に、provider queryへprofile/visibilityを渡す。集約層に全件取得APIを
+ *   公開せず、権限条件をデータ取得境界で強制する（設計原則6）。
  *
  * PrjOpsのプロジェクト・Issue/Actionマスタは本リポジトリ外（prjops-dataリポジトリ）にあるため、
  * PrjopsReportDataProvider インターフェースで抽象化する
  * （personaResolver.ts の StakeholderMasterProvider と同じ設計思想）。
- * 本番実装（prjops-dataリポジトリからの取得）は残課題であり、本タスクでは
- * InMemoryPrjopsReportDataProvider という開発/テスト用フィクスチャのみを提供する。
+ * InMemoryPrjopsReportDataProviderは開発/テスト用fixture、本番実装は
+ * pinnedPrjopsReportDataProvider.tsで提供する。
  */
 import {
   isProjectInScope,
+  canShowPersonalNames,
   type Profile,
   type ProjectVisibilityContext,
   computeExecutiveSevenKeys,
@@ -40,7 +40,7 @@ import {
 export interface PrjopsProjectRecord {
   projectId: string;
   name: string;
-  color: "red" | "yellow" | "green";
+  color: "red" | "yellow" | "green" | "grey";
   startDate: string;
   endDate: string;
   progressPct: number;
@@ -66,22 +66,27 @@ export interface PrjopsIssueActionRecord {
   closedAt: string | null;
 }
 
-/**
- * PrjOpsのプロジェクト・Issue/Actionデータ取得を抽象化するインターフェース。
- * 本番実装（prjops-dataリポジトリのYAML/API取得）は残課題であり、本タスクでは実装しない。
- */
+export interface PrjopsReportDataQuery {
+  profile: Profile;
+  visibility: ProjectVisibilityContext;
+}
+
+export interface ScopedPrjopsReportData {
+  projects: PrjopsProjectRecord[];
+  issuesAndActions: PrjopsIssueActionRecord[];
+  sevenKeysMonthlySnapshots: SevenKeysMonthlySnapshot[];
+  sevenKeysQuestionnaires: SevenKeysQuestionnaireRecord[];
+  investorFinancialInputs: InvestorFinancialInputs;
+  investorBoardPackInputs: InvestorBoardPackInputs;
+}
+
+/** 全件取得を公開せず、profile/stakeholder/project条件を必須にするreport data境界。 */
 export interface PrjopsReportDataProvider {
-  listProjects(): Promise<PrjopsProjectRecord[]>;
-  listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]>;
-  listSevenKeysMonthlySnapshots?(): Promise<SevenKeysMonthlySnapshot[]>;
-  listSevenKeysQuestionnaires?(): Promise<SevenKeysQuestionnaireRecord[]>;
-  getInvestorFinancialInputs?(): Promise<InvestorFinancialInputs>;
-  getInvestorBoardPackInputs?(): Promise<InvestorBoardPackInputs>;
+  query(input: PrjopsReportDataQuery): Promise<ScopedPrjopsReportData>;
 }
 
 /**
- * 開発/テスト用のインメモリ実装。
- * 残課題: 本番運用では prjops-data リポジトリからの取得実装に差し替える必要がある。
+ * 開発/テスト用のインメモリ実装。filterはprovider内部で行い、集約層へ全件を返さない。
  */
 export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvider {
   constructor(
@@ -93,39 +98,40 @@ export class InMemoryPrjopsReportDataProvider implements PrjopsReportDataProvide
     private readonly investorBoardPackInputs: InvestorBoardPackInputs = {},
   ) {}
 
-  async listProjects(): Promise<PrjopsProjectRecord[]> {
-    return this.projects;
+  async query(input: PrjopsReportDataQuery): Promise<ScopedPrjopsReportData> {
+    const investor = input.profile === "PRF-05";
+    const projects = this.projects
+      .filter((project) => isProjectInScope(input.profile, project.projectId, input.visibility))
+      .map((project) => ({
+        ...project,
+        ownerName: canShowPersonalNames(input.profile) ? project.ownerName : "",
+        ownershipPct: investor ? project.ownershipPct : undefined,
+        revenue: investor ? project.revenue : undefined,
+        ebitda: investor ? project.ebitda : undefined,
+      }));
+    const projectIds = new Set(projects.map((project) => project.projectId));
+    return {
+      projects,
+      issuesAndActions: this.issuesAndActions.filter((item) => projectIds.has(item.projectId)),
+      sevenKeysMonthlySnapshots:
+        input.profile === "PRF-04"
+          ? this.sevenKeysMonthlySnapshots.filter((snapshot) => projectIds.has(snapshot.projectId))
+          : [],
+      sevenKeysQuestionnaires:
+        input.profile === "PRF-04"
+          ? this.sevenKeysQuestionnaires.filter((questionnaire) => projectIds.has(questionnaire.projectId))
+          : [],
+      investorFinancialInputs: investor ? this.investorFinancialInputs : {},
+      investorBoardPackInputs: investor
+        ? {
+            ...this.investorBoardPackInputs,
+            history: this.investorBoardPackInputs.history?.map((snapshot) => ({
+              companies: snapshot.companies.filter((company) => projectIds.has(company.projectId)),
+            })),
+          }
+        : {},
+    };
   }
-
-  async listIssuesAndActions(): Promise<PrjopsIssueActionRecord[]> {
-    return this.issuesAndActions;
-  }
-
-  async listSevenKeysMonthlySnapshots(): Promise<SevenKeysMonthlySnapshot[]> {
-    return this.sevenKeysMonthlySnapshots;
-  }
-
-  async listSevenKeysQuestionnaires(): Promise<SevenKeysQuestionnaireRecord[]> {
-    return this.sevenKeysQuestionnaires;
-  }
-
-  async getInvestorFinancialInputs(): Promise<InvestorFinancialInputs> {
-    return this.investorFinancialInputs;
-  }
-
-  async getInvestorBoardPackInputs(): Promise<InvestorBoardPackInputs> {
-    return this.investorBoardPackInputs;
-  }
-}
-
-/** スコープ内（isProjectInScope通過）のプロジェクトのみへ絞り込む */
-async function scopedProjects(
-  provider: PrjopsReportDataProvider,
-  profile: Profile,
-  ctx: ProjectVisibilityContext,
-): Promise<PrjopsProjectRecord[]> {
-  const all = await provider.listProjects();
-  return all.filter((p) => isProjectInScope(profile, p.projectId, ctx));
 }
 
 export type ExecutiveSummaryResult = ExecutiveSevenKeysSummary & {
@@ -141,9 +147,9 @@ export async function buildExecutiveSummary(
   profile: Profile,
   ctx: ProjectVisibilityContext,
 ): Promise<ExecutiveSummaryResult> {
-  const projects = await scopedProjects(provider, profile, ctx);
+  const data = await provider.query({ profile, visibility: ctx });
+  const projects = data.projects;
   const questionnaireMonth = new Date().toISOString().slice(0, 7);
-  const questionnaires = provider.listSevenKeysQuestionnaires ? await provider.listSevenKeysQuestionnaires() : [];
   const inputs: ExecutiveProjectInput[] = projects
     .map((p) => ({
       projectId: p.projectId,
@@ -159,14 +165,9 @@ export async function buildExecutiveSummary(
       activeContributorCount: p.activeContributorCount,
       questionnaire: p.questionnaire,
     }))
-    .map((input) => applySevenKeysQuestionnaire(input, questionnaires, questionnaireMonth));
+    .map((input) => applySevenKeysQuestionnaire(input, data.sevenKeysQuestionnaires, questionnaireMonth));
   const summary: ExecutiveSummaryResult = computeExecutiveSevenKeys(inputs);
-  if (provider.listSevenKeysMonthlySnapshots) {
-    const scopedIds = new Set(projects.map((p) => p.projectId));
-    summary.monthlySnapshots = (await provider.listSevenKeysMonthlySnapshots()).filter((s) =>
-      scopedIds.has(s.projectId),
-    );
-  }
+  summary.monthlySnapshots = data.sevenKeysMonthlySnapshots;
   return summary;
 }
 
@@ -189,12 +190,9 @@ export async function buildManagerSummary(
   periodStart: string,
   periodEnd: string,
 ): Promise<ManagerSummaryResult> {
-  const projects = await scopedProjects(provider, profile, ctx);
-  const scopedProjectIds = new Set(projects.map((p) => p.projectId));
-
-  const allItems = await provider.listIssuesAndActions();
-  const items = allItems.filter((i) => scopedProjectIds.has(i.projectId));
-  const burndownInputs: IssueActionBurndownInput[] = items.map((i) => ({
+  const data = await provider.query({ profile, visibility: ctx });
+  const projects = data.projects;
+  const burndownInputs: IssueActionBurndownInput[] = data.issuesAndActions.map((i) => ({
     createdAt: i.createdAt,
     closedAt: i.closedAt,
   }));
@@ -229,17 +227,17 @@ export async function listScopedProjectSummaries(
   profile: Profile,
   ctx: ProjectVisibilityContext,
 ): Promise<Array<{ id: string; name: string }>> {
-  const projects = await scopedProjects(provider, profile, ctx);
-  return projects.map((p) => ({ id: p.projectId, name: p.name }));
+  const data = await provider.query({ profile, visibility: ctx });
+  return data.projects.map((p) => ({ id: p.projectId, name: p.name }));
 }
 
 export async function buildInvestorSummary(
   provider: PrjopsReportDataProvider,
   ctx: ProjectVisibilityContext,
 ): Promise<InvestorReport> {
-  const projects = await scopedProjects(provider, "PRF-05", ctx);
+  const data = await provider.query({ profile: "PRF-05", visibility: ctx });
   return buildInvestorReport(
-    projects.map((p) => ({
+    data.projects.map((p) => ({
       projectId: p.projectId,
       name: p.name,
       ownershipPct: p.ownershipPct,
@@ -248,7 +246,7 @@ export async function buildInvestorSummary(
       milestoneDelayDays: null,
       highSeverityOpenIssueCount: p.highSeverityOpenIssueCount,
     })),
-    provider.getInvestorFinancialInputs ? await provider.getInvestorFinancialInputs() : {},
-    provider.getInvestorBoardPackInputs ? await provider.getInvestorBoardPackInputs() : {},
+    data.investorFinancialInputs,
+    data.investorBoardPackInputs,
   );
 }

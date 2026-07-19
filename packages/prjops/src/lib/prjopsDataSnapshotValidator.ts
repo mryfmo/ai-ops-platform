@@ -52,6 +52,7 @@ export type SnapshotValidationResult =
       ok: true;
       manifestBytes: Uint8Array;
       contentSha256: string;
+      documents: ValidatedSnapshotDocument[];
     };
 
 const id = {
@@ -276,7 +277,7 @@ const versionSchema = z
   })
   .strict();
 
-type DocumentKind =
+export type SnapshotDocumentKind =
   | "version"
   | "organization"
   | "project"
@@ -291,7 +292,7 @@ type DocumentKind =
   | "boardPack";
 
 interface PathDescriptor {
-  kind: DocumentKind;
+  kind: SnapshotDocumentKind;
   pattern: RegExp;
   schema: z.ZodType;
   hasFilenameId: boolean;
@@ -358,10 +359,14 @@ interface CanonicalizedEntries {
   contentSha256: string;
 }
 
-interface ParsedEntry {
+export interface ValidatedSnapshotDocument {
   path: string;
-  descriptor: PathDescriptor;
+  kind: SnapshotDocumentKind;
   document: Record<string, unknown>;
+}
+
+interface ParsedEntry extends ValidatedSnapshotDocument {
+  descriptor: PathDescriptor;
 }
 
 function failure(code: SnapshotErrorCode): SnapshotFailure {
@@ -466,6 +471,7 @@ function parseAndValidate(
     }
     parsed.push({
       path: entry.path,
+      kind: descriptor.kind,
       descriptor,
       document: validation.data as Record<string, unknown>,
     });
@@ -540,7 +546,7 @@ function validateDuplicateMappings(entries: readonly ParsedEntry[]): SnapshotFai
 }
 
 function referencesResolve(entries: readonly ParsedEntry[]): boolean {
-  const byKind = (kind: DocumentKind) =>
+  const byKind = (kind: SnapshotDocumentKind) =>
     new Set(
       entries
         .filter((entry) => entry.descriptor.kind === kind)
@@ -711,5 +717,6 @@ export function validatePrjopsDataSnapshot(entries: readonly SnapshotEntry[]): S
     ok: true,
     manifestBytes: canonical.manifestBytes,
     contentSha256: canonical.contentSha256,
+    documents: parsed.map(({ path, descriptor, document }) => ({ path, kind: descriptor.kind, document })),
   };
 }

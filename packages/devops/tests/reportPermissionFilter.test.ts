@@ -7,11 +7,18 @@ import {
   type DevOpsVisibilityContext,
 } from "../src/lib/reportPermissionFilter.js";
 
-const ctx: DevOpsVisibilityContext = { recipientUserId: "U-010", recipientAssignedProjectIds: ["PRJ-001"] };
+const ctx: DevOpsVisibilityContext = {
+  recipientUserId: "U-010",
+  recipientAssignedProjectIds: ["PRJ-001"],
+  scopeMode: "project",
+};
 
 describe("isProjectInScope [DevOps:REQ-021/022/023]", () => {
-  it("PRF-Gは全プロジェクトが対象", () => {
-    expect(isProjectInScope("PRF-G", "PRJ-999", ctx)).toBe(true);
+  it("scopeModeなしのlegacy contextは全profileでfail closedにする [P010-F02-T07]", () => {
+    const legacy = { recipientUserId: "U-010", recipientAssignedProjectIds: ["PRJ-001"] };
+    for (const profile of ["PRF-M", "PRF-L", "PRF-G"] as const) {
+      expect(isProjectInScope(profile, "PRJ-001", legacy as DevOpsVisibilityContext)).toBe(false);
+    }
   });
   it("PRF-Lは担当プロジェクトのみ", () => {
     expect(isProjectInScope("PRF-L", "PRJ-001", ctx)).toBe(true);

@@ -32,11 +32,13 @@ function fakeDb(rows: FakeRow[]): PgQueryable {
 const leaderCtx: DevOpsVisibilityContext = {
   recipientUserId: "U1",
   recipientAssignedProjectIds: ["PRJ-0001"],
+  scopeMode: "project",
 };
 
 const managerCtx: DevOpsVisibilityContext = {
   recipientUserId: "U9",
   recipientAssignedProjectIds: [],
+  scopeMode: "global",
 };
 
 describe("buildAgentActivitySummary（PRF-G: 全プロジェクト横断）", () => {

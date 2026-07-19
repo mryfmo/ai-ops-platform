@@ -160,7 +160,14 @@ describe("buildPrjopsDataManifest [P010-F02-T02, DEC-SPEC-001]", () => {
 
 describe("validatePrjopsDataSnapshot [P010-F02-T02, DEC-SPEC-001]", () => {
   it("accepts a complete strict snapshot with matching checksum", () => {
-    expect(validatePrjopsDataSnapshot(snapshot())).toMatchObject({ ok: true });
+    const result = validatePrjopsDataSnapshot(snapshot());
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.documents.map((document) => [document.kind, document.path])).toContainEqual([
+        "project",
+        "projects/PJ-001.yaml",
+      ]);
+    }
   });
 
   it("accepts seven key assessments without adding a uniqueItems rule absent from the contract schema", () => {
