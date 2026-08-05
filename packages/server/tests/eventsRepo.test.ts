@@ -484,6 +484,25 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
     expect(out["repository"]).toEqual({ full_name: "acme/widget" });
   });
 
+  it("name/value 形式で隣接フィールドが秘密を示す場合も落とす", () => {
+    const out = sanitizePayloadDeep({
+      headers: [
+        { name: "Authorization", value: "Basic abcdefghijklmnop" },
+        { key: "api_key", value: "short-secret" },
+        { name: "Content-Type", value: "application/json" },
+      ],
+    }) as { headers: Array<Record<string, unknown>> };
+
+    expect(out.headers[0]!["value"]).toBe("***REDACTED:secret_name_value_pair***");
+    expect(out.headers[1]!["value"]).toBe("***REDACTED:secret_name_value_pair***");
+    // ラベル自体は診断に要るので残す
+    expect(out.headers[0]!["name"]).toBe("Authorization");
+    // 秘密を示さないラベルの対は落とさない
+    expect(out.headers[2]!["value"]).toBe("application/json");
+    expect(JSON.stringify(out)).not.toContain("abcdefghijklmnop");
+    expect(JSON.stringify(out)).not.toContain("short-secret");
+  });
+
   it("非文字列は key 名に関わらずそのまま残す（構造を壊さない）", () => {
     const out = sanitizePayloadDeep({ token_count: 42, secretFlag: true, apiKey: null }) as Record<string, unknown>;
 

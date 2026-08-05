@@ -141,8 +141,21 @@ export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
     return value.map((item) => sanitizePayloadDeep(item, keyHint));
   }
   if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    // { name: "Authorization", value: "Basic ..." } のように、秘密であることを
+    // 隣の name/key フィールドが示す形。value 側のkey名は "value" でしかないため
+    // key名判定では拾えない。ラベル側を見て対になる値を落とす。
+    const labelledSecret = entries.some(
+      ([key, item]) =>
+        (key === "name" || key === "key") && typeof item === "string" && SECRET_KEY_RE.test(normalizeKeyName(item)),
+    );
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, sanitizePayloadDeep(item, key)]),
+      entries.map(([key, item]) => {
+        if (labelledSecret && (key === "value" || key === "values")) {
+          return [key, "***REDACTED:secret_name_value_pair***"];
+        }
+        return [key, sanitizePayloadDeep(item, key)];
+      }),
     );
   }
   return value;
