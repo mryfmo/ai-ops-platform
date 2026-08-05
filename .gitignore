@@ -8,10 +8,12 @@ coverage/
 .DS_Store
 .orchestration/
 
-# Agent workspace artifacts (worklogs, per-tree hooks, local review state).
-# Kept out of the repository and out of Prettier's scope so `mise run ci`
-# stays green while the documented agent workflow is in use.
-.agents/
-.codex/
-.crit/
+# Machine-local agent state only. Provider assets such as .agents/skills/,
+# .codex/agents/, .codex/rules/ and .claude/hooks/ stay trackable because
+# plans/012 intends to commit them. Without these entries Prettier scans the
+# worklogs and `mise run ci` cannot go green while the agent workflow is used.
+.agents/worklog/
+.agents/runs/
+.codex/hooks.json
 .claude/settings.local.json
+.crit/
