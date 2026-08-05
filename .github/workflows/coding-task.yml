@@ -173,6 +173,9 @@ jobs:
           # 認証設定は -c で当該コマンド限りに閉じ、.git/config には残さない。
           # --no-verify: pre-push hook がこのステップの AIOPS_PR_TOKEN を継承して
           # 意図しない参照へ push するのを防ぐ。
+          # GIT_CONFIG_GLOBAL/SYSTEM も無効化する。repo-local を戻すだけでは、
+          # エージェントが ~/.gitconfig 側へ書いた insteadOf 等が残るため。
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
           git -c credential.helper= \
               -c "credential.helper=!f() { echo username=x-access-token; echo password=\$AIOPS_PR_TOKEN; }; f" \
               push --no-verify "https://github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
