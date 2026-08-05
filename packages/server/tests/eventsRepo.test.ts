@@ -424,8 +424,12 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
       accessToken: "camel-case-token",
       clientSecret: "camel-case-secret",
       "x-api-key": "kebab-case-key",
+      privateKey: "-----BEGIN-ish",
+      signingKey: "sig",
+      "set-cookie": "session=abc",
       description: "ただのテキスト",
       githubRepo: "widget",
+      key_id: "kid-1",
     }) as Record<string, unknown>;
 
     for (const key of [
@@ -436,11 +440,16 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
       "accessToken",
       "clientSecret",
       "x-api-key",
+      "privateKey",
+      "signingKey",
+      "set-cookie",
     ]) {
       expect(out[key]).toBe("***REDACTED:secret_key_name***");
     }
     expect(out["description"]).toBe("ただのテキスト");
     expect(out["githubRepo"]).toBe("widget");
+    // key/keys で終わる名前だけを対象にするので、key_id のような識別子は残る
+    expect(out["key_id"]).toBe("kid-1");
   });
 
   it("秘密key配下は構造化されていても落とす（一段包んだ平文の素通しを防ぐ）", () => {
