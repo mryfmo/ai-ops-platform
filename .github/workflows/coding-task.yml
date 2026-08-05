@@ -22,8 +22,11 @@
 #     contents:write / pull-requests:write / issues:write が必要。未設定なら明示失敗する。
 #   - ANTHROPIC_API_KEY / FACTORY_API_KEY: run-coding-agent実行時にjob envとして渡す（ADR-0006影響節）
 #
-# 注意: 本ワークフローはworkflow_dispatchでのみ起動され、この開発環境では実行できない
-#   （構文的な妥当性のみ確認済み）。
+# 検証状況: 本ワークフローはworkflow_dispatchでのみ起動される。静的検証（actionlint）は
+#   green で、CLIはバージョン固定して導入するため `command not found` では落ちない。
+#   ただし実際のディスパッチ実行（実 ANTHROPIC_API_KEY / AIOPS_PR_TOKEN でのエージェント
+#   実行・push・PR作成・callback）は未実施であり、go-live 前に1周する必要がある。
+#   agent=droid は ADR-0006 の残課題のため明示的に失敗する。
 name: coding-task
 
 on:
@@ -77,12 +80,16 @@ jobs:
             exit 1
           fi
 
+      # persist-credentials: false は必須。既定の true だと AIOPS_PR_TOKEN が
+      # .git/config に残り、後段で acceptEdits のエージェントが編集した
+      # .git/hooks/* が commit 時に実行されると、そのトークンで任意の push が
+      # 成立する。push は専用ステップで都度認証する。
       - name: Checkout base_ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.base_ref }}
           fetch-depth: 0
-          token: ${{ secrets.AIOPS_PR_TOKEN }}
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -103,6 +110,9 @@ jobs:
           set -euo pipefail
           git config user.name "aiops-coding-agent[bot]"
           git config user.email "aiops-coding-agent[bot]@users.noreply.github.com"
+          # エージェントは acceptEdits で任意のファイルを編集できるため、
+          # .git/hooks/* を書かれても実行されないようにしておく。
+          git config core.hooksPath /dev/null
           git checkout -b "${BRANCH_NAME}"
 
       - name: Run coding agent (ADR-0006 composite action)
@@ -130,12 +140,14 @@ jobs:
           PROJECT_ID: ${{ inputs.project_id }}
           TASK_ID: ${{ inputs.task_id }}
           INSTRUCTION: ${{ inputs.instruction }}
+          AIOPS_PR_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
         run: |
           set -euo pipefail
           git add -A
-          git commit -m "[AI] ${PROJECT_ID}: ${INSTRUCTION}" -m "task_id: ${TASK_ID}"
+          git commit --no-verify -m "[AI] ${PROJECT_ID}: ${INSTRUCTION}" -m "task_id: ${TASK_ID}"
           # AC-002b: mainへの直接pushはしない。agent/{task_id}ブランチへのpushのみ許可する。
-          git push origin "${BRANCH_NAME}"
+          # 認証はこのステップ限りで渡す（.git/config には残さない）。
+          git push "https://x-access-token:${AIOPS_PR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
 
       - name: Create pull request
         if: steps.detect.outputs.changed == 'true'
