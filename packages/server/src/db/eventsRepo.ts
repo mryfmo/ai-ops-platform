@@ -94,6 +94,40 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+/**
+ * JSONBカラムへ入れる値のサニタイズ。
+ *
+ * 直列化した文字列へ sanitizeSecrets を適用してはならない。generic_api_key_kv などの
+ * key=value パターンは値を囲む引用符ごと置換するため、`{"api_key":"..."}` が
+ * `{"***REDACTED:generic_api_key_kv***}` になりJSONとして壊れる。events.payload は
+ * JSONB なのでINSERT自体が失敗し、イベントを取りこぼす（サニタイズ漏れより悪い）。
+ * 文字列走査は auditLog.ts と同じく「検知」にのみ使える手法で、置換結果は使えない。
+ *
+ * そこで構造を保ったまま値だけを置換する。加えて、JSONでは key と value が分離して
+ * いるため key=value パターンが値単体には一致しない。秘密であることを示す情報が key
+ * 側にあるので、key名が秘密を示唆する場合は値ごと落とす。過剰REDACTは events テーブル
+ * の可読性が落ちるだけだが、漏れは実害になるためこちら側に倒している。
+ */
+const SECRET_KEY_RE = /^(.*[_-])?(api[_-]?key|apikey|secret|token|password|passwd|credential|authorization)([_-].*)?$/i;
+
+export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
+  if (typeof value === "string") {
+    if (keyHint !== undefined && SECRET_KEY_RE.test(keyHint)) {
+      return "***REDACTED:secret_key_name***";
+    }
+    return sanitizeSecrets(value).sanitized;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizePayloadDeep(item, keyHint));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, sanitizePayloadDeep(item, key)]),
+    );
+  }
+  return value;
+}
+
 export class EventsRepo {
   constructor(private readonly db: PgQueryable) {}
 
@@ -103,12 +137,7 @@ export class EventsRepo {
     traceId: string,
     options: EnqueueOptions = {},
   ): Promise<boolean> {
-    // 設計原則4(a): 外部由来テキストはDB保存前にサニタイズする。GitHub webhookは
-    // commitメッセージやissue本文をそのまま運んでくるため、ここが最後の砦になる。
-    // 置換トークンは ***REDACTED:<pattern>*** でJSON安全なので、直列化後の文字列に
-    // 適用してもJSONとしての妥当性は保たれる。既にサニタイズ済みの経路（Graph等）へ
-    // 二重適用しても、置換トークン自体はどのパターンにも一致しないため冪等。
-    const serializedPayload = sanitizeSecrets(JSON.stringify(payload)).sanitized;
+    const serializedPayload = JSON.stringify(sanitizePayloadDeep(payload));
     if (options.dedupeKey) {
       const res = await this.db.query(
         `INSERT INTO events (trace_id, source, payload, status, dedupe_key, next_attempt_at)

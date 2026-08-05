@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { PgQueryable } from "@aiops/shared";
-import { decideEventDisposition, EventsRepo } from "../src/db/eventsRepo.js";
+import { decideEventDisposition, EventsRepo, sanitizePayloadDeep } from "../src/db/eventsRepo.js";
 
 interface Call {
   text: string;
@@ -385,9 +385,7 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
       "github",
       { eventName: "push", payload: { head_commit: { message: `token ${leaked}` } } },
       "t-1",
-      {
-        dedupeKey: "github:d1",
-      },
+      { dedupeKey: "github:d1" },
     );
 
     const stored = String(calls[0]!.params![2]);
@@ -401,28 +399,57 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
 
     await repo.enqueue("inbound", { note: `secret ${leaked}` }, "t-2");
 
-    const stored = String(calls[0]!.params![2]);
-    expect(stored).not.toContain(leaked);
+    expect(String(calls[0]!.params![2])).not.toContain(leaked);
   });
 
-  it("REDACT後もJSONとして妥当なまま構造を保つ", async () => {
-    const { db, calls } = makeMockDb();
-    const repo = new EventsRepo(db);
+  it("key=value形式の秘密を落としてもJSONBに入れられる妥当なJSONのままにする", () => {
+    // 直列化文字列へsanitizeSecretsを適用すると generic_api_key_kv が引用符ごと
+    // 消してJSONが壊れる。JSONBカラムなのでINSERTが落ちてイベントを取りこぼす。
+    const sanitized = JSON.stringify(
+      sanitizePayloadDeep({ eventName: "push", payload: { api_key: "abcdefghijklmnop" } }),
+    );
 
-    await repo.enqueue("github", { eventName: "push", nested: { token: leaked } }, "t-3");
-
-    const parsed = JSON.parse(String(calls[0]!.params![2])) as { eventName: string; nested: { token: string } };
+    const parsed = JSON.parse(sanitized) as { eventName: string; payload: { api_key: string } };
     expect(parsed.eventName).toBe("push");
-    expect(parsed.nested.token).toContain("***REDACTED:");
+    expect(parsed.payload.api_key).not.toContain("abcdefghijklmnop");
+    expect(parsed.payload.api_key).toContain("***REDACTED:");
   });
 
-  it("サニタイズ済みテキストへの二重適用でも壊れない（冪等）", async () => {
-    const { db, calls } = makeMockDb();
-    const repo = new EventsRepo(db);
+  it("秘密を示唆するkey名は値の形に関係なく落とす", () => {
+    const out = sanitizePayloadDeep({
+      authorization: "plain-looking-value",
+      client_secret: "short",
+      access_token: "abc",
+      token_count: 42,
+      description: "ただのテキスト",
+    }) as Record<string, unknown>;
 
-    await repo.enqueue("graph", { body: "***REDACTED:github_pat***" }, "t-4");
+    expect(out["authorization"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["client_secret"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["access_token"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["token_count"]).toBe(42);
+    expect(out["description"]).toBe("ただのテキスト");
+  });
 
-    const parsed = JSON.parse(String(calls[0]!.params![2])) as { body: string };
-    expect(parsed.body).toBe("***REDACTED:github_pat***");
+  it("配列・null・数値・真偽値など非文字列の構造を保つ", () => {
+    const out = sanitizePayloadDeep({
+      list: [`x ${leaked}`, 1, null, true],
+      nested: { deep: { message: `y ${leaked}` } },
+      count: 3,
+    }) as { list: unknown[]; nested: { deep: { message: string } }; count: number };
+
+    expect(out.count).toBe(3);
+    expect(out.list[1]).toBe(1);
+    expect(out.list[2]).toBeNull();
+    expect(out.list[3]).toBe(true);
+    expect(String(out.list[0])).not.toContain(leaked);
+    expect(out.nested.deep.message).not.toContain(leaked);
+  });
+
+  it("サニタイズ済みテキストへの二重適用でも壊れない（冪等）", () => {
+    const once = sanitizePayloadDeep({ body: `token ${leaked}` });
+    const twice = sanitizePayloadDeep(once);
+
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
   });
 });
