@@ -116,6 +116,9 @@ jobs:
           # .git/hooks/* を書かれても実行されないようにしておく。
           git config core.hooksPath /dev/null
           git checkout -b "${BRANCH_NAME}"
+          # エージェント実行前の .git/config を退避する。insteadOf 等の書き換えを
+          # 仕込まれるとトークン付きpushの宛先を差し替えられるため、push直前に戻す。
+          cp .git/config "${RUNNER_TEMP}/git-config.trusted"
 
       # 秘密はstep envではなくinputで渡す。step envにするとcomposite action内の
       # 全ステップ（CLI導入を含む）が継承し、依存のlifecycle scriptから見えてしまう。
@@ -159,6 +162,10 @@ jobs:
           AIOPS_PR_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
         run: |
           set -euo pipefail
+          # エージェントが書き換えた可能性のある .git/config を、実行前の状態へ戻す。
+          # url.<base>.insteadOf などはURLを使用前に書き換えるため、明示URLと
+          # credential helper だけでは宛先の差し替えを防げない。
+          cp "${RUNNER_TEMP}/git-config.trusted" .git/config
           git config core.hooksPath /dev/null
           # AC-002b: mainへの直接pushはしない。agent/{task_id}ブランチへのpushのみ許可する。
           # トークンはURL（=argv）に置かず、環境変数から読むcredential helperで渡す。
