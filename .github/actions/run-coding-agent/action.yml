@@ -47,7 +47,10 @@ runs:
         CLAUDE_CODE_VERSION: "2.1.222"
       run: |
         set -euo pipefail
-        pnpm add --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+        # pnpm 11 は既定でlifecycle scriptを実行しない。claude-code は postinstall
+        # (node install.cjs) でプラットフォーム別バイナリを配置するため、明示的に
+        # このパッケージだけbuildを許可する。許可しないと導入できても起動しない。
+        pnpm add --global --allow-build=@anthropic-ai/claude-code "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
         claude --version
 
     - name: Run Claude Code (agent=claude-code)
