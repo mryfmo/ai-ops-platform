@@ -63,6 +63,22 @@ async function physicalConnectionCount(): Promise<number> {
   return result.rows[0]!.count;
 }
 
+/**
+ * pool.end() resolves once the client sockets are closed, but PostgreSQL drops
+ * the backend from pg_stat_activity asynchronously. Poll instead of sampling
+ * once, so a slow host cannot read a connection that is already closing. A real
+ * leak still fails, because the count never reaches the expected value.
+ */
+async function waitForConnectionCount(expected: number, timeoutMs = 10_000): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+  let count = await physicalConnectionCount();
+  while (count !== expected && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    count = await physicalConnectionCount();
+  }
+  return count;
+}
+
 describe.skipIf(!baseDatabaseUrl)(
   "real PostgreSQL web pool load [PrjOps:REQ-041 / DevOps:REQ-041 PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]",
   () => {
@@ -146,7 +162,7 @@ describe.skipIf(!baseDatabaseUrl)(
       await routePool.end();
       routePool = undefined;
       delete globalPool.__aiopsPgPool;
-      const after = await physicalConnectionCount();
+      const after = await waitForConnectionCount(before);
 
       expect(before).toBe(0);
       expect(peak).toBe(1);

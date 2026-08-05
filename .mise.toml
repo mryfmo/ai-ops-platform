@@ -3,6 +3,10 @@
 node = "22"
 pnpm = "11.13.0"
 
+[tasks.audit]
+description = "本番依存の脆弱性検査（GitHub CIと同一条件）"
+run = "pnpm audit --prod --audit-level high"
+
 [tasks.actionlint]
 description = "GitHub Actions workflowの静的検証"
 run = "actionlint -shellcheck= -pyflakes= .github/workflows/*.yml"
@@ -43,6 +47,35 @@ run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts"
 description = "本番ゲートの軽量チェック（CODEOWNERSプレースホルダ警告など）"
 run = "pnpm run governance:check"
 
+[tasks."db:require"]
+description = "実DB検証に必要な環境変数の確認（未設定なら手順を示して失敗する）"
+run = """
+missing=""
+for v in AIOPS_TEST_DATABASE_NAME AIOPS_LOAD_TEST_DATABASE_URL AIOPS_LOAD_TEST_CONFIRM_DATABASE TEST_DATABASE_URL P001_ALLOW_DISPOSABLE_DB; do
+  eval "value=\\${$v:-}"
+  if [ -z "$value" ]; then missing="$missing $v"; fi
+done
+if [ -n "$missing" ]; then
+  echo "実PostgreSQLが未設定のため CI と同一の検証ができません。未設定:$missing" >&2
+  echo "" >&2
+  echo "使い捨てDBの起動例:" >&2
+  echo "  docker compose -f verification/postgres.compose.yml up -d --wait" >&2
+  echo "  createdb -h 127.0.0.1 -p 55432 -U postgres aiops_test" >&2
+  echo "  createdb -h 127.0.0.1 -p 55432 -U postgres aiops_load_test" >&2
+  echo "" >&2
+  echo "  export PGHOST=127.0.0.1 PGPORT=55432 PGUSER=postgres" >&2
+  echo "  export AIOPS_TEST_DATABASE_NAME=aiops_test AIOPS_TEST_DATABASE_HOST=127.0.0.1 AIOPS_TEST_DATABASE_PORT=55432" >&2
+  echo "  export AIOPS_LOAD_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/aiops_load_test" >&2
+  echo "  export AIOPS_LOAD_TEST_CONFIRM_DATABASE=aiops_load_test" >&2
+  echo "  export TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/aiops_p001 P001_ALLOW_DISPOSABLE_DB=1" >&2
+  exit 1
+fi
+"""
+
+[tasks."verify:db"]
+description = "PostgreSQL統合検証（追記専用・パーティション・migration冪等性）。GitHub CIと同一。"
+run = "bash verification/run_db_integration.sh"
+
 [tasks.ci]
-description = "CIと同一の一括検証（governance→lint→traceability→format→build→typecheck→test:coverage）"
-run = "mise run governance && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage"
+description = "CIと同一の一括検証（db:require→governance→audit→actionlint→lint→traceability→format→build→typecheck→test:coverage→verify:db）。実PostgreSQLが必須。"
+run = "mise run db:require && mise run governance && mise run audit && mise run actionlint && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage && mise run verify:db"

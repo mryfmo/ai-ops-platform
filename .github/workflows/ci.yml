@@ -15,11 +15,44 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    # The repository ships real-PostgreSQL tests (schema, migrations, recipient
+    # backfill, pool saturation) plus verification/run_db_integration.sh. Without
+    # a database they silently skip, so the layer whose regressions hurt most was
+    # never exercised in CI.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aiops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      AIOPS_TEST_DATABASE_NAME: aiops_test
+      AIOPS_TEST_DATABASE_HOST: 127.0.0.1
+      AIOPS_TEST_DATABASE_PORT: "5432"
+      AIOPS_LOAD_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/aiops_load_test
+      AIOPS_LOAD_TEST_CONFIRM_DATABASE: aiops_load_test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
       - run: pnpm run governance:check
       - run: pnpm install --frozen-lockfile
+      - name: 実DBテスト用データベースを作成
+        run: |
+          set -euo pipefail
+          createdb aiops_load_test
+          createdb aiops_p001
       - run: pnpm audit --prod --audit-level high
       - run: pnpm run lint
       - run: pnpm run format
@@ -28,6 +61,11 @@ jobs:
       - run: pnpm -r --if-present run test:coverage
       - name: トレーサビリティ検証（全SPEC-ID⇔実装⇔テストの対応チェック）
         run: pnpm exec tsx packages/traceability/src/verifyTraceability.ts
+      - name: PostgreSQL統合検証（追記専用・パーティション・migration冪等性）
+        env:
+          P001_ALLOW_DISPOSABLE_DB: "1"
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/aiops_p001
+        run: bash verification/run_db_integration.sh
 
   gitleaks:
     runs-on: ubuntu-latest
