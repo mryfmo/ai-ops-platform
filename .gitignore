@@ -7,3 +7,11 @@ coverage/
 *.log
 .DS_Store
 .orchestration/
+
+# Agent workspace artifacts (worklogs, per-tree hooks, local review state).
+# Kept out of the repository and out of Prettier's scope so `mise run ci`
+# stays green while the documented agent workflow is in use.
+.agents/
+.codex/
+.crit/
+.claude/settings.local.json

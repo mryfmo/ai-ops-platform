@@ -1,8 +1,16 @@
 packages:
   - "packages/*"
 
+# Transitive advisories with no direct dependency to bump. Each selector is
+# pinned to its own major so a security patch cannot pull a breaking release.
 overrides:
-  "postcss@8.4.31": "8.5.10"
+  "postcss@8": "^8.5.19"
+  "brace-expansion@1": "^1.1.18"
+  "brace-expansion@2": "^2.1.4"
+  "fast-uri@3": "^3.1.5"
+  "ip-address@10": "^10.3.1"
+  "sharp@0.34": "^0.35.0"
+  "@auth/core@0": "^0.41.3"
 
 # These exact versions were reviewed and merged before pnpm 11 enabled its
 # 24-hour supply-chain hold. Future versions remain subject to the hold.
