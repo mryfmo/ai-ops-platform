@@ -108,7 +108,7 @@ function toError(error: unknown): Error {
  * 側にあるので、key名が秘密を示唆する場合は値ごと落とす。過剰REDACTは events テーブル
  * の可読性が落ちるだけだが、漏れは実害になるためこちら側に倒している。
  */
-const SECRET_KEY_RE = /(^|_)(api_?key|apikey|secret|token|password|passwd|credential|authorization)(_|$)/;
+const SECRET_KEY_RE = /(^|_)(api_?keys?|apikeys?|secrets?|tokens?|passwords?|passwds?|credentials?|authorization)(_|$)/;
 
 /** camelCase・kebab-case を snake_case へ寄せてから判定する（accessToken / x-api-key 等に対応）。 */
 function normalizeKeyName(key: string): string {
@@ -119,10 +119,17 @@ function normalizeKeyName(key: string): string {
 }
 
 export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
-  if (typeof value === "string") {
-    if (keyHint !== undefined && SECRET_KEY_RE.test(normalizeKeyName(keyHint))) {
+  // key名が資格情報を示す場合、値が文字列でも構造化されていても落とす。
+  // 子へ降りるときに親のkeyHintを失うと {clientSecret:{value:"..."}} のように
+  // 平文を一段包むだけで素通りしてしまうため、ここで打ち切る。
+  // 非文字列のスカラー（数値・真偽値・null）は型を保つ。
+  if (keyHint !== undefined && SECRET_KEY_RE.test(normalizeKeyName(keyHint))) {
+    if (typeof value === "string" || (value !== null && typeof value === "object")) {
       return "***REDACTED:secret_key_name***";
     }
+    return value;
+  }
+  if (typeof value === "string") {
     return sanitizeSecrets(value).sanitized;
   }
   if (Array.isArray(value)) {

@@ -443,6 +443,20 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
     expect(out["githubRepo"]).toBe("widget");
   });
 
+  it("秘密key配下は構造化されていても落とす（一段包んだ平文の素通しを防ぐ）", () => {
+    const out = sanitizePayloadDeep({
+      clientSecret: { value: "abcdefghijklmnop" },
+      credentials: [{ token: "plain" }, "another"],
+      repository: { full_name: "acme/widget" },
+    }) as Record<string, unknown>;
+
+    expect(out["clientSecret"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["credentials"]).toBe("***REDACTED:secret_key_name***");
+    expect(JSON.stringify(out)).not.toContain("abcdefghijklmnop");
+    expect(JSON.stringify(out)).not.toContain("plain");
+    expect(out["repository"]).toEqual({ full_name: "acme/widget" });
+  });
+
   it("非文字列は key 名に関わらずそのまま残す（構造を壊さない）", () => {
     const out = sanitizePayloadDeep({ token_count: 42, secretFlag: true, apiKey: null }) as Record<string, unknown>;
 
