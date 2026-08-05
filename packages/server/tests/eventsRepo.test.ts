@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { PgQueryable } from "@aiops/shared";
-import { decideEventDisposition, EventsRepo } from "../src/db/eventsRepo.js";
+import { decideEventDisposition, EventsRepo, sanitizePayloadDeep } from "../src/db/eventsRepo.js";
 
 interface Call {
   text: string;
@@ -371,5 +371,173 @@ describe("decideEventDisposition (DevOps:SPEC-INT-010)", () => {
         ),
       ).toEqual({ action: "skip", attempts: 5 });
     }
+  });
+});
+
+const SECRET_FREE_FIELDS = sanitizePayloadDeep({
+  repository: { full_name: "acme/widget" },
+  sender: { login: "octocat" },
+  head_commit: { message: "chore: bump" },
+  pusher: { name: "octocat" },
+  installation: { id: 1 },
+}) as Record<string, unknown>;
+
+describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps:SPEC-INT-010]", () => {
+  const leaked = `gh${"p"}_${"a".repeat(36)}`;
+
+  it("GitHub webhook payloadの秘密をDB保存前にREDACTする", async () => {
+    const { db, calls } = makeMockDb([{ event_id: "e1" }]);
+    const repo = new EventsRepo(db);
+
+    await repo.enqueue(
+      "github",
+      { eventName: "push", payload: { head_commit: { message: `token ${leaked}` } } },
+      "t-1",
+      { dedupeKey: "github:d1" },
+    );
+
+    const stored = String(calls[0]!.params![2]);
+    expect(stored).not.toContain(leaked);
+    expect(stored).toContain("***REDACTED:");
+  });
+
+  it("dedupeKeyなしの経路でも同じゲートを通る", async () => {
+    const { db, calls } = makeMockDb();
+    const repo = new EventsRepo(db);
+
+    await repo.enqueue("inbound", { note: `secret ${leaked}` }, "t-2");
+
+    expect(String(calls[0]!.params![2])).not.toContain(leaked);
+  });
+
+  it("key=value形式の秘密を落としてもJSONBに入れられる妥当なJSONのままにする", () => {
+    // 直列化文字列へsanitizeSecretsを適用すると generic_api_key_kv が引用符ごと
+    // 消してJSONが壊れる。JSONBカラムなのでINSERTが落ちてイベントを取りこぼす。
+    const sanitized = JSON.stringify(
+      sanitizePayloadDeep({ eventName: "push", payload: { api_key: "abcdefghijklmnop" } }),
+    );
+
+    const parsed = JSON.parse(sanitized) as { eventName: string; payload: { api_key: string } };
+    expect(parsed.eventName).toBe("push");
+    expect(parsed.payload.api_key).not.toContain("abcdefghijklmnop");
+    expect(parsed.payload.api_key).toContain("***REDACTED:");
+  });
+
+  it("秘密を示唆するkey名は値の形に関係なく落とす（snake_case / camelCase / kebab-case）", () => {
+    const out = sanitizePayloadDeep({
+      authorization: "plain-looking-value",
+      client_secret: "short",
+      access_token: "abc",
+      apiKey: "camel-case-key",
+      accessToken: "camel-case-token",
+      clientSecret: "camel-case-secret",
+      "x-api-key": "kebab-case-key",
+      privateKey: "-----BEGIN-ish",
+      signingKey: "sig",
+      "set-cookie": "session=abc",
+      apikey: "unseparated",
+      accesstoken: "unseparated",
+      clientsecret: "unseparated",
+      description: "ただのテキスト",
+      githubRepo: "widget",
+      key_id: "kid-1",
+    }) as Record<string, unknown>;
+
+    for (const key of [
+      "authorization",
+      "client_secret",
+      "access_token",
+      "apiKey",
+      "accessToken",
+      "clientSecret",
+      "x-api-key",
+      "privateKey",
+      "signingKey",
+      "set-cookie",
+      "apikey",
+      "accesstoken",
+      "clientsecret",
+    ]) {
+      expect(out[key]).toBe("***REDACTED:secret_key_name***");
+    }
+    expect(out["description"]).toBe("ただのテキスト");
+    expect(out["githubRepo"]).toBe("widget");
+    // key/keys で終わる名前だけを対象にするので、key_id のような識別子は残る
+    expect(out["key_id"]).toBe("kid-1");
+    // 実際のGitHub webhookフィールド名を誤検知しないこと
+    for (const benign of ["repository", "sender", "head_commit", "pusher", "installation"]) {
+      expect(SECRET_FREE_FIELDS[benign]).toBeDefined();
+    }
+  });
+
+  it("秘密key配下は構造化されていても落とす（一段包んだ平文の素通しを防ぐ）", () => {
+    const out = sanitizePayloadDeep({
+      clientSecret: { value: "abcdefghijklmnop" },
+      credentials: [{ token: "plain" }, "another"],
+      repository: { full_name: "acme/widget" },
+    }) as Record<string, unknown>;
+
+    expect(out["clientSecret"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["credentials"]).toBe("***REDACTED:secret_key_name***");
+    expect(JSON.stringify(out)).not.toContain("abcdefghijklmnop");
+    expect(JSON.stringify(out)).not.toContain("plain");
+    expect(out["repository"]).toEqual({ full_name: "acme/widget" });
+  });
+
+  it("name/value 形式で隣接フィールドが秘密を示す場合も落とす", () => {
+    const out = sanitizePayloadDeep({
+      headers: [
+        { name: "Authorization", value: "Basic abcdefghijklmnop" },
+        { key: "api_key", value: "short-secret" },
+        { name: "Content-Type", value: "application/json" },
+      ],
+    }) as { headers: Array<Record<string, unknown>> };
+
+    expect(out.headers[0]!["value"]).toBe("***REDACTED:secret_name_value_pair***");
+    expect(out.headers[1]!["value"]).toBe("***REDACTED:secret_name_value_pair***");
+    // ラベル自体は診断に要るので残す
+    expect(out.headers[0]!["name"]).toBe("Authorization");
+    // 秘密を示さないラベルの対は落とさない
+    expect(out.headers[2]!["value"]).toBe("application/json");
+    expect(JSON.stringify(out)).not.toContain("abcdefghijklmnop");
+    expect(JSON.stringify(out)).not.toContain("short-secret");
+  });
+
+  it("秘密keyの下はスカラーでも落とす（数値のPIN/OTP対策）。null のみ素通し", () => {
+    const out = sanitizePayloadDeep({ otp_token: 123456, secretFlag: true, apiKey: null }) as Record<string, unknown>;
+
+    expect(out["otp_token"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["secretFlag"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["apiKey"]).toBeNull();
+  });
+
+  it("秘密を示さないkeyの非文字列は型を保つ", () => {
+    const out = sanitizePayloadDeep({ count: 42, enabled: true, missing: null }) as Record<string, unknown>;
+
+    expect(out["count"]).toBe(42);
+    expect(out["enabled"]).toBe(true);
+    expect(out["missing"]).toBeNull();
+  });
+
+  it("配列・null・数値・真偽値など非文字列の構造を保つ", () => {
+    const out = sanitizePayloadDeep({
+      list: [`x ${leaked}`, 1, null, true],
+      nested: { deep: { message: `y ${leaked}` } },
+      count: 3,
+    }) as { list: unknown[]; nested: { deep: { message: string } }; count: number };
+
+    expect(out.count).toBe(3);
+    expect(out.list[1]).toBe(1);
+    expect(out.list[2]).toBeNull();
+    expect(out.list[3]).toBe(true);
+    expect(String(out.list[0])).not.toContain(leaked);
+    expect(out.nested.deep.message).not.toContain(leaked);
+  });
+
+  it("サニタイズ済みテキストへの二重適用でも壊れない（冪等）", () => {
+    const once = sanitizePayloadDeep({ body: `token ${leaked}` });
+    const twice = sanitizePayloadDeep(once);
+
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
   });
 });

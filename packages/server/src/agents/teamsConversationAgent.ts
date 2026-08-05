@@ -364,14 +364,14 @@ export class TeamsConversationAgent {
 
   private async executeIntent(
     intent: ExecutableIntent,
-    channel: { githubOwner: string | null; githubRepo: string | null },
+    channel: { projectId: string; githubOwner: string | null; githubRepo: string | null },
     ids: GraphResourceIds,
     traceId: string,
     origin: "command" | "free_text",
     callerProfile: Profile,
   ): Promise<void> {
     if (intent.kind === "code_task") {
-      await this.executeCodeTask(intent, ids, traceId, origin, callerProfile);
+      await this.executeCodeTask(intent, channel.projectId, ids, traceId, origin, callerProfile);
       return;
     }
 
@@ -419,11 +419,33 @@ export class TeamsConversationAgent {
    */
   private async executeCodeTask(
     intent: Extract<ExecutableIntent, { kind: "code_task" }>,
+    channelProjectId: string,
     ids: GraphResourceIds,
     traceId: string,
     origin: "command" | "free_text",
     callerProfile: Profile,
   ): Promise<void> {
+    // intent.projectId は自由文経路ではLLMが本文から抽出した値、slash経路では
+    // 利用者が打った値であり、いずれも信頼できない。一方 resolveCallerProfile は
+    // 発信元チャネルの projectId に対して権限を判定している。突合しないと、
+    // Aチャネルの権限のままBプロジェクトのリポジトリへタスクを作れてしまう。
+    // gh_* 系がチャネル紐付けの owner/repo を使っているのと同じ土俵に揃える。
+    if (intent.projectId !== channelProjectId) {
+      await this.deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "teams_code_task_rejected_project_scope",
+        basis: "ADR-0006",
+        detail: { requestedProjectId: intent.projectId, channelProjectId, origin },
+        at: new Date().toISOString(),
+      });
+      await this.reply(
+        ids,
+        `このチャネル（${channelProjectId}）では ${intent.projectId} のコーディングタスクを受け付けられません。対象プロジェクトのチャネルから実行してください。`,
+      );
+      return;
+    }
+
     const taskId = randomUUID();
     const confirmToken = generateConfirmToken(taskId, this.deps.confirmTokenSecret);
     const confirmTokenHash = hashConfirmToken(confirmToken);

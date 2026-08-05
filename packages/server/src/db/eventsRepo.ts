@@ -6,6 +6,7 @@
  */
 import type { PgQueryable } from "@aiops/shared";
 import type { EventQueueMetric } from "../observability/metrics.js";
+import { sanitizeSecrets } from "@aiops/shared";
 
 export type EventSource = "github" | "monitor" | "inbound";
 
@@ -93,6 +94,71 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+/**
+ * JSONBカラムへ入れる値のサニタイズ。
+ *
+ * 直列化した文字列へ sanitizeSecrets を適用してはならない。generic_api_key_kv などの
+ * key=value パターンは値を囲む引用符ごと置換するため、`{"api_key":"..."}` が
+ * `{"***REDACTED:generic_api_key_kv***}` になりJSONとして壊れる。events.payload は
+ * JSONB なのでINSERT自体が失敗し、イベントを取りこぼす（サニタイズ漏れより悪い）。
+ * 文字列走査は auditLog.ts と同じく「検知」にのみ使える手法で、置換結果は使えない。
+ *
+ * そこで構造を保ったまま値だけを置換する。加えて、JSONでは key と value が分離して
+ * いるため key=value パターンが値単体には一致しない。秘密であることを示す情報が key
+ * 側にあるので、key名が秘密を示唆する場合は値ごと落とす。過剰REDACTは events テーブル
+ * の可読性が落ちるだけだが、漏れは実害になるためこちら側に倒している。
+ */
+const SECRET_KEY_RE = /(secret|token|password|passwd|credential|authorization|cookie|apikey)|(^|_)keys?$/;
+
+/** camelCase・kebab-case を snake_case へ寄せてから判定する（accessToken / x-api-key 等に対応）。 */
+function normalizeKeyName(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/-/g, "_")
+    .toLowerCase();
+}
+
+export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
+  // key名が資格情報を示す場合、値が文字列でも構造化されていても落とす。
+  // 子へ降りるときに親のkeyHintを失うと {clientSecret:{value:"..."}} のように
+  // 平文を一段包むだけで素通りしてしまうため、ここで打ち切る。
+  // 判定は部分一致にする。apikey / accesstoken のように区切りの無い綴りが
+  // 実際のwebhook JSONに現れ、区切りを前提にした境界一致では取りこぼすため。
+  // 加えて key/keys で終わる名前（privateKey / signingKey / api_key 等）を拾う。
+  // tokenizer のような無関係な語や idempotency_key も落ちるが、events テーブルの
+  // 可読性が下がるだけで実害は無い側に倒している。
+  if (keyHint !== undefined && SECRET_KEY_RE.test(normalizeKeyName(keyHint))) {
+    // 数値のPIN/OTPのように、資格情報がスカラーで来ることもある。null だけは
+    // それ自体が情報を持たないのでそのまま残す。
+    return value === null ? null : "***REDACTED:secret_key_name***";
+  }
+  if (typeof value === "string") {
+    return sanitizeSecrets(value).sanitized;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizePayloadDeep(item, keyHint));
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    // { name: "Authorization", value: "Basic ..." } のように、秘密であることを
+    // 隣の name/key フィールドが示す形。value 側のkey名は "value" でしかないため
+    // key名判定では拾えない。ラベル側を見て対になる値を落とす。
+    const labelledSecret = entries.some(
+      ([key, item]) =>
+        (key === "name" || key === "key") && typeof item === "string" && SECRET_KEY_RE.test(normalizeKeyName(item)),
+    );
+    return Object.fromEntries(
+      entries.map(([key, item]) => {
+        if (labelledSecret && (key === "value" || key === "values")) {
+          return [key, "***REDACTED:secret_name_value_pair***"];
+        }
+        return [key, sanitizePayloadDeep(item, key)];
+      }),
+    );
+  }
+  return value;
+}
+
 export class EventsRepo {
   constructor(private readonly db: PgQueryable) {}
 
@@ -102,20 +168,21 @@ export class EventsRepo {
     traceId: string,
     options: EnqueueOptions = {},
   ): Promise<boolean> {
+    const serializedPayload = JSON.stringify(sanitizePayloadDeep(payload));
     if (options.dedupeKey) {
       const res = await this.db.query(
         `INSERT INTO events (trace_id, source, payload, status, dedupe_key, next_attempt_at)
          VALUES ($1, $2, $3, 'queued', $4, now())
          ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
          RETURNING event_id`,
-        [traceId, source, JSON.stringify(payload), options.dedupeKey],
+        [traceId, source, serializedPayload, options.dedupeKey],
       );
       return res.rows.length > 0;
     }
 
     await this.db.query(
       "INSERT INTO events (trace_id, source, payload, status, next_attempt_at) VALUES ($1, $2, $3, 'queued', now())",
-      [traceId, source, JSON.stringify(payload)],
+      [traceId, source, serializedPayload],
     );
     return true;
   }
