@@ -161,10 +161,14 @@ jobs:
           set -euo pipefail
           git config core.hooksPath /dev/null
           # AC-002b: mainへの直接pushはしない。agent/{task_id}ブランチへのpushのみ許可する。
-          # 認証はこのステップ限りで渡す（.git/config には残さない）。
+          # トークンはURL（=argv）に置かず、環境変数から読むcredential helperで渡す。
+          # URLに埋めると同一ランナー上の他プロセスからprocのargvとして読める。
+          # 認証設定は -c で当該コマンド限りに閉じ、.git/config には残さない。
           # --no-verify: pre-push hook がこのステップの AIOPS_PR_TOKEN を継承して
           # 意図しない参照へ push するのを防ぐ。
-          git push --no-verify "https://x-access-token:${AIOPS_PR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
+          git -c credential.helper= \
+              -c "credential.helper=!f() { echo username=x-access-token; echo password=\$AIOPS_PR_TOKEN; }; f" \
+              push --no-verify "https://github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
 
       - name: Create pull request
         if: steps.detect.outputs.changed == 'true'
