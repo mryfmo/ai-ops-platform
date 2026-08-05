@@ -108,8 +108,7 @@ function toError(error: unknown): Error {
  * 側にあるので、key名が秘密を示唆する場合は値ごと落とす。過剰REDACTは events テーブル
  * の可読性が落ちるだけだが、漏れは実害になるためこちら側に倒している。
  */
-const SECRET_KEY_RE =
-  /(^|_)(secrets?|tokens?|passwords?|passwds?|credentials?|authorization|cookies?)(_|$)|(^|_)keys?$/;
+const SECRET_KEY_RE = /(secret|token|password|passwd|credential|authorization|cookie|apikey)|(^|_)keys?$/;
 
 /** camelCase・kebab-case を snake_case へ寄せてから判定する（accessToken / x-api-key 等に対応）。 */
 function normalizeKeyName(key: string): string {
@@ -124,9 +123,11 @@ export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
   // 子へ降りるときに親のkeyHintを失うと {clientSecret:{value:"..."}} のように
   // 平文を一段包むだけで素通りしてしまうため、ここで打ち切る。
   // 非文字列のスカラー（数値・真偽値・null）は型を保つ。
-  // key/keys で終わる名前は一括で対象にする（api_key / privateKey / signingKey 等を
-  // 個別列挙せずに拾うため）。idempotency_key のような無害な名前も落ちるが、
-  // events テーブルの可読性が下がるだけで実害は無い側に倒している。
+  // 判定は部分一致にする。apikey / accesstoken のように区切りの無い綴りが
+  // 実際のwebhook JSONに現れ、区切りを前提にした境界一致では取りこぼすため。
+  // 加えて key/keys で終わる名前（privateKey / signingKey / api_key 等）を拾う。
+  // tokenizer のような無関係な語や idempotency_key も落ちるが、events テーブルの
+  // 可読性が下がるだけで実害は無い側に倒している。
   if (keyHint !== undefined && SECRET_KEY_RE.test(normalizeKeyName(keyHint))) {
     if (typeof value === "string" || (value !== null && typeof value === "object")) {
       return "***REDACTED:secret_key_name***";

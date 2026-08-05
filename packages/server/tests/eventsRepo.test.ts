@@ -374,6 +374,14 @@ describe("decideEventDisposition (DevOps:SPEC-INT-010)", () => {
   });
 });
 
+const SECRET_FREE_FIELDS = sanitizePayloadDeep({
+  repository: { full_name: "acme/widget" },
+  sender: { login: "octocat" },
+  head_commit: { message: "chore: bump" },
+  pusher: { name: "octocat" },
+  installation: { id: 1 },
+}) as Record<string, unknown>;
+
 describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps:SPEC-INT-010]", () => {
   const leaked = `gh${"p"}_${"a".repeat(36)}`;
 
@@ -427,6 +435,9 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
       privateKey: "-----BEGIN-ish",
       signingKey: "sig",
       "set-cookie": "session=abc",
+      apikey: "unseparated",
+      accesstoken: "unseparated",
+      clientsecret: "unseparated",
       description: "ただのテキスト",
       githubRepo: "widget",
       key_id: "kid-1",
@@ -443,6 +454,9 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
       "privateKey",
       "signingKey",
       "set-cookie",
+      "apikey",
+      "accesstoken",
+      "clientsecret",
     ]) {
       expect(out[key]).toBe("***REDACTED:secret_key_name***");
     }
@@ -450,6 +464,10 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
     expect(out["githubRepo"]).toBe("widget");
     // key/keys で終わる名前だけを対象にするので、key_id のような識別子は残る
     expect(out["key_id"]).toBe("kid-1");
+    // 実際のGitHub webhookフィールド名を誤検知しないこと
+    for (const benign of ["repository", "sender", "head_commit", "pusher", "installation"]) {
+      expect(SECRET_FREE_FIELDS[benign]).toBeDefined();
+    }
   });
 
   it("秘密key配下は構造化されていても落とす（一段包んだ平文の素通しを防ぐ）", () => {
