@@ -145,11 +145,17 @@ jobs:
           AIOPS_PR_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
         run: |
           set -euo pipefail
+          # エージェントはこのステップより前に走っており、先に設定した
+          # core.hooksPath を書き戻せる。トークンを持つのはこのステップなので、
+          # ここで再度無効化し、commit/push 双方で hook を明示的に止める。
+          git config core.hooksPath /dev/null
           git add -A
           git commit --no-verify -m "[AI] ${PROJECT_ID}: ${INSTRUCTION}" -m "task_id: ${TASK_ID}"
           # AC-002b: mainへの直接pushはしない。agent/{task_id}ブランチへのpushのみ許可する。
           # 認証はこのステップ限りで渡す（.git/config には残さない）。
-          git push "https://x-access-token:${AIOPS_PR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
+          # --no-verify: pre-push hook がこのステップの AIOPS_PR_TOKEN を継承して
+          # 意図しない参照へ push するのを防ぐ。
+          git push --no-verify "https://x-access-token:${AIOPS_PR_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
 
       - name: Create pull request
         if: steps.detect.outputs.changed == 'true'
