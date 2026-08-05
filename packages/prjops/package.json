@@ -15,12 +15,12 @@
   },
   "dependencies": {
     "@aiops/shared": "workspace:*",
-    "@anthropic-ai/sdk": "0.111.0",
+    "@anthropic-ai/sdk": "0.115.0",
     "zod": "4.4.3",
     "yaml": "^2.6.0"
   },
   "devDependencies": {
-    "vite": "8.1.4",
+    "vite": "8.2.0",
     "vitest": "4.1.10",
     "typescript": "^5.6.3"
   }
