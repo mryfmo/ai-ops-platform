@@ -415,20 +415,40 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
     expect(parsed.payload.api_key).toContain("***REDACTED:");
   });
 
-  it("秘密を示唆するkey名は値の形に関係なく落とす", () => {
+  it("秘密を示唆するkey名は値の形に関係なく落とす（snake_case / camelCase / kebab-case）", () => {
     const out = sanitizePayloadDeep({
       authorization: "plain-looking-value",
       client_secret: "short",
       access_token: "abc",
-      token_count: 42,
+      apiKey: "camel-case-key",
+      accessToken: "camel-case-token",
+      clientSecret: "camel-case-secret",
+      "x-api-key": "kebab-case-key",
       description: "ただのテキスト",
+      githubRepo: "widget",
     }) as Record<string, unknown>;
 
-    expect(out["authorization"]).toBe("***REDACTED:secret_key_name***");
-    expect(out["client_secret"]).toBe("***REDACTED:secret_key_name***");
-    expect(out["access_token"]).toBe("***REDACTED:secret_key_name***");
-    expect(out["token_count"]).toBe(42);
+    for (const key of [
+      "authorization",
+      "client_secret",
+      "access_token",
+      "apiKey",
+      "accessToken",
+      "clientSecret",
+      "x-api-key",
+    ]) {
+      expect(out[key]).toBe("***REDACTED:secret_key_name***");
+    }
     expect(out["description"]).toBe("ただのテキスト");
+    expect(out["githubRepo"]).toBe("widget");
+  });
+
+  it("非文字列は key 名に関わらずそのまま残す（構造を壊さない）", () => {
+    const out = sanitizePayloadDeep({ token_count: 42, secretFlag: true, apiKey: null }) as Record<string, unknown>;
+
+    expect(out["token_count"]).toBe(42);
+    expect(out["secretFlag"]).toBe(true);
+    expect(out["apiKey"]).toBeNull();
   });
 
   it("配列・null・数値・真偽値など非文字列の構造を保つ", () => {

@@ -108,11 +108,19 @@ function toError(error: unknown): Error {
  * 側にあるので、key名が秘密を示唆する場合は値ごと落とす。過剰REDACTは events テーブル
  * の可読性が落ちるだけだが、漏れは実害になるためこちら側に倒している。
  */
-const SECRET_KEY_RE = /^(.*[_-])?(api[_-]?key|apikey|secret|token|password|passwd|credential|authorization)([_-].*)?$/i;
+const SECRET_KEY_RE = /(^|_)(api_?key|apikey|secret|token|password|passwd|credential|authorization)(_|$)/;
+
+/** camelCase・kebab-case を snake_case へ寄せてから判定する（accessToken / x-api-key 等に対応）。 */
+function normalizeKeyName(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/-/g, "_")
+    .toLowerCase();
+}
 
 export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
   if (typeof value === "string") {
-    if (keyHint !== undefined && SECRET_KEY_RE.test(keyHint)) {
+    if (keyHint !== undefined && SECRET_KEY_RE.test(normalizeKeyName(keyHint))) {
       return "***REDACTED:secret_key_name***";
     }
     return sanitizeSecrets(value).sanitized;
