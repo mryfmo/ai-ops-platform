@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "description": "PrjOps AI基盤 + AIエージェント主導DevOps運用基盤 統合モノレポ（14エージェント）",
+  "description": "PrjOps AI\u57fa\u76e4 + AI\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u4e3b\u5c0eDevOps\u904b\u7528\u57fa\u76e4 \u7d71\u5408\u30e2\u30ce\u30ec\u30dd\uff0814\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\uff09",
   "packageManager": "pnpm@11.13.0",
   "scripts": {
     "build": "pnpm -r --if-present run build",
@@ -18,8 +18,7 @@
     "acceptance:validate": "node scripts/validate-acceptance-manifest.mjs",
     "traceability": "pnpm exec tsx packages/traceability/src/verifyTraceability.ts",
     "verify:load": "pnpm --filter @aiops/server test -- loadBaseline.test.ts && pnpm --filter @aiops/web test -- dataApiPoolLoad.test.ts",
-    "verify:load:postgres": "node -e \"const u=process.env.AIOPS_LOAD_TEST_DATABASE_URL;if(!u){console.error('AIOPS_LOAD_TEST_DATABASE_URL is required');process.exit(1)}const n=decodeURIComponent(new URL(u).pathname.slice(1));const c=process.env.AIOPS_LOAD_TEST_CONFIRM_DATABASE;if(!c){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE is required');process.exit(1)}if(c!==n){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE must exactly match the URL database name');process.exit(1)}\" && pnpm --filter @aiops/web test -- dataApiPoolRealPgLoad.test.ts",
-    "verify:all": "bash verification/run_verification.sh"
+    "verify:load:postgres": "node -e \"const u=process.env.AIOPS_LOAD_TEST_DATABASE_URL;if(!u){console.error('AIOPS_LOAD_TEST_DATABASE_URL is required');process.exit(1)}const n=decodeURIComponent(new URL(u).pathname.slice(1));const c=process.env.AIOPS_LOAD_TEST_CONFIRM_DATABASE;if(!c){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE is required');process.exit(1)}if(c!==n){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE must exactly match the URL database name');process.exit(1)}\" && pnpm --filter @aiops/web test -- dataApiPoolRealPgLoad.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

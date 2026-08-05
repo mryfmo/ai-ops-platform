@@ -8,6 +8,13 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
       include: ["src/**/*.ts"],
+      // 回帰検知用の下限。現状値から 5pt の余裕を取った値であり、目標値ではない。
+      thresholds: {
+        lines: 85,
+        statements: 82,
+        functions: 83,
+        branches: 74,
+      },
     },
   },
 });

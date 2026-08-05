@@ -3,6 +3,10 @@
 node = "22"
 pnpm = "11.13.0"
 
+[tasks.audit]
+description = "本番依存の脆弱性検査（GitHub CIと同一条件）"
+run = "pnpm audit --prod --audit-level high"
+
 [tasks.actionlint]
 description = "GitHub Actions workflowの静的検証"
 run = "actionlint -shellcheck= -pyflakes= .github/workflows/*.yml"
@@ -44,5 +48,5 @@ description = "本番ゲートの軽量チェック（CODEOWNERSプレースホ�
 run = "pnpm run governance:check"
 
 [tasks.ci]
-description = "CIと同一の一括検証（governance→lint→traceability→format→build→typecheck→test:coverage）"
-run = "mise run governance && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage"
+description = "CIと同一の一括検証（governance→audit→actionlint→lint→traceability→format→build→typecheck→test:coverage）"
+run = "mise run governance && mise run audit && mise run actionlint && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage"
