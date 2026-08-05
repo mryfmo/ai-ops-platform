@@ -254,6 +254,35 @@ describe("TeamsConversationAgent: GitHub照会成功 (ADR-0005)", () => {
     expect(logs.every((l) => l.action !== "teams_code_task_deferred")).toBe(true);
   });
 
+  it("発信元チャネル外のprojectIdを指すcode_taskは拒否し、監査と返信を残す (ADR-0006)", async () => {
+    const h = makeHarness({
+      message: { content: '/code fix PJ-999 "他プロジェクトを直して"' },
+      callerProfile: "PRF-02",
+    });
+    await h.agent.handleNotification(makeNotification(), "trace-scope-1");
+
+    expect(h.codingTaskInserts).toHaveLength(0);
+    const logs = await h.auditLog.readAll();
+    const rejected = logs.find((l) => l.action === "teams_code_task_rejected_project_scope");
+    expect(rejected).toBeDefined();
+    expect(rejected!.detail).toMatchObject({ requestedProjectId: "PJ-999", channelProjectId: "PJ-001" });
+    expect(h.replies[0]!.content).toContain("PJ-999");
+    expect(logs.every((l) => l.action !== "teams_code_task_queued")).toBe(true);
+  });
+
+  it("発信元チャネルと一致するprojectIdは従来どおり受理する (ADR-0006)", async () => {
+    const h = makeHarness({
+      message: { content: '/code fix PJ-001 "自プロジェクトを直して"' },
+      callerProfile: "PRF-02",
+    });
+    await h.agent.handleNotification(makeNotification(), "trace-scope-2");
+
+    expect(h.codingTaskInserts).toHaveLength(1);
+    expect(h.codingTaskInserts[0]!.projectId).toBe("PJ-001");
+    const logs = await h.auditLog.readAll();
+    expect(logs.every((l) => l.action !== "teams_code_task_rejected_project_scope")).toBe(true);
+  });
+
   it("/code fix のinstructionはdispatch前にLLM入力用サニタイズを通す (DevOps:REQ-030)", async () => {
     const h = makeHarness({
       message: { content: '/code fix PJ-001 "キー sk-ant-abcdefghijklmnopqrstuvwxyz を除去"' },

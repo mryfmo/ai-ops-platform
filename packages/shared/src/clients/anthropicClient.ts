@@ -306,6 +306,9 @@ export class AnthropicStructuredClient {
     const model = validateModelId(opts.model ?? this.clientOptions.defaultModel);
     const pricing = this.clientOptions.pricingUsdPerMtok;
     const sanitizedUser = sanitizeForLlmInput(opts.user).sanitized;
+    // 現在の呼び出し元のsystemは静的文字列だが、外部由来テキストを差し込む
+    // 呼び出しが将来追加されても無防備にならないよう、userと同じゲートを通す。
+    const sanitizedSystem = sanitizeForLlmInput(opts.system).sanitized;
 
     let lastError: unknown;
     let attempts = 0;
@@ -320,7 +323,7 @@ export class AnthropicStructuredClient {
         currentModel = this.clientOptions.escalationModel;
       }
 
-      const estimatedInputTokens = Math.ceil((opts.system.length + sanitizedUser.length) / 4) + 256;
+      const estimatedInputTokens = Math.ceil((sanitizedSystem.length + sanitizedUser.length) / 4) + 256;
       const { price, usedFallback } = resolveModelPrice(currentModel, pricing);
       if (usedFallback && !this.clientOptions.auditLog) {
         throw new Error("E-CFG04: auditLog is required for unknown model pricing fallback");
@@ -357,7 +360,7 @@ export class AnthropicStructuredClient {
           model: currentModel,
           max_tokens: 2048,
           ...(shouldSendTemperature(currentModel, this.clientOptions.escalationModel) ? { temperature: 0 } : {}),
-          system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
+          system: [{ type: "text", text: sanitizedSystem, cache_control: { type: "ephemeral" } }],
           messages: [{ role: "user", content: sanitizedUser }],
           tools: [
             {

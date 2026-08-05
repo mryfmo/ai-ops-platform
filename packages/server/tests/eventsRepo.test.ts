@@ -373,3 +373,56 @@ describe("decideEventDisposition (DevOps:SPEC-INT-010)", () => {
     }
   });
 });
+
+describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps:SPEC-INT-010]", () => {
+  const leaked = `gh${"p"}_${"a".repeat(36)}`;
+
+  it("GitHub webhook payloadの秘密をDB保存前にREDACTする", async () => {
+    const { db, calls } = makeMockDb([{ event_id: "e1" }]);
+    const repo = new EventsRepo(db);
+
+    await repo.enqueue(
+      "github",
+      { eventName: "push", payload: { head_commit: { message: `token ${leaked}` } } },
+      "t-1",
+      {
+        dedupeKey: "github:d1",
+      },
+    );
+
+    const stored = String(calls[0]!.params![2]);
+    expect(stored).not.toContain(leaked);
+    expect(stored).toContain("***REDACTED:");
+  });
+
+  it("dedupeKeyなしの経路でも同じゲートを通る", async () => {
+    const { db, calls } = makeMockDb();
+    const repo = new EventsRepo(db);
+
+    await repo.enqueue("inbound", { note: `secret ${leaked}` }, "t-2");
+
+    const stored = String(calls[0]!.params![2]);
+    expect(stored).not.toContain(leaked);
+  });
+
+  it("REDACT後もJSONとして妥当なまま構造を保つ", async () => {
+    const { db, calls } = makeMockDb();
+    const repo = new EventsRepo(db);
+
+    await repo.enqueue("github", { eventName: "push", nested: { token: leaked } }, "t-3");
+
+    const parsed = JSON.parse(String(calls[0]!.params![2])) as { eventName: string; nested: { token: string } };
+    expect(parsed.eventName).toBe("push");
+    expect(parsed.nested.token).toContain("***REDACTED:");
+  });
+
+  it("サニタイズ済みテキストへの二重適用でも壊れない（冪等）", async () => {
+    const { db, calls } = makeMockDb();
+    const repo = new EventsRepo(db);
+
+    await repo.enqueue("graph", { body: "***REDACTED:github_pat***" }, "t-4");
+
+    const parsed = JSON.parse(String(calls[0]!.params![2])) as { body: string };
+    expect(parsed.body).toBe("***REDACTED:github_pat***");
+  });
+});

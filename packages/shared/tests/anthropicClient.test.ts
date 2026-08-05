@@ -487,3 +487,58 @@ describe("LLM pricing and token validation [PrjOps:SPEC-INT-060]", () => {
     ).toThrow("E-CFG04");
   });
 });
+
+describe("AnthropicStructuredClient system prompt sanitization [PrjOps:REQ-032 / DevOps:REQ-030]", () => {
+  it("systemもuserと同じくLLM入力ゲートを通す", async () => {
+    const leaked = `gh${"p"}_${"a".repeat(36)}`;
+    const create = vi
+      .fn()
+      .mockResolvedValue(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
+    const client = new AnthropicStructuredClient(
+      { messages: { create } } as unknown as Anthropic,
+      new InMemoryCostGuard(),
+      clientOptions,
+    );
+
+    await client.call({
+      agent: "AGT-04",
+      purpose: "standard_report_slots",
+      system: `You are a helper. token ${leaked}`,
+      user: "hello",
+      toolName: "emit",
+      toolDescription: "emit value",
+      inputSchema: schema,
+      parse: (raw) => raw as { value: string },
+      maxAttempts: 1,
+    });
+
+    const sent = JSON.stringify(create.mock.calls[0]![0]);
+    expect(sent).not.toContain(leaked);
+    expect(sent).toContain("***REDACTED:");
+  });
+
+  it("秘密を含まないsystemはそのまま送られる", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValue(response([{ type: "tool_use", id: "tu_1", name: "emit", input: { value: "ok" } }]));
+    const client = new AnthropicStructuredClient(
+      { messages: { create } } as unknown as Anthropic,
+      new InMemoryCostGuard(),
+      clientOptions,
+    );
+
+    await client.call({
+      agent: "AGT-04",
+      purpose: "standard_report_slots",
+      system: "Return a tool.",
+      user: "hello",
+      toolName: "emit",
+      toolDescription: "emit value",
+      inputSchema: schema,
+      parse: (raw) => raw as { value: string },
+      maxAttempts: 1,
+    });
+
+    expect(create.mock.calls[0]![0]).toMatchObject({ system: [{ text: "Return a tool." }] });
+  });
+});

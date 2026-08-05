@@ -6,6 +6,7 @@
  */
 import type { PgQueryable } from "@aiops/shared";
 import type { EventQueueMetric } from "../observability/metrics.js";
+import { sanitizeSecrets } from "@aiops/shared";
 
 export type EventSource = "github" | "monitor" | "inbound";
 
@@ -102,20 +103,26 @@ export class EventsRepo {
     traceId: string,
     options: EnqueueOptions = {},
   ): Promise<boolean> {
+    // 設計原則4(a): 外部由来テキストはDB保存前にサニタイズする。GitHub webhookは
+    // commitメッセージやissue本文をそのまま運んでくるため、ここが最後の砦になる。
+    // 置換トークンは ***REDACTED:<pattern>*** でJSON安全なので、直列化後の文字列に
+    // 適用してもJSONとしての妥当性は保たれる。既にサニタイズ済みの経路（Graph等）へ
+    // 二重適用しても、置換トークン自体はどのパターンにも一致しないため冪等。
+    const serializedPayload = sanitizeSecrets(JSON.stringify(payload)).sanitized;
     if (options.dedupeKey) {
       const res = await this.db.query(
         `INSERT INTO events (trace_id, source, payload, status, dedupe_key, next_attempt_at)
          VALUES ($1, $2, $3, 'queued', $4, now())
          ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
          RETURNING event_id`,
-        [traceId, source, JSON.stringify(payload), options.dedupeKey],
+        [traceId, source, serializedPayload, options.dedupeKey],
       );
       return res.rows.length > 0;
     }
 
     await this.db.query(
       "INSERT INTO events (trace_id, source, payload, status, next_attempt_at) VALUES ($1, $2, $3, 'queued', now())",
-      [traceId, source, JSON.stringify(payload)],
+      [traceId, source, serializedPayload],
     );
     return true;
   }
