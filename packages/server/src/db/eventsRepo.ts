@@ -122,17 +122,15 @@ export function sanitizePayloadDeep(value: unknown, keyHint?: string): unknown {
   // key名が資格情報を示す場合、値が文字列でも構造化されていても落とす。
   // 子へ降りるときに親のkeyHintを失うと {clientSecret:{value:"..."}} のように
   // 平文を一段包むだけで素通りしてしまうため、ここで打ち切る。
-  // 非文字列のスカラー（数値・真偽値・null）は型を保つ。
   // 判定は部分一致にする。apikey / accesstoken のように区切りの無い綴りが
   // 実際のwebhook JSONに現れ、区切りを前提にした境界一致では取りこぼすため。
   // 加えて key/keys で終わる名前（privateKey / signingKey / api_key 等）を拾う。
   // tokenizer のような無関係な語や idempotency_key も落ちるが、events テーブルの
   // 可読性が下がるだけで実害は無い側に倒している。
   if (keyHint !== undefined && SECRET_KEY_RE.test(normalizeKeyName(keyHint))) {
-    if (typeof value === "string" || (value !== null && typeof value === "object")) {
-      return "***REDACTED:secret_key_name***";
-    }
-    return value;
+    // 数値のPIN/OTPのように、資格情報がスカラーで来ることもある。null だけは
+    // それ自体が情報を持たないのでそのまま残す。
+    return value === null ? null : "***REDACTED:secret_key_name***";
   }
   if (typeof value === "string") {
     return sanitizeSecrets(value).sanitized;

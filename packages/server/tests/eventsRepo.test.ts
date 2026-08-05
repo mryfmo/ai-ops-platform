@@ -503,12 +503,20 @@ describe("enqueue payload sanitization [DevOps:REQ-030 / PrjOps:REQ-032 / DevOps
     expect(JSON.stringify(out)).not.toContain("short-secret");
   });
 
-  it("非文字列は key 名に関わらずそのまま残す（構造を壊さない）", () => {
-    const out = sanitizePayloadDeep({ token_count: 42, secretFlag: true, apiKey: null }) as Record<string, unknown>;
+  it("秘密keyの下はスカラーでも落とす（数値のPIN/OTP対策）。null のみ素通し", () => {
+    const out = sanitizePayloadDeep({ otp_token: 123456, secretFlag: true, apiKey: null }) as Record<string, unknown>;
 
-    expect(out["token_count"]).toBe(42);
-    expect(out["secretFlag"]).toBe(true);
+    expect(out["otp_token"]).toBe("***REDACTED:secret_key_name***");
+    expect(out["secretFlag"]).toBe("***REDACTED:secret_key_name***");
     expect(out["apiKey"]).toBeNull();
+  });
+
+  it("秘密を示さないkeyの非文字列は型を保つ", () => {
+    const out = sanitizePayloadDeep({ count: 42, enabled: true, missing: null }) as Record<string, unknown>;
+
+    expect(out["count"]).toBe(42);
+    expect(out["enabled"]).toBe(true);
+    expect(out["missing"]).toBeNull();
   });
 
   it("配列・null・数値・真偽値など非文字列の構造を保つ", () => {
