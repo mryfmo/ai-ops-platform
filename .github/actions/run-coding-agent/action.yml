@@ -3,9 +3,9 @@
 # 根拠: ADR-0006決定1「実行はcomposite action化し、agentパラメータ（claude-code | droid）で
 #   差し替え可能にする」。.github/workflows/coding-task.yml から呼ばれる。
 #
-# 注意: このcomposite actionはCI環境では実行されない（workflow_dispatch経由でのみ起動される
-#   coding-task.ymlからの呼び出しを想定）。構文的な妥当性のみを確認済みで、実際のCLI引数は
-#   実運用時に要検証（下記コメント参照）。
+# 実行前提: CLIはこのaction内でバージョン固定して導入する。導入ステップが無いと
+#   `claude: command not found` で必ず失敗するため、リポジトリの他の依存と同じく
+#   exact versionで固定する。
 name: "run-coding-agent"
 description: "AIコーディングエージェント（Claude Code / Droid）にinstructionを渡して実装させる（ADR-0006）"
 
@@ -16,35 +16,65 @@ inputs:
   instruction:
     description: "コーディング指示内容（coding_tasks.instruction由来。sanitizeSecrets済みの想定）"
     required: true
+  anthropic_api_key:
+    description: "agent=claude-code 実行用のAPIキー。CLI導入ステップには渡さない（inputで受けて実行ステップのenvにのみ展開する）"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
   steps:
-    # 実運用時要検証: anthropics/claude-code-action の正式な利用方法（バージョン・入力名）が
-    # 確定していないため、ここではclaude-code CLIを直接呼ぶ想定で記述する。
-    # ANTHROPIC_API_KEYはワークフロー側のjob env（secrets.ANTHROPIC_API_KEY）で渡される前提。
+    - name: Require Anthropic credentials (agent=claude-code)
+      if: ${{ inputs.agent == 'claude-code' }}
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+      run: |
+        set -euo pipefail
+        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+          echo "::error::ANTHROPIC_API_KEY is required for agent=claude-code. See ADR-0006 影響節（secrets登録）."
+          exit 1
+        fi
+
+    # AGENTS.md「npmコマンドは使用しない」に従い pnpm で導入する。バージョンは
+    # リポジトリの他の依存と同様に exact pin し、更新はレビュー付きの明示的なPRで行う。
+    # このステップにはプロバイダの秘密を渡さない: 依存のlifecycle scriptが動く可能性が
+    # あるため、APIキーは実行ステップのenvにのみ展開する。
+    - name: Install Claude Code CLI (agent=claude-code)
+      if: ${{ inputs.agent == 'claude-code' }}
+      shell: bash
+      env:
+        CLAUDE_CODE_VERSION: "2.1.222"
+      run: |
+        set -euo pipefail
+        # pnpm 11 は既定でlifecycle scriptを実行しない。claude-code は postinstall
+        # (node install.cjs) でプラットフォーム別バイナリを配置するため、明示的に
+        # このパッケージだけbuildを許可する。許可しないと導入できても起動しない。
+        pnpm add --global --allow-build=@anthropic-ai/claude-code "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+        claude --version
+
     - name: Run Claude Code (agent=claude-code)
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
       env:
         CODING_INSTRUCTION: ${{ inputs.instruction }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
         set -euo pipefail
         echo "[run-coding-agent] launching claude-code CLI"
-        # 実運用時要検証: 正確なCLI引数・非対話モードのフラグ名は導入時に確認すること。
         # --permission-mode acceptEdits はコード編集を自動承認するが、git commit/push・
         # PR作成はcoding-task.yml側のステップが別途行う（AC-002b: 自動マージはしない）。
+        # 呼び出し側は checkout の persist-credentials: false と core.hooksPath=/dev/null で
+        # 資格情報の残留とフック実行を封じている。
         claude -p "${CODING_INSTRUCTION}" --permission-mode acceptEdits
 
-    # 実運用時要検証: Factory (droid) のCI実行方式はADR-0006時点で未確定（残課題）。
-    # droid execの正式な非対話フラグ・認証方式が確定次第、下記を更新する。
+    # ADR-0006「影響」節の残課題: Droid実行ステップはFactory側のCI実行方式が
+    # 確定するまで有効化しない。動かない経路を動くように見せず、明示的に失敗させる
+    # （ADR-0014の「設定不足は無効化して監査し、決して擬似実行しない」に倣う）。
     - name: Run Droid (agent=droid)
       if: ${{ inputs.agent == 'droid' }}
       shell: bash
-      env:
-        CODING_INSTRUCTION: ${{ inputs.instruction }}
       run: |
         set -euo pipefail
-        echo "[run-coding-agent] launching droid CLI"
-        # 実運用時要検証: FACTORY_API_KEYはワークフロー側のjob envで渡される前提。
-        droid exec "${CODING_INSTRUCTION}"
+        echo "::error::agent=droid is not enabled yet. ADR-0006 lists the Factory CI execution method as an open item; enable this step only after it is decided and the CLI version can be pinned."
+        exit 1
