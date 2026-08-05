@@ -16,6 +16,10 @@ inputs:
   instruction:
     description: "コーディング指示内容（coding_tasks.instruction由来。sanitizeSecrets済みの想定）"
     required: true
+  anthropic_api_key:
+    description: "agent=claude-code 実行用のAPIキー。CLI導入ステップには渡さない（inputで受けて実行ステップのenvにのみ展開する）"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -23,6 +27,8 @@ runs:
     - name: Require Anthropic credentials (agent=claude-code)
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
         set -euo pipefail
         if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
@@ -30,8 +36,10 @@ runs:
           exit 1
         fi
 
-    # バージョンはリポジトリの他の依存と同様に exact pin する。更新はレビュー付きの
-    # 明示的なPRで行い、暗黙のlatest追従はしない。
+    # AGENTS.md「npmコマンドは使用しない」に従い pnpm で導入する。バージョンは
+    # リポジトリの他の依存と同様に exact pin し、更新はレビュー付きの明示的なPRで行う。
+    # このステップにはプロバイダの秘密を渡さない: 依存のlifecycle scriptが動く可能性が
+    # あるため、APIキーは実行ステップのenvにのみ展開する。
     - name: Install Claude Code CLI (agent=claude-code)
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
@@ -39,7 +47,7 @@ runs:
         CLAUDE_CODE_VERSION: "2.1.222"
       run: |
         set -euo pipefail
-        npm install --global --no-fund --no-audit "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+        pnpm add --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
         claude --version
 
     - name: Run Claude Code (agent=claude-code)
@@ -47,6 +55,7 @@ runs:
       shell: bash
       env:
         CODING_INSTRUCTION: ${{ inputs.instruction }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
       run: |
         set -euo pipefail
         echo "[run-coding-agent] launching claude-code CLI"

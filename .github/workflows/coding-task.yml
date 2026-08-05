@@ -20,7 +20,9 @@
 #   - CODING_TASK_CALLBACK_SECRET: callback認証用Bearerトークン（config.tsと同一値）
 #   - AIOPS_PR_TOKEN: PR作成/branch push用。GitHub App installation token または専用PAT。
 #     contents:write / pull-requests:write / issues:write が必要。未設定なら明示失敗する。
-#   - ANTHROPIC_API_KEY / FACTORY_API_KEY: run-coding-agent実行時にjob envとして渡す（ADR-0006影響節）
+#   - ANTHROPIC_API_KEY: run-coding-agent の input として渡す（ADR-0006影響節）。
+#     step env にすると composite action の全ステップが継承するため input 経由にしている。
+#     FACTORY_API_KEY は agent=droid が ADR-0006 の残課題で無効のため現時点では未使用。
 #
 # 検証状況: 本ワークフローはworkflow_dispatchでのみ起動される。静的検証（actionlint）は
 #   green で、CLIはバージョン固定して導入するため `command not found` では落ちない。
@@ -115,14 +117,14 @@ jobs:
           git config core.hooksPath /dev/null
           git checkout -b "${BRANCH_NAME}"
 
+      # 秘密はstep envではなくinputで渡す。step envにするとcomposite action内の
+      # 全ステップ（CLI導入を含む）が継承し、依存のlifecycle scriptから見えてしまう。
       - name: Run coding agent (ADR-0006 composite action)
         uses: ./.github/actions/run-coding-agent
         with:
           agent: ${{ inputs.agent }}
           instruction: ${{ inputs.instruction }}
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Detect changes
         id: detect
