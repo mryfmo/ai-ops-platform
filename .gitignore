@@ -7,3 +7,13 @@ coverage/
 *.log
 .DS_Store
 .orchestration/
+
+# Machine-local agent state only. Provider assets such as .agents/skills/,
+# .codex/agents/, .codex/rules/ and .claude/hooks/ stay trackable because
+# plans/012 intends to commit them. Without these entries Prettier scans the
+# worklogs and `mise run ci` cannot go green while the agent workflow is used.
+.agents/worklog/
+.agents/runs/
+.codex/hooks.json
+.claude/settings.local.json
+.crit/
