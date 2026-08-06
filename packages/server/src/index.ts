@@ -43,6 +43,7 @@ import {
 } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
 import { createJitRevocationTask } from "./scheduler/tasks/jitRevocationTask.js";
+import { createCodingTaskReaperTask } from "./scheduler/tasks/codingTaskReaperTask.js";
 import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRenewalTask.js";
 import { backfillGraphSubscription, createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
@@ -313,6 +314,15 @@ export async function main(
             ),
           ]
         : []),
+      // callback が届かず running のまま残った coding_tasks を終端させる。
+      // GitHub 認証の有無に関わらず台帳の整合は保つ必要があるため無条件に登録する。
+      observedTask(
+        createCodingTaskReaperTask({
+          codingTasksRepo,
+          auditLog: devopsAuditLog,
+          traceIdProvider: () => randomUUID(),
+        }),
+      ),
       observedTask(
         createSubscriptionRenewalTask({
           graphSubscriptionsRepo,

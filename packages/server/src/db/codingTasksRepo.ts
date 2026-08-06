@@ -122,6 +122,47 @@ export class CodingTasksRepo {
   }
 
   /**
+   * 確認クリックをDB側で原子的に確保する（ADR-0006「誤発火防止」）。
+   *
+   * ルート側の findById → status 判定 → dispatchWorkflow はチェックと更新が分かれており、
+   * 同一トークンで confirm を並行送信すると両方が判定を通過して二重 dispatch し得る。
+   * coding-task.yml の concurrency はキャンセルせずキューするため、2本目も実行され
+   * 同名ブランチへのpushで衝突する。dispatch より前にここで確保し、更新行が無ければ
+   * 既に他が確保済みとして扱う。
+   */
+  async claimForDispatch(taskId: string): Promise<boolean> {
+    const res = await this.db.query(
+      `UPDATE coding_tasks
+       SET status = 'running', confirmed_at = now(), updated_at = now()
+       WHERE task_id = $1 AND status = 'queued' AND confirmed_at IS NULL
+       RETURNING task_id`,
+      [taskId],
+    );
+    return res.rows.length > 0;
+  }
+
+  /** 確保に失敗した dispatch を終端させる（queuedへ戻さない。理由はルート側コメント参照）。 */
+  async markDispatchFailed(taskId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE coding_tasks
+       SET status = 'failed', updated_at = now()
+       WHERE task_id = $1 AND status = 'running'`,
+      [taskId],
+    );
+  }
+
+  /** timeout を過ぎても running のまま残っているタスクを回収する（callback喪失対策）。 */
+  async findStaleRunning(olderThanMinutes: number): Promise<Array<{ taskId: string; projectId: string }>> {
+    const res = await this.db.query(
+      `SELECT task_id, project_id FROM coding_tasks
+       WHERE status = 'running' AND confirmed_at IS NOT NULL
+         AND confirmed_at < now() - ($1 || ' minutes')::interval`,
+      [String(olderThanMinutes)],
+    );
+    return res.rows.map((r) => ({ taskId: String(r["task_id"]), projectId: String(r["project_id"]) }));
+  }
+
+  /**
    * GitHub Actions側からのcallback受信時: pr_created/failed/cancelledへ遷移する。
    * security-reviewer指摘(高): `WHERE status = 'running'`を追加し、未確認(queued)タスクへの
    * 偽装完了報告や、確定済みタスクへの多重callbackによる上書きをDB層でも拒否する

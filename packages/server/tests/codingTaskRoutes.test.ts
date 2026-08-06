@@ -39,7 +39,7 @@ function makeRowFor(overrides: Partial<Record<string, unknown>> = {}): Record<st
   };
 }
 
-function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: boolean } = {}) {
+function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: boolean; dispatchError?: Error } = {}) {
   const row = opts.row === undefined ? makeRowFor() : opts.row;
   const updateCalls: Array<{ text: string; params: unknown[] | undefined }> = [];
   const mockDb: PgQueryable = {
@@ -51,6 +51,13 @@ function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: bo
       // security-reviewer指摘対応: updateFromCallbackはWHERE status='running'ガード付きのため、
       // 現在のフィクスチャrowがrunningの場合のみ更新1件とみなす（実PostgreSQLのrowCountを模倣）。
       const isCallbackUpdate = text.includes("WHERE task_id = $1 AND status = 'running'");
+      // claimForDispatch は queued かつ未確認の行だけを確保し RETURNING で返す。
+      // 実PostgreSQLの挙動を模して、条件を満たす場合のみ行を返す。
+      const isClaim = text.includes("status = 'queued' AND confirmed_at IS NULL");
+      if (isClaim) {
+        const claimable = row?.status === "queued" && !row?.confirmed_at;
+        return { rows: claimable ? [{ task_id: row?.["task_id"] }] : [], rowCount: claimable ? 1 : 0 };
+      }
       const rowCount = isCallbackUpdate ? (row?.status === "running" ? 1 : 0) : 1;
       return { rows: [], rowCount };
     },
@@ -65,10 +72,14 @@ function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: bo
     inputs: Record<string, string>;
   }> = [];
 
+  let dispatchOrder = -1;
   const deps: CodingTaskRoutesDeps = {
     codingTasksRepo,
     githubClient: {
       dispatchWorkflow: async (input) => {
+        // dispatch 時点で何件のUPDATEが済んでいたかを記録し、claim との順序を検証する
+        dispatchOrder = updateCalls.length;
+        if (opts.dispatchError) throw opts.dispatchError;
         dispatchCalls.push(input);
       },
     },
@@ -83,7 +94,16 @@ function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: bo
   const app = new Hono();
   registerCodingTaskRoutes(app, deps);
 
-  return { app, auditLog, dispatchCalls, updateCalls };
+  return {
+    app,
+    auditLog,
+    dispatchCalls,
+    updateCalls,
+    token: generateConfirmToken(TASK_ID, CONFIRM_SECRET),
+    get dispatchOrder() {
+      return dispatchOrder;
+    },
+  };
 }
 
 describe("GET /coding-tasks/:taskId/confirm (ADR-0006)", () => {
@@ -288,5 +308,53 @@ describe("hashConfirmToken使用の確認 (ADR-0006: 平文トークン非保存
   it("insert時に渡すconfirmTokenHashはgenerateConfirmTokenの出力そのものではない", () => {
     const token = generateConfirmToken(TASK_ID, CONFIRM_SECRET);
     expect(hashConfirmToken(token)).not.toBe(token);
+  });
+});
+
+describe("confirm の二重dispatch防止 [ADR-0006]", () => {
+  it("既にrunningのタスクはclaimに失敗しdispatchしない", async () => {
+    const h = makeHarness({ row: makeRowFor({ status: "running", confirmed_at: "2026-07-07T00:00:10.000Z" }) });
+
+    const res = await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+
+    expect(res.status).toBe(200);
+    expect(h.dispatchCalls).toHaveLength(0);
+  });
+
+  it("claim は dispatch より前に実行される（順序が逆だと二重起動を防げない）", async () => {
+    const h = makeHarness();
+
+    await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+
+    const claimIndex = h.updateCalls.findIndex((c) => c.text.includes("status = 'queued' AND confirmed_at IS NULL"));
+    expect(claimIndex).toBeGreaterThanOrEqual(0);
+    expect(h.dispatchCalls).toHaveLength(1);
+    // claim が記録された後に dispatch が起きていること
+    expect(h.dispatchOrder).toBeGreaterThan(claimIndex);
+  });
+
+  it("dispatch失敗時はqueuedへ戻さずfailedで終端する（二重起動を許さない）", async () => {
+    const h = makeHarness({ dispatchError: new Error("boom") });
+
+    const res = await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+
+    expect(res.status).toBe(502);
+    const failedUpdate = h.updateCalls.find((c) => c.text.includes("SET status = 'failed'"));
+    expect(failedUpdate).toBeDefined();
+    expect(h.updateCalls.every((c) => !c.text.includes("SET status = 'queued'"))).toBe(true);
+    const logs = await h.auditLog.readAll();
+    expect(logs.some((l) => l.action === "coding_task_dispatch_failed")).toBe(true);
   });
 });

@@ -165,23 +165,55 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
       return c.html(errorPage("フェイルセーフ中のためコーディングタスク実行を停止しています。"), 503);
     }
 
-    // 人間の明示クリックが成立した瞬間にのみworkflow_dispatchを呼ぶ（ADR-0006「誤発火防止」の核心）
-    await deps.githubClient.dispatchWorkflow({
-      owner: repoScope.githubOwner,
-      repo: repoScope.githubRepo,
-      workflowIdOrFileName: "coding-task.yml",
-      ref: "main",
-      inputs: {
-        task_id: taskId,
-        project_id: task.projectId,
-        instruction: task.instruction,
-        base_ref: "main",
-        agent: task.agent,
-      },
-    });
+    // dispatch より前にDB側で原子的に確保する。上の status 判定と dispatch の間には
+    // 隙があり、同一トークンの並行 confirm が両方通過して二重 dispatch し得るため
+    // （coding-task.yml の concurrency はキャンセルせずキューするので2本目も走る）。
+    const claimed = await deps.codingTasksRepo.claimForDispatch(taskId);
+    if (!claimed) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "coding_task_confirm_already_claimed",
+        basis: "ADR-0006",
+        detail: { taskId, projectId: task.projectId },
+        at: new Date().toISOString(),
+      });
+      return c.html(statusPage("確認済みまたは処理中です", "このタスクは既に実行を開始しています。"), 200);
+    }
 
-    // workflow_run_idはこの時点では未確定（GitHub Actions側から後続callbackで埋まる想定）
-    await deps.codingTasksRepo.markConfirmedAndDispatched(taskId);
+    // 人間の明示クリックが成立した瞬間にのみworkflow_dispatchを呼ぶ（ADR-0006「誤発火防止」の核心）
+    try {
+      await deps.githubClient.dispatchWorkflow({
+        owner: repoScope.githubOwner,
+        repo: repoScope.githubRepo,
+        workflowIdOrFileName: "coding-task.yml",
+        ref: "main",
+        inputs: {
+          task_id: taskId,
+          project_id: task.projectId,
+          instruction: task.instruction,
+          base_ref: "main",
+          agent: task.agent,
+        },
+      });
+    } catch (error) {
+      // queued へは戻さない。dispatch が GitHub 側に届いたかどうかは失敗応答からは
+      // 判別できず、戻すと二重起動を許すため。ADR-0006 の「誤発火防止」に従い、
+      // 不確かなときは再実行させない側に倒し、失敗として終端させる。
+      await deps.codingTasksRepo.markDispatchFailed(taskId);
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "coding_task_dispatch_failed",
+        basis: "ADR-0006",
+        detail: { taskId, projectId: task.projectId, error: String(error) },
+        at: new Date().toISOString(),
+      });
+      return c.html(
+        errorPage("コーディングタスクの起動に失敗しました。再実行が必要な場合は新しいタスクを作成してください。"),
+        502,
+      );
+    }
 
     await deps.auditLog.append({
       trace_id: task.traceId,
