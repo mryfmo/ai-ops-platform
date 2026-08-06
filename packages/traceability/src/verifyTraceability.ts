@@ -258,6 +258,79 @@ export function collectFailureMessages(
   ];
 }
 
+/**
+ * 設定変数の三者一致ガード（根拠: ADR-0005。所見 ADV-OPS-012）。
+ *
+ * `docs/reference/configuration.md` は自ら「二つの Zod スキーマの全キーを列挙し、`.env.example`
+ * も同じ和集合を持つ」と主張している。この主張を人手で維持していた間に 16 変数が文書から、
+ * 5 変数が `.env.example` から欠落した。文書の主張は検証可能でなければ主張ではないので、
+ * 乖離した時点で `mise run traceability` が落ちるようにする。
+ *
+ * 抽出は構文解析ではなく形（スキーマ本体のキー行 / 表のバッククォート付き大文字トークン /
+ * `KEY=` 行）に依存する。取りこぼしではなく過検出へ倒してあり、疑わしい側は失敗になる。
+ */
+export function configInventoryFailures(repoRoot: string): string[] {
+  const read = (...parts: string[]): string | undefined => {
+    try {
+      return readFileSync(join(repoRoot, ...parts), "utf8");
+    } catch {
+      return undefined;
+    }
+  };
+  const serverSource = read("packages", "server", "src", "config.ts");
+  const webSource = read("packages", "web", "src", "server", "config.ts");
+  const docSource = read("docs", "reference", "configuration.md");
+  const envSource = read(".env.example");
+  const missingFiles = [
+    serverSource === undefined ? "packages/server/src/config.ts" : undefined,
+    webSource === undefined ? "packages/web/src/server/config.ts" : undefined,
+    docSource === undefined ? "docs/reference/configuration.md" : undefined,
+    envSource === undefined ? ".env.example" : undefined,
+  ].filter((file): file is string => file !== undefined);
+  if (missingFiles.length > 0) return missingFiles.map((file) => `config inventory source missing: ${file}`);
+
+  const between = (text: string, from: string, to: string): string => {
+    const start = text.indexOf(from);
+    if (start < 0) return "";
+    const end = text.indexOf(to, start + from.length);
+    return text.slice(start, end < 0 ? text.length : end);
+  };
+  const schemaKeys = (body: string): string[] => [
+    ...new Set([...body.matchAll(/^\s{2,4}([A-Z][A-Z0-9_]{2,})\s*:/gm)].map((match) => match[1]!)),
+  ];
+  const tableKeys = (section: string): Set<string> =>
+    new Set([...section.matchAll(/^\|\s*`([A-Z][A-Z0-9_]{2,})`\s*\|/gm)].map((match) => match[1]!));
+
+  const serverKeys = schemaKeys(between(serverSource!, "const baseConfigSchema", "const configSchema"));
+  const webKeys = schemaKeys(between(webSource!, "const webConfigSchema", ".superRefine"));
+  const docServer = tableKeys(between(docSource!, "## Server", "## Web"));
+  const docWeb = tableKeys(between(docSource!, "## Web", "## Report Generation"));
+  const envKeys = new Set([...envSource!.matchAll(/^#?\s*([A-Z][A-Z0-9_]{2,})=/gm)].map((match) => match[1]!));
+
+  // スキーマ本体を読めていない場合に空集合同士が一致して黙って通るのを防ぐ。
+  if (serverKeys.length === 0 || webKeys.length === 0) {
+    return ["config inventory: Zod schema body not found; the extraction anchors in verifyTraceability.ts are stale"];
+  }
+
+  const failures: string[] = [];
+  const report = (keys: string[], present: Set<string>, label: string): void => {
+    for (const key of keys) {
+      if (!present.has(key)) failures.push(`config inventory: ${key} is in the ${label}`);
+    }
+  };
+  report(serverKeys, docServer, "server Zod schema but not in the configuration.md server table");
+  report(webKeys, docWeb, "web Zod schema but not in the configuration.md web table");
+  report([...serverKeys, ...webKeys], envKeys, "Zod schemas but not in .env.example");
+
+  const schemaKeySet = new Set([...serverKeys, ...webKeys]);
+  for (const key of [...docServer, ...docWeb, ...envKeys]) {
+    if (!schemaKeySet.has(key)) {
+      failures.push(`config inventory: ${key} is documented or in .env.example but is in neither Zod schema`);
+    }
+  }
+  return [...new Set(failures)];
+}
+
 function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
   const catalogFile = join(repoRoot, "docs", "spec", "spec-id-catalog.md");
   let text: string;
@@ -747,7 +820,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     adrReferenceFailures(repoRoot),
     namespaceFailures,
     [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],
-    [...indexGuardFailures, ...catalogGuardFailures],
+    [...indexGuardFailures, ...catalogGuardFailures, ...configInventoryFailures(repoRoot)],
   );
   const errorMessage =
     failures.length > 0 ? `E-TRACE01: トレーサビリティ検証に失敗しました: ${failures.join(", ")}` : undefined;

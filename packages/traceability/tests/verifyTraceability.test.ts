@@ -25,7 +25,60 @@ interface FixtureOptions {
   traceabilityTestText?: string;
   traceabilityOtherTestText?: string;
   prjopsDispositions?: unknown[];
+  serverConfigText?: string;
+  webConfigText?: string;
+  configDocText?: string;
+  envExampleText?: string;
+  omitConfigDoc?: boolean;
 }
+
+/**
+ * 設定変数ガード用の最小 fixture。既定の 4 ファイルは互いに一致しており、
+ * どれか 1 つだけを差し替えれば乖離を作れる。
+ */
+const FIXTURE_SERVER_CONFIG = [
+  "/** 根拠: ADR-0004 */",
+  "const baseConfigSchema = z.object({",
+  "  DATABASE_URL: z.string(),",
+  "  PORT: z.coerce.number(),",
+  "});",
+  "const configSchema = baseConfigSchema;",
+  "",
+].join("\n");
+
+const FIXTURE_WEB_CONFIG = [
+  "const webConfigSchema = z",
+  "  .object({",
+  "    AUTH_SECRET: z.string(),",
+  "  })",
+  "  .superRefine(() => undefined);",
+  "",
+].join("\n");
+
+function fixtureConfigDoc(serverRows: string[], webRows: string[]): string {
+  const table = (rows: string[]) => ["| Variable | Required |", "| --- | --- |", ...rows].join("\n");
+  return [
+    "# Configuration Reference",
+    "",
+    "## Server",
+    "",
+    table(serverRows),
+    "",
+    "## Web",
+    "",
+    table(webRows),
+    "",
+    "## Report Generation",
+    "",
+  ].join("\n");
+}
+
+const FIXTURE_CONFIG_DOC = fixtureConfigDoc(
+  ["| `DATABASE_URL` | Yes |", "| `PORT` | No |"],
+  ["| `AUTH_SECRET` | Yes |"],
+);
+
+const FIXTURE_ENV_EXAMPLE = ["DATABASE_URL=", "PORT=8080", "AUTH_SECRET=", ""].join("\n");
 
 function fixtureCatalog(prjopsReqs: string[], devopsReqs: string[]): string {
   const section = (system: string, ids: string[]) =>
@@ -57,8 +110,10 @@ function fixture(options: FixtureOptions | string[] = {}): string {
     "packages/devops/src",
     "packages/server/src",
     "packages/web/src",
+    "packages/web/src/server",
     "docs/adr",
     "docs/spec",
+    "docs/reference",
   ]) {
     mkdirSync(join(root, dir), { recursive: true });
   }
@@ -89,6 +144,12 @@ function fixture(options: FixtureOptions | string[] = {}): string {
   }
   if (normalized.traceabilityOtherTestText !== undefined) {
     writeFileSync(join(root, "packages/traceability/tests/other.test.ts"), normalized.traceabilityOtherTestText);
+  }
+  writeFileSync(join(root, "packages/server/src/config.ts"), normalized.serverConfigText ?? FIXTURE_SERVER_CONFIG);
+  writeFileSync(join(root, "packages/web/src/server/config.ts"), normalized.webConfigText ?? FIXTURE_WEB_CONFIG);
+  writeFileSync(join(root, ".env.example"), normalized.envExampleText ?? FIXTURE_ENV_EXAMPLE);
+  if (!normalized.omitConfigDoc) {
+    writeFileSync(join(root, "docs/reference/configuration.md"), normalized.configDocText ?? FIXTURE_CONFIG_DOC);
   }
   writeFileSync(join(root, "docs/adr/0004-toolchain.md"), "# ADR-0004\n");
   writeFileSync(
@@ -825,5 +886,75 @@ describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", 
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("unknown traceability system: Other::REQ-001");
+  });
+});
+
+describe("設定変数インベントリガード [ADR-0005]", () => {
+  it("一致している 4 ファイルは通す [ADR-0005]", async () => {
+    const result = await runFailure(fixture({}));
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("server スキーマにあって configuration.md の server 表に無い変数を失敗にする [ADR-0005]", async () => {
+    const root = fixture({
+      configDocText: fixtureConfigDoc(["| `DATABASE_URL` | Yes |"], ["| `AUTH_SECRET` | Yes |"]),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: PORT is in the server Zod schema");
+  });
+
+  it("web スキーマにあって configuration.md の web 表に無い変数を失敗にする [ADR-0005]", async () => {
+    const root = fixture({
+      configDocText: fixtureConfigDoc(["| `DATABASE_URL` | Yes |", "| `PORT` | No |"], []),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: AUTH_SECRET is in the web Zod schema");
+  });
+
+  it("スキーマにあって .env.example に無い変数を失敗にする [ADR-0005]", async () => {
+    const root = fixture({ envExampleText: "DATABASE_URL=\nAUTH_SECRET=\n" });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: PORT is in the Zod schemas but not in .env.example");
+  });
+
+  it("どちらのスキーマにも無い変数が文書に載っていれば失敗にする [ADR-0005]", async () => {
+    const root = fixture({
+      configDocText: fixtureConfigDoc(
+        ["| `DATABASE_URL` | Yes |", "| `PORT` | No |", "| `RETIRED_FLAG` | No |"],
+        ["| `AUTH_SECRET` | Yes |"],
+      ),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: RETIRED_FLAG is documented or in .env.example");
+  });
+
+  it("configuration.md が消えたら失敗にする [ADR-0005]", async () => {
+    const result = await runFailure(fixture({ omitConfigDoc: true }));
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory source missing: docs/reference/configuration.md");
+  });
+
+  it("スキーマ本体を読めなくなったら空集合一致で黙って通さない [ADR-0005]", async () => {
+    const root = fixture({ serverConfigText: "/** 根拠: ADR-0004 */\nexport const renamed = 1;\n" });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Zod schema body not found");
   });
 });
