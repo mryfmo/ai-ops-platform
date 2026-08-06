@@ -93,6 +93,13 @@ export interface WorkflowDispatchInput {
   inputs: Record<string, string>;
 }
 
+/** Actions run の観測結果。`status` が完了以外なら実行中/待機中を意味する。 */
+export interface WorkflowRunSummary {
+  id: number;
+  status: string | null;
+  conclusion: string | null;
+}
+
 export interface ProjectV2SnapshotRecord {
   projectId: string | null;
   repository: string | null;
@@ -294,6 +301,39 @@ export class GitHubClient {
       { method: "POST", headers, body: JSON.stringify({ ref: input.ref, inputs: input.inputs }) },
     );
     if (!res.ok) throw new Error(`E-DEP01: workflow_dispatch failed with status ${res.status}`);
+  }
+
+  /**
+   * ブランチ上のワークフロー実行状態を観測する（DevOps:SPEC-INT-020 / ADR-0006）。
+   *
+   * workflow_dispatch は run ID を返さないため、dispatch 時点では実行を追跡できない。
+   * coding-task.yml はブランチを `agent/<task_id>` に固定しているので、ブランチ名が
+   * 唯一の決定的な相関キーになる。runner 枯渇で queued のまま待っている実行と、
+   * 完了したのに callback が届かなかった実行を区別するために使う。
+   */
+  async listWorkflowRunsForBranch(
+    owner: string,
+    repo: string,
+    branch: string,
+    perPage = 20,
+  ): Promise<WorkflowRunSummary[]> {
+    const headers = await this.headers();
+    const query = `branch=${encodeURIComponent(branch)}&per_page=${String(perPage)}`;
+    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/actions/runs?${query}`, {
+      method: "GET",
+      headers,
+    });
+    if (!res.ok) throw new Error(`E-ING05: listWorkflowRunsForBranch failed with status ${res.status}`);
+    const body = (await res.json()) as { workflow_runs?: unknown };
+    const runs = Array.isArray(body.workflow_runs) ? body.workflow_runs : [];
+    return runs.map((run) => {
+      const record = run as Record<string, unknown>;
+      return {
+        id: Number(record["id"]),
+        status: typeof record["status"] === "string" ? record["status"] : null,
+        conclusion: typeof record["conclusion"] === "string" ? record["conclusion"] : null,
+      };
+    });
   }
 
   /** 失敗ジョブのログ取得（SPEC-INT-011 手順2。最大1MB、超過分は末尾優先で切り詰め） */

@@ -315,12 +315,19 @@ export async function main(
           ]
         : []),
       // callback が届かず running のまま残った coding_tasks を終端させる。
-      // GitHub 認証の有無に関わらず台帳の整合は保つ必要があるため無条件に登録する。
+      // 実行状態を観測してから判断するため GitHub クライアントを渡す。認証が無効なときは
+      // タスク自身が「観測不能」として回収を見送り、理由を監査に残す。
       observedTask(
         createCodingTaskReaperTask({
           codingTasksRepo,
           auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
+          githubClient: githubPolicy.enabled ? githubClient : undefined,
+          resolveRepoForProject: async (projectId) => {
+            const channel = await projectChannelsRepo.findByProjectId(projectId);
+            if (!channel?.githubOwner || !channel.githubRepo) return null;
+            return { githubOwner: channel.githubOwner, githubRepo: channel.githubRepo };
+          },
         }),
       ),
       observedTask(

@@ -15,6 +15,7 @@
  */
 import type { Hono } from "hono";
 import type { AuditLogWriter } from "@aiops/shared";
+import { sanitizeSecrets } from "@aiops/shared";
 import { verifyConfirmToken, verifyBearerToken } from "../../lib/confirmToken.js";
 import type { CodingTasksRepo, CodingTaskStatus } from "../../db/codingTasksRepo.js";
 
@@ -206,7 +207,9 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
         actor: "SERVER",
         action: "coding_task_dispatch_failed",
         basis: "ADR-0006",
-        detail: { taskId, projectId: task.projectId, error: String(error) },
+        // 例外文字列は注入されたGitHubクライアント/TokenProvider由来で、資格情報を含み得る。
+        // 監査ログは追記専用で訂正できないため、書く前にサニタイズする（CLAUDE.md原則4(c)）。
+        detail: { taskId, projectId: task.projectId, error: sanitizeSecrets(String(error)).sanitized },
         at: new Date().toISOString(),
       });
       return c.html(

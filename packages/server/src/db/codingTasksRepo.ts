@@ -141,14 +141,20 @@ export class CodingTasksRepo {
     return res.rows.length > 0;
   }
 
-  /** 確保に失敗した dispatch を終端させる（queuedへ戻さない。理由はルート側コメント参照）。 */
-  async markDispatchFailed(taskId: string): Promise<void> {
-    await this.db.query(
+  /**
+   * running のタスクを failed で終端させる（queuedへ戻さない。理由はルート側コメント参照）。
+   *
+   * 影響行数を返すのは、呼び出し側が「実際に遷移した場合だけ監査へ追記する」ためである。
+   * 監査ログは追記専用（CLAUDE.md原則5）なので、遷移していないのに書いた記録は訂正できない。
+   */
+  async markDispatchFailed(taskId: string): Promise<{ updated: boolean }> {
+    const res = await this.db.query(
       `UPDATE coding_tasks
        SET status = 'failed', updated_at = now()
        WHERE task_id = $1 AND status = 'running'`,
       [taskId],
     );
+    return { updated: (res.rowCount ?? 0) > 0 };
   }
 
   /** timeout を過ぎても running のまま残っているタスクを回収する（callback喪失対策）。 */

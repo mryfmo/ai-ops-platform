@@ -112,3 +112,40 @@ describe("GitHubClient.listIssues (ADR-0005)", () => {
     expect(decodeURIComponent(urls[0]!)).toContain("labels=incident,sev1");
   });
 });
+
+describe("GitHubClient.listWorkflowRunsForBranch (ADR-0006)", () => {
+  it("ブランチをURLエンコードして問い合わせ、status/conclusionを正規化する", async () => {
+    const urls: string[] = [];
+    const fetchImpl: GhFetchLike = async (url) => {
+      urls.push(url);
+      return jsonResponse({
+        workflow_runs: [
+          { id: 7, status: "completed", conclusion: "success" },
+          { id: 8, status: "queued", conclusion: null },
+        ],
+      });
+    };
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    const runs = await client.listWorkflowRunsForBranch("acme", "repo", "agent/task 123");
+
+    expect(urls[0]).toContain("/repos/acme/repo/actions/runs?branch=agent%2Ftask%20123");
+    expect(runs).toEqual([
+      { id: 7, status: "completed", conclusion: "success" },
+      { id: 8, status: "queued", conclusion: null },
+    ]);
+  });
+
+  it("workflow_runsが欠落していても空配列を返す", async () => {
+    const client = new GitHubClient(tokenProvider, async () => jsonResponse({}));
+
+    expect(await client.listWorkflowRunsForBranch("acme", "repo", "agent/t-1")).toEqual([]);
+  });
+
+  it("非2xxは黙って空を返さず例外にする", async () => {
+    // 5xxはfetchWithBackoffが再試行するため、再試行対象外の404で終端挙動を検証する。
+    const client = new GitHubClient(tokenProvider, async () => jsonResponse({ message: "not found" }, 404));
+
+    await expect(client.listWorkflowRunsForBranch("acme", "repo", "agent/t-1")).rejects.toThrow("E-ING05");
+  });
+});

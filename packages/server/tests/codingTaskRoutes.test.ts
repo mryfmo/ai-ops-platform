@@ -357,4 +357,22 @@ describe("confirm の二重dispatch防止 [ADR-0006]", () => {
     const logs = await h.auditLog.readAll();
     expect(logs.some((l) => l.action === "coding_task_dispatch_failed")).toBe(true);
   });
+
+  it("dispatch例外の文字列は監査へ書く前にサニタイズする", async () => {
+    const h = makeHarness({
+      dispatchError: new Error("auth failed for ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"),
+    });
+
+    await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+
+    const logs = await h.auditLog.readAll();
+    const entry = logs.find((l) => l.action === "coding_task_dispatch_failed")!;
+    const detail = entry.detail as { error: string };
+    expect(detail.error).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
+    expect(detail.error).toContain("REDACTED");
+  });
 });
