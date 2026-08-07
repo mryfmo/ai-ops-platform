@@ -177,11 +177,11 @@ describe("composeInvestorReport [PRF-05: 社内固有情報を含まない, 機�
   });
 });
 
-// 検証内容は 03_PRD.md:109 が定義する受入条件（ja版とen版で数値・色判定が完全一致）だが、
-// その ID はどのインデックスにも登録されていない（所見 ADV-VER-014）。未登録の ID を
-// タイトルへ書くと「登録済みの受入条件を検証した」という誤った証跡になるため、
-// 登録の可否が裁定されるまで ID は書かず、検証している事実だけを残す。
-describe("英語版レポート [ASM-002: 数値・色判定の日英一致]", () => {
+// 検証している受入条件は 03_PRD.md:109 の AC だが、その ID はどのインデックスにも
+// 登録されていない（所見 ADV-VER-014）。未登録 ID を書くと「登録済みの受入条件を検証した」
+// という誤った証跡になるため、親要件である PrjOps:REQ-016（多言語生成）を引く。
+// AC 側の登録可否は仕様側の裁定事項。
+describe("英語版レポート [PrjOps:REQ-016, ASM-002: 数値・色判定の日英一致]", () => {
   it("同一データのja/en版で色ラベルと数値が対応する", () => {
     const dataJa = { actions: [], projects: [{ id: "PJ-001", name: "サンプル案件", color: "red" as const }] };
     const htmlJa = composeMemberReport({ ...common, lang: "ja" }, dataJa);

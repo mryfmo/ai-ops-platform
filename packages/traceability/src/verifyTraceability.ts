@@ -845,7 +845,7 @@ function isDirectory(path: string): boolean {
  * そのパッケージだけ規約の外に落ちる——しかも **CI は緑のまま**なので誰も気づかない。
  * 「全パッケージが対象」という主張を、列挙ではなく発見で満たす。
  */
-function basisHeaderDirs(repoRoot: string): string[] {
+function discoveredPackageDirs(repoRoot: string): string[] {
   const packagesDir = join(repoRoot, "packages");
   let entries: string[];
   try {
@@ -853,7 +853,13 @@ function basisHeaderDirs(repoRoot: string): string[] {
   } catch {
     return [];
   }
-  return entries.map((entry) => join(packagesDir, entry, "src")).filter(isDirectory);
+  return entries.map((entry) => join(packagesDir, entry)).filter(isDirectory);
+}
+
+function basisHeaderDirs(repoRoot: string): string[] {
+  return discoveredPackageDirs(repoRoot)
+    .map((dir) => join(dir, "src"))
+    .filter(isDirectory);
 }
 
 /**
@@ -880,7 +886,10 @@ function basisHeaderFailures(repoRoot: string, knownIds: ReadonlySet<string> = n
     .filter((file) => {
       const comment = leadingComment(readFileSync(file, "utf8"));
       if (!BASIS_HEADER_ID.test(comment)) return true;
-      const cited = [...comment.matchAll(new RegExp(BASIS_ID_BOUNDED, "g"))].map((match) => match[1]!);
+      // 実在判定は `根拠:` 以降だけを見る。コメント全体を見ると、宣言より前の散文に実在IDが
+      // あるだけで通ってしまい、根拠として掲げた未登録IDが素通りする。
+      const attributed = comment.slice(comment.indexOf("根拠:"));
+      const cited = [...attributed.matchAll(new RegExp(BASIS_ID_BOUNDED, "g"))].map((match) => match[1]!);
       return !cited.some(idExists);
     })
     .map((file) => file.replace(`${repoRoot}/`, ""));
@@ -945,7 +954,9 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   const devopsDir = join(repoRoot, "packages", "devops");
   const serverDir = join(repoRoot, "packages", "server");
   const webDir = join(repoRoot, "packages", "web");
-  const packageDirs = [sharedDir, traceabilityDir, prjopsDir, devopsDir, serverDir, webDir];
+  // 名前空間ガードも根拠ヘッダガードと同じ発見結果を使う。片方だけ固定配列だと、
+  // 新しいパッケージが bare な衝突ID（両systemに存在するID）を書いても素通りする。
+  const packageDirs = discoveredPackageDirs(repoRoot);
 
   const prjopsCorpus = buildCorpus([sharedDir, traceabilityDir, prjopsDir, serverDir, webDir]);
   const devopsCorpus = buildCorpus([sharedDir, traceabilityDir, devopsDir, serverDir, webDir]);

@@ -1651,3 +1651,32 @@ describe("先頭が行コメントのヘッダ [PrjOps:SPEC-INT-070 / DevOps:SPE
     expect(result.stderr).not.toContain("basis header missing: packages/devops/src/basis.ts");
   });
 });
+
+describe("実在判定は根拠宣言以降に限る [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("宣言より前の散文にある実在IDでは通さない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    writeFileSync(
+      join(root, "packages/devops/src/basis.ts"),
+      "/**\n * ADR-0004 に沿って書かれている。\n * 根拠: REQ-999\n */\nexport const x = 1;\n",
+    );
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("basis header missing: packages/devops/src/basis.ts");
+  });
+});
+
+describe("名前空間ガードも発見したパッケージを対象にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("新しいパッケージの bare な衝突IDを検出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // REQ-001 を両systemに登録して衝突IDにする。namespace 無しでは system を特定できない。
+    const root = fixture({ prjopsReqs: ["REQ-001"], devopsReqs: ["REQ-001"] });
+    mkdirSync(join(root, "packages/newpkg/src"), { recursive: true });
+    writeFileSync(join(root, "packages/newpkg/src/a.ts"), "/** 根拠: REQ-001 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("ambiguous bare reference: REQ-001");
+  });
+});
