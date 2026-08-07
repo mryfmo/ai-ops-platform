@@ -1,7 +1,16 @@
 /**
  * packages/devops/src/db/migrate.ts
  *
- * 根拠: A-11。schema_migrationsで順序適用済みDDLを記録する最小マイグレーション基盤。
+ * 根拠: DevOps:SPEC-INT-050（events/deployments/incidents/grants 等のテーブル定義）/ ADR-0003
+ *   （DevOps は常駐サービスとして稼働し、状態はすべて PostgreSQL に置く）。
+ *   schema.sql は fresh-DB 用の最新形、既存DBへの差分適用は migrations/NNN_*.sql を版順に適用する
+ *   （AGENTS.md「schema.sql 変更手順」）。本ファイルは適用済み版を schema_migrations に記録し、
+ *   advisory lock ＋ 単一トランザクションで順序適用する最小マイグレーション基盤。
+ *
+ * 変更前の根拠は `A-11` のみだった。`A-NN` はリポジトリ内で作業項目ラベルとして 8 箇所ほど
+ * 一貫して使われているが、その定義はどこにも無い（docs/ runbooks/ verification/ に記述なし）。
+ * 読み手が指示対象を解決できないため、根拠としては仕様IDを併記する。ラベル自体は履歴として残す
+ * （`A-11`: schema_migrations の導入時タスク）。
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";

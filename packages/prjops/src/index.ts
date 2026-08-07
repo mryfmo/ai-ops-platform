@@ -1,10 +1,15 @@
-// PrjOps:SPEC-INT-010 / ADR-0001 / DEC-SPEC-004: 原仕様のprjops-system物理リポジトリは本monorepoの
-// packages/prjopsへ置換した。prjops-dataは別private repositoryのまま、prjops-reportsは
-// PostgreSQL/archive境界へ置換する。各外部環境の構築完了をこのexportが示すものではない。
-//
-// Profile は reportJobStateMachine.js が正本。reportPermissionFilter.js / logicalDelete.js /
-// templates/index.js も同型を再exportしているため、宣言emit時のTS2308（ワイルドカード曖昧）を
-// 明示的な再exportで解消する。
+/**
+ * packages/prjops/src/index.ts
+ *
+ * 根拠: PrjOps:SPEC-INT-010 / ADR-0001 / DEC-SPEC-004。原仕様のprjops-system物理リポジトリは
+ *   本monorepoのpackages/prjopsへ置換した。prjops-dataは別private repositoryのまま、
+ *   prjops-reportsはPostgreSQL/archive境界へ置換する。
+ *   各外部環境の構築完了をこのexportが示すものではない。
+ *
+ * Profile は reportJobStateMachine.js が正本。reportPermissionFilter.js / logicalDelete.js /
+ * templates/index.js も同型を再exportしているため、宣言emit時のTS2308（ワイルドカード曖昧）を
+ * 明示的な再exportで解消する。
+ */
 export type { Profile } from "./lib/reportJobStateMachine.js";
 export * from "./lib/statusJudge.js";
 export * from "./lib/masterValidation.js";
