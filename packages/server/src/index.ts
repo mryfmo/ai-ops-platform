@@ -14,6 +14,7 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { reportDegradation, type Capability } from "./lib/degradedCapabilities.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
@@ -443,14 +444,50 @@ export async function main(
     },
   );
 
+  // 縮退の一覧を一箇所で組み立てる。個々の無効化は監査に残るが、積み重なった状態は
+  // どこからも見えなかった（所見 ADV-INT-052 / ADV-INT-007 / ADV-INT-050）。
+  // 購読ゼロもここに含める——台帳行が消えるとTeams収集が止まるのに、監査すら残らなかった。
+  let subscriptionsPresent = false;
+  const refreshSubscriptionPresence = async (): Promise<void> => {
+    const notification = await graphSubscriptionsRepo.listByMode("notification");
+    const polling = await graphSubscriptionsRepo.listByMode("polling");
+    subscriptionsPresent = notification.length + polling.length > 0;
+  };
+  await refreshSubscriptionPresence();
+
+  const capabilityState = (): Record<Capability, boolean> => ({
+    report_delivery: config.REPORT_DELIVERY_ENABLED && Boolean(config.FROM_MAILBOX),
+    report_ingest: Boolean(config.REPORT_INGEST_SECRET),
+    xlsx_import: githubPolicy.enabled && Boolean(config.XLSX_IMPORT_SECRET),
+    teams_persona: Boolean(config.STAKEHOLDERS_DIR),
+    llm_free_text: Boolean(config.ANTHROPIC_API_KEY),
+    github_outbound: githubPolicy.enabled,
+    pm_snapshot_reconcile: githubPolicy.enabled && Boolean(config.GITHUB_PROJECT_NODE_ID),
+    seven_keys_snapshot: false,
+    heartbeat: Boolean(config.HEARTBEAT_URL),
+    metrics_endpoint: Boolean(config.METRICS_TOKEN),
+    teams_default_channel: Boolean(config.DEFAULT_TEAMS_TEAM_ID && config.DEFAULT_TEAMS_CHANNEL_ID),
+    telemetry: Boolean(config.OTEL_EXPORTER_OTLP_ENDPOINT ?? config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT),
+    graph_subscriptions: subscriptionsPresent,
+  });
+
+  const publishCapabilities = (): string[] => {
+    const state = capabilityState();
+    metrics.setCapabilities(state);
+    return reportDegradation(state).disabled;
+  };
+  publishCapabilities();
+
   const app = buildApp({
     auditLog: devopsAuditLog,
     readiness: createReadinessCheck({
       checkDependencies: async () => {
         await pool.query("SELECT 1");
+        await refreshSubscriptionPresence();
       },
       isFailsafeActive: () => failsafeActive,
       isShuttingDown: () => shuttingDown,
+      degradedCapabilities: publishCapabilities,
     }),
     metrics,
     metricsToken: config.METRICS_TOKEN,

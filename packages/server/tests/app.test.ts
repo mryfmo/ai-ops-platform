@@ -120,10 +120,29 @@ describe("health endpoints (ADR-0005)", () => {
     const app = buildApp(deps);
     const res = await app.request("/readyz");
     expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toEqual({ ready: false });
+    await expect(res.json()).resolves.toEqual({ ready: false, degraded: [] });
     ready = true;
     const recovered = await app.request("/readyz");
     expect(recovered.status).toBe(200);
+  });
+
+  it("GET /readyz は縮退中の機能を本文に列挙する [DevOps:REQ-028]", async () => {
+    // 従来は必須envのみの最小構成でも 200 だけが返り、無効化の積み重なりは監査ログにしか
+    // 現れなかった（06章D7cで実観測。所見 ADV-INT-052 / ADV-INT-007）。
+    const { deps } = makeDeps();
+    deps.readiness = {
+      isReady: async () => true,
+      degradedCapabilities: () => ["report_delivery", "graph_subscriptions"],
+    };
+    const app = buildApp(deps);
+
+    const res = await app.request("/readyz");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ready: true,
+      degraded: ["report_delivery", "graph_subscriptions"],
+    });
   });
 
   it("GET /readyz はshutdown中なら503", async () => {
