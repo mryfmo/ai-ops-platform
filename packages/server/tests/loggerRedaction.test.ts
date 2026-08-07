@@ -40,6 +40,15 @@ describe("createLogger の redact [ADR-0005 / DevOps:REQ-028]", () => {
     expect(output).toContain("[redacted]");
   });
 
+  it("実際のServerConfigキー名を伏せる（config丸ごと渡す誤用の本命） [DevOps:REQ-028]", () => {
+    // camelCase だけを並べても ServerConfig のプロパティには一つも当たらない。
+    const output = logAndCapture({
+      config: { GRAPH_CLIENT_SECRET: SECRET, METRICS_TOKEN: SECRET, CODING_TASK_CONFIRM_SECRET: SECRET },
+    });
+
+    expect(output).not.toContain(SECRET);
+  });
+
   it("秘密でないフィールドはそのまま出す（過剰な伏字にしない） [DevOps:REQ-028]", () => {
     const output = logAndCapture({ traceId: "trace-1", reportId: "RPT-1" });
 

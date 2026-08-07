@@ -13,6 +13,24 @@ import pino, { type Logger } from "pino";
  * 深さに関わらず伏せる。`*.` 前置のワイルドカードは任意の階層に対応する。
  */
 export const REDACT_PATHS = [
+  // 実際の設定キー名（SCREAMING_SNAKE）を挙げる。camelCase だけを並べても、想定している
+  // `logger.info({ config })` の誤用には一つも当たらない——ServerConfig のプロパティは
+  // `GRAPH_CLIENT_SECRET` や `METRICS_TOKEN` であって `secret` や `token` ではない。
+  "DATABASE_URL",
+  "GRAPH_CLIENT_SECRET",
+  "GRAPH_CLIENT_STATE",
+  "GITHUB_WEBHOOK_SECRET",
+  "GITHUB_APP_PRIVATE_KEY",
+  "GITHUB_TOKEN",
+  "ANTHROPIC_API_KEY",
+  "METRICS_TOKEN",
+  "REPORT_INGEST_SECRET",
+  "XLSX_IMPORT_SECRET",
+  "CODING_TASK_CONFIRM_SECRET",
+  "CODING_TASK_CALLBACK_SECRET",
+  "AUTH_SECRET",
+  "AUTH_MICROSOFT_ENTRA_ID_SECRET",
+  // 一般的な名前も残す。設定以外の構造体を渡す誤用にも効かせるため。
   "password",
   "token",
   "secret",
@@ -21,15 +39,7 @@ export const REDACT_PATHS = [
   "apiKey",
   "privateKey",
   "connectionString",
-  "*.password",
-  "*.token",
-  "*.secret",
-  "*.authorization",
-  "*.cookie",
-  "*.apiKey",
-  "*.privateKey",
-  "*.connectionString",
-];
+].flatMap((name) => [name, `*.${name}`]);
 
 export function createLogger(level = "info", destination?: pino.DestinationStream): Logger {
   const options = { level, base: undefined, redact: { paths: REDACT_PATHS, censor: "[redacted]" } };
