@@ -11,6 +11,17 @@ groups:
           summary: Queued events are older than the five-minute SLO
           runbook: runbooks/observability-slo.md
 
+      # Every dead event has exhausted its retry budget, so the threshold is zero.
+      # Five minutes avoids paging for one scrape while an operator completes a controlled requeue.
+      - alert: AiOpsDeadLetterQueueNotEmpty
+        expr: aiops_events_queue_depth{status="dead"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: One or more events exhausted their retry budget
+          runbook: runbooks/manual-ops.md
+
       - alert: AiOpsReportDeliverySuccess
         expr: |
           sum(increase(aiops_report_delivery_total{result="failed"}[7d]))
