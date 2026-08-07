@@ -142,16 +142,30 @@ describe("health endpoints (ADR-0005)", () => {
     expect(recovered.status).toBe(200);
   });
 
-  it("GET /metrics はPrometheus textを返す", async () => {
+  it("GET /metrics はPrometheus textを返す（トークン設定時）", async () => {
     const { deps } = makeDeps();
     const metrics = new MetricsRegistry();
     metrics.recordDelivery("sent", 2);
     deps.metrics = metrics;
+    deps.metricsToken = METRICS_TOKEN;
     const app = buildApp(deps);
-    const res = await app.request("/metrics");
+    const res = await app.request("/metrics", { headers: { Authorization: `Bearer ${METRICS_TOKEN}` } });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/plain");
     expect(await res.text()).toContain('aiops_report_delivery_total{result="sent"} 2');
+  });
+
+  it("METRICS_TOKEN未設定なら /metrics を無効化する（匿名公開しない） [DevOps:SPEC-INT-010]", async () => {
+    // 従来は認証ミドルウェア自体が登録されず、設定漏れ1つで内部運用情報が匿名公開されていた
+    // （所見 ADV-OPS-006 / ADV-SEC-011。06章 D7c で 200 を実観測）。
+    const { deps } = makeDeps();
+    deps.metricsToken = undefined;
+    const app = buildApp(deps);
+
+    const res = await app.request("/metrics");
+
+    expect(res.status).toBe(503);
+    expect(await res.text()).not.toContain("# HELP");
   });
 
   it("GET /metrics はMETRICS_TOKEN設定時に完全一致するBearerだけを許可する", async () => {

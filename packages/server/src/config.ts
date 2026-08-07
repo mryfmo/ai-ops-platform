@@ -220,7 +220,7 @@ export function loadConfig(
     throw new Error(`E-CFG01: invalid server configuration: ${issues}`);
   }
   if (!parsed.data.METRICS_TOKEN) {
-    warn("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+    warn("METRICS_TOKEN is not configured; GET /metrics is disabled and returns 503");
   }
   try {
     return {

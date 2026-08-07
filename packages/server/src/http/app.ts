@@ -52,14 +52,20 @@ export function buildApp(deps: AppDependencies): Hono {
     c.header("X-Frame-Options", "DENY");
   });
   registerHealthRoutes(app, deps.readiness);
-  if (metricsToken) {
-    app.use("/metrics", async (c, next) => {
-      if (!verifyBearerToken(c.req.header("Authorization") ?? "", metricsToken)) {
-        return c.text("Unauthorized", 401, { "WWW-Authenticate": "Bearer" });
-      }
-      await next();
-    });
-  }
+  // METRICS_TOKEN 未設定時は /metrics を**無効化**する。従来は認証ミドルウェア自体が
+  // 登録されず、設定漏れ 1 つで queue 深度・タスク失敗・配信結果といった内部運用情報が
+  // 匿名公開されていた（所見 ADV-OPS-006 / ADV-SEC-011 / ADV-DYN-001。06章 D7c で 200 を実観測）。
+  // ADR-0016 構成では PUBLIC_BASE_URL 配下が Front Door 経由で公開されるため、
+  // 「未設定なら公開」ではなく「未設定なら無効（disabled+audit）」へ倒す。
+  app.use("/metrics", async (c, next) => {
+    if (!metricsToken) {
+      return c.text("Metrics endpoint is disabled: METRICS_TOKEN is not configured", 503);
+    }
+    if (!verifyBearerToken(c.req.header("Authorization") ?? "", metricsToken)) {
+      return c.text("Unauthorized", 401, { "WWW-Authenticate": "Bearer" });
+    }
+    await next();
+  });
   registerMetricsRoutes(app, deps.metrics ?? new MetricsRegistry());
   registerGraphNotificationRoutes(app, deps.graph);
   registerGithubWebhookRoutes(app, deps.github);

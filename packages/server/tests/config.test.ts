@@ -262,7 +262,7 @@ describe("loadConfig (ADR-0005)", () => {
 
     expect(config.METRICS_TOKEN).toBeUndefined();
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+    expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is disabled and returns 503");
     expect(JSON.stringify(warn.mock.calls)).not.toContain(validEnv.METRICS_TOKEN);
   });
 
