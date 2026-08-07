@@ -158,6 +158,16 @@ const baseConfigSchema = z.object({
 });
 
 const configSchema = baseConfigSchema.superRefine((config, ctx) => {
+  // 2つの鍵を別変数にしても、同じ値を入れられては分離した意味が無い。Actions へ渡る
+  // callback 値から確認トークンを再計算でき、人間承認の回避がそのまま復活する
+  // （所見 ADV-SEC-002 / ADV-INT-003）。設定層で等値を拒否する。
+  if (config.CODING_TASK_CONFIRM_SECRET === config.CODING_TASK_CALLBACK_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["CODING_TASK_CONFIRM_SECRET"],
+      message: "must differ from CODING_TASK_CALLBACK_SECRET; the callback value is exposed to GitHub Actions",
+    });
+  }
   const githubAppValues = [config.GITHUB_APP_ID, config.GITHUB_APP_PRIVATE_KEY, config.GITHUB_APP_INSTALLATION_ID];
   const configuredGithubAppValues = githubAppValues.filter(Boolean).length;
   if (configuredGithubAppValues !== 0 && configuredGithubAppValues !== githubAppValues.length) {
