@@ -14,6 +14,7 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
@@ -162,6 +163,22 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  // audit_log の追記専用は「接続ロールが UPDATE/DELETE を持たないこと」で強制される。
+  // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
+  // 黙って外れる。起動時に実権限を確認し、成立していなければ起動を止める
+  // （所見 ADV-SEC-005 / DevOps:REQ-028）。
+  const privilegeRow = await pool.query(
+    `SELECT has_table_privilege(current_user, 'audit_log', 'UPDATE') AS can_update,
+            has_table_privilege(current_user, 'audit_log', 'DELETE') AS can_delete`,
+  );
+  const privilegeVerdict = judgeAuditLogPrivilege({
+    canUpdate: privilegeRow.rows[0]?.["can_update"] === true,
+    canDelete: privilegeRow.rows[0]?.["can_delete"] === true,
+  });
+  if (!privilegeVerdict.appendOnly) {
+    throw new Error(`E-AUDIT01: ${privilegeVerdict.reason ?? "audit_log is not append-only for this role"}`);
+  }
+
   const stakeholderProvider = config.STAKEHOLDERS_DIR
     ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
     : null;

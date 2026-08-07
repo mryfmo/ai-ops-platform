@@ -99,13 +99,21 @@ function escapeHtml(value: string): string {
   );
 }
 
-function audienceForRecipient(recipient: DeliveryRecipient): ReportAudience {
+/**
+ * 受信者プロファイルから配信 audience を決める。**未知のプロファイルは null を返す。**
+ *
+ * 以前は未知を `PRF-03` へ既定していたが、これは fail-open である。プロファイルが読めない
+ * ということは、その受信者に何を見せてよいか決められないということなので、既定値を当てると
+ * 「決められないまま配信する」ことになる（所見 ADV-SEC-009）。呼び出し側は null を
+ * スキップとして扱う。
+ */
+export function audienceForRecipient(recipient: DeliveryRecipient): ReportAudience | null {
   if (recipient.persona === "investor") return "investor";
   if (recipient.profile === "PRF-G") return "PRF-04";
   if (["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05"].includes(recipient.profile)) {
     return recipient.profile as ReportAudience;
   }
-  return "PRF-03";
+  return null;
 }
 
 function devopsActiveRecords(recipients: DeliveryRecipient[]): DevopsRecipientRecord[] {
@@ -121,6 +129,8 @@ function devopsActiveRecords(recipients: DeliveryRecipient[]): DevopsRecipientRe
 
 function visibleSlots(payload: StandardReportPayload, recipient: DeliveryRecipient): StandardReportPayload["slots"] {
   const audience = audienceForRecipient(recipient);
+  // 呼び出し側が未知プロファイルを除外している前提。念のためここでも全マスクへ倒す。
+  if (audience === null) return { conclusion: "[masked]", riskSummary: "[masked]", nextActions: "[masked]" };
   const projectId = recipient.projects[0] ?? "global";
   const issues = Object.entries(payload.slots).map(([key, text]) => ({
     projectId,
@@ -179,6 +189,19 @@ export async function deliverStandardReportToRecipients(
         action: "report_delivery_recipient_skipped",
         basis: "PrjOps:REQ-042 SPEC-INT-069",
         detail: { reportId: record.reportId, reason: "invalid_recipient_id" },
+        at: new Date().toISOString(),
+      });
+      continue;
+    }
+    if (audienceForRecipient(recipient) === null) {
+      // プロファイルが解決できない受信者へは配信しない（fail-closed。所見 ADV-SEC-009）。
+      invalidRecipientCount += 1;
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-05",
+        action: "report_delivery_recipient_skipped",
+        basis: "PrjOps:REQ-042 SPEC-INT-069",
+        detail: { reportId: record.reportId, reason: "unresolved_profile", profile: recipient.profile },
         at: new Date().toISOString(),
       });
       continue;
