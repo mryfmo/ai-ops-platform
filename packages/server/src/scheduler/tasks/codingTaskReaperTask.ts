@@ -12,9 +12,15 @@
  * を根拠に終端させると、後から実際に走って PR を作ったジョブの callback が
  * `WHERE status = 'running'` に弾かれ、台帳と現実が食い違ったまま固定される。
  *
- * そこで実行状態を観測してから判断する。coding-task.yml がブランチを `agent/<task_id>` に
- * 固定しているため、ブランチ名が唯一の決定的な相関キーになる（workflow_dispatch は
- * run ID を返さないので dispatch 時点では追跡できない）。
+ * そこで実行状態を観測してから判断する。ただし個別の run は特定できない。
+ * workflow_dispatch は run ID を返さず、dispatch の ref は `main`（ワークフロー定義の
+ * あるブランチ）であって、ジョブが自前で作る `agent/<task_id>` は run に紐づかないため、
+ * ブランチ名も相関キーにならない。観測できる粒度は「coding-task.yml の、confirmed_at
+ * 以降の workflow_dispatch 実行」までである。
+ *
+ * この粗さは安全側へ倒して使う。未完了の run が1つでもあれば、それが当該タスクのもので
+ * ある可能性を排除できないので回収しない。回収を遅らせるだけで、誤って終端させない。
+ * 逆に「未完了ゼロ」なら当該タスクの run も（存在するなら）完了しているので回収してよい。
  *
  * 観測できないときは回収しない。破壊的なのは回収する側なので、GitHub 未設定・API 失敗・
  * リポジトリ未解決はすべて running のまま残す方向へ倒し、理由を監査に記録する。
@@ -36,6 +42,9 @@ export const DEFAULT_CODING_TASK_TIMEOUT_MINUTES = 60;
 /** GitHub が run を完了扱いにするまでの status 値。これ以外は実行中/待機中とみなす。 */
 const COMPLETED_RUN_STATUS = "completed";
 
+/** 観測対象のワークフロー。confirm ルートの dispatch 先と一致させること。 */
+export const CODING_TASK_WORKFLOW_FILE = "coding-task.yml";
+
 export type StaleRunDecision =
   | { reap: false; reason: "still_executing" }
   | { reap: true; reason: "no_run_observed" | "all_runs_completed"; conclusions: string[] };
@@ -43,8 +52,9 @@ export type StaleRunDecision =
 /**
  * 観測した run 一覧から回収可否を決める。
  *
- * 1件でも完了していない run があれば実行中とみなして回収しない（runner 待ちを含む）。
- * run が1件も無い場合は dispatch が実体化しなかったということなので回収する。
+ * 個別の run を特定できないため、1件でも未完了があれば当該タスクのものである可能性を
+ * 排除できないとみなして回収しない（runner 待ちを含む）。confirmed_at 以降に run が
+ * 1件も無い場合は dispatch が実体化しなかったということなので回収する。
  */
 export function classifyStaleRun(runs: WorkflowRunSummary[]): StaleRunDecision {
   if (runs.some((run) => run.status !== COMPLETED_RUN_STATUS)) return { reap: false, reason: "still_executing" };
@@ -57,7 +67,11 @@ export function classifyStaleRun(runs: WorkflowRunSummary[]): StaleRunDecision {
 }
 
 export interface CodingTaskReaperGithubClient {
-  listWorkflowRunsForBranch(owner: string, repo: string, branch: string): Promise<WorkflowRunSummary[]>;
+  listWorkflowRuns(
+    owner: string,
+    repo: string,
+    input: { workflowFileName: string; event?: string; createdSince?: string },
+  ): Promise<WorkflowRunSummary[]>;
 }
 
 export interface CodingTaskReaperTaskDeps {
@@ -114,15 +128,17 @@ export function createCodingTaskReaperTask(deps: CodingTaskReaperTaskDeps): Sche
           continue;
         }
 
-        const branch = `agent/${task.taskId}`;
         let runs: WorkflowRunSummary[];
         try {
-          runs = await githubClient.listWorkflowRunsForBranch(scope.githubOwner, scope.githubRepo, branch);
+          runs = await githubClient.listWorkflowRuns(scope.githubOwner, scope.githubRepo, {
+            workflowFileName: CODING_TASK_WORKFLOW_FILE,
+            event: "workflow_dispatch",
+            createdSince: task.confirmedAt,
+          });
         } catch (error) {
           await audit("coding_task_reap_skipped_unobservable", {
             reason: "workflow run lookup failed",
             taskId: task.taskId,
-            branch,
             error: sanitizeSecrets(String(error)).sanitized,
           });
           continue;
@@ -139,7 +155,7 @@ export function createCodingTaskReaperTask(deps: CodingTaskReaperTaskDeps): Sche
         await audit("coding_task_reaped_stale_running", {
           taskId: task.taskId,
           projectId: task.projectId,
-          branch,
+          confirmedAt: task.confirmedAt,
           timeoutMinutes,
           observed: decision.reason,
           conclusions: decision.conclusions,

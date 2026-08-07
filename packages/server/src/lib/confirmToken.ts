@@ -20,6 +20,45 @@ function signConfirmToken(taskId: string, issuedAtMs: number, secret: string): s
   return createHmac("sha256", secret).update(`${taskId}.${issuedAtMs}`, "utf8").digest("hex");
 }
 
+/** 期限導入前の形式（`HMAC(taskId)` のみ）。新規発行はせず、検証だけ受け付ける。 */
+function signLegacyConfirmToken(taskId: string, secret: string): string {
+  return createHmac("sha256", secret).update(taskId, "utf8").digest("hex");
+}
+
+function constantTimeEquals(expected: string, actual: string): boolean {
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(actual, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * 期限導入より前に発行済みのリンクを、移行期間だけ受け付ける。
+ *
+ * 旧トークンは発行時刻を持たないため、呼び出し側が `issuedAtFallbackMs` として
+ * タスクの作成時刻を渡す。これにより旧リンクも新形式と同じ TTL で失効し、
+ * 「互換のため残す」ことが無期限有効の抜け穴にならない。
+ * 発行時刻を代替できない場合は受け付けない。
+ */
+function legacyTokenValid(
+  taskId: string,
+  token: string,
+  secret: string,
+  options: { nowMs?: number; ttlMinutes?: number; issuedAtFallbackMs?: number },
+): boolean {
+  if (options.issuedAtFallbackMs === undefined) return false;
+  if (!constantTimeEquals(signLegacyConfirmToken(taskId, secret), token)) return false;
+  return withinTtl(options.issuedAtFallbackMs, options);
+}
+
+function withinTtl(issuedAtMs: number, options: { nowMs?: number; ttlMinutes?: number }): boolean {
+  const ttlMinutes = options.ttlMinutes ?? DEFAULT_CONFIRM_TOKEN_TTL_MINUTES;
+  const ageMs = (options.nowMs ?? Date.now()) - issuedAtMs;
+  // 未来日付のトークンも拒否する（時計ずれの悪用を防ぐ）。
+  if (ageMs < 0) return false;
+  return ageMs <= ttlMinutes * 60_000;
+}
+
 /**
  * taskIdに対するHMAC-SHA256確認トークンを生成する（`<issuedAtMs>.<hex>`）。
  * 発行時刻を署名対象に含めるため、受け取り側で改ざんなく期限判定できる。
@@ -37,29 +76,20 @@ export function verifyConfirmToken(
   taskId: string,
   token: string,
   secret: string,
-  options: { nowMs?: number; ttlMinutes?: number } = {},
+  options: { nowMs?: number; ttlMinutes?: number; issuedAtFallbackMs?: number } = {},
 ): boolean {
   if (!token) return false;
   const separator = token.indexOf(".");
-  if (separator <= 0) return false;
+  if (separator < 0) return legacyTokenValid(taskId, token, secret, options);
+  if (separator === 0) return false;
   const issuedAtRaw = token.slice(0, separator);
   const signature = token.slice(separator + 1);
   if (!/^\d+$/.test(issuedAtRaw)) return false;
   const issuedAtMs = Number(issuedAtRaw);
 
   // 署名照合を先に行う。発行時刻も署名対象なので、攻撃者が期限を伸ばすことはできない。
-  const expected = signConfirmToken(taskId, issuedAtMs, secret);
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(signature, "utf8");
-  if (a.length !== b.length) return false;
-  if (!timingSafeEqual(a, b)) return false;
-
-  const ttlMinutes = options.ttlMinutes ?? DEFAULT_CONFIRM_TOKEN_TTL_MINUTES;
-  const nowMs = options.nowMs ?? Date.now();
-  const ageMs = nowMs - issuedAtMs;
-  // 未来日付のトークンも拒否する（時計ずれの悪用を防ぐ）。
-  if (ageMs < 0) return false;
-  return ageMs <= ttlMinutes * 60_000;
+  if (!constantTimeEquals(signConfirmToken(taskId, issuedAtMs, secret), signature)) return false;
+  return withinTtl(issuedAtMs, options);
 }
 
 /**

@@ -157,15 +157,24 @@ export class CodingTasksRepo {
     return { updated: (res.rowCount ?? 0) > 0 };
   }
 
-  /** timeout を過ぎても running のまま残っているタスクを回収する（callback喪失対策）。 */
-  async findStaleRunning(olderThanMinutes: number): Promise<Array<{ taskId: string; projectId: string }>> {
+  /**
+   * timeout を過ぎても running のまま残っているタスクを回収候補として返す（callback喪失対策）。
+   * confirmed_at は呼び出し側が Actions の run 一覧を時刻で絞るために使う。
+   */
+  async findStaleRunning(
+    olderThanMinutes: number,
+  ): Promise<Array<{ taskId: string; projectId: string; confirmedAt: string }>> {
     const res = await this.db.query(
-      `SELECT task_id, project_id FROM coding_tasks
+      `SELECT task_id, project_id, confirmed_at FROM coding_tasks
        WHERE status = 'running' AND confirmed_at IS NOT NULL
          AND confirmed_at < now() - ($1 || ' minutes')::interval`,
       [String(olderThanMinutes)],
     );
-    return res.rows.map((r) => ({ taskId: String(r["task_id"]), projectId: String(r["project_id"]) }));
+    return res.rows.map((r) => ({
+      taskId: String(r["task_id"]),
+      projectId: String(r["project_id"]),
+      confirmedAt: new Date(r["confirmed_at"] as string | Date).toISOString(),
+    }));
   }
 
   /**

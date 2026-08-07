@@ -113,8 +113,8 @@ describe("GitHubClient.listIssues (ADR-0005)", () => {
   });
 });
 
-describe("GitHubClient.listWorkflowRunsForBranch (ADR-0006)", () => {
-  it("ブランチをURLエンコードして問い合わせ、status/conclusionを正規化する", async () => {
+describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
+  it("ワークフローファイル・event・created下限で問い合わせ、status/conclusionを正規化する", async () => {
     const urls: string[] = [];
     const fetchImpl: GhFetchLike = async (url) => {
       urls.push(url);
@@ -127,9 +127,16 @@ describe("GitHubClient.listWorkflowRunsForBranch (ADR-0006)", () => {
     };
     const client = new GitHubClient(tokenProvider, fetchImpl);
 
-    const runs = await client.listWorkflowRunsForBranch("acme", "repo", "agent/task 123");
+    const runs = await client.listWorkflowRuns("acme", "repo", {
+      workflowFileName: "coding-task.yml",
+      event: "workflow_dispatch",
+      createdSince: "2026-08-04T00:00:00.000Z",
+    });
 
-    expect(urls[0]).toContain("/repos/acme/repo/actions/runs?branch=agent%2Ftask%20123");
+    expect(urls[0]).toContain("/repos/acme/repo/actions/workflows/coding-task.yml/runs?");
+    const query = decodeURIComponent(urls[0]!);
+    expect(query).toContain("event=workflow_dispatch");
+    expect(query).toContain("created=>=2026-08-04T00:00:00.000Z");
     expect(runs).toEqual([
       { id: 7, status: "completed", conclusion: "success" },
       { id: 8, status: "queued", conclusion: null },
@@ -139,13 +146,15 @@ describe("GitHubClient.listWorkflowRunsForBranch (ADR-0006)", () => {
   it("workflow_runsが欠落していても空配列を返す", async () => {
     const client = new GitHubClient(tokenProvider, async () => jsonResponse({}));
 
-    expect(await client.listWorkflowRunsForBranch("acme", "repo", "agent/t-1")).toEqual([]);
+    expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual([]);
   });
 
   it("非2xxは黙って空を返さず例外にする", async () => {
     // 5xxはfetchWithBackoffが再試行するため、再試行対象外の404で終端挙動を検証する。
     const client = new GitHubClient(tokenProvider, async () => jsonResponse({ message: "not found" }, 404));
 
-    await expect(client.listWorkflowRunsForBranch("acme", "repo", "agent/t-1")).rejects.toThrow("E-ING05");
+    await expect(client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).rejects.toThrow(
+      "E-ING05",
+    );
   });
 });

@@ -304,26 +304,29 @@ export class GitHubClient {
   }
 
   /**
-   * ブランチ上のワークフロー実行状態を観測する（DevOps:SPEC-INT-020 / ADR-0006）。
+   * 特定ワークフローの実行状態を観測する（DevOps:SPEC-INT-020 / ADR-0006）。
    *
-   * workflow_dispatch は run ID を返さないため、dispatch 時点では実行を追跡できない。
-   * coding-task.yml はブランチを `agent/<task_id>` に固定しているので、ブランチ名が
-   * 唯一の決定的な相関キーになる。runner 枯渇で queued のまま待っている実行と、
-   * 完了したのに callback が届かなかった実行を区別するために使う。
+   * workflow_dispatch は run ID を返さないため、dispatch した個別の run を特定できない。
+   * dispatch の ref はワークフロー定義のあるブランチ（coding-task は `main`）であり、
+   * ジョブが自前で作る作業ブランチは run に紐づかないので、ブランチ名も相関キーにならない。
+   * そのため「このワークフローの、この時刻以降の実行」という粒度でしか観測できない。
+   * 呼び出し側はその粗さを前提に、安全側（回収しない側）へ倒して使うこと。
    */
-  async listWorkflowRunsForBranch(
+  async listWorkflowRuns(
     owner: string,
     repo: string,
-    branch: string,
-    perPage = 20,
+    input: { workflowFileName: string; event?: string; createdSince?: string; perPage?: number },
   ): Promise<WorkflowRunSummary[]> {
     const headers = await this.headers();
-    const query = `branch=${encodeURIComponent(branch)}&per_page=${String(perPage)}`;
-    const res = await this.fetch(`${this.baseUrl}/repos/${owner}/${repo}/actions/runs?${query}`, {
+    const params = new URLSearchParams({ per_page: String(input.perPage ?? 50) });
+    if (input.event) params.set("event", input.event);
+    if (input.createdSince) params.set("created", `>=${input.createdSince}`);
+    const path = `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(input.workflowFileName)}/runs`;
+    const res = await this.fetch(`${this.baseUrl}${path}?${params.toString()}`, {
       method: "GET",
       headers,
     });
-    if (!res.ok) throw new Error(`E-ING05: listWorkflowRunsForBranch failed with status ${res.status}`);
+    if (!res.ok) throw new Error(`E-ING05: listWorkflowRuns failed with status ${res.status}`);
     const body = (await res.json()) as { workflow_runs?: unknown };
     const runs = Array.isArray(body.workflow_runs) ? body.workflow_runs : [];
     return runs.map((run) => {

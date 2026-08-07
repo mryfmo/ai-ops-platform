@@ -56,6 +56,14 @@ function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: bo
       const isClaim = text.includes("status = 'queued' AND confirmed_at IS NULL");
       if (isClaim) {
         const claimable = row?.status === "queued" && !row?.confirmed_at;
+        // 確保が成立したら実DBと同様に行を running へ遷移させる。後続の
+        // markDispatchFailed が `WHERE status = 'running'` で何行更新するかは
+        // この遷移に依存するため、模倣しないと影響行数が実際とずれる。
+        if (claimable && row) {
+          // settleOnClaim は「確保直後にcallbackが着地して終端した」状況の再現に使う。
+          row["status"] = row["settleOnClaim"] ? "pr_created" : "running";
+          row["confirmed_at"] = "2026-08-05T00:00:00.000Z";
+        }
         return { rows: claimable ? [{ task_id: row?.["task_id"] }] : [], rowCount: claimable ? 1 : 0 };
       }
       const rowCount = isCallbackUpdate ? (row?.status === "running" ? 1 : 0) : 1;
@@ -374,5 +382,25 @@ describe("confirm の二重dispatch防止 [ADR-0006]", () => {
     const detail = entry.detail as { error: string };
     expect(detail.error).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
     expect(detail.error).toContain("REDACTED");
+  });
+
+  it("dispatch例外時に行が既に遷移済みなら失敗と断定せず ambiguous として記録する", async () => {
+    // 例外の直前に callback が着地して pr_created へ遷移した状況。
+    // markDispatchFailed は 0 行更新になり、「失敗した」とは書けない。
+    const row = makeRowFor();
+    const h = makeHarness({ row, dispatchError: new Error("socket hang up") });
+    const originalStatus = row["status"];
+    expect(originalStatus).toBe("queued");
+    row["settleOnClaim"] = true;
+
+    await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+
+    const actions = (await h.auditLog.readAll()).map((l) => l.action);
+    expect(actions).toContain("coding_task_dispatch_ambiguous_after_completion");
+    expect(actions).not.toContain("coding_task_dispatch_failed");
   });
 });

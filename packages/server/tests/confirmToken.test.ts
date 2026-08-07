@@ -5,6 +5,7 @@
  *   「誤発火防止のため人間の明示クリック必須」を成立させる前提となる、タスクIDと確認トークンの
  *   対応関係の完全性・改ざん耐性を検証する）
  */
+import { createHmac } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { generateConfirmToken, verifyConfirmToken, hashConfirmToken } from "../src/lib/confirmToken.js";
 
@@ -89,5 +90,46 @@ describe("confirm token expiry [ADR-0006]", () => {
     expect(verifyConfirmToken(taskId, "no-separator", secret, { nowMs: now })).toBe(false);
     expect(verifyConfirmToken(taskId, `abc.${token.split(".")[1]}`, secret, { nowMs: now })).toBe(false);
     expect(verifyConfirmToken("22222222-2222-2222-2222-222222222222", token, secret, { nowMs: now })).toBe(false);
+  });
+});
+
+describe("旧形式トークンの移行受け入れ [ADR-0006]", () => {
+  const SECRET = "s".repeat(32);
+  const TASK = "task-legacy";
+  const legacy = createHmac("sha256", SECRET).update(TASK, "utf8").digest("hex");
+  const createdAt = Date.parse("2026-08-05T00:00:00.000Z");
+
+  it("作成時刻をTTL内に持つ旧形式リンクは受け付ける", () => {
+    expect(
+      verifyConfirmToken(TASK, legacy, SECRET, {
+        issuedAtFallbackMs: createdAt,
+        nowMs: createdAt + 60 * 60 * 1000,
+      }),
+    ).toBe(true);
+  });
+
+  it("旧形式でもTTLを超えたら失効する（無期限有効の抜け穴を残さない）", () => {
+    expect(
+      verifyConfirmToken(TASK, legacy, SECRET, {
+        issuedAtFallbackMs: createdAt,
+        nowMs: createdAt + 25 * 60 * 60 * 1000,
+      }),
+    ).toBe(false);
+  });
+
+  it("発行時刻を代替できない場合は旧形式を受け付けない", () => {
+    expect(verifyConfirmToken(TASK, legacy, SECRET, { nowMs: createdAt })).toBe(false);
+  });
+
+  it("旧形式でも別taskId向けトークンの流用は拒否する", () => {
+    expect(verifyConfirmToken("other-task", legacy, SECRET, { issuedAtFallbackMs: createdAt, nowMs: createdAt })).toBe(
+      false,
+    );
+  });
+
+  it("ドットを含まない不正な長さの文字列は拒否する", () => {
+    expect(verifyConfirmToken(TASK, "deadbeef", SECRET, { issuedAtFallbackMs: createdAt, nowMs: createdAt })).toBe(
+      false,
+    );
   });
 });
