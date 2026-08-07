@@ -87,6 +87,11 @@ export class MetricsRegistry {
     this.setGauge("aiops_db_pool_connections", { state: "waiting" }, values.waiting);
   }
 
+  setCalendarCoverageDays(days: number | null): void {
+    // -1 はデータ空をalert可能な数値として表す。期限超過と同様に閾値未満として扱える。
+    this.setGauge("aiops_calendar_coverage_days", {}, days ?? -1);
+  }
+
   /**
    * 機能ごとの有効/無効を gauge にする（所見 ADV-INT-052 / ADV-INT-007）。
    *
@@ -115,6 +120,8 @@ export class MetricsRegistry {
       "# TYPE aiops_capability_enabled gauge",
       "# HELP aiops_db_pool_connections PostgreSQL pool connection counts.",
       "# TYPE aiops_db_pool_connections gauge",
+      "# HELP aiops_calendar_coverage_days Days until the last configured Japanese holiday.",
+      "# TYPE aiops_calendar_coverage_days gauge",
     ];
     for (const metric of this.gauges.values()) {
       lines.push(`${metric.name}${renderLabels(metric.labels)} ${metric.value}`);

@@ -16,6 +16,7 @@
 import { randomUUID } from "node:crypto";
 import { deriveCapabilityState, reportDegradation } from "./lib/degradedCapabilities.js";
 import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
+import { CALENDAR_COVERAGE_WARNING_DAYS, evaluateCalendarCoverage } from "./lib/calendarCoverage.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
@@ -143,6 +144,15 @@ export async function main(
   const config = bootstrap.config ?? loadConfig();
   const logger = bootstrap.logger ?? createLogger(config.LOG_LEVEL);
   const metrics = new MetricsRegistry();
+  const jpHolidayCalendar = loadJpHolidayCalendar();
+  const calendarCoverage = evaluateCalendarCoverage(jpHolidayCalendar.entries, new Date());
+  metrics.setCalendarCoverageDays(calendarCoverage.remainingDays);
+  if (calendarCoverage.shouldWarn) {
+    logger.warn(
+      { ...calendarCoverage, warningDays: CALENDAR_COVERAGE_WARNING_DAYS },
+      "Japanese holiday calendar coverage is low",
+    );
+  }
   const telemetry = bootstrap.telemetry ?? { shutdown: async () => {} };
   const pool = createPool(config.DATABASE_URL, {
     max: config.DB_POOL_MAX,
@@ -475,7 +485,7 @@ export async function main(
             repo: sevenKeysSnapshotsRepo,
             disabledReason: "PrjOps report data provider is not configured",
             auditLog: prjopsAuditLog,
-            calendar: loadJpHolidayCalendar(),
+            calendar: jpHolidayCalendar,
             traceIdProvider: () => randomUUID(),
           }),
           prjopsAuditLog,
@@ -489,7 +499,7 @@ export async function main(
             defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
             defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
             publicBaseUrl: config.PUBLIC_BASE_URL,
-            calendar: loadJpHolidayCalendar(),
+            calendar: jpHolidayCalendar,
             recipientsRepo,
             standardReportsRepo,
             graphClient,
