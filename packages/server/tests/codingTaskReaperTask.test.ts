@@ -7,8 +7,8 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryAuditLog, type PgQueryable, type WorkflowRunSummary } from "@aiops/shared";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
+import { runLookbackSince } from "../src/lib/codingTaskReap.js";
 import {
-  classifyStaleRun,
   CODING_TASK_WORKFLOW_FILE,
   createCodingTaskReaperTask,
   DEFAULT_CODING_TASK_TIMEOUT_MINUTES,
@@ -16,6 +16,7 @@ import {
 
 interface HarnessOptions {
   runs?: WorkflowRunSummary[];
+  incomplete?: boolean;
   runsError?: Error;
   omitGithubClient?: boolean;
   unmappedProject?: boolean;
@@ -44,7 +45,7 @@ function makeHarness(staleRows: Array<Record<string, unknown>>, options: Harness
           listWorkflowRuns: async (owner, repo, input) => {
             lookups.push({ owner, repo, input });
             if (options.runsError) throw options.runsError;
-            return options.runs ?? [];
+            return { runs: options.runs ?? [], complete: !options.incomplete };
           },
         },
   });
@@ -106,10 +107,28 @@ describe("coding task reaper [ADR-0006 / DevOps:REQ-028]", () => {
         input: {
           workflowFileName: CODING_TASK_WORKFLOW_FILE,
           event: "workflow_dispatch",
-          createdSince: "2026-08-04T00:00:00.000Z",
+          // 時計ずれを見込んで confirmed_at より手前から観測する
+          createdSince: runLookbackSince("2026-08-04T00:00:00.000Z"),
         },
       },
     ]);
+    expect(Date.parse(h.lookups[0]!.input["createdSince"] as string)).toBeLessThan(
+      Date.parse("2026-08-04T00:00:00.000Z"),
+    );
+  });
+
+  it("run一覧を全件見られていなければ回収せず、理由を監査に残す", async () => {
+    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+      runs: [{ id: 9, status: "completed", conclusion: "success" }],
+      incomplete: true,
+    });
+
+    await h.task.run(AT);
+
+    expect(updateCalls(h.calls)).toHaveLength(0);
+    const logs = await h.auditLog.readAll();
+    expect(logs[0]!.action).toBe("coding_task_reap_skipped_unobservable");
+    expect(logs[0]!.detail).toMatchObject({ inspected: 1 });
   });
 
   it("GitHubクライアントが無ければ観測不能として回収せず理由を監査に残す", async () => {
@@ -181,28 +200,5 @@ describe("coding task reaper [ADR-0006 / DevOps:REQ-028]", () => {
     await h.task.run(AT);
 
     expect(updateCalls(h.calls)[0]!.text).toContain("status = 'running'");
-  });
-});
-
-describe("classifyStaleRun [ADR-0006]", () => {
-  it("完了していないrunが1件でもあれば回収しない", () => {
-    expect(
-      classifyStaleRun([
-        { id: 1, status: "completed", conclusion: "failure" },
-        { id: 2, status: "in_progress", conclusion: null },
-      ]),
-    ).toEqual({ reap: false, reason: "still_executing" });
-  });
-
-  it("run皆無はdispatchが実体化しなかったとみなす", () => {
-    expect(classifyStaleRun([])).toEqual({ reap: true, reason: "no_run_observed", conclusions: [] });
-  });
-
-  it("conclusion欠落はunknownとして記録する", () => {
-    expect(classifyStaleRun([{ id: 1, status: "completed", conclusion: null }])).toEqual({
-      reap: true,
-      reason: "all_runs_completed",
-      conclusions: ["unknown"],
-    });
   });
 });

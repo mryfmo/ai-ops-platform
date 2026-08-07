@@ -25,13 +25,14 @@
  * 観測できないときは回収しない。破壊的なのは回収する側なので、GitHub 未設定・API 失敗・
  * リポジトリ未解決はすべて running のまま残す方向へ倒し、理由を監査に記録する。
  *
- * lib/agents分離（CLAUDE.md原則1）: 観測結果から回収可否を決める判定は純粋関数
- * `classifyStaleRun()` に置き、本ファイルは台帳・GitHub・監査の結線に徹する。
+ * lib/agents分離（CLAUDE.md原則1）: 回収可否の判定は純粋関数として
+ * `src/lib/codingTaskReap.ts` に置き、本ファイルは台帳・GitHub・監査の結線に徹する。
  */
 import type { ScheduledTask } from "../scheduler.js";
 import type { CodingTasksRepo } from "../../db/codingTasksRepo.js";
-import type { AuditLogWriter, WorkflowRunSummary } from "@aiops/shared";
+import type { AuditLogWriter, WorkflowRunListing } from "@aiops/shared";
 import { sanitizeSecrets } from "@aiops/shared";
+import { classifyStaleRun, runLookbackSince } from "../../lib/codingTaskReap.js";
 
 /**
  * GitHub Actions 側の上限（coding-task.yml の timeout-minutes: 30）を超える値にする。
@@ -39,39 +40,15 @@ import { sanitizeSecrets } from "@aiops/shared";
  */
 export const DEFAULT_CODING_TASK_TIMEOUT_MINUTES = 60;
 
-/** GitHub が run を完了扱いにするまでの status 値。これ以外は実行中/待機中とみなす。 */
-const COMPLETED_RUN_STATUS = "completed";
-
 /** 観測対象のワークフロー。confirm ルートの dispatch 先と一致させること。 */
 export const CODING_TASK_WORKFLOW_FILE = "coding-task.yml";
-
-export type StaleRunDecision =
-  | { reap: false; reason: "still_executing" }
-  | { reap: true; reason: "no_run_observed" | "all_runs_completed"; conclusions: string[] };
-
-/**
- * 観測した run 一覧から回収可否を決める。
- *
- * 個別の run を特定できないため、1件でも未完了があれば当該タスクのものである可能性を
- * 排除できないとみなして回収しない（runner 待ちを含む）。confirmed_at 以降に run が
- * 1件も無い場合は dispatch が実体化しなかったということなので回収する。
- */
-export function classifyStaleRun(runs: WorkflowRunSummary[]): StaleRunDecision {
-  if (runs.some((run) => run.status !== COMPLETED_RUN_STATUS)) return { reap: false, reason: "still_executing" };
-  if (runs.length === 0) return { reap: true, reason: "no_run_observed", conclusions: [] };
-  return {
-    reap: true,
-    reason: "all_runs_completed",
-    conclusions: runs.map((run) => run.conclusion ?? "unknown"),
-  };
-}
 
 export interface CodingTaskReaperGithubClient {
   listWorkflowRuns(
     owner: string,
     repo: string,
     input: { workflowFileName: string; event?: string; createdSince?: string },
-  ): Promise<WorkflowRunSummary[]>;
+  ): Promise<WorkflowRunListing>;
 }
 
 export interface CodingTaskReaperTaskDeps {
@@ -128,12 +105,13 @@ export function createCodingTaskReaperTask(deps: CodingTaskReaperTaskDeps): Sche
           continue;
         }
 
-        let runs: WorkflowRunSummary[];
+        let listing: WorkflowRunListing;
         try {
-          runs = await githubClient.listWorkflowRuns(scope.githubOwner, scope.githubRepo, {
+          listing = await githubClient.listWorkflowRuns(scope.githubOwner, scope.githubRepo, {
             workflowFileName: CODING_TASK_WORKFLOW_FILE,
             event: "workflow_dispatch",
-            createdSince: task.confirmedAt,
+            // DBとGitHubの時計ずれで当該runが下限を下回るのを防ぐため手前へ広げる。
+            createdSince: runLookbackSince(task.confirmedAt),
           });
         } catch (error) {
           await audit("coding_task_reap_skipped_unobservable", {
@@ -144,8 +122,17 @@ export function createCodingTaskReaperTask(deps: CodingTaskReaperTaskDeps): Sche
           continue;
         }
 
-        const decision = classifyStaleRun(runs);
-        if (!decision.reap) continue;
+        const decision = classifyStaleRun(listing);
+        if (!decision.reap) {
+          if (decision.reason === "observation_incomplete") {
+            await audit("coding_task_reap_skipped_unobservable", {
+              reason: "workflow run listing was truncated before all runs were inspected",
+              taskId: task.taskId,
+              inspected: listing.runs.length,
+            });
+          }
+          continue;
+        }
 
         // 影響行数を見てから監査する。findStaleRunning 以降に callback が着地した、
         // あるいは別リビジョンが先に回収した場合、追記専用の監査へ嘘を残さない。

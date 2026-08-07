@@ -119,6 +119,7 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     const fetchImpl: GhFetchLike = async (url) => {
       urls.push(url);
       return jsonResponse({
+        total_count: 2,
         workflow_runs: [
           { id: 7, status: "completed", conclusion: "success" },
           { id: 8, status: "queued", conclusion: null },
@@ -127,7 +128,7 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     };
     const client = new GitHubClient(tokenProvider, fetchImpl);
 
-    const runs = await client.listWorkflowRuns("acme", "repo", {
+    const listing = await client.listWorkflowRuns("acme", "repo", {
       workflowFileName: "coding-task.yml",
       event: "workflow_dispatch",
       createdSince: "2026-08-04T00:00:00.000Z",
@@ -137,16 +138,69 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     const query = decodeURIComponent(urls[0]!);
     expect(query).toContain("event=workflow_dispatch");
     expect(query).toContain("created=>=2026-08-04T00:00:00.000Z");
-    expect(runs).toEqual([
+    expect(listing.complete).toBe(true);
+    expect(listing.runs).toEqual([
       { id: 7, status: "completed", conclusion: "success" },
       { id: 8, status: "queued", conclusion: null },
     ]);
   });
 
+  it("total_countに届くまでページを辿る（新しい順のため1ページ目だけでは古いrunを見落とす）", async () => {
+    const pages: string[] = [];
+    const fetchImpl: GhFetchLike = async (url) => {
+      pages.push(url);
+      const isFirst = url.includes("page=1");
+      return jsonResponse({
+        total_count: 3,
+        workflow_runs: isFirst
+          ? [
+              { id: 1, status: "completed", conclusion: "success" },
+              { id: 2, status: "completed", conclusion: "success" },
+            ]
+          : [{ id: 3, status: "queued", conclusion: null }],
+      });
+    };
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    const listing = await client.listWorkflowRuns("acme", "repo", {
+      workflowFileName: "coding-task.yml",
+      perPage: 2,
+    });
+
+    expect(pages).toHaveLength(2);
+    expect(listing.complete).toBe(true);
+    expect(listing.runs.map((r) => r.id)).toEqual([1, 2, 3]);
+    expect(listing.runs.some((r) => r.status !== "completed")).toBe(true);
+  });
+
+  it("ページ上限で打ち切ったときは complete=false を返す（黙って全件扱いにしない）", async () => {
+    const client = new GitHubClient(tokenProvider, async () =>
+      jsonResponse({
+        total_count: 100,
+        workflow_runs: [
+          { id: 1, status: "completed", conclusion: "success" },
+          { id: 2, status: "completed", conclusion: "success" },
+        ],
+      }),
+    );
+
+    const listing = await client.listWorkflowRuns("acme", "repo", {
+      workflowFileName: "coding-task.yml",
+      perPage: 2,
+      maxPages: 2,
+    });
+
+    expect(listing.complete).toBe(false);
+    expect(listing.runs).toHaveLength(4);
+  });
+
   it("workflow_runsが欠落していても空配列を返す", async () => {
     const client = new GitHubClient(tokenProvider, async () => jsonResponse({}));
 
-    expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual([]);
+    expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual({
+      runs: [],
+      complete: true,
+    });
   });
 
   it("非2xxは黙って空を返さず例外にする", async () => {

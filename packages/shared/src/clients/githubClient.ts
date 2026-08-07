@@ -100,6 +100,12 @@ export interface WorkflowRunSummary {
   conclusion: string | null;
 }
 
+/** run 一覧の観測結果。`complete: false` は上限に当たり全件は見ていないことを示す。 */
+export interface WorkflowRunListing {
+  runs: WorkflowRunSummary[];
+  complete: boolean;
+}
+
 export interface ProjectV2SnapshotRecord {
   projectId: string | null;
   repository: string | null;
@@ -311,32 +317,49 @@ export class GitHubClient {
    * ジョブが自前で作る作業ブランチは run に紐づかないので、ブランチ名も相関キーにならない。
    * そのため「このワークフローの、この時刻以降の実行」という粒度でしか観測できない。
    * 呼び出し側はその粗さを前提に、安全側（回収しない側）へ倒して使うこと。
+   *
+   * run は新しい順に返るため、1ページだけ読むと古い未完了の run を見落とす。
+   * `total_count` に達するまでページを辿り、上限に当たったら `complete: false` を返して
+   * 「全部は見ていない」ことを呼び出し側へ伝える（黙って打ち切らない）。
    */
   async listWorkflowRuns(
     owner: string,
     repo: string,
-    input: { workflowFileName: string; event?: string; createdSince?: string; perPage?: number },
-  ): Promise<WorkflowRunSummary[]> {
+    input: {
+      workflowFileName: string;
+      event?: string;
+      createdSince?: string;
+      perPage?: number;
+      maxPages?: number;
+    },
+  ): Promise<WorkflowRunListing> {
     const headers = await this.headers();
-    const params = new URLSearchParams({ per_page: String(input.perPage ?? 50) });
-    if (input.event) params.set("event", input.event);
-    if (input.createdSince) params.set("created", `>=${input.createdSince}`);
+    const perPage = input.perPage ?? 100;
+    const maxPages = input.maxPages ?? 10;
     const path = `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(input.workflowFileName)}/runs`;
-    const res = await this.fetch(`${this.baseUrl}${path}?${params.toString()}`, {
-      method: "GET",
-      headers,
-    });
-    if (!res.ok) throw new Error(`E-ING05: listWorkflowRuns failed with status ${res.status}`);
-    const body = (await res.json()) as { workflow_runs?: unknown };
-    const runs = Array.isArray(body.workflow_runs) ? body.workflow_runs : [];
-    return runs.map((run) => {
-      const record = run as Record<string, unknown>;
-      return {
-        id: Number(record["id"]),
-        status: typeof record["status"] === "string" ? record["status"] : null,
-        conclusion: typeof record["conclusion"] === "string" ? record["conclusion"] : null,
-      };
-    });
+    const runs: WorkflowRunSummary[] = [];
+    let totalCount = 0;
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const params = new URLSearchParams({ per_page: String(perPage), page: String(page) });
+      if (input.event) params.set("event", input.event);
+      if (input.createdSince) params.set("created", `>=${input.createdSince}`);
+      const res = await this.fetch(`${this.baseUrl}${path}?${params.toString()}`, { method: "GET", headers });
+      if (!res.ok) throw new Error(`E-ING05: listWorkflowRuns failed with status ${res.status}`);
+      const body = (await res.json()) as { workflow_runs?: unknown; total_count?: unknown };
+      totalCount = typeof body.total_count === "number" ? body.total_count : runs.length;
+      const pageRuns = Array.isArray(body.workflow_runs) ? body.workflow_runs : [];
+      for (const run of pageRuns) {
+        const record = run as Record<string, unknown>;
+        runs.push({
+          id: Number(record["id"]),
+          status: typeof record["status"] === "string" ? record["status"] : null,
+          conclusion: typeof record["conclusion"] === "string" ? record["conclusion"] : null,
+        });
+      }
+      if (pageRuns.length < perPage || runs.length >= totalCount) return { runs, complete: true };
+    }
+    return { runs, complete: runs.length >= totalCount };
   }
 
   /** 失敗ジョブのログ取得（SPEC-INT-011 手順2。最大1MB、超過分は末尾優先で切り詰め） */
