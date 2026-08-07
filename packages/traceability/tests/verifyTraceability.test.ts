@@ -1340,3 +1340,26 @@ describe("設定変数のオブジェクトスプレッド [PrjOps:SPEC-INT-070 
     expect(result.stderr).toContain("packages/web/src/server/config.ts spreads");
   });
 });
+
+describe("設定変数の計算プロパティ [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("計算プロパティは評価結果を解決できないので失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        'const NEW_FLAG = "NEW_FLAG";',
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "  [NEW_FLAG]: z.string(),",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("uses a computed property key");
+  });
+});

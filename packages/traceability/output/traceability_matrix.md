@@ -1,6 +1,6 @@
 # トレーサビリティ検証結果
 
-生成日時: 2026-07-18T00:42:49.513Z
+生成日時: 2026-08-07T01:31:58.346Z
 
 凡例: 「source参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。
 「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。
@@ -25,7 +25,7 @@ ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装
 | --------- | ---- | -------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | REQ       | 27   | 27 (100%)      | 18 (67%)       | —                                                                                                                                                                                                                                                              |
 | SPEC-EXT  | 25   | 18 (72%)       | 7 (28%)        | DevOps:SPEC-EXT-002, DevOps:SPEC-EXT-003, DevOps:SPEC-EXT-011, DevOps:SPEC-EXT-012, DevOps:SPEC-EXT-031, DevOps:SPEC-EXT-032, DevOps:SPEC-EXT-044                                                                                                              |
-| SPEC-INT  | 31   | 31 (100%)      | 17 (55%)       | —                                                                                                                                                                                                                                                              |
+| SPEC-INT  | 31   | 31 (100%)      | 18 (58%)       | —                                                                                                                                                                                                                                                              |
 | TH        | 7    | 7 (100%)       | 7 (100%)       | —                                                                                                                                                                                                                                                              |
 | AC        | 45   | 29 (64%)       | 22 (49%)       | DevOps:AC-001a, DevOps:AC-001b, DevOps:AC-010b, DevOps:AC-010c, DevOps:AC-015a, DevOps:AC-015b, DevOps:AC-016a, DevOps:AC-016b, DevOps:AC-018c, DevOps:AC-019a, DevOps:AC-020a, DevOps:AC-021a, DevOps:AC-022a, DevOps:AC-027a, DevOps:AC-029a, DevOps:AC-030a |
 | ISS(参考) | 8    | 0 (0%)         | 0 (0%)         | DevOps:ISS-01, DevOps:ISS-02, DevOps:ISS-03, DevOps:ISS-04, DevOps:ISS-05, DevOps:ISS-06, DevOps:ISS-07, DevOps:ISS-08                                                                                                                                         |
@@ -48,3 +48,4 @@ ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装
 - 仕様IDインデックス不正: —
 - disposition不正: —
 - 仕様IDカタログ不正: —
+- 設定変数インベントリ不整合: —

@@ -382,6 +382,15 @@ export function configInventoryFailures(repoRoot: string): string[] {
       ? `config inventory: ${label} spreads another object into the schema; the extractor cannot resolve the keys it contributes`
       : undefined;
 
+  /**
+   * 計算プロパティ（`[NEW_FLAG]: z.string()`）も同じ理由で読めない。キー名は別の束縛にあり、
+   * 本体を読むだけでは決まらない。スプレッド・合成と同じく、推測せず失敗として報告する。
+   */
+  const computedKeyFailure = (body: string, label: string): string | undefined =>
+    /^\s{2,4}\[/m.test(body)
+      ? `config inventory: ${label} uses a computed property key; the extractor cannot resolve the name it evaluates to`
+      : undefined;
+
   const serverBody = between(serverSource!, "const baseConfigSchema", "const configSchema");
   const webBody = between(webSource!, "const webConfigSchema", ".superRefine");
   const serverKeys = schemaKeys(serverBody);
@@ -391,6 +400,8 @@ export function configInventoryFailures(repoRoot: string): string[] {
     compositionFailure(webSource!, "packages/web/src/server/config.ts"),
     spreadFailure(serverBody, "packages/server/src/config.ts"),
     spreadFailure(webBody, "packages/web/src/server/config.ts"),
+    computedKeyFailure(serverBody, "packages/server/src/config.ts"),
+    computedKeyFailure(webBody, "packages/web/src/server/config.ts"),
   ].filter((failure): failure is string => failure !== undefined);
   if (compositionFailures.length > 0) return compositionFailures;
   const docServer = tableKeys(between(docSource!, "## Server", "## Web"));
