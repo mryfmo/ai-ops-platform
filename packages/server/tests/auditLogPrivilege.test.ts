@@ -9,26 +9,35 @@ import { judgeAuditLogPrivilege } from "../src/lib/auditLogPrivilege.js";
 
 describe("judgeAuditLogPrivilege [DevOps:REQ-028]", () => {
   it("UPDATE/DELETEどちらも持たなければ追記専用が成立している [DevOps:REQ-028]", () => {
-    expect(judgeAuditLogPrivilege({ canUpdate: false, canDelete: false })).toEqual({ appendOnly: true });
+    expect(judgeAuditLogPrivilege({ canUpdate: false, canDelete: false, canTruncate: false })).toEqual({
+      appendOnly: true,
+    });
   });
 
   it("UPDATE権限があれば成立していない [DevOps:REQ-028]", () => {
-    const verdict = judgeAuditLogPrivilege({ canUpdate: true, canDelete: false });
+    const verdict = judgeAuditLogPrivilege({ canUpdate: true, canDelete: false, canTruncate: false });
 
     expect(verdict.appendOnly).toBe(false);
     expect(verdict.reason).toContain("UPDATE");
   });
 
   it("DELETE権限があれば成立していない [DevOps:REQ-028]", () => {
-    const verdict = judgeAuditLogPrivilege({ canUpdate: false, canDelete: true });
+    const verdict = judgeAuditLogPrivilege({ canUpdate: false, canDelete: true, canTruncate: false });
 
     expect(verdict.appendOnly).toBe(false);
     expect(verdict.reason).toContain("DELETE");
   });
 
-  it("両方あれば両方を理由に挙げる [DevOps:REQ-028]", () => {
+  it("TRUNCATE権限があれば成立していない（履歴を丸ごと消せる） [DevOps:REQ-028]", () => {
+    const verdict = judgeAuditLogPrivilege({ canUpdate: false, canDelete: false, canTruncate: true });
+
+    expect(verdict.appendOnly).toBe(false);
+    expect(verdict.reason).toContain("TRUNCATE");
+  });
+
+  it("すべてあればすべてを理由に挙げる [DevOps:REQ-028]", () => {
     // トリガ防御は併存するが、これらの権限を持つロールはトリガ自体を落とせる。
-    const verdict = judgeAuditLogPrivilege({ canUpdate: true, canDelete: true });
+    const verdict = judgeAuditLogPrivilege({ canUpdate: true, canDelete: true, canTruncate: true });
 
     expect(verdict.appendOnly).toBe(false);
     expect(verdict.reason).toContain("UPDATE");

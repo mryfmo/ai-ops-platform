@@ -17,6 +17,8 @@
 export interface AuditLogPrivileges {
   canUpdate: boolean;
   canDelete: boolean;
+  /** TRUNCATE も履歴を消せる。schema.sql は UPDATE/DELETE と同時に REVOKE している。 */
+  canTruncate: boolean;
 }
 
 export interface AuditLogPrivilegeVerdict {
@@ -32,9 +34,11 @@ export interface AuditLogPrivilegeVerdict {
  * 権限が無いことをもって初めて強制されていると言える。
  */
 export function judgeAuditLogPrivilege(privileges: AuditLogPrivileges): AuditLogPrivilegeVerdict {
-  const granted = [privileges.canUpdate ? "UPDATE" : undefined, privileges.canDelete ? "DELETE" : undefined].filter(
-    (name): name is string => name !== undefined,
-  );
+  const granted = [
+    privileges.canUpdate ? "UPDATE" : undefined,
+    privileges.canDelete ? "DELETE" : undefined,
+    privileges.canTruncate ? "TRUNCATE" : undefined,
+  ].filter((name): name is string => name !== undefined);
   if (granted.length === 0) return { appendOnly: true };
   return {
     appendOnly: false,

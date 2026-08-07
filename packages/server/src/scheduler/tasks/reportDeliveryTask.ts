@@ -107,9 +107,22 @@ function escapeHtml(value: string): string {
  * 「決められないまま配信する」ことになる（所見 ADV-SEC-009）。呼び出し側は null を
  * スキップとして扱う。
  */
+const DEVOPS_PROFILE_AUDIENCE: Readonly<Record<string, ReportAudience>> = {
+  // DevOps の 3 プロファイルを PrjOps の閲覧権限区分へ対応付ける。
+  // PRF-M（メンバー日次）は「自分に関わる情報のみ」、PRF-L（リーダー）は「担当プロジェクトの
+  // 全情報」に相当する。PRF-G→PRF-04 は従来の対応をそのまま維持する。
+  //
+  // 従来 PRF-M / PRF-L はこの関数の既知集合に無く、未知として PRF-03（配下の全情報）へ
+  // 格上げされていた。本来より広い区分が当たっていたので、明示対応は権限を締める方向である。
+  "PRF-M": "PRF-01",
+  "PRF-L": "PRF-02",
+  "PRF-G": "PRF-04",
+};
+
 export function audienceForRecipient(recipient: DeliveryRecipient): ReportAudience | null {
   if (recipient.persona === "investor") return "investor";
-  if (recipient.profile === "PRF-G") return "PRF-04";
+  const devopsAudience = DEVOPS_PROFILE_AUDIENCE[recipient.profile];
+  if (devopsAudience) return devopsAudience;
   if (["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05"].includes(recipient.profile)) {
     return recipient.profile as ReportAudience;
   }
@@ -201,7 +214,9 @@ export async function deliverStandardReportToRecipients(
         actor: "AGT-05",
         action: "report_delivery_recipient_skipped",
         basis: "PrjOps:REQ-042 SPEC-INT-069",
-        detail: { reportId: record.reportId, reason: "unresolved_profile", profile: recipient.profile },
+        // profile は DB 由来の任意文字列（制約は NOT VALID で入っており旧行が残り得る）。
+        // 秘密様の値だと append() が E-AUD02 を投げ、配信サイクル全体が止まる。
+        detail: { reportId: record.reportId, reason: "unresolved_profile" },
         at: new Date().toISOString(),
       });
       continue;

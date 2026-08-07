@@ -169,11 +169,13 @@ export async function main(
   // （所見 ADV-SEC-005 / DevOps:REQ-028）。
   const privilegeRow = await pool.query(
     `SELECT has_table_privilege(current_user, 'audit_log', 'UPDATE') AS can_update,
-            has_table_privilege(current_user, 'audit_log', 'DELETE') AS can_delete`,
+            has_table_privilege(current_user, 'audit_log', 'DELETE') AS can_delete,
+            has_table_privilege(current_user, 'audit_log', 'TRUNCATE') AS can_truncate`,
   );
   const privilegeVerdict = judgeAuditLogPrivilege({
     canUpdate: privilegeRow.rows[0]?.["can_update"] === true,
     canDelete: privilegeRow.rows[0]?.["can_delete"] === true,
+    canTruncate: privilegeRow.rows[0]?.["can_truncate"] === true,
   });
   if (!privilegeVerdict.appendOnly) {
     throw new Error(`E-AUDIT01: ${privilegeVerdict.reason ?? "audit_log is not append-only for this role"}`);
