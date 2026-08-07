@@ -1,7 +1,7 @@
 /**
  * packages/server/src/lib/degradedCapabilities.ts
  *
- * 根拠: ADR-0014（missing config = disabled + audited）/ ADR-0005 / DevOps:REQ-028。
+ * 根拠: ADR-0014（missing config = disabled + audited）/ ADR-0005 / DevOps:REQ-028 / DevOps:SPEC-INT-040。
  *
  *   ADR-0014 の原則自体は正しく、個々の縮退は監査を残す。問題は**縮退が積み重なった状態が
  *   観測不能**なことである。必須 env だけの最小構成で起動すると、Teams コマンド・ingest・
@@ -33,8 +33,46 @@ export const CAPABILITIES = [
 
 export type Capability = (typeof CAPABILITIES)[number];
 
-/** 各機能が有効かどうか。呼び出し側が config と合成結果から組み立てる。 */
+/** composition root が正規化した設定・実行時状態。 */
+export interface CapabilityInputs {
+  reportDeliveryEnabled: boolean;
+  fromMailboxConfigured: boolean;
+  reportIngestConfigured: boolean;
+  xlsxImportConfigured: boolean;
+  teamsPersonaConfigured: boolean;
+  llmFreeTextConfigured: boolean;
+  githubConfigured: boolean;
+  githubProjectConfigured: boolean;
+  sevenKeysSnapshotConfigured: boolean;
+  heartbeatConfigured: boolean;
+  metricsEndpointConfigured: boolean;
+  defaultTeamsTeamConfigured: boolean;
+  defaultTeamsChannelConfigured: boolean;
+  telemetryConfigured: boolean;
+  graphSubscriptionsPresent: boolean;
+}
+
+/** 各機能が有効かどうか。 */
 export type CapabilityState = Readonly<Record<Capability, boolean>>;
+
+/** 正規化済みの設定・実行時状態から、機能間の依存を含む有効状態を決定する。 */
+export function deriveCapabilityState(input: CapabilityInputs): CapabilityState {
+  return {
+    report_delivery: input.reportDeliveryEnabled && input.fromMailboxConfigured,
+    report_ingest: input.reportIngestConfigured,
+    xlsx_import: input.githubConfigured && input.xlsxImportConfigured,
+    teams_persona: input.teamsPersonaConfigured,
+    llm_free_text: input.llmFreeTextConfigured,
+    github_outbound: input.githubConfigured,
+    pm_snapshot_reconcile: input.githubConfigured && input.githubProjectConfigured,
+    seven_keys_snapshot: input.sevenKeysSnapshotConfigured,
+    heartbeat: input.heartbeatConfigured,
+    metrics_endpoint: input.metricsEndpointConfigured,
+    teams_default_channel: input.defaultTeamsTeamConfigured && input.defaultTeamsChannelConfigured,
+    telemetry: input.telemetryConfigured,
+    graph_subscriptions: input.graphSubscriptionsPresent,
+  };
+}
 
 export interface DegradationReport {
   /** 無効になっている機能。メトリクスと /readyz の双方で使う。 */

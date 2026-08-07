@@ -5,10 +5,57 @@
  *   所見 ADV-INT-052 / ADV-INT-007 / ADV-INT-050。
  */
 import { describe, expect, it } from "vitest";
-import { CAPABILITIES, reportDegradation, type CapabilityState } from "../src/lib/degradedCapabilities.js";
+import {
+  CAPABILITIES,
+  deriveCapabilityState,
+  reportDegradation,
+  type CapabilityInputs,
+  type CapabilityState,
+} from "../src/lib/degradedCapabilities.js";
 
 const allEnabled = Object.fromEntries(CAPABILITIES.map((c) => [c, true])) as CapabilityState;
 const allDisabled = Object.fromEntries(CAPABILITIES.map((c) => [c, false])) as CapabilityState;
+const allConfigured: CapabilityInputs = {
+  reportDeliveryEnabled: true,
+  fromMailboxConfigured: true,
+  reportIngestConfigured: true,
+  xlsxImportConfigured: true,
+  teamsPersonaConfigured: true,
+  llmFreeTextConfigured: true,
+  githubConfigured: true,
+  githubProjectConfigured: true,
+  sevenKeysSnapshotConfigured: true,
+  heartbeatConfigured: true,
+  metricsEndpointConfigured: true,
+  defaultTeamsTeamConfigured: true,
+  defaultTeamsChannelConfigured: true,
+  telemetryConfigured: true,
+  graphSubscriptionsPresent: true,
+};
+
+describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
+  it("GitHub認証とproject nodeの合成境界を固定する [DevOps:SPEC-INT-040]", () => {
+    expect(
+      deriveCapabilityState({ ...allConfigured, githubConfigured: false, githubProjectConfigured: true }),
+    ).toMatchObject({ github_outbound: false, xlsx_import: false, pm_snapshot_reconcile: false });
+    expect(deriveCapabilityState({ ...allConfigured, githubProjectConfigured: false })).toMatchObject({
+      github_outbound: true,
+      xlsx_import: true,
+      pm_snapshot_reconcile: false,
+    });
+  });
+
+  it("配信・既定Teams channel・Graph購読の合成境界を固定する [DevOps:SPEC-INT-040]", () => {
+    expect(
+      deriveCapabilityState({
+        ...allConfigured,
+        fromMailboxConfigured: false,
+        defaultTeamsChannelConfigured: false,
+        graphSubscriptionsPresent: false,
+      }),
+    ).toMatchObject({ report_delivery: false, teams_default_channel: false, graph_subscriptions: false });
+  });
+});
 
 describe("reportDegradation [ADR-0014 / DevOps:REQ-028]", () => {
   it("全機能が有効なら縮退なし [DevOps:REQ-028]", () => {

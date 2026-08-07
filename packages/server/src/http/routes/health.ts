@@ -38,14 +38,17 @@ export function registerHealthRoutes(app: Hono, readiness: ReadinessCheck): void
   app.get("/healthz", (c) => c.json({ ok: true }));
 
   app.get("/readyz", async (c) => {
+    // 依存確認が失敗しても、直前まで観測できていた縮退情報はレスポンスへ残す。
+    let degraded: string[] = [];
     try {
+      degraded = readiness.degradedCapabilities?.() ?? [];
       const ready = await readiness.isReady();
+      degraded = readiness.degradedCapabilities?.() ?? [];
       // 縮退の一覧を本文へ載せる。従来は必須 env だけの最小構成——Teams コマンド・ingest・
       // 配信・snapshot が全部無効——でも 200 だけが返り、運用からは健全に見えていた。
-      const degraded = readiness.degradedCapabilities?.() ?? [];
       return ready ? c.json({ ready: true, degraded }) : c.json({ ready: false, degraded }, 503);
     } catch {
-      return c.json({ ready: false }, 503);
+      return c.json({ ready: false, degraded }, 503);
     }
   });
 }
