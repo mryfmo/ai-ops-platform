@@ -14,11 +14,25 @@ export interface CalendarCoverage {
   lastDate: string | null;
   remainingDays: number | null;
   shouldWarn: boolean;
+  invalidDates: string[];
 }
 
-function toEpochDay(date: string): number {
-  const [year, month, day] = date.split("-").map(Number);
-  return Date.UTC(year!, month! - 1, day!) / MS_PER_DAY;
+function toEpochDay(date: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const epochMs = Date.UTC(year, month - 1, day);
+  const normalized = new Date(epochMs);
+  if (
+    normalized.getUTCFullYear() !== year ||
+    normalized.getUTCMonth() !== month - 1 ||
+    normalized.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return epochMs / MS_PER_DAY;
 }
 
 export function evaluateCalendarCoverage(
@@ -26,12 +40,23 @@ export function evaluateCalendarCoverage(
   now: Date,
   warningDays = CALENDAR_COVERAGE_WARNING_DAYS,
 ): CalendarCoverage {
-  const lastDate = entries.reduce<string | null>(
-    (latest, entry) => (latest === null || entry.date > latest ? entry.date : latest),
-    null,
-  );
-  if (lastDate === null) return { lastDate: null, remainingDays: null, shouldWarn: true };
+  const invalidDates: string[] = [];
+  let lastDate: string | null = null;
+  let lastEpochDay: number | null = null;
+  for (const entry of entries) {
+    const epochDay = toEpochDay(entry.date);
+    if (epochDay === null) {
+      invalidDates.push(entry.date);
+    } else if (lastEpochDay === null || epochDay > lastEpochDay) {
+      lastDate = entry.date;
+      lastEpochDay = epochDay;
+    }
+  }
+  if (lastDate === null || lastEpochDay === null) {
+    return { lastDate: null, remainingDays: null, shouldWarn: true, invalidDates };
+  }
 
-  const remainingDays = toEpochDay(lastDate) - toEpochDay(todayJstDateString(now));
-  return { lastDate, remainingDays, shouldWarn: remainingDays < warningDays };
+  const todayEpochDay = toEpochDay(todayJstDateString(now))!;
+  const remainingDays = lastEpochDay - todayEpochDay;
+  return { lastDate, remainingDays, shouldWarn: invalidDates.length > 0 || remainingDays < warningDays, invalidDates };
 }
