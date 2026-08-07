@@ -322,10 +322,23 @@ export function configInventoryFailures(repoRoot: string): string[] {
   report(webKeys, docWeb, "web Zod schema but not in the configuration.md web table");
   report([...serverKeys, ...webKeys], envKeys, "Zod schemas but not in .env.example");
 
+  // 逆向きは表ごとに突合する。両表と両スキーマを合算して比べると、web 専用の
+  // AUTH_SECRET が server 表に載っていても通ってしまい、表が「そのスキーマの
+  // インベントリである」という主張が崩れたまま CI は緑になる。
+  const reverse = (documented: Set<string>, schema: string[], label: string): void => {
+    const schemaSet = new Set(schema);
+    for (const key of documented) {
+      if (!schemaSet.has(key)) failures.push(`config inventory: ${key} is in the ${label}`);
+    }
+  };
+  reverse(docServer, serverKeys, "configuration.md server table but not in the server Zod schema");
+  reverse(docWeb, webKeys, "configuration.md web table but not in the web Zod schema");
+
+  // .env.example は両スキーマの和集合を持つので、こちらは合算のまま比べる。
   const schemaKeySet = new Set([...serverKeys, ...webKeys]);
-  for (const key of [...docServer, ...docWeb, ...envKeys]) {
+  for (const key of envKeys) {
     if (!schemaKeySet.has(key)) {
-      failures.push(`config inventory: ${key} is documented or in .env.example but is in neither Zod schema`);
+      failures.push(`config inventory: ${key} is in .env.example but is in neither Zod schema`);
     }
   }
   return [...new Set(failures)];

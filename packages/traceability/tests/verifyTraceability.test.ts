@@ -939,7 +939,9 @@ describe("設定変数インベントリガード [PrjOps:SPEC-INT-070 / DevOps:
     const result = await runFailure(root);
 
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain("config inventory: RETIRED_FLAG is documented or in .env.example");
+    expect(result.stderr).toContain(
+      "config inventory: RETIRED_FLAG is in the configuration.md server table but not in the server Zod schema",
+    );
   });
 
   it("configuration.md が消えたら失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
@@ -975,5 +977,50 @@ describe("設定変数ガードの報告掲載 [PrjOps:SPEC-INT-070 / DevOps:SPE
 
     expect(result.exitCode).toBe(0);
     expect(result.report).toContain("設定変数インベントリ不整合: —");
+  });
+});
+
+describe("設定変数の表別突合 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("web専用の変数が server 表に載っていれば失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // 合算で突合すると「どちらかのスキーマにあるので OK」と読めてしまい、
+    // 表が対応スキーマのインベントリであるという主張が崩れたまま緑になる。
+    const root = fixture({
+      configDocText: fixtureConfigDoc(
+        ["| `DATABASE_URL` | Yes |", "| `PORT` | No |", "| `AUTH_SECRET` | Yes |"],
+        ["| `AUTH_SECRET` | Yes |"],
+      ),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      "config inventory: AUTH_SECRET is in the configuration.md server table but not in the server Zod schema",
+    );
+  });
+
+  it("server専用の変数が web 表に載っていれば失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      configDocText: fixtureConfigDoc(
+        ["| `DATABASE_URL` | Yes |", "| `PORT` | No |"],
+        ["| `AUTH_SECRET` | Yes |", "| `PORT` | No |"],
+      ),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      "config inventory: PORT is in the configuration.md web table but not in the web Zod schema",
+    );
+  });
+
+  it("どちらのスキーマにも無い変数が .env.example にあれば失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({ envExampleText: "DATABASE_URL=\nPORT=8080\nAUTH_SECRET=\nRETIRED_FLAG=1\n" });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: RETIRED_FLAG is in .env.example but is in neither Zod schema");
   });
 });
