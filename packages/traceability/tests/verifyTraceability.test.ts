@@ -1505,3 +1505,75 @@ describe("根拠ヘッダガードの対象パッケージ発見 [PrjOps:SPEC-IN
     expect(result.code).toBe(0);
   });
 });
+
+describe("根拠は先頭コメントに限定する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  const MISSING_BASIS = "basis header missing: packages/devops/src/basis.ts";
+
+  it("コード中の文字列は根拠として認めない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), 'const note = "根拠: ADR-0004";\nexport { note };\n');
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MISSING_BASIS);
+  });
+
+  it("先頭コメントに根拠が無ければ、後続コードにIDがあっても通さない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(
+      join(root, "packages/devops/src/basis.ts"),
+      "/** 根拠: TODO */\n// ADR-0004 はここでは根拠ではない\nexport const x = 1;\n",
+    );
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MISSING_BASIS);
+  });
+
+  it('"use client" プロローグの後の先頭コメントを認める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]', async () => {
+    const root = fixture({});
+    writeFileSync(
+      join(root, "packages/web/src/panel.tsx"),
+      '"use client";\n\n/** 根拠: ADR-0004 */\nexport const Panel = () => null;\n',
+    );
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain("basis header missing: packages/web/src/panel.tsx");
+  });
+
+  it("長い先頭コメントの末尾に書かれたIDも拾う（文字数で切らない） [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    const filler = "x".repeat(900);
+    writeFileSync(
+      join(root, "packages/devops/src/basis.ts"),
+      `/**\n * 根拠:\n * ${filler}\n * ADR-0004\n */\nexport const x = 1;\n`,
+    );
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain(MISSING_BASIS);
+  });
+
+  it("アンダースコアで区切られた語中IDを認めない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: X_REQ-001_suffix */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MISSING_BASIS);
+  });
+
+  it("3桁のADR参照を認めない（ADRは4桁） [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), `/** 根拠: ADR-${"004"} */\nexport const x = 1;\n`);
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MISSING_BASIS);
+  });
+});

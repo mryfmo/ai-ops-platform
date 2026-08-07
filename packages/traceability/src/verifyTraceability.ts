@@ -805,8 +805,25 @@ function formatDispositions(indexes: SpecIndex[]): string {
  * 後方境界が無いと `REQ-00000` の先頭 4 桁が `REQ-0000` に一致してしまい、**実在しない ID を
  * 書いたヘッダがガードを通る**。桁数だけを緩く見る書き方は、ここでは穴になる。
  */
-const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{3,4}`;
-const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z-])`);
+const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}`;
+const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9_-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`);
+
+/**
+ * ファイル先頭のブロックコメントを取り出す。
+ *
+ * 「先頭 N 文字に `根拠:` と ID があること」を条件にすると、`const note = "根拠: ADR-0004"`
+ * のような**コード中の文字列**でもガードを満たせてしまう。規約が要求しているのは
+ * 「先頭コメントに根拠を書くこと」なので、判定対象を先頭コメントそのものに限定する。
+ *
+ * BOM・shebang・`"use client"` 等のディレクティブプロローグはコメントより前に置けるので、
+ * それらを読み飛ばしてから最初のブロックコメントを取る。先頭コメントが無ければ根拠も無い。
+ * 文字数で切らないので、長い先頭コメントの末尾に書かれた ID も正しく拾える。
+ */
+const LEADING_BLOCK_COMMENT = /^\uFEFF?(?:\s*#![^\n]*\n)?(?:\s*(['"])use [a-z-]+\1;?)*\s*(\/\*[\s\S]*?\*\/)/;
+
+function leadingBlockComment(text: string): string {
+  return LEADING_BLOCK_COMMENT.exec(text)?.[2] ?? "";
+}
 
 function isDirectory(path: string): boolean {
   try {
@@ -837,7 +854,7 @@ function basisHeaderDirs(repoRoot: string): string[] {
 function basisHeaderFailures(repoRoot: string): string[] {
   return basisHeaderDirs(repoRoot)
     .flatMap((dir) => listFiles(dir, [".ts", ".tsx"]))
-    .filter((file) => !readFileSync(file, "utf8").slice(0, 500).match(BASIS_HEADER_ID))
+    .filter((file) => !BASIS_HEADER_ID.test(leadingBlockComment(readFileSync(file, "utf8"))))
     .map((file) => file.replace(`${repoRoot}/`, ""));
 }
 
