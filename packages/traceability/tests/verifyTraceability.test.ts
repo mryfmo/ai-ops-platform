@@ -1157,3 +1157,50 @@ describe("設定変数の名前の形に依存しない抽出 [PrjOps:SPEC-INT-0
     expect(result.stderr).toContain("config inventory: QUOTED_KEY is in the server Zod schema");
   });
 });
+
+describe("設定変数の shorthand プロパティ [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("shorthandで定義されたキーも抽出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const NEW_FLAG = z.string();",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "  NEW_FLAG,",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: NEW_FLAG is in the server Zod schema");
+  });
+
+  it("複数行呼び出しの引数をキーと誤認しない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // shorthand と同じ「識別子＋カンマだけの行」でも、括弧の内側なら引数であってキーではない。
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number().refine(",
+        "    isPositive,",
+        "    message,",
+        "  ),",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain("isPositive");
+    expect(result.stderr).not.toContain("message");
+    expect(result.code).toBe(0);
+  });
+});

@@ -303,11 +303,50 @@ export function configInventoryFailures(repoRoot: string): string[] {
   // 広く取ると本来キーでない行を拾い得るが、その場合に起きるのは「文書に足せ」という失敗であり、
   // 漏らした場合に起きる「気づかないまま緑」より安全な方向である。意図的にこちら側へ倒している。
   const IDENTIFIER = String.raw`[A-Za-z_$][A-Za-z0-9_$]*`;
-  const schemaKeys = (body: string): string[] => [
-    ...new Set(
-      [...body.matchAll(new RegExp(String.raw`^\s{2,4}"?(${IDENTIFIER})"?\s*:`, "gm"))].map((match) => match[1]!),
-    ),
-  ];
+  const namedProperty = new RegExp(String.raw`^\s{2,4}"?(${IDENTIFIER})"?\s*:`);
+  // shorthand プロパティ（`{ NEW_FLAG }`）はコロンを持たないので、名前付きの形だけを見ていると漏れる。
+  const shorthandProperty = new RegExp(String.raw`^\s{2,4}(${IDENTIFIER})\s*,\s*$`);
+
+  /**
+   * Zod オブジェクト本体からキー名を取り出す。
+   *
+   * shorthand は「識別子1つとカンマだけの行」だが、複数行に跨る呼び出しの引数
+   * （`refine(\n  (x) => ...,\n  "message",\n)` の途中行）も同じ形になり得る。両者は
+   * 括弧の深さで区別できるので、深さ0の行だけを対象にする。TypeScript を構文解析せずに
+   * shorthand だけを正確に拾うにはこれで足りる。
+   */
+  const schemaKeys = (body: string): string[] => {
+    const lines = body.split("\n");
+    const depthAtLineStart: number[] = [];
+    let parenDepth = 0;
+    for (const line of lines) {
+      depthAtLineStart.push(parenDepth);
+      for (const char of line) {
+        if (char === "(") parenDepth += 1;
+        else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+      }
+    }
+
+    // 名前付きプロパティが現れる括弧の深さが、そのオブジェクトのプロパティの深さである
+    // （本体は `z.object(` の内側にあるので 0 とは限らない）。shorthand はこの深さの行だけ
+    // を対象にし、より深い行＝複数行呼び出しの引数は除外する。
+    const keys = new Set<string>();
+    let propertyDepth: number | undefined;
+    lines.forEach((line, index) => {
+      const named = namedProperty.exec(line);
+      if (!named) return;
+      keys.add(named[1]!);
+      propertyDepth = Math.min(propertyDepth ?? depthAtLineStart[index]!, depthAtLineStart[index]!);
+    });
+    if (propertyDepth !== undefined) {
+      lines.forEach((line, index) => {
+        if (depthAtLineStart[index] !== propertyDepth) return;
+        const shorthand = shorthandProperty.exec(line);
+        if (shorthand) keys.add(shorthand[1]!);
+      });
+    }
+    return [...keys];
+  };
   const tableKeys = (section: string): Set<string> =>
     new Set(
       [...section.matchAll(new RegExp(String.raw`^\|\s*\`(${IDENTIFIER})\`\s*\|`, "gm"))].map((match) => match[1]!),
