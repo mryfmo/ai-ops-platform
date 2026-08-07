@@ -45,6 +45,15 @@ export interface InsertCodingTaskInput {
   confirmTokenHash: string;
 }
 
+/** 回収候補。github_owner/repo は dispatch 時に確定したスコープ（導入前の行は null）。 */
+export interface StaleCodingTask {
+  taskId: string;
+  projectId: string;
+  githubOwner: string | null;
+  githubRepo: string | null;
+  confirmedAt: string;
+}
+
 export interface MarkConfirmedAndDispatchedInput {
   workflowRunId?: number | null;
 }
@@ -119,6 +128,66 @@ export class CodingTasksRepo {
        WHERE task_id = $1`,
       [taskId, input.workflowRunId ?? null],
     );
+  }
+
+  /**
+   * 確認クリックをDB側で原子的に確保する（ADR-0006「誤発火防止」）。
+   *
+   * ルート側の findById → status 判定 → dispatchWorkflow はチェックと更新が分かれており、
+   * 同一トークンで confirm を並行送信すると両方が判定を通過して二重 dispatch し得る。
+   * coding-task.yml の concurrency はキャンセルせずキューするため、2本目も実行され
+   * 同名ブランチへのpushで衝突する。dispatch より前にここで確保し、更新行が無ければ
+   * 既に他が確保済みとして扱う。
+   */
+  async claimForDispatch(taskId: string, scope: { githubOwner: string; githubRepo: string }): Promise<boolean> {
+    const res = await this.db.query(
+      `UPDATE coding_tasks
+       SET status = 'running', confirmed_at = now(), github_owner = $2, github_repo = $3, updated_at = now()
+       WHERE task_id = $1 AND status = 'queued' AND confirmed_at IS NULL
+       RETURNING task_id`,
+      [taskId, scope.githubOwner, scope.githubRepo],
+    );
+    return res.rows.length > 0;
+  }
+
+  /**
+   * running のタスクを failed で終端させる（queuedへ戻さない。理由はルート側コメント参照）。
+   *
+   * 影響行数を返すのは、呼び出し側が「実際に遷移した場合だけ監査へ追記する」ためである。
+   * 監査ログは追記専用（CLAUDE.md原則5）なので、遷移していないのに書いた記録は訂正できない。
+   */
+  async markDispatchFailed(taskId: string): Promise<{ updated: boolean }> {
+    const res = await this.db.query(
+      `UPDATE coding_tasks
+       SET status = 'failed', updated_at = now()
+       WHERE task_id = $1 AND status = 'running'`,
+      [taskId],
+    );
+    return { updated: (res.rowCount ?? 0) > 0 };
+  }
+
+  /**
+   * timeout を過ぎても running のまま残っているタスクを回収候補として返す（callback喪失対策）。
+   *
+   * confirmed_at は呼び出し側が Actions の run 一覧を時刻で絞るために使う。
+   * github_owner/github_repo は dispatch 時に確定したスコープで、reap 時に project_channels から
+   * 引き直さないために持つ（引き直すと構成変更で別リポジトリを観測して誤終端する）。
+   * 本カラム導入前の行は NULL で、呼び出し側は観測不能として回収しない。
+   */
+  async findStaleRunning(olderThanMinutes: number): Promise<StaleCodingTask[]> {
+    const res = await this.db.query(
+      `SELECT task_id, project_id, confirmed_at, github_owner, github_repo FROM coding_tasks
+       WHERE status = 'running' AND confirmed_at IS NOT NULL
+         AND confirmed_at < now() - ($1 || ' minutes')::interval`,
+      [String(olderThanMinutes)],
+    );
+    return res.rows.map((r) => ({
+      taskId: String(r["task_id"]),
+      projectId: String(r["project_id"]),
+      githubOwner: r["github_owner"] == null ? null : String(r["github_owner"]),
+      githubRepo: r["github_repo"] == null ? null : String(r["github_repo"]),
+      confirmedAt: new Date(r["confirmed_at"] as string | Date).toISOString(),
+    }));
   }
 
   /**

@@ -15,6 +15,7 @@
  */
 import type { Hono } from "hono";
 import type { AuditLogWriter } from "@aiops/shared";
+import { sanitizeSecrets } from "@aiops/shared";
 import { verifyConfirmToken, verifyBearerToken } from "../../lib/confirmToken.js";
 import type { CodingTasksRepo, CodingTaskStatus } from "../../db/codingTasksRepo.js";
 
@@ -100,11 +101,15 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
     const taskId = c.req.param("taskId");
     const token = c.req.query("token") ?? "";
 
-    if (!verifyConfirmToken(taskId, token, deps.confirmTokenSecret)) {
+    // 期限導入前に発行された旧形式トークンは発行時刻を持たないため、タスクの作成時刻を
+    // 代替の発行時刻として渡す。移行期間中も旧リンクが無期限に有効にならないようにする。
+    // 応答順序は変えない（トークン不正は行の存在有無より先に 403 を返す）。
+    const task = await deps.codingTasksRepo.findById(taskId);
+    const issuedAtFallbackMs = task ? Date.parse(task.createdAt) : undefined;
+    if (!verifyConfirmToken(taskId, token, deps.confirmTokenSecret, { issuedAtFallbackMs })) {
       return c.html(errorPage("確認リンクが無効です。トークンが一致しません。"), 403);
     }
 
-    const task = await deps.codingTasksRepo.findById(taskId);
     if (!task) {
       return c.html(errorPage("指定されたコーディングタスクが見つかりません。"), 404);
     }
@@ -127,11 +132,15 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
     const body = await parseFormBody(c.req.raw);
     const token = body.token ?? "";
 
-    if (!verifyConfirmToken(taskId, token, deps.confirmTokenSecret)) {
+    // 期限導入前に発行された旧形式トークンは発行時刻を持たないため、タスクの作成時刻を
+    // 代替の発行時刻として渡す。移行期間中も旧リンクが無期限に有効にならないようにする。
+    // 応答順序は変えない（トークン不正は行の存在有無より先に 403 を返す）。
+    const task = await deps.codingTasksRepo.findById(taskId);
+    const issuedAtFallbackMs = task ? Date.parse(task.createdAt) : undefined;
+    if (!verifyConfirmToken(taskId, token, deps.confirmTokenSecret, { issuedAtFallbackMs })) {
       return c.html(errorPage("確認リンクが無効です。トークンが一致しません。"), 403);
     }
 
-    const task = await deps.codingTasksRepo.findById(taskId);
     if (!task) {
       return c.html(errorPage("指定されたコーディングタスクが見つかりません。"), 404);
     }
@@ -165,23 +174,69 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
       return c.html(errorPage("フェイルセーフ中のためコーディングタスク実行を停止しています。"), 503);
     }
 
-    // 人間の明示クリックが成立した瞬間にのみworkflow_dispatchを呼ぶ（ADR-0006「誤発火防止」の核心）
-    await deps.githubClient.dispatchWorkflow({
-      owner: repoScope.githubOwner,
-      repo: repoScope.githubRepo,
-      workflowIdOrFileName: "coding-task.yml",
-      ref: "main",
-      inputs: {
-        task_id: taskId,
-        project_id: task.projectId,
-        instruction: task.instruction,
-        base_ref: "main",
-        agent: task.agent,
-      },
+    // dispatch より前にDB側で原子的に確保する。上の status 判定と dispatch の間には
+    // 隙があり、同一トークンの並行 confirm が両方通過して二重 dispatch し得るため
+    // （coding-task.yml の concurrency はキャンセルせずキューするので2本目も走る）。
+    // 確保と同時に dispatch 先リポジトリを固定する。reaper はこの不変スコープを観測する
+    // （reap 時に project_channels から引き直すと構成変更で別リポジトリを見て誤終端する）。
+    const claimed = await deps.codingTasksRepo.claimForDispatch(taskId, {
+      githubOwner: repoScope.githubOwner,
+      githubRepo: repoScope.githubRepo,
     });
+    if (!claimed) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "coding_task_confirm_already_claimed",
+        basis: "ADR-0006",
+        detail: { taskId, projectId: task.projectId },
+        at: new Date().toISOString(),
+      });
+      return c.html(statusPage("確認済みまたは処理中です", "このタスクは既に実行を開始しています。"), 200);
+    }
 
-    // workflow_run_idはこの時点では未確定（GitHub Actions側から後続callbackで埋まる想定）
-    await deps.codingTasksRepo.markConfirmedAndDispatched(taskId);
+    // 人間の明示クリックが成立した瞬間にのみworkflow_dispatchを呼ぶ（ADR-0006「誤発火防止」の核心）
+    try {
+      await deps.githubClient.dispatchWorkflow({
+        owner: repoScope.githubOwner,
+        repo: repoScope.githubRepo,
+        workflowIdOrFileName: "coding-task.yml",
+        ref: "main",
+        inputs: {
+          task_id: taskId,
+          project_id: task.projectId,
+          instruction: task.instruction,
+          base_ref: "main",
+          agent: task.agent,
+        },
+      });
+    } catch (error) {
+      // 状態を動かさず running のまま残す。失敗応答からは dispatch が GitHub に届いたか
+      // 判別できず、queued へ戻せば二重起動を許し、failed で終端させれば実際に走って PR を
+      // 作ったジョブの callback が `WHERE status = 'running'` に弾かれて台帳が現実と食い違う。
+      // running なら confirm の再確保（status='queued' が条件）は依然として通らないので
+      // 二重起動は防げるうえ、実際に run が出たかどうかは reaper が観測して安全に終端できる。
+      // 訂正できない追記専用ログ（原則5）へ「失敗した」と断定する記録も残さない。
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "SERVER",
+        action: "coding_task_dispatch_outcome_unknown",
+        basis: "ADR-0006",
+        // 例外文字列は注入されたGitHubクライアント/TokenProvider由来で、資格情報を含み得る。
+        // 監査ログは追記専用で訂正できないため、書く前にサニタイズする（CLAUDE.md原則4(c)）。
+        detail: {
+          taskId,
+          projectId: task.projectId,
+          error: sanitizeSecrets(String(error)).sanitized,
+          resolution: "left running for the coding-task reaper to resolve from observed workflow runs",
+        },
+        at: new Date().toISOString(),
+      });
+      return c.html(
+        errorPage("コーディングタスクの起動に失敗しました。再実行が必要な場合は新しいタスクを作成してください。"),
+        502,
+      );
+    }
 
     await deps.auditLog.append({
       trace_id: task.traceId,

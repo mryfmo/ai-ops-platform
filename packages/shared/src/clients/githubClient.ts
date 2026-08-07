@@ -93,6 +93,19 @@ export interface WorkflowDispatchInput {
   inputs: Record<string, string>;
 }
 
+/** Actions run の観測結果。`status` が完了以外なら実行中/待機中を意味する。 */
+export interface WorkflowRunSummary {
+  id: number;
+  status: string | null;
+  conclusion: string | null;
+}
+
+/** run 一覧の観測結果。`complete: false` は上限に当たり全件は見ていないことを示す。 */
+export interface WorkflowRunListing {
+  runs: WorkflowRunSummary[];
+  complete: boolean;
+}
+
 export interface ProjectV2SnapshotRecord {
   projectId: string | null;
   repository: string | null;
@@ -294,6 +307,64 @@ export class GitHubClient {
       { method: "POST", headers, body: JSON.stringify({ ref: input.ref, inputs: input.inputs }) },
     );
     if (!res.ok) throw new Error(`E-DEP01: workflow_dispatch failed with status ${res.status}`);
+  }
+
+  /**
+   * 特定ワークフローの実行状態を観測する（DevOps:SPEC-INT-020 / ADR-0006）。
+   *
+   * workflow_dispatch は run ID を返さないため、dispatch した個別の run を特定できない。
+   * dispatch の ref はワークフロー定義のあるブランチ（coding-task は `main`）であり、
+   * ジョブが自前で作る作業ブランチは run に紐づかないので、ブランチ名も相関キーにならない。
+   * そのため「このワークフローの、この時刻以降の実行」という粒度でしか観測できない。
+   * 呼び出し側はその粗さを前提に、安全側（回収しない側）へ倒して使うこと。
+   *
+   * run は新しい順に返るため、1ページだけ読むと古い未完了の run を見落とす。
+   * `total_count` に達するまでページを辿り、上限に当たったら `complete: false` を返して
+   * 「全部は見ていない」ことを呼び出し側へ伝える（黙って打ち切らない）。
+   */
+  async listWorkflowRuns(
+    owner: string,
+    repo: string,
+    input: {
+      workflowFileName: string;
+      event?: string;
+      createdSince?: string;
+      perPage?: number;
+      maxPages?: number;
+    },
+  ): Promise<WorkflowRunListing> {
+    const headers = await this.headers();
+    const perPage = input.perPage ?? 100;
+    const maxPages = input.maxPages ?? 10;
+    const path = `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(input.workflowFileName)}/runs`;
+    const runs: WorkflowRunSummary[] = [];
+    let totalCount = 0;
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const params = new URLSearchParams({ per_page: String(perPage), page: String(page) });
+      if (input.event) params.set("event", input.event);
+      if (input.createdSince) params.set("created", `>=${input.createdSince}`);
+      const res = await this.fetch(`${this.baseUrl}${path}?${params.toString()}`, { method: "GET", headers });
+      if (!res.ok) throw new Error(`E-ING05: listWorkflowRuns failed with status ${res.status}`);
+      const body = (await res.json()) as { workflow_runs?: unknown; total_count?: unknown };
+      // 形が違う応答を「run が無い」と読み替えない。呼び出し側はこれを回収の根拠にするので、
+      // 壊れた応答は観測できなかったこととして扱う（complete: false）。
+      if (!Array.isArray(body.workflow_runs) || typeof body.total_count !== "number") {
+        return { runs, complete: false };
+      }
+      totalCount = body.total_count;
+      const pageRuns = body.workflow_runs;
+      for (const run of pageRuns) {
+        const record = run as Record<string, unknown>;
+        runs.push({
+          id: Number(record["id"]),
+          status: typeof record["status"] === "string" ? record["status"] : null,
+          conclusion: typeof record["conclusion"] === "string" ? record["conclusion"] : null,
+        });
+      }
+      if (pageRuns.length < perPage || runs.length >= totalCount) return { runs, complete: true };
+    }
+    return { runs, complete: runs.length >= totalCount };
   }
 
   /** 失敗ジョブのログ取得（SPEC-INT-011 手順2。最大1MB、超過分は末尾優先で切り詰め） */

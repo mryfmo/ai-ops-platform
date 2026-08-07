@@ -43,6 +43,7 @@ import {
 } from "./scheduler/scheduler.js";
 import { createHealthcheckTask } from "./scheduler/tasks/healthcheckTask.js";
 import { createJitRevocationTask } from "./scheduler/tasks/jitRevocationTask.js";
+import { createCodingTaskReaperTask } from "./scheduler/tasks/codingTaskReaperTask.js";
 import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRenewalTask.js";
 import { backfillGraphSubscription, createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
@@ -313,6 +314,17 @@ export async function main(
             ),
           ]
         : []),
+      // callback が届かず running のまま残った coding_tasks を終端させる。
+      // 実行状態を観測してから判断するため GitHub クライアントを渡す。認証が無効なときは
+      // タスク自身が「観測不能」として回収を見送り、理由を監査に残す。
+      observedTask(
+        createCodingTaskReaperTask({
+          codingTasksRepo,
+          auditLog: devopsAuditLog,
+          traceIdProvider: () => randomUUID(),
+          githubClient: githubPolicy.enabled ? githubClient : undefined,
+        }),
+      ),
       observedTask(
         createSubscriptionRenewalTask({
           graphSubscriptionsRepo,
