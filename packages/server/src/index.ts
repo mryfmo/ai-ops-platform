@@ -167,10 +167,15 @@ export async function main(
   // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
   // 黙って外れる。起動時に実権限を確認し、成立していなければ起動を止める
   // （所見 ADV-SEC-005 / DevOps:REQ-028）。
+  // パーティション**全体**を見る。PostgreSQL のリレーション権限は親から leaf へ継承されない
+  // ので、親だけを調べると「leaf にだけ UPDATE を持つロール」を追記専用と誤判定する。
+  // ロールはその leaf を直接指定して書けるし、所有していればトリガも落とせる。
+  // 実測: leaf 1 枚に GRANT UPDATE した状態で、親のみの判定は false、集約は true を返す。
   const privilegeRow = await pool.query(
-    `SELECT has_table_privilege(current_user, 'audit_log', 'UPDATE') AS can_update,
-            has_table_privilege(current_user, 'audit_log', 'DELETE') AS can_delete,
-            has_table_privilege(current_user, 'audit_log', 'TRUNCATE') AS can_truncate`,
+    `SELECT bool_or(has_table_privilege(current_user, relid, 'UPDATE')) AS can_update,
+            bool_or(has_table_privilege(current_user, relid, 'DELETE')) AS can_delete,
+            bool_or(has_table_privilege(current_user, relid, 'TRUNCATE')) AS can_truncate
+       FROM pg_partition_tree('audit_log')`,
   );
   const privilegeVerdict = judgeAuditLogPrivilege({
     canUpdate: privilegeRow.rows[0]?.["can_update"] === true,
