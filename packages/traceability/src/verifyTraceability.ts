@@ -258,6 +258,195 @@ export function collectFailureMessages(
   ];
 }
 
+/**
+ * 設定変数の三者一致ガード（根拠: ADR-0005。所見 ADV-OPS-012）。
+ *
+ * `docs/reference/configuration.md` は自ら「二つの Zod スキーマの全キーを列挙し、`.env.example`
+ * も同じ和集合を持つ」と主張している。この主張を人手で維持していた間に 16 変数が文書から、
+ * 5 変数が `.env.example` から欠落した。文書の主張は検証可能でなければ主張ではないので、
+ * 乖離した時点で `mise run traceability` が落ちるようにする。
+ *
+ * 抽出は構文解析ではなく形（スキーマ本体のキー行 / 表のバッククォート付き大文字トークン /
+ * `KEY=` 行）に依存する。取りこぼしではなく過検出へ倒してあり、疑わしい側は失敗になる。
+ */
+export function configInventoryFailures(repoRoot: string): string[] {
+  const read = (...parts: string[]): string | undefined => {
+    try {
+      return readFileSync(join(repoRoot, ...parts), "utf8");
+    } catch {
+      return undefined;
+    }
+  };
+  const serverSource = read("packages", "server", "src", "config.ts");
+  const webSource = read("packages", "web", "src", "server", "config.ts");
+  const docSource = read("docs", "reference", "configuration.md");
+  const envSource = read(".env.example");
+  const missingFiles = [
+    serverSource === undefined ? "packages/server/src/config.ts" : undefined,
+    webSource === undefined ? "packages/web/src/server/config.ts" : undefined,
+    docSource === undefined ? "docs/reference/configuration.md" : undefined,
+    envSource === undefined ? ".env.example" : undefined,
+  ].filter((file): file is string => file !== undefined);
+  if (missingFiles.length > 0) return missingFiles.map((file) => `config inventory source missing: ${file}`);
+
+  const between = (text: string, from: string, to: string): string => {
+    const start = text.indexOf(from);
+    if (start < 0) return "";
+    const end = text.indexOf(to, start + from.length);
+    return text.slice(start, end < 0 ? text.length : end);
+  };
+  // 名前の形を狭く決め打つと、そこから外れたキーが3つの抽出すべてから漏れ、
+  // 他のキーが残るので空スキーマ判定にも掛からず、key-for-key の保証が静かに破れる。
+  // 大文字限定 → 3文字以上 → `_` 始まり不可、と個別に穴が見つかった経緯があるため、
+  // 識別子として妥当な形すべてを受ける。クォート付きキー（`"KEY": z.string()`）も拾う。
+  //
+  // 広く取ると本来キーでない行を拾い得るが、その場合に起きるのは「文書に足せ」という失敗であり、
+  // 漏らした場合に起きる「気づかないまま緑」より安全な方向である。意図的にこちら側へ倒している。
+  const IDENTIFIER = String.raw`[A-Za-z_$][A-Za-z0-9_$]*`;
+  const namedProperty = new RegExp(String.raw`^\s{2,4}"?(${IDENTIFIER})"?\s*:`);
+  // shorthand プロパティ（`{ NEW_FLAG }`）はコロンを持たないので、名前付きの形だけを見ていると漏れる。
+  const shorthandProperty = new RegExp(String.raw`^\s{2,4}(${IDENTIFIER})\s*,\s*$`);
+
+  /**
+   * Zod オブジェクト本体からキー名を取り出す。
+   *
+   * shorthand は「識別子1つとカンマだけの行」だが、複数行に跨る呼び出しの引数
+   * （`refine(\n  (x) => ...,\n  "message",\n)` の途中行）も同じ形になり得る。
+   *
+   * 両者はインデントで区別する。プロパティ行は同じ深さに揃い、呼び出しの引数はそれより
+   * 1 段深い。基準の深さは決め打たず、名前付きプロパティが実際に現れる最小インデントから
+   * 導く（server は 2、web は `.object({` の内側なので 4）。
+   *
+   * 文字を数えて括弧の深さを追う方法は採らない。文字列リテラル・テンプレート・コメント・
+   * 正規表現の中の括弧を除外する必要があり、それは字句解析そのものになる（`z.literal("(")`
+   * 一つで狂う）。インデントは Prettier が正規化し、`mise run format` が CI ゲートとして
+   * 強制しているので、この判別材料は機械的に保証されている。
+   */
+  const schemaKeys = (body: string): string[] => {
+    const lines = body.split("\n");
+    const indentOf = (line: string): number => (/^(\s*)/.exec(line)?.[1] ?? "").length;
+
+    const keys = new Set<string>();
+    let propertyIndent: number | undefined;
+    for (const line of lines) {
+      const named = namedProperty.exec(line);
+      if (!named) continue;
+      keys.add(named[1]!);
+      propertyIndent = Math.min(propertyIndent ?? indentOf(line), indentOf(line));
+    }
+    if (propertyIndent !== undefined) {
+      for (const line of lines) {
+        if (indentOf(line) !== propertyIndent) continue;
+        const shorthand = shorthandProperty.exec(line);
+        if (shorthand) keys.add(shorthand[1]!);
+      }
+    }
+    return [...keys];
+  };
+  const tableKeys = (section: string): Set<string> =>
+    new Set(
+      [...section.matchAll(new RegExp(String.raw`^\|\s*\`(${IDENTIFIER})\`\s*\|`, "gm"))].map((match) => match[1]!),
+    );
+
+  /**
+   * キー集合を書き換える Zod の合成メソッド。抽出は単一のオブジェクトリテラルしか読まないので、
+   * これらが使われた時点で結果は実際のスキーマと一致しなくなる。
+   *
+   * 読めないものを黙って読み飛ばすと、`.extend({ NEW_FLAG })` で足したキーが文書からも
+   * 漏れたまま緑になる——本ガードが防ぐはずの回帰そのものが素通りする。追随を実装する代わりに、
+   * 「読めない形が現れた」ことを失敗として報告する。合成を導入する側が抽出器も直す前提にする。
+   */
+  const COMPOSITION_METHODS = [
+    ".extend(",
+    ".safeExtend(",
+    ".merge(",
+    ".omit(",
+    ".pick(",
+    ".partial(",
+    ".required(",
+    ".and(",
+  ];
+  const compositionFailure = (source: string, label: string): string | undefined => {
+    const used = COMPOSITION_METHODS.filter((method) => source.includes(method));
+    if (used.length === 0) return undefined;
+    return `config inventory: ${label} uses ${used.join(" / ")}; the extractor reads one object literal and cannot follow composed schemas`;
+  };
+
+  /**
+   * オブジェクトスプレッド（`{ ...extraShape, PORT: ... }`）も合成である。
+   * 展開元は別の変数なので、本体を読むだけでは持ち込まれるキーが分からない。
+   * Zod のメソッドと同じ扱いで、読めない形として失敗させる。
+   */
+  const spreadFailure = (body: string, label: string): string | undefined =>
+    /^\s*\.\.\./m.test(body)
+      ? `config inventory: ${label} spreads another object into the schema; the extractor cannot resolve the keys it contributes`
+      : undefined;
+
+  /**
+   * 計算プロパティ（`[NEW_FLAG]: z.string()`）も同じ理由で読めない。キー名は別の束縛にあり、
+   * 本体を読むだけでは決まらない。スプレッド・合成と同じく、推測せず失敗として報告する。
+   */
+  const computedKeyFailure = (body: string, label: string): string | undefined =>
+    /^\s{2,4}\[/m.test(body)
+      ? `config inventory: ${label} uses a computed property key; the extractor cannot resolve the name it evaluates to`
+      : undefined;
+
+  const serverBody = between(serverSource!, "const baseConfigSchema", "const configSchema");
+  const webBody = between(webSource!, "const webConfigSchema", ".superRefine");
+  const serverKeys = schemaKeys(serverBody);
+  const webKeys = schemaKeys(webBody);
+  const compositionFailures = [
+    compositionFailure(serverSource!, "packages/server/src/config.ts"),
+    compositionFailure(webSource!, "packages/web/src/server/config.ts"),
+    spreadFailure(serverBody, "packages/server/src/config.ts"),
+    spreadFailure(webBody, "packages/web/src/server/config.ts"),
+    computedKeyFailure(serverBody, "packages/server/src/config.ts"),
+    computedKeyFailure(webBody, "packages/web/src/server/config.ts"),
+  ].filter((failure): failure is string => failure !== undefined);
+  if (compositionFailures.length > 0) return compositionFailures;
+  const docServer = tableKeys(between(docSource!, "## Server", "## Web"));
+  const docWeb = tableKeys(between(docSource!, "## Web", "## Report Generation"));
+  const envKeys = new Set(
+    [...envSource!.matchAll(new RegExp(String.raw`^#?\s*(${IDENTIFIER})=`, "gm"))].map((match) => match[1]!),
+  );
+
+  // スキーマ本体を読めていない場合に空集合同士が一致して黙って通るのを防ぐ。
+  if (serverKeys.length === 0 || webKeys.length === 0) {
+    return ["config inventory: Zod schema body not found; the extraction anchors in verifyTraceability.ts are stale"];
+  }
+
+  const failures: string[] = [];
+  const report = (keys: string[], present: Set<string>, label: string): void => {
+    for (const key of keys) {
+      if (!present.has(key)) failures.push(`config inventory: ${key} is in the ${label}`);
+    }
+  };
+  report(serverKeys, docServer, "server Zod schema but not in the configuration.md server table");
+  report(webKeys, docWeb, "web Zod schema but not in the configuration.md web table");
+  report([...serverKeys, ...webKeys], envKeys, "Zod schemas but not in .env.example");
+
+  // 逆向きは表ごとに突合する。両表と両スキーマを合算して比べると、web 専用の
+  // AUTH_SECRET が server 表に載っていても通ってしまい、表が「そのスキーマの
+  // インベントリである」という主張が崩れたまま CI は緑になる。
+  const reverse = (documented: Set<string>, schema: string[], label: string): void => {
+    const schemaSet = new Set(schema);
+    for (const key of documented) {
+      if (!schemaSet.has(key)) failures.push(`config inventory: ${key} is in the ${label}`);
+    }
+  };
+  reverse(docServer, serverKeys, "configuration.md server table but not in the server Zod schema");
+  reverse(docWeb, webKeys, "configuration.md web table but not in the web Zod schema");
+
+  // .env.example は両スキーマの和集合を持つので、こちらは合算のまま比べる。
+  const schemaKeySet = new Set([...serverKeys, ...webKeys]);
+  for (const key of envKeys) {
+    if (!schemaKeySet.has(key)) {
+      failures.push(`config inventory: ${key} is in .env.example but is in neither Zod schema`);
+    }
+  }
+  return [...new Set(failures)];
+}
+
 function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
   const catalogFile = join(repoRoot, "docs", "spec", "spec-id-catalog.md");
   let text: string;
@@ -683,6 +872,9 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   );
   const indexGuardFailures = specIndexFailures([prjopsIndex, devopsIndex]);
   const catalogGuardFailures = catalogFailures(repoRoot, [prjopsIndex, devopsIndex]);
+  // 報告と失敗収集で同じ結果を使う。片方だけに現れると、失敗した実行の成果物が
+  // 全ガード clean に見えてしまう。
+  const configGuardFailures = configInventoryFailures(repoRoot);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsIndex.system, prjopsReferences, collidingIds),
@@ -730,6 +922,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
         [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)].join(", ") || "—"
       }`,
       `- 仕様IDカタログ不正: ${catalogGuardFailures.join(", ") || "—"}`,
+      `- 設定変数インベントリ不整合: ${configGuardFailures.join(", ") || "—"}`,
       "",
     ].join("\n"),
     { parser: "markdown" },
@@ -747,7 +940,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     adrReferenceFailures(repoRoot),
     namespaceFailures,
     [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],
-    [...indexGuardFailures, ...catalogGuardFailures],
+    [...indexGuardFailures, ...catalogGuardFailures, ...configGuardFailures],
   );
   const errorMessage =
     failures.length > 0 ? `E-TRACE01: トレーサビリティ検証に失敗しました: ${failures.join(", ")}` : undefined;
