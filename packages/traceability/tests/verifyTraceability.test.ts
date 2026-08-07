@@ -47,6 +47,7 @@ const FIXTURE_SERVER_CONFIG = [
 ].join("\n");
 
 const FIXTURE_WEB_CONFIG = [
+  "/** 根拠: ADR-0004 */",
   "const webConfigSchema = z",
   "  .object({",
   "    AUTH_SECRET: z.string(),",
@@ -130,11 +131,18 @@ function fixture(options: FixtureOptions | string[] = {}): string {
     join(root, "packages/traceability/spec-ids/devops.json"),
     JSON.stringify({ system: normalized.devopsSystem ?? "DevOps", REQ: normalized.devopsReqs ?? [] }),
   );
+  // 名前空間ガード用のsrc fixtureは根拠ヘッダガードの対象でもある（走査範囲を全パッケージ
+  // src/へ広げたため）。当該テストの主題ではないので、ヘッダを持たない指定にだけ補う。
+  // 根拠ヘッダガード自体は専用のdescribeで検証する。
+  const withBasisHeader = (text: string) => (text.includes("根拠:") ? text : `/** 根拠: ADR-0004 */\n${text}`);
   if (normalized.sourceText !== undefined) {
-    writeFileSync(join(root, "packages/shared/src/references.ts"), normalized.sourceText);
+    writeFileSync(join(root, "packages/shared/src/references.ts"), withBasisHeader(normalized.sourceText));
   }
   if (normalized.traceabilitySourceText !== undefined) {
-    writeFileSync(join(root, "packages/traceability/src/references.ts"), normalized.traceabilitySourceText);
+    writeFileSync(
+      join(root, "packages/traceability/src/references.ts"),
+      withBasisHeader(normalized.traceabilitySourceText),
+    );
   }
   if (normalized.traceabilityTestText !== undefined) {
     writeFileSync(
@@ -1361,5 +1369,56 @@ describe("設定変数の計算プロパティ [PrjOps:SPEC-INT-070 / DevOps:SPE
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("uses a computed property key");
+  });
+});
+
+describe("根拠ヘッダガードの走査範囲 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  const NO_BASIS = "export const x = 1;\n";
+  const WITH_BASIS = "/** 根拠: ADR-0004 */\nexport const x = 1;\n";
+
+  // AGENTS.md 設計原則3 は全新規ファイルに根拠ヘッダを要求するが、走査は
+  // shared/src/reporting と server/src の 2 箇所だけだった（所見 ADV-VER-005）。
+  const scanned = [
+    ["packages/prjops/src", "packages/prjops/src/noBasis.ts"],
+    ["packages/devops/src", "packages/devops/src/noBasis.ts"],
+    ["packages/web/src", "packages/web/src/noBasis.ts"],
+    ["packages/traceability/src", "packages/traceability/src/noBasis.ts"],
+    ["packages/shared/src", "packages/shared/src/noBasis.ts"],
+  ] as const;
+
+  for (const [dir, file] of scanned) {
+    it(`${dir} の根拠ヘッダ欠落を検出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]`, async () => {
+      const root = fixture({});
+      mkdirSync(join(root, dir), { recursive: true });
+      writeFileSync(join(root, file), NO_BASIS);
+
+      const result = await runFailure(root);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain(`basis header missing: ${file}`);
+    });
+  }
+
+  it("根拠ヘッダがあれば通す（走査拡大が無条件失敗にならない） [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    for (const [dir, file] of scanned) {
+      mkdirSync(join(root, dir), { recursive: true });
+      writeFileSync(join(root, file), WITH_BASIS);
+    }
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+  });
+
+  it(".tsx も走査対象に含める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/web/src/page.tsx"), NO_BASIS);
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("basis header missing: packages/web/src/page.tsx");
   });
 });

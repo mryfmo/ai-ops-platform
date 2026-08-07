@@ -787,10 +787,26 @@ function formatDispositions(indexes: SpecIndex[]): string {
   ].join("\n");
 }
 
+/**
+ * 根拠ヘッダガードの走査対象（所見 ADV-VER-005）。
+ *
+ * AGENTS.md 設計原則3 は「新規ファイルの先頭コメントに根拠となる仕様IDを記載する。
+ * `mise run traceability` が検証する」と述べるが、実際の走査は shared/src/reporting と
+ * server/src の 2 ディレクトリだけで、prjops / devops / web / traceability /
+ * shared の reporting 以外は規約の外に置かれていた。規約が自己申告どおりの範囲を
+ * 持つよう、全パッケージの src/ を対象にする。
+ */
+const BASIS_HEADER_DIRS: readonly (readonly string[])[] = [
+  ["packages", "shared", "src"],
+  ["packages", "prjops", "src"],
+  ["packages", "devops", "src"],
+  ["packages", "server", "src"],
+  ["packages", "web", "src"],
+  ["packages", "traceability", "src"],
+];
+
 function basisHeaderFailures(repoRoot: string): string[] {
-  const reportingDir = join(repoRoot, "packages", "shared", "src", "reporting");
-  const serverDir = join(repoRoot, "packages", "server", "src");
-  return [...listFiles(reportingDir, [".ts"]), ...listFiles(serverDir, [".ts"])]
+  return BASIS_HEADER_DIRS.flatMap((parts) => listFiles(join(repoRoot, ...parts), [".ts", ".tsx"]))
     .filter(
       (file) =>
         !readFileSync(file, "utf8")

@@ -1,7 +1,9 @@
 /**
  * packages/devops/src/templates/reportShell.ts
  *
- * 根拠: DevOps:SPEC-EXT-020 共通仕様
+ * 根拠: DevOps:REQ-020 共通要件（レポートはHTML形式で生成しOutlookメール本文として配信する。
+ *   データ集計期間・生成時刻をヘッダーに明記する。詳細は DevOps:SPEC-EXT-020〜026 に従う）/
+ *   DevOps:SPEC-EXT-020 共通仕様
  *   件名書式 `[DevOpsレポート][種別] YYYY-MM-DD`。本文HTMLはインラインCSSのみ使用
  *   （外部CSS・JavaScript不可）、幅640px基準の単一カラム。
  *   ヘッダーに集計期間・生成時刻（JST）・宛先プロファイル名を表示。
