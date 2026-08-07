@@ -756,6 +756,9 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   );
   const indexGuardFailures = specIndexFailures([prjopsIndex, devopsIndex]);
   const catalogGuardFailures = catalogFailures(repoRoot, [prjopsIndex, devopsIndex]);
+  // 報告と失敗収集で同じ結果を使う。片方だけに現れると、失敗した実行の成果物が
+  // 全ガード clean に見えてしまう。
+  const configGuardFailures = configInventoryFailures(repoRoot);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsIndex.system, prjopsReferences, collidingIds),
@@ -803,6 +806,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
         [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)].join(", ") || "—"
       }`,
       `- 仕様IDカタログ不正: ${catalogGuardFailures.join(", ") || "—"}`,
+      `- 設定変数インベントリ不整合: ${configGuardFailures.join(", ") || "—"}`,
       "",
     ].join("\n"),
     { parser: "markdown" },
@@ -820,7 +824,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     adrReferenceFailures(repoRoot),
     namespaceFailures,
     [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],
-    [...indexGuardFailures, ...catalogGuardFailures, ...configInventoryFailures(repoRoot)],
+    [...indexGuardFailures, ...catalogGuardFailures, ...configGuardFailures],
   );
   const errorMessage =
     failures.length > 0 ? `E-TRACE01: トレーサビリティ検証に失敗しました: ${failures.join(", ")}` : undefined;

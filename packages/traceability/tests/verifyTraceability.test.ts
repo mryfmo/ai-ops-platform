@@ -958,3 +958,22 @@ describe("設定変数インベントリガード [ADR-0005]", () => {
     expect(result.stderr).toContain("Zod schema body not found");
   });
 });
+
+describe("設定変数ガードの報告掲載 [ADR-0005]", () => {
+  it("失敗した実行の matrix が全ガード clean に見えないようにする", async () => {
+    const root = fixture({ envExampleText: "DATABASE_URL=\nAUTH_SECRET=\n" });
+
+    const result = await runTraceability({ repoRoot: root, writeOutput: false });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.report).toContain("設定変数インベントリ不整合");
+    expect(result.report).toContain("PORT is in the Zod schemas but not in .env.example");
+  });
+
+  it("一致していれば報告欄は空表示になる", async () => {
+    const result = await runTraceability({ repoRoot: fixture({}), writeOutput: false });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.report).toContain("設定変数インベントリ不整合: —");
+  });
+});
