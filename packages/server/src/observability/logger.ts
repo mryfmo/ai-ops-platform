@@ -10,7 +10,9 @@ import pino, { type Logger } from "pino";
  *
  * 現在の呼び出しは安全な値しか渡していないが、`logger.info({ config })` のような誤用が
  * 一度あれば秘密がそのまま構造化ログへ載る。最終防波堤として、名前で秘密と分かるキーを
- * 深さに関わらず伏せる。`*.` 前置のワイルドカードは任意の階層に対応する。
+ * 深さ3まで伏せる。fast-redact の `*` は1階層だけに一致するため、各深さの静的パスを張る。
+ * 本番の logger 呼び出し7件はすべてフラットな payload なので、3階層は現状より十分な余裕があり、
+ * 再帰 formatter をログのホットパスへ追加せず request.headers.authorization 等も保護できる。
  */
 export const REDACT_PATHS = [
   // 実際の設定キー名（SCREAMING_SNAKE）を挙げる。camelCase だけを並べても、想定している
@@ -39,7 +41,7 @@ export const REDACT_PATHS = [
   "apiKey",
   "privateKey",
   "connectionString",
-].flatMap((name) => [name, `*.${name}`]);
+].flatMap((name) => Array.from({ length: 4 }, (_, depth) => `${"*.".repeat(depth)}${name}`));
 
 export function createLogger(level = "info", destination?: pino.DestinationStream): Logger {
   const options = { level, base: undefined, redact: { paths: REDACT_PATHS, censor: "[redacted]" } };
