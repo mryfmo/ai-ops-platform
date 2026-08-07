@@ -372,11 +372,25 @@ export function configInventoryFailures(repoRoot: string): string[] {
     return `config inventory: ${label} uses ${used.join(" / ")}; the extractor reads one object literal and cannot follow composed schemas`;
   };
 
-  const serverKeys = schemaKeys(between(serverSource!, "const baseConfigSchema", "const configSchema"));
-  const webKeys = schemaKeys(between(webSource!, "const webConfigSchema", ".superRefine"));
+  /**
+   * オブジェクトスプレッド（`{ ...extraShape, PORT: ... }`）も合成である。
+   * 展開元は別の変数なので、本体を読むだけでは持ち込まれるキーが分からない。
+   * Zod のメソッドと同じ扱いで、読めない形として失敗させる。
+   */
+  const spreadFailure = (body: string, label: string): string | undefined =>
+    /^\s*\.\.\./m.test(body)
+      ? `config inventory: ${label} spreads another object into the schema; the extractor cannot resolve the keys it contributes`
+      : undefined;
+
+  const serverBody = between(serverSource!, "const baseConfigSchema", "const configSchema");
+  const webBody = between(webSource!, "const webConfigSchema", ".superRefine");
+  const serverKeys = schemaKeys(serverBody);
+  const webKeys = schemaKeys(webBody);
   const compositionFailures = [
     compositionFailure(serverSource!, "packages/server/src/config.ts"),
     compositionFailure(webSource!, "packages/web/src/server/config.ts"),
+    spreadFailure(serverBody, "packages/server/src/config.ts"),
+    spreadFailure(webBody, "packages/web/src/server/config.ts"),
   ].filter((failure): failure is string => failure !== undefined);
   if (compositionFailures.length > 0) return compositionFailures;
   const docServer = tableKeys(between(docSource!, "## Server", "## Web"));

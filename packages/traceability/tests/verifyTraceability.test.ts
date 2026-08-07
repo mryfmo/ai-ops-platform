@@ -1297,3 +1297,46 @@ describe("設定変数抽出の字句的な頑健性 [PrjOps:SPEC-INT-070 / DevO
     expect(result.stderr).toContain(".safeExtend(");
   });
 });
+
+describe("設定変数のオブジェクトスプレッド [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("スプレッドは持ち込まれるキーを解決できないので失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const extraShape = { NEW_FLAG: z.string() };",
+        "const baseConfigSchema = z.object({",
+        "  ...extraShape,",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("spreads another object into the schema");
+  });
+
+  it("web側のスプレッドも検出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      webConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const webConfigSchema = z",
+        "  .object({",
+        "    ...sharedShape,",
+        "    AUTH_SECRET: z.string(),",
+        "  })",
+        "  .superRefine(() => undefined);",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("packages/web/src/server/config.ts spreads");
+  });
+});
