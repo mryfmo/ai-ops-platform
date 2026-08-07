@@ -9,12 +9,21 @@
  *         （Graphは応答遅延でサブスクリプションを削除するため、重い処理は非同期化する）。
  */
 import type { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { graphSubscriptionErrorDetail, type AuditLogWriter } from "@aiops/shared";
 import {
   classifyNotifications,
   graphNotificationDedupeKey,
   type GraphNotification,
 } from "../../lib/graphNotificationValidator.js";
+
+/**
+ * Microsoftはwebhook上限を公開していないため、1 MiBはGraph仕様値ではなく運用上限。
+ * 現行subscriptionはincludeResourceDataなしのmetadata-only（約1〜2 KiB/件）なので
+ * バッチと将来のvalidationTokensに約100倍の余裕を残しつつ、無認証経路のメモリを制限する。
+ * Event Hubsの公開済み1 MB値は参考に留め、LB/WAF確定時（T-P1-07）に整合を再確認する。
+ */
+export const GRAPH_NOTIFICATION_MAX_BYTES = 1024 * 1024;
 
 export type GraphLifecycleEventName = "reauthorizationRequired" | "subscriptionRemoved" | "missed";
 
@@ -79,7 +88,11 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
 }
 
 export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificationDeps): void {
-  app.post("/webhooks/graph", async (c) => {
+  const graphNotificationBodyLimit = bodyLimit({ maxSize: GRAPH_NOTIFICATION_MAX_BYTES });
+
+  // 超過時はbodyLimit既定の413。無認証のattacker-controlledイベントによる追記専用監査ログの
+  // 増幅を避けるため監査には残さず、Graph側の配送失敗とchannel polling fallbackで検知・回収する。
+  app.post("/webhooks/graph", graphNotificationBodyLimit, async (c) => {
     // (1) サブスクリプション検証ハンドシェイク
     const validationToken = c.req.query("validationToken");
     if (validationToken) {
