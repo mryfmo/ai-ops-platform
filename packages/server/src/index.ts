@@ -14,6 +14,8 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { deriveCapabilityState, reportDegradation } from "./lib/degradedCapabilities.js";
+import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
@@ -162,6 +164,29 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  // audit_log の追記専用は「接続ロールが UPDATE/DELETE を持たないこと」で強制される。
+  // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
+  // 黙って外れる。起動時に実権限を確認し、成立していなければ起動を止める
+  // （所見 ADV-SEC-005 / DevOps:REQ-028）。
+  // パーティション**全体**を見る。PostgreSQL のリレーション権限は親から leaf へ継承されない
+  // ので、親だけを調べると「leaf にだけ UPDATE を持つロール」を追記専用と誤判定する。
+  // ロールはその leaf を直接指定して書けるし、所有していればトリガも落とせる。
+  // 実測: leaf 1 枚に GRANT UPDATE した状態で、親のみの判定は false、集約は true を返す。
+  const privilegeRow = await pool.query(
+    `SELECT bool_or(has_table_privilege(current_user, relid, 'UPDATE')) AS can_update,
+            bool_or(has_table_privilege(current_user, relid, 'DELETE')) AS can_delete,
+            bool_or(has_table_privilege(current_user, relid, 'TRUNCATE')) AS can_truncate
+       FROM pg_partition_tree('audit_log')`,
+  );
+  const privilegeVerdict = judgeAuditLogPrivilege({
+    canUpdate: privilegeRow.rows[0]?.["can_update"] === true,
+    canDelete: privilegeRow.rows[0]?.["can_delete"] === true,
+    canTruncate: privilegeRow.rows[0]?.["can_truncate"] === true,
+  });
+  if (!privilegeVerdict.appendOnly) {
+    throw new Error(`E-AUDIT01: ${privilegeVerdict.reason ?? "audit_log is not append-only for this role"}`);
+  }
+
   const stakeholderProvider = config.STAKEHOLDERS_DIR
     ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
     : null;
@@ -245,7 +270,7 @@ export async function main(
     llmClient,
     resolveCallerProfile: stakeholderMaster.resolveCallerProfile,
     codingTasksRepo,
-    confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
+    confirmTokenSecret: config.CODING_TASK_CONFIRM_SECRET,
     publicBaseUrl: config.PUBLIC_BASE_URL,
   });
 
@@ -285,6 +310,39 @@ export async function main(
           },
         };
 
+  // composition root は設定・実行時状態の正規化だけを担い、機能間の依存判定は lib/ に委ねる。
+  let subscriptionsPresent = false;
+  const refreshSubscriptionPresence = async (): Promise<void> => {
+    const notification = await graphSubscriptionsRepo.listByMode("notification");
+    const polling = await graphSubscriptionsRepo.listByMode("polling");
+    subscriptionsPresent = notification.length + polling.length > 0;
+  };
+  const capabilityState = () =>
+    deriveCapabilityState({
+      reportDeliveryEnabled: config.REPORT_DELIVERY_ENABLED,
+      fromMailboxConfigured: Boolean(config.FROM_MAILBOX),
+      reportIngestConfigured: Boolean(config.REPORT_INGEST_SECRET),
+      xlsxImportConfigured: Boolean(config.XLSX_IMPORT_SECRET),
+      teamsPersonaConfigured: Boolean(config.STAKEHOLDERS_DIR),
+      llmFreeTextConfigured: Boolean(config.ANTHROPIC_API_KEY),
+      githubConfigured: githubPolicy.enabled,
+      githubProjectConfigured: Boolean(config.GITHUB_PROJECT_NODE_ID),
+      sevenKeysSnapshotConfigured: false,
+      heartbeatConfigured: Boolean(config.HEARTBEAT_URL),
+      metricsEndpointConfigured: Boolean(config.METRICS_TOKEN),
+      defaultTeamsTeamConfigured: Boolean(config.DEFAULT_TEAMS_TEAM_ID),
+      defaultTeamsChannelConfigured: Boolean(config.DEFAULT_TEAMS_CHANNEL_ID),
+      telemetryConfigured: Boolean(config.OTEL_EXPORTER_OTLP_ENDPOINT ?? config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT),
+      graphSubscriptionsPresent: subscriptionsPresent,
+    });
+  const publishCapabilities = (): string[] => {
+    const state = capabilityState();
+    metrics.setCapabilities(state);
+    return reportDegradation(state).disabled;
+  };
+  await refreshSubscriptionPresence();
+  publishCapabilities();
+
   const scheduler = startScheduler(
     [
       observedTask(
@@ -303,6 +361,15 @@ export async function main(
           traceIdProvider: () => randomUUID(),
         }),
       ),
+      observedTask({
+        name: "capability-metrics-refresh-30s",
+        intervalMs: 30_000,
+        async run(): Promise<void> {
+          // /metrics は同期描画のまま保ち、DBを毎scrapeせず、既存スケジューラで購読状態を更新する。
+          await refreshSubscriptionPresence();
+          publishCapabilities();
+        },
+      }),
       ...(githubPolicy.enabled
         ? [
             observedTask(
@@ -448,9 +515,11 @@ export async function main(
     readiness: createReadinessCheck({
       checkDependencies: async () => {
         await pool.query("SELECT 1");
+        await refreshSubscriptionPresence();
       },
       isFailsafeActive: () => failsafeActive,
       isShuttingDown: () => shuttingDown,
+      degradedCapabilities: publishCapabilities,
     }),
     metrics,
     metricsToken: config.METRICS_TOKEN,
@@ -492,7 +561,9 @@ export async function main(
       codingTasksRepo,
       githubClient,
       auditLog: devopsAuditLog,
-      confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
+      // 確認トークンの鍵と callback の Bearer は別物。前者は Actions へ渡らない
+      // （所見 ADV-SEC-002 / ADV-INT-003）。
+      confirmTokenSecret: config.CODING_TASK_CONFIRM_SECRET,
       callbackSecret: config.CODING_TASK_CALLBACK_SECRET,
       resolveRepoForProject: async (projectId) => {
         const channel = await projectChannelsRepo.findByProjectId(projectId);

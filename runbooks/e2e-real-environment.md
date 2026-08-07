@@ -30,7 +30,8 @@ export GRAPH_TENANT_ID=...
 export GRAPH_ALLOWED_TEAM_IDS="<exact-team-id>[,<exact-team-id>]"
 export GRAPH_ALLOWED_FROM_MAILBOXES="reports@example.com[,other-sender@example.com]"
 export PUBLIC_BASE_URL=https://aiops.example.com
-export CODING_TASK_CALLBACK_SECRET="$(openssl rand -hex 32)"
+export CODING_TASK_CONFIRM_SECRET="$(openssl rand -hex 32)"   # server-only; never a GitHub Actions secret
+export CODING_TASK_CALLBACK_SECRET="$(openssl rand -hex 32)"  # shared with coding-task.yml; must differ from the above
 export ANTHROPIC_API_KEY=...
 ```
 

@@ -140,15 +140,34 @@ const baseConfigSchema = z.object({
   DEFAULT_TEAMS_TEAM_ID: z.string().trim().min(1).optional(),
   DEFAULT_TEAMS_CHANNEL_ID: z.string().trim().min(1).optional(),
   /**
-   * コーディングタスク関連シークレット（ADR-0006）。二用途で共有する:
-   *   (a) confirmToken.ts の HMAC-SHA256鍵（確認リンクtokenの生成・検証）
-   *   (b) .github/workflows/coding-task.yml が呼ぶ
-   *       POST /internal/coding-tasks/:taskId/callback のBearer認証シークレット
+   * 確認リンクtokenのHMAC-SHA256鍵（ADR-0006）。**サーバ内にのみ保持し、外部へ渡さない。**
+   *
+   * 以前は CODING_TASK_CALLBACK_SECRET を兼用していたが、その値は GitHub Actions の
+   * secrets として runner と curl 送信に露出する。露出した値から任意 taskId の確認トークンを
+   * 再計算でき、`POST /coding-tasks/:id/confirm` を直接叩けば**人間クリック無しで
+   * workflow_dispatch を起動できた**（所見 ADV-SEC-002 / ADV-INT-003）。ADR-0006 の核心が
+   * 単一秘密の漏えいで崩れるため、信頼ドメインの異なる 2 用途を別鍵に分ける。
+   */
+  CODING_TASK_CONFIRM_SECRET: z.string().min(32),
+  /**
+   * .github/workflows/coding-task.yml が呼ぶ
+   * POST /internal/coding-tasks/:taskId/callback のBearer認証シークレット（ADR-0006）。
+   * Actions 側へ渡る前提の値なので、確認トークンの署名には使わない。
    */
   CODING_TASK_CALLBACK_SECRET: z.string().min(32),
 });
 
 const configSchema = baseConfigSchema.superRefine((config, ctx) => {
+  // 2つの鍵を別変数にしても、同じ値を入れられては分離した意味が無い。Actions へ渡る
+  // callback 値から確認トークンを再計算でき、人間承認の回避がそのまま復活する
+  // （所見 ADV-SEC-002 / ADV-INT-003）。設定層で等値を拒否する。
+  if (config.CODING_TASK_CONFIRM_SECRET === config.CODING_TASK_CALLBACK_SECRET) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["CODING_TASK_CONFIRM_SECRET"],
+      message: "must differ from CODING_TASK_CALLBACK_SECRET; the callback value is exposed to GitHub Actions",
+    });
+  }
   const githubAppValues = [config.GITHUB_APP_ID, config.GITHUB_APP_PRIVATE_KEY, config.GITHUB_APP_INSTALLATION_ID];
   const configuredGithubAppValues = githubAppValues.filter(Boolean).length;
   if (configuredGithubAppValues !== 0 && configuredGithubAppValues !== githubAppValues.length) {
@@ -201,7 +220,7 @@ export function loadConfig(
     throw new Error(`E-CFG01: invalid server configuration: ${issues}`);
   }
   if (!parsed.data.METRICS_TOKEN) {
-    warn("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+    warn("METRICS_TOKEN is not configured; GET /metrics is disabled and returns 503");
   }
   try {
     return {

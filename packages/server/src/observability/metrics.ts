@@ -87,6 +87,18 @@ export class MetricsRegistry {
     this.setGauge("aiops_db_pool_connections", { state: "waiting" }, values.waiting);
   }
 
+  /**
+   * 機能ごとの有効/無効を gauge にする（所見 ADV-INT-052 / ADV-INT-007）。
+   *
+   * 縮退の証跡が監査ログにしか無いと、「有効化されているはずの機能が無効」を監視から
+   * 検知できない。無効そのものは異常ではないので、判定はせず事実だけを出す。
+   */
+  setCapabilities(state: Readonly<Record<string, boolean>>): void {
+    for (const [capability, enabled] of Object.entries(state)) {
+      this.setGauge("aiops_capability_enabled", { capability }, enabled ? 1 : 0);
+    }
+  }
+
   renderPrometheus(): string {
     const lines = [
       "# HELP aiops_events_queue_depth Current events queue depth by status.",
@@ -99,6 +111,8 @@ export class MetricsRegistry {
       "# TYPE aiops_task_failures_total counter",
       "# HELP aiops_report_delivery_total Report delivery outcomes.",
       "# TYPE aiops_report_delivery_total counter",
+      "# HELP aiops_capability_enabled 1 when an optional capability is configured and active, 0 when degraded.",
+      "# TYPE aiops_capability_enabled gauge",
       "# HELP aiops_db_pool_connections PostgreSQL pool connection counts.",
       "# TYPE aiops_db_pool_connections gauge",
     ];
