@@ -1253,3 +1253,47 @@ describe("設定変数の合成スキーマ [PrjOps:SPEC-INT-070 / DevOps:SPEC-I
     expect(result.code).toBe(0);
   });
 });
+
+describe("設定変数抽出の字句的な頑健性 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("文字列リテラル中の括弧に影響されずshorthandを拾う [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // 括弧の数を数える方式だと `z.literal("(")` 一つで深さが狂う。判別はインデントで行う。
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        '  LABEL: z.literal("("),',
+        "  PORT: z.coerce.number(),",
+        "  NEW_FLAG,",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: NEW_FLAG is in the server Zod schema");
+    expect(result.stderr).toContain("config inventory: LABEL is in the server Zod schema");
+  });
+
+  it("safeExtend も読めない合成形として失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "});",
+        "const configSchema = baseConfigSchema.safeExtend({ NEW_FLAG: z.string() });",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(".safeExtend(");
+  });
+});

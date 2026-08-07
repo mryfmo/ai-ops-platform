@@ -311,39 +311,35 @@ export function configInventoryFailures(repoRoot: string): string[] {
    * Zod オブジェクト本体からキー名を取り出す。
    *
    * shorthand は「識別子1つとカンマだけの行」だが、複数行に跨る呼び出しの引数
-   * （`refine(\n  (x) => ...,\n  "message",\n)` の途中行）も同じ形になり得る。両者は
-   * 括弧の深さで区別できるので、深さ0の行だけを対象にする。TypeScript を構文解析せずに
-   * shorthand だけを正確に拾うにはこれで足りる。
+   * （`refine(\n  (x) => ...,\n  "message",\n)` の途中行）も同じ形になり得る。
+   *
+   * 両者はインデントで区別する。プロパティ行は同じ深さに揃い、呼び出しの引数はそれより
+   * 1 段深い。基準の深さは決め打たず、名前付きプロパティが実際に現れる最小インデントから
+   * 導く（server は 2、web は `.object({` の内側なので 4）。
+   *
+   * 文字を数えて括弧の深さを追う方法は採らない。文字列リテラル・テンプレート・コメント・
+   * 正規表現の中の括弧を除外する必要があり、それは字句解析そのものになる（`z.literal("(")`
+   * 一つで狂う）。インデントは Prettier が正規化し、`mise run format` が CI ゲートとして
+   * 強制しているので、この判別材料は機械的に保証されている。
    */
   const schemaKeys = (body: string): string[] => {
     const lines = body.split("\n");
-    const depthAtLineStart: number[] = [];
-    let parenDepth = 0;
-    for (const line of lines) {
-      depthAtLineStart.push(parenDepth);
-      for (const char of line) {
-        if (char === "(") parenDepth += 1;
-        else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
-      }
-    }
+    const indentOf = (line: string): number => (/^(\s*)/.exec(line)?.[1] ?? "").length;
 
-    // 名前付きプロパティが現れる括弧の深さが、そのオブジェクトのプロパティの深さである
-    // （本体は `z.object(` の内側にあるので 0 とは限らない）。shorthand はこの深さの行だけ
-    // を対象にし、より深い行＝複数行呼び出しの引数は除外する。
     const keys = new Set<string>();
-    let propertyDepth: number | undefined;
-    lines.forEach((line, index) => {
+    let propertyIndent: number | undefined;
+    for (const line of lines) {
       const named = namedProperty.exec(line);
-      if (!named) return;
+      if (!named) continue;
       keys.add(named[1]!);
-      propertyDepth = Math.min(propertyDepth ?? depthAtLineStart[index]!, depthAtLineStart[index]!);
-    });
-    if (propertyDepth !== undefined) {
-      lines.forEach((line, index) => {
-        if (depthAtLineStart[index] !== propertyDepth) return;
+      propertyIndent = Math.min(propertyIndent ?? indentOf(line), indentOf(line));
+    }
+    if (propertyIndent !== undefined) {
+      for (const line of lines) {
+        if (indentOf(line) !== propertyIndent) continue;
         const shorthand = shorthandProperty.exec(line);
         if (shorthand) keys.add(shorthand[1]!);
-      });
+      }
     }
     return [...keys];
   };
@@ -360,7 +356,16 @@ export function configInventoryFailures(repoRoot: string): string[] {
    * 漏れたまま緑になる——本ガードが防ぐはずの回帰そのものが素通りする。追随を実装する代わりに、
    * 「読めない形が現れた」ことを失敗として報告する。合成を導入する側が抽出器も直す前提にする。
    */
-  const COMPOSITION_METHODS = [".extend(", ".merge(", ".omit(", ".pick(", ".partial(", ".required("];
+  const COMPOSITION_METHODS = [
+    ".extend(",
+    ".safeExtend(",
+    ".merge(",
+    ".omit(",
+    ".pick(",
+    ".partial(",
+    ".required(",
+    ".and(",
+  ];
   const compositionFailure = (source: string, label: string): string | undefined => {
     const used = COMPOSITION_METHODS.filter((method) => source.includes(method));
     if (used.length === 0) return undefined;
