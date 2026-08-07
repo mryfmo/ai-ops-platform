@@ -5,7 +5,7 @@
  *   / PrjOps:SPEC-INT-001（validationTokenハンドシェイク）/ DevOps:SPEC-INT-061（GitHub署名検証）
  */
 import { describe, it, expect, vi } from "vitest";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { PgQueryable } from "@aiops/shared";
 import { GraphSubscriptionError, InMemoryAuditLog } from "@aiops/shared";
 import { buildApp, type AppDependencies } from "../src/http/app.js";
@@ -497,7 +497,9 @@ describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
     });
     expect(res.status).toBe(202);
     expect(githubEvents[0]!.eventName).toBe("workflow_run");
-    expect(githubEvents[0]!.dedupeKey).toBe("github:delivery-1");
+    // 重複判定は署名対象のボディから導く。delivery id はヘッダで署名の外にあるため使わない。
+    const digest = createHash("sha256").update(payload, "utf8").digest("hex");
+    expect(githubEvents[0]!.dedupeKey).toBe(`github:workflow_run:${digest}`);
   });
 
   it("署名済みGitHub webhookのdelivery id欠落は400+監査ログでfail-closedし、エンキューしない", async () => {
@@ -515,6 +517,44 @@ describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
     expect(githubEvents).toHaveLength(0);
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "github_webhook_missing_delivery_id")).toBe(true);
+  });
+
+  it("delivery idを差し替えた再送も重複として弾く（署名対象外のヘッダに依存しない）", async () => {
+    // 署名済みペイロードを観測できた攻撃者は delivery id を差し替えるだけで
+    // dedupe を通過し、同一イベントを何度でも再エンキューできた（所見 ADV-INT-006）。
+    const { deps, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const send = (deliveryId: string) =>
+      app.request("/webhooks/github", {
+        method: "POST",
+        headers: { "x-hub-signature-256": sig, "x-github-event": "push", "x-github-delivery": deliveryId },
+        body: payload,
+      });
+
+    expect((await send("delivery-a")).status).toBe(202);
+    expect((await send("delivery-b")).status).toBe(202);
+
+    expect(githubEvents).toHaveLength(1);
+  });
+
+  it("ボディが異なれば別イベントとしてエンキューする", async () => {
+    const { deps, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const send = (body: string) => {
+      const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(body, "utf8").digest("hex");
+      return app.request("/webhooks/github", {
+        method: "POST",
+        headers: { "x-hub-signature-256": sig, "x-github-event": "push", "x-github-delivery": "d" },
+        body,
+      });
+    };
+
+    await send(JSON.stringify({ ref: "refs/heads/main" }));
+    await send(JSON.stringify({ ref: "refs/heads/other" }));
+
+    expect(githubEvents).toHaveLength(2);
   });
 
   it("同一X-GitHub-Deliveryの再送は1件だけエンキューする", async () => {
