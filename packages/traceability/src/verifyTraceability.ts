@@ -296,16 +296,16 @@ export function configInventoryFailures(repoRoot: string): string[] {
     return text.slice(start, end < 0 ? text.length : end);
   };
   const schemaKeys = (body: string): string[] => [
-    ...new Set([...body.matchAll(/^\s{2,4}([A-Z][A-Z0-9_]{2,})\s*:/gm)].map((match) => match[1]!)),
+    ...new Set([...body.matchAll(/^\s{2,4}([A-Z][A-Z0-9_]*)\s*:/gm)].map((match) => match[1]!)),
   ];
   const tableKeys = (section: string): Set<string> =>
-    new Set([...section.matchAll(/^\|\s*`([A-Z][A-Z0-9_]{2,})`\s*\|/gm)].map((match) => match[1]!));
+    new Set([...section.matchAll(/^\|\s*`([A-Z][A-Z0-9_]*)`\s*\|/gm)].map((match) => match[1]!));
 
   const serverKeys = schemaKeys(between(serverSource!, "const baseConfigSchema", "const configSchema"));
   const webKeys = schemaKeys(between(webSource!, "const webConfigSchema", ".superRefine"));
   const docServer = tableKeys(between(docSource!, "## Server", "## Web"));
   const docWeb = tableKeys(between(docSource!, "## Web", "## Report Generation"));
-  const envKeys = new Set([...envSource!.matchAll(/^#?\s*([A-Z][A-Z0-9_]{2,})=/gm)].map((match) => match[1]!));
+  const envKeys = new Set([...envSource!.matchAll(/^#?\s*([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]!));
 
   // スキーマ本体を読めていない場合に空集合同士が一致して黙って通るのを防ぐ。
   if (serverKeys.length === 0 || webKeys.length === 0) {

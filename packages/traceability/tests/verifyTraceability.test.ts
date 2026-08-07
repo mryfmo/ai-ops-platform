@@ -1024,3 +1024,52 @@ describe("設定変数の表別突合 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084
     expect(result.stderr).toContain("config inventory: RETIRED_FLAG is in .env.example but is in neither Zod schema");
   });
 });
+
+describe("設定変数の短い名前 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("2文字の変数もインベントリ対象にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // TZ のような短い環境変数名を抽出から落とすと、他のキーが残っているため
+    // 空スキーマ判定にも掛からず、key-for-key の保証が静かに破れる。
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "  TZ: z.string(),",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: TZ is in the server Zod schema");
+  });
+
+  it("短い変数も表と .env.example に揃っていれば通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "  TZ: z.string(),",
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+      configDocText: fixtureConfigDoc(
+        ["| `DATABASE_URL` | Yes |", "| `PORT` | No |", "| `TZ` | No |"],
+        ["| `AUTH_SECRET` | Yes |"],
+      ),
+      envExampleText: ["DATABASE_URL=", "PORT=8080", "TZ=Asia/Tokyo", "AUTH_SECRET=", ""].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+  });
+});
