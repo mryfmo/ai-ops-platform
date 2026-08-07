@@ -10,6 +10,7 @@
  *
  * 重要: 署名検証は「生のリクエストボディ」に対して行う（JSON.parse→再stringifyでは署名不一致になる）。
  */
+import { createHash } from "node:crypto";
 import type { Hono } from "hono";
 import { verifyGithubWebhookSignature, type AuditLogWriter } from "@aiops/shared";
 
@@ -64,8 +65,21 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
       });
       return c.json({ error: "missing delivery id" }, 400);
     }
+    // 重複判定は**署名対象であるボディ**から導く。HMAC はボディだけを署名し、
+    // `X-GitHub-Delivery` は署名の外にあるヘッダなので、署名済みペイロードを観測できた
+    // 攻撃者は delivery id を差し替えるだけで dedupe を通過し、同一イベントを何度でも
+    // 再エンキューできた（所見 ADV-INT-006）。攻撃者が変更できない値で判定する。
+    //
+    // delivery id は監査のために引き続き記録する（GitHub 側との突合に要る）が、
+    // 一意性の根拠には使わない。GitHub 自身による正当な再送も同じボディなので、
+    // 意図どおり重複として弾かれる。
+    // キーは**署名対象であるボディだけ**から導く。`X-GitHub-Event` も `X-GitHub-Delivery` と
+    // 同じく署名の外にあるヘッダなので、鍵に混ぜると攻撃者がイベント名を変えるだけでキーを
+    // 変えられ、同じ署名済みボディを何度でも挿入できてしまう（`dispatchGithubWebhookEvent`
+    // が未知のイベント名を捨てるのはキュー投入の後である）。
+    const payloadDigest = createHash("sha256").update(rawBody, "utf8").digest("hex");
     const inserted = await deps.enqueueGithubEvent(eventName, payload, traceId, {
-      dedupeKey: `github:${deliveryId}`,
+      dedupeKey: `github:${payloadDigest}`,
     });
     if (!inserted) {
       await deps.auditLog.append({
@@ -73,7 +87,8 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
         actor: "SERVER",
         action: "github_webhook_duplicate",
         basis: "DevOps:SPEC-INT-061",
-        detail: { event: eventName, deliveryId },
+        // deliveryId は突合用に残す。一意性の根拠は payloadDigest 側にある。
+        detail: { event: eventName, deliveryId, payloadDigest },
         at: new Date().toISOString(),
       });
     }

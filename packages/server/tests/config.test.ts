@@ -17,6 +17,7 @@ const validEnv = {
   GRAPH_ALLOWED_TEAM_IDS: "team-1,team-2",
   GRAPH_ALLOWED_FROM_MAILBOXES: "reports@example.com",
   PUBLIC_BASE_URL: "https://aiops.example.com",
+  CODING_TASK_CONFIRM_SECRET: "confirm-secret-of-at-least-32-characters",
   CODING_TASK_CALLBACK_SECRET: "coding-task-secret-of-at-least-32-chars",
   METRICS_TOKEN: "metrics-token-of-at-least-32-chars",
 };
@@ -160,6 +161,37 @@ describe("loadConfig (ADR-0005)", () => {
     expect(() => loadConfig(rest)).toThrow("E-CFG01");
   });
 
+  it("CODING_TASK_CONFIRM_SECRETが短すぎるとE-CFG01 [DevOps:SPEC-INT-070 / ADR-0006]", () => {
+    expect(() => loadConfig({ ...validEnv, CODING_TASK_CONFIRM_SECRET: "short" })).toThrow("E-CFG01");
+  });
+
+  it("CODING_TASK_CONFIRM_SECRET欠落でE-CFG01 [DevOps:SPEC-INT-070]", () => {
+    const { CODING_TASK_CONFIRM_SECRET: _drop, ...rest } = validEnv;
+    expect(() => loadConfig(rest)).toThrow("E-CFG01");
+  });
+
+  it("確認トークン鍵とcallback鍵は別の値として読まれる [DevOps:SPEC-INT-070]", () => {
+    // 兼用していた頃は、Actionsへ渡るcallback鍵から任意taskIdの確認トークンを再計算でき、
+    // 人間クリック無しでdispatchできた。両者が独立していることを設定層で固定する。
+    const config = loadConfig({
+      ...validEnv,
+      CODING_TASK_CONFIRM_SECRET: "c".repeat(32),
+      CODING_TASK_CALLBACK_SECRET: "k".repeat(32),
+    });
+
+    expect(config.CODING_TASK_CONFIRM_SECRET).toBe("c".repeat(32));
+    expect(config.CODING_TASK_CALLBACK_SECRET).toBe("k".repeat(32));
+    expect(config.CODING_TASK_CONFIRM_SECRET).not.toBe(config.CODING_TASK_CALLBACK_SECRET);
+  });
+
+  it("2つの鍵に同じ値を設定するとE-CFG01 [DevOps:SPEC-INT-070]", () => {
+    // 別変数にしても同値なら、Actionsへ渡る値から確認トークンを再計算できる状態に戻る。
+    const same = "s".repeat(32);
+    expect(() =>
+      loadConfig({ ...validEnv, CODING_TASK_CONFIRM_SECRET: same, CODING_TASK_CALLBACK_SECRET: same }),
+    ).toThrow("E-CFG01");
+  });
+
   it("ADR-0014の配信設定をパースできる", () => {
     const config = loadConfig({
       ...validEnv,
@@ -230,7 +262,7 @@ describe("loadConfig (ADR-0005)", () => {
 
     expect(config.METRICS_TOKEN).toBeUndefined();
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is unauthenticated");
+    expect(warn.mock.calls[0]![0]).toBe("METRICS_TOKEN is not configured; GET /metrics is disabled and returns 503");
     expect(JSON.stringify(warn.mock.calls)).not.toContain(validEnv.METRICS_TOKEN);
   });
 

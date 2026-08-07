@@ -146,3 +146,77 @@ describe("triageAndNotify [DevOps:REQ-015 AC-015c]", () => {
     },
   );
 });
+
+describe("triageAndNotify のLLM出力サニタイズ [DevOps:REQ-015 / DevOps:REQ-028]", () => {
+  function captureIssue() {
+    const created: Array<{ title: string; body: string }> = [];
+    const deps: IncDependencies = {
+      llmClient: {} as IncDependencies["llmClient"],
+      githubClient: {
+        createIssue: async (input) => {
+          created.push({ title: input.title, body: input.body });
+          return { number: 9, htmlUrl: "https://github.com/acme/repo/issues/9" };
+        },
+      },
+      graphClient: { sendAdaptiveCard: async () => ({ messageId: "card" }) },
+      auditLog: new InMemoryAuditLog(),
+      traceId: "trace-sec-008",
+    };
+    return { created, deps };
+  }
+
+  it("rationale中の既知パターンの秘密はIssueへ出さない [DevOps:REQ-028]", async () => {
+    // prompt injection されたアラート本文からLLMが秘密風文字列を復元し得る。
+    // Issue は公開度が高い出力先なので、出力前に落とす（所見 ADV-SEC-008）。
+    const { created, deps } = captureIssue();
+
+    await triageAndNotify(
+      {
+        severity_candidate: "sev3",
+        affected_projects: ["PJ-1"],
+        rationale: "token ghp_0123456789abcdefghijklmnopqrstuvwxyzAB observed in logs",
+      },
+      "acme",
+      "repo",
+      channel,
+      deps,
+    );
+
+    expect(created[0]!.body).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
+    expect(created[0]!.title).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
+  });
+
+  it("affected_projects に混入した秘密もIssueへ出さない [DevOps:REQ-028]", async () => {
+    const { created, deps } = captureIssue();
+
+    await triageAndNotify(
+      {
+        severity_candidate: "sev3",
+        affected_projects: ["ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"],
+        rationale: "disk pressure",
+      },
+      "acme",
+      "repo",
+      channel,
+      deps,
+    );
+
+    expect(created[0]!.body).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
+    expect(created[0]!.title).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
+  });
+
+  it("秘密を含まないrationaleはそのまま出す（過剰な伏字にしない） [DevOps:REQ-015]", async () => {
+    const { created, deps } = captureIssue();
+
+    await triageAndNotify(
+      { severity_candidate: "sev3", affected_projects: ["PJ-1"], rationale: "disk usage above threshold" },
+      "acme",
+      "repo",
+      channel,
+      deps,
+    );
+
+    expect(created[0]!.body).toContain("disk usage above threshold");
+    expect(created[0]!.body).toContain("PJ-1");
+  });
+});

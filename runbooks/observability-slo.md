@@ -32,7 +32,9 @@ The machine-readable rule definitions live in `ops/prometheus-rules.yml`. The de
 ## Checks
 
 ```sh
-curl -fsS http://127.0.0.1:8080/metrics
+# /metrics requires METRICS_TOKEN. Without it the endpoint is disabled and returns 503;
+# with it configured, a request without the header returns 401.
+curl -fsS -H "Authorization: Bearer ${METRICS_TOKEN}" http://127.0.0.1:8080/metrics
 curl -fsS http://127.0.0.1:8080/readyz
 ```
 
