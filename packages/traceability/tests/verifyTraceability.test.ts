@@ -889,15 +889,15 @@ describe("canonical traceability namespace [PrjOps:AC-043-1 / DevOps:AC-033a]", 
   });
 });
 
-describe("設定変数インベントリガード [ADR-0005]", () => {
-  it("一致している 4 ファイルは通す [ADR-0005]", async () => {
+describe("設定変数インベントリガード [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084 / ADR-0005]", () => {
+  it("一致している 4 ファイルは通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const result = await runFailure(fixture({}));
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
   });
 
-  it("server スキーマにあって configuration.md の server 表に無い変数を失敗にする [ADR-0005]", async () => {
+  it("server スキーマにあって configuration.md の server 表に無い変数を失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({
       configDocText: fixtureConfigDoc(["| `DATABASE_URL` | Yes |"], ["| `AUTH_SECRET` | Yes |"]),
     });
@@ -908,7 +908,7 @@ describe("設定変数インベントリガード [ADR-0005]", () => {
     expect(result.stderr).toContain("config inventory: PORT is in the server Zod schema");
   });
 
-  it("web スキーマにあって configuration.md の web 表に無い変数を失敗にする [ADR-0005]", async () => {
+  it("web スキーマにあって configuration.md の web 表に無い変数を失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({
       configDocText: fixtureConfigDoc(["| `DATABASE_URL` | Yes |", "| `PORT` | No |"], []),
     });
@@ -919,7 +919,7 @@ describe("設定変数インベントリガード [ADR-0005]", () => {
     expect(result.stderr).toContain("config inventory: AUTH_SECRET is in the web Zod schema");
   });
 
-  it("スキーマにあって .env.example に無い変数を失敗にする [ADR-0005]", async () => {
+  it("スキーマにあって .env.example に無い変数を失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({ envExampleText: "DATABASE_URL=\nAUTH_SECRET=\n" });
 
     const result = await runFailure(root);
@@ -928,7 +928,7 @@ describe("設定変数インベントリガード [ADR-0005]", () => {
     expect(result.stderr).toContain("config inventory: PORT is in the Zod schemas but not in .env.example");
   });
 
-  it("どちらのスキーマにも無い変数が文書に載っていれば失敗にする [ADR-0005]", async () => {
+  it("どちらのスキーマにも無い変数が文書に載っていれば失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({
       configDocText: fixtureConfigDoc(
         ["| `DATABASE_URL` | Yes |", "| `PORT` | No |", "| `RETIRED_FLAG` | No |"],
@@ -942,14 +942,14 @@ describe("設定変数インベントリガード [ADR-0005]", () => {
     expect(result.stderr).toContain("config inventory: RETIRED_FLAG is documented or in .env.example");
   });
 
-  it("configuration.md が消えたら失敗にする [ADR-0005]", async () => {
+  it("configuration.md が消えたら失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const result = await runFailure(fixture({ omitConfigDoc: true }));
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("config inventory source missing: docs/reference/configuration.md");
   });
 
-  it("スキーマ本体を読めなくなったら空集合一致で黙って通さない [ADR-0005]", async () => {
+  it("スキーマ本体を読めなくなったら空集合一致で黙って通さない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({ serverConfigText: "/** 根拠: ADR-0004 */\nexport const renamed = 1;\n" });
 
     const result = await runFailure(root);
@@ -959,8 +959,8 @@ describe("設定変数インベントリガード [ADR-0005]", () => {
   });
 });
 
-describe("設定変数ガードの報告掲載 [ADR-0005]", () => {
-  it("失敗した実行の matrix が全ガード clean に見えないようにする", async () => {
+describe("設定変数ガードの報告掲載 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("失敗した実行の matrix が全ガード clean に見えないようにする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({ envExampleText: "DATABASE_URL=\nAUTH_SECRET=\n" });
 
     const result = await runTraceability({ repoRoot: root, writeOutput: false });
@@ -970,7 +970,7 @@ describe("設定変数ガードの報告掲載 [ADR-0005]", () => {
     expect(result.report).toContain("PORT is in the Zod schemas but not in .env.example");
   });
 
-  it("一致していれば報告欄は空表示になる", async () => {
+  it("一致していれば報告欄は空表示になる [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const result = await runTraceability({ repoRoot: fixture({}), writeOutput: false });
 
     expect(result.exitCode).toBe(0);
