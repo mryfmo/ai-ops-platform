@@ -17,7 +17,9 @@
 #
 # 必要なsecrets（GitHub Organization/Repository Settings側で登録すること）:
 #   - PUBLIC_BASE_URL: 常駐サーバの公開FQDN（callback送信先。config.tsと同一値）
-#   - CODING_TASK_CALLBACK_SECRET: callback認証用Bearerトークン（config.tsと同一値）
+#   - CODING_TASK_CALLBACK_SECRET: callback認証用Bearerトークン（config.tsのCODING_TASK_CALLBACK_SECRETと同一値）
+#     確認リンクのHMAC鍵（CODING_TASK_CONFIRM_SECRET）はサーバ内のみで保持し、ここへは渡さない。
+#     渡すと、この値から任意taskIdの確認トークンを再計算して人間クリック無しでdispatchできる。
 #   - AIOPS_PR_TOKEN: PR作成/branch push用。GitHub App installation token または専用PAT。
 #     contents:write / pull-requests:write / issues:write が必要。未設定なら明示失敗する。
 #   - ANTHROPIC_API_KEY: run-coding-agent の input として渡す（ADR-0006影響節）。

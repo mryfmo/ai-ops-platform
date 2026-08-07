@@ -245,7 +245,7 @@ export async function main(
     llmClient,
     resolveCallerProfile: stakeholderMaster.resolveCallerProfile,
     codingTasksRepo,
-    confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
+    confirmTokenSecret: config.CODING_TASK_CONFIRM_SECRET,
     publicBaseUrl: config.PUBLIC_BASE_URL,
   });
 
@@ -492,7 +492,9 @@ export async function main(
       codingTasksRepo,
       githubClient,
       auditLog: devopsAuditLog,
-      confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
+      // 確認トークンの鍵と callback の Bearer は別物。前者は Actions へ渡らない
+      // （所見 ADV-SEC-002 / ADV-INT-003）。
+      confirmTokenSecret: config.CODING_TASK_CONFIRM_SECRET,
       callbackSecret: config.CODING_TASK_CALLBACK_SECRET,
       resolveRepoForProject: async (projectId) => {
         const channel = await projectChannelsRepo.findByProjectId(projectId);

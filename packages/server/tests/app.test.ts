@@ -166,6 +166,7 @@ describe("health endpoints (ADR-0005)", () => {
       GRAPH_ALLOWED_TEAM_IDS: "team-1",
       GRAPH_ALLOWED_FROM_MAILBOXES: "from@example.com",
       PUBLIC_BASE_URL: "https://example.invalid",
+      CODING_TASK_CONFIRM_SECRET: "confirm-secret-of-at-least-32-characters",
       CODING_TASK_CALLBACK_SECRET: "test-callback-secret-of-at-least-32-chars",
       METRICS_TOKEN,
     }).METRICS_TOKEN;
