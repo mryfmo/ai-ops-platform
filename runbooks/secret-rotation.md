@@ -46,7 +46,8 @@ not the server's separately configured `GITHUB_TOKEN`; only the latter is invent
 | `ANTHROPIC_API_KEY`              | Server intent fallback, Web page-agent, coding-task and build-triage workflows                               | AI platform owner                 | 90 days and before provider expiry                                |
 | `REPORT_INGEST_SECRET`           | Server report-ingest HMAC verifier and report-generation workflow signer                                     | Reporting platform owner          | 180 days                                                          |
 | `XLSX_IMPORT_SECRET`             | Server XLSX dry-run/execute HMAC verifier and authorized import clients                                      | Import service owner              | 180 days                                                          |
-| `CODING_TASK_CALLBACK_SECRET`    | Server confirmation-token HMAC and callback Bearer verifier; coding-task workflow                            | Coding automation owner           | 180 days                                                          |
+| `CODING_TASK_CONFIRM_SECRET`     | Confirmation-link HMAC key; server-only, never a GitHub Actions secret                                       | Coding automation owner           | 180 days                                                          |
+| `CODING_TASK_CALLBACK_SECRET`    | Callback Bearer verifier; shared with the coding-task workflow                                               | Coding automation owner           | 180 days                                                          |
 | `AUTH_SECRET`                    | Auth.js session/JWT protection in Web; web schema                                                            | Identity platform owner           | 180 days, accepting forced session renewal                        |
 | `AUTH_MICROSOFT_ENTRA_ID_SECRET` | Web Auth.js Microsoft Entra provider; web schema                                                             | Entra application owner           | 90 days or at least 30 days before provider expiry                |
 | `GITHUB_TOKEN`                   | Transitional server GitHub API credential in the server composition root                                     | GitHub integration owner          | PAT: at most 90 days; replace with GitHub App flow when available |
@@ -148,7 +149,7 @@ priority. The authorized human incident commander declares Sev1 and maps severit
   belong to Entra app registrations managed by the same role. Do not substitute one for the other.
 - `GRAPH_CLIENT_STATE`, `GITHUB_WEBHOOK_SECRET`, `REPORT_INGEST_SECRET`, `XLSX_IMPORT_SECRET`, and
   `CODING_TASK_CALLBACK_SECRET` have single-value validators. Coordinate both sides or explicitly pause traffic.
-- `CODING_TASK_CALLBACK_SECRET` also invalidates outstanding confirmation links; drain or replace them.
+- `CODING_TASK_CONFIRM_SECRET` invalidates outstanding confirmation links; drain or replace them. It is server-only and must never be added to GitHub Actions secrets.
 - Rotate `AIOPS_PR_TOKEN` before a coding-agent window, and use [production gates](production-gates.md) to
   verify that AI-created PRs still trigger CI.
 - Graph credential or state failures may force polling; use [Graph subscription recovery](graph-subscription-recovery.md).

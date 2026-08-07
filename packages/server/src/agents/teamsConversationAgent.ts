@@ -116,7 +116,7 @@ export interface TeamsConversationAgentDeps {
   resolveCallerProfile(authorAadId: string | null, projectId: string): Profile | null | Promise<Profile | null>;
   /** ADR-0006: code_task用のcoding_tasks台帳。insertのみでdispatchWorkflowは呼ばない（確認クリック後にHTTPルート側が呼ぶ） */
   codingTasksRepo: TeamsConversationCodingTasksRepo;
-  /** ADR-0006: confirmToken.tsのHMAC-SHA256鍵。config.tsのCODING_TASK_CALLBACK_SECRETを注入する */
+  /** ADR-0006: confirmToken.tsのHMAC-SHA256鍵。config.tsのCODING_TASK_CONFIRM_SECRETを注入する（callback用とは別鍵） */
   confirmTokenSecret: string;
   /** ADR-0006: 確認リンクの生成に使う公開FQDN（config.tsのPUBLIC_BASE_URL） */
   publicBaseUrl: string;

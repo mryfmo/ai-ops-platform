@@ -140,10 +140,19 @@ const baseConfigSchema = z.object({
   DEFAULT_TEAMS_TEAM_ID: z.string().trim().min(1).optional(),
   DEFAULT_TEAMS_CHANNEL_ID: z.string().trim().min(1).optional(),
   /**
-   * コーディングタスク関連シークレット（ADR-0006）。二用途で共有する:
-   *   (a) confirmToken.ts の HMAC-SHA256鍵（確認リンクtokenの生成・検証）
-   *   (b) .github/workflows/coding-task.yml が呼ぶ
-   *       POST /internal/coding-tasks/:taskId/callback のBearer認証シークレット
+   * 確認リンクtokenのHMAC-SHA256鍵（ADR-0006）。**サーバ内にのみ保持し、外部へ渡さない。**
+   *
+   * 以前は CODING_TASK_CALLBACK_SECRET を兼用していたが、その値は GitHub Actions の
+   * secrets として runner と curl 送信に露出する。露出した値から任意 taskId の確認トークンを
+   * 再計算でき、`POST /coding-tasks/:id/confirm` を直接叩けば**人間クリック無しで
+   * workflow_dispatch を起動できた**（所見 ADV-SEC-002 / ADV-INT-003）。ADR-0006 の核心が
+   * 単一秘密の漏えいで崩れるため、信頼ドメインの異なる 2 用途を別鍵に分ける。
+   */
+  CODING_TASK_CONFIRM_SECRET: z.string().min(32),
+  /**
+   * .github/workflows/coding-task.yml が呼ぶ
+   * POST /internal/coding-tasks/:taskId/callback のBearer認証シークレット（ADR-0006）。
+   * Actions 側へ渡る前提の値なので、確認トークンの署名には使わない。
    */
   CODING_TASK_CALLBACK_SECRET: z.string().min(32),
 });

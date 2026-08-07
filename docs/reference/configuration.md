@@ -42,7 +42,8 @@
 | `XLSX_IMPORT_ALLOWED_REPOS`                 | No       | unset                    | Comma-separated `owner/repo` allowlist for XLSX execute operations. Unset means no repository is allowed.                                                             |
 | `DEFAULT_TEAMS_TEAM_ID`                     | No       | unset                    | Default Teams team for cards. With delivery enabled, team/channel defaults are both-or-neither and the team must be allowlisted.                                      |
 | `DEFAULT_TEAMS_CHANNEL_ID`                  | No       | unset                    | Default Teams channel for cards. With delivery enabled, team/channel defaults are both-or-neither.                                                                    |
-| `CODING_TASK_CALLBACK_SECRET`               | Yes      | None                     | HMAC key for confirmation tokens and bearer secret for coding task callback; minimum length 32.                                                                       |
+| `CODING_TASK_CONFIRM_SECRET`                | Yes      | None                     | HMAC key for confirmation-link tokens; minimum length 32. Server-only: anyone holding it can forge a confirmation and dispatch without a human click.                 |
+| `CODING_TASK_CALLBACK_SECRET`               | Yes      | None                     | Bearer secret for the coding-task callback; minimum length 32. Reaches Actions runners, so it must not sign confirmation tokens.                                      |
 
 `loadConfig()` fails fast with `E-CFG01` when required values are missing or invalid. Recipient rows do not extend these allowlists: `GraphClient` checks the normalized team or sender again before requesting a token or calling Graph.
 
