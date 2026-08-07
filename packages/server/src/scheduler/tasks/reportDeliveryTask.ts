@@ -107,7 +107,11 @@ function escapeHtml(value: string): string {
  * 「決められないまま配信する」ことになる（所見 ADV-SEC-009）。呼び出し側は null を
  * スキップとして扱う。
  */
-const DEVOPS_PROFILE_AUDIENCE: Readonly<Record<string, ReportAudience>> = {
+// null プロトタイプで持つ。通常のオブジェクトリテラルだと `toString` や `constructor` の
+// ような継承プロパティが truthy で返り、`profile` にそれらの文字列が入った行が
+// 未知プロファイル扱いを素通りして配信されてしまう。制約が NOT VALID である以上、
+// 任意の文字列が来る前提で書く必要がある。
+const DEVOPS_PROFILE_AUDIENCE: Readonly<Record<string, ReportAudience>> = Object.assign(Object.create(null), {
   // DevOps の 3 プロファイルを PrjOps の閲覧権限区分へ対応付ける。
   // PRF-M（メンバー日次）は「自分に関わる情報のみ」、PRF-L（リーダー）は「担当プロジェクトの
   // 全情報」に相当する。PRF-G→PRF-04 は従来の対応をそのまま維持する。
@@ -117,7 +121,7 @@ const DEVOPS_PROFILE_AUDIENCE: Readonly<Record<string, ReportAudience>> = {
   "PRF-M": "PRF-01",
   "PRF-L": "PRF-02",
   "PRF-G": "PRF-04",
-};
+}) as Readonly<Record<string, ReportAudience>>;
 
 export function audienceForRecipient(recipient: DeliveryRecipient): ReportAudience | null {
   if (recipient.persona === "investor") return "investor";

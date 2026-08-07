@@ -35,3 +35,13 @@ describe("audienceForRecipient [PrjOps:REQ-042 / PrjOps:SPEC-INT-069]", () => {
     expect(audienceForRecipient(recipient("PRF-UNKNOWN"))).toBeNull();
   });
 });
+
+describe("audienceForRecipient の継承プロパティ耐性 [PrjOps:SPEC-INT-069]", () => {
+  // recipients の profile 制約は NOT VALID で入っており、旧行に任意の文字列が残り得る。
+  it.each(["toString", "constructor", "__proto__", "hasOwnProperty", "valueOf"])(
+    "Object.prototype の %s をプロファイルとして受け付けない [PrjOps:SPEC-INT-069]",
+    (profile) => {
+      expect(audienceForRecipient(recipient(profile))).toBeNull();
+    },
+  );
+});
