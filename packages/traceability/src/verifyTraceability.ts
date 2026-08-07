@@ -352,8 +352,28 @@ export function configInventoryFailures(repoRoot: string): string[] {
       [...section.matchAll(new RegExp(String.raw`^\|\s*\`(${IDENTIFIER})\`\s*\|`, "gm"))].map((match) => match[1]!),
     );
 
+  /**
+   * キー集合を書き換える Zod の合成メソッド。抽出は単一のオブジェクトリテラルしか読まないので、
+   * これらが使われた時点で結果は実際のスキーマと一致しなくなる。
+   *
+   * 読めないものを黙って読み飛ばすと、`.extend({ NEW_FLAG })` で足したキーが文書からも
+   * 漏れたまま緑になる——本ガードが防ぐはずの回帰そのものが素通りする。追随を実装する代わりに、
+   * 「読めない形が現れた」ことを失敗として報告する。合成を導入する側が抽出器も直す前提にする。
+   */
+  const COMPOSITION_METHODS = [".extend(", ".merge(", ".omit(", ".pick(", ".partial(", ".required("];
+  const compositionFailure = (source: string, label: string): string | undefined => {
+    const used = COMPOSITION_METHODS.filter((method) => source.includes(method));
+    if (used.length === 0) return undefined;
+    return `config inventory: ${label} uses ${used.join(" / ")}; the extractor reads one object literal and cannot follow composed schemas`;
+  };
+
   const serverKeys = schemaKeys(between(serverSource!, "const baseConfigSchema", "const configSchema"));
   const webKeys = schemaKeys(between(webSource!, "const webConfigSchema", ".superRefine"));
+  const compositionFailures = [
+    compositionFailure(serverSource!, "packages/server/src/config.ts"),
+    compositionFailure(webSource!, "packages/web/src/server/config.ts"),
+  ].filter((failure): failure is string => failure !== undefined);
+  if (compositionFailures.length > 0) return compositionFailures;
   const docServer = tableKeys(between(docSource!, "## Server", "## Web"));
   const docWeb = tableKeys(between(docSource!, "## Web", "## Report Generation"));
   const envKeys = new Set(

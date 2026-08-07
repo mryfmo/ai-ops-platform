@@ -1204,3 +1204,52 @@ describe("設定変数の shorthand プロパティ [PrjOps:SPEC-INT-070 / DevOp
     expect(result.code).toBe(0);
   });
 });
+
+describe("設定変数の合成スキーマ [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("読めない合成形（.extend）を黙って読み飛ばさず失敗にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        "});",
+        "const configSchema = baseConfigSchema.extend({ NEW_FLAG: z.string() });",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("cannot follow composed schemas");
+    expect(result.stderr).toContain(".extend(");
+  });
+
+  it("web側の合成も検出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      webConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const webConfigSchema = z",
+        "  .object({",
+        "    AUTH_SECRET: z.string(),",
+        "  })",
+        "  .merge(extraSchema)",
+        "  .superRefine(() => undefined);",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("packages/web/src/server/config.ts");
+  });
+
+  it("合成が無ければ通常どおり突合する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const result = await runFailure(fixture({}));
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+  });
+});
