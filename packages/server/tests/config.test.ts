@@ -58,7 +58,7 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.ANTHROPIC_PRICING_USD_PER_MTOK["claude-sonnet-4-6"]).toEqual({ input: 3, output: 15 });
   });
 
-  it("DevOps:SPEC-INT-070: GitHub App設定は3変数が揃えばパースされる", () => {
+  it("DevOps:SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {
     const config = loadConfig({
       ...validEnv,
       GITHUB_APP_ID: "123",
@@ -71,7 +71,7 @@ describe("loadConfig (ADR-0005)", () => {
   });
 
   it.each(["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"])(
-    "DevOps:SPEC-INT-070: App設定が一部だけのときE-CFG01: %s",
+    "DevOps:SPEC-INT-061: App設定が一部だけのときE-CFG01: %s",
     (name) => {
       expect(() => loadConfig({ ...validEnv, [name]: "configured" })).toThrow("E-CFG01");
     },
