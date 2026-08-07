@@ -797,26 +797,46 @@ function formatDispositions(indexes: SpecIndex[]): string {
  * 持つよう、全パッケージの src/ を対象にする。
  */
 /**
- * 根拠ヘッダとして受け付ける ID の集合。AGENTS.md 設計原則3 が列挙する
- * REQ / SPEC-INT / SPEC-EXT / TH / AC / ADR に揃える。
+ * 根拠ヘッダとして受け付ける ID の文法。AGENTS.md 設計原則3 が列挙する
+ * REQ / SPEC-INT / SPEC-EXT / TH / AC / ADR に揃える（ISS/TOBE/ASM は文書間トレーサビリティ用で
+ * 実装の根拠にはならないため含めない）。
  *
- * 従来は SPEC-EXT と TH を受け付けていなかったため、それらだけを根拠とする正当なファイルが
- * 「根拠ヘッダ不足」になる。走査範囲を全パッケージへ広げるとこの取りこぼしが実害になる。
- * `TH-` は `MONTH-001` のような語中一致を避けるため直前が英字でないことを要求する。
+ * 桁数と前後の境界まで含めて一致させる。前方境界が無いと `MONTH-001` の語中が `TH-001` に、
+ * 後方境界が無いと `REQ-00000` の先頭 4 桁が `REQ-0000` に一致してしまい、**実在しない ID を
+ * 書いたヘッダがガードを通る**。桁数だけを緩く見る書き方は、ここでは穴になる。
  */
-const BASIS_HEADER_ID = /根拠:[\s\S]*(?:^|[^A-Za-z])(?:REQ|SPEC-INT|SPEC-EXT|TH|AC|ADR)-\d{3,4}/;
+const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{3,4}`;
+const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z-])`);
 
-const BASIS_HEADER_DIRS: readonly (readonly string[])[] = [
-  ["packages", "shared", "src"],
-  ["packages", "prjops", "src"],
-  ["packages", "devops", "src"],
-  ["packages", "server", "src"],
-  ["packages", "web", "src"],
-  ["packages", "traceability", "src"],
-];
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 走査対象のパッケージ src/ を実在するディレクトリから求める（所見 ADV-VER-005）。
+ *
+ * 固定配列で列挙すると、`pnpm-workspace.yaml` の `packages/*` に新しいパッケージを足したとき、
+ * そのパッケージだけ規約の外に落ちる——しかも **CI は緑のまま**なので誰も気づかない。
+ * 「全パッケージが対象」という主張を、列挙ではなく発見で満たす。
+ */
+function basisHeaderDirs(repoRoot: string): string[] {
+  const packagesDir = join(repoRoot, "packages");
+  let entries: string[];
+  try {
+    entries = readdirSync(packagesDir);
+  } catch {
+    return [];
+  }
+  return entries.map((entry) => join(packagesDir, entry, "src")).filter(isDirectory);
+}
 
 function basisHeaderFailures(repoRoot: string): string[] {
-  return BASIS_HEADER_DIRS.flatMap((parts) => listFiles(join(repoRoot, ...parts), [".ts", ".tsx"]))
+  return basisHeaderDirs(repoRoot)
+    .flatMap((dir) => listFiles(dir, [".ts", ".tsx"]))
     .filter((file) => !readFileSync(file, "utf8").slice(0, 500).match(BASIS_HEADER_ID))
     .map((file) => file.replace(`${repoRoot}/`, ""));
 }

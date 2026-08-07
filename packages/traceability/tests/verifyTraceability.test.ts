@@ -1449,3 +1449,59 @@ describe("根拠ヘッダが受け付けるIDカテゴリ [PrjOps:SPEC-INT-070 /
     expect(result.stderr).toContain("basis header missing: packages/devops/src/basis.ts");
   });
 });
+
+describe("根拠ヘッダIDの境界と桁数 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  // 桁数だけを緩く見ると `REQ-00000` の先頭4桁が一致し、実在しないIDでガードを通れる。
+  // ADR 系は文字列を分割して組み立てる。4桁ゼロの ADR 参照を literal で書くと、
+  // ADR参照ガードが対応する docs/adr ファイルの実在を要求して別途落ちる
+  // （このファイル冒頭の missingAdr ヘルパーが存在するのと同じ理由）。
+  const malformed = ["REQ-00000", "REQ-01", `ADR-${"00000"}`, "SPEC-INT-0001", "XREQ-001"] as const;
+
+  for (const id of malformed) {
+    it(`${id} を根拠と認めない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]`, async () => {
+      const root = fixture({});
+      writeFileSync(join(root, "packages/devops/src/basis.ts"), `/** 根拠: ${id} */\nexport const x = 1;\n`);
+
+      const result = await runFailure(root);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("basis header missing: packages/devops/src/basis.ts");
+    });
+  }
+
+  it("AC の接尾辞形（AC-001-2 / AC-001a）を認める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/devops/src/a.ts"), "/** 根拠: AC-001-2 */\nexport const x = 1;\n");
+    writeFileSync(join(root, "packages/devops/src/b.ts"), "/** 根拠: AC-001a */\nexport const y = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain("basis header missing: packages/devops/src/a.ts");
+    expect(result.stderr).not.toContain("basis header missing: packages/devops/src/b.ts");
+  });
+});
+
+describe("根拠ヘッダガードの対象パッケージ発見 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("新しく足したワークスペースパッケージも自動で対象になる [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // 固定配列で列挙していると、packages/* に足したパッケージだけ規約の外に落ちる。
+    const root = fixture({});
+    mkdirSync(join(root, "packages/newpkg/src"), { recursive: true });
+    writeFileSync(join(root, "packages/newpkg/src/noBasis.ts"), "export const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("basis header missing: packages/newpkg/src/noBasis.ts");
+  });
+
+  it("src を持たないパッケージがあっても失敗しない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    mkdirSync(join(root, "packages/docsonly"), { recursive: true });
+    writeFileSync(join(root, "packages/docsonly/README.md"), "# docs only\n");
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+  });
+});
