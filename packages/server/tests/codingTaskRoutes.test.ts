@@ -60,8 +60,7 @@ function makeHarness(opts: { row?: Record<string, unknown> | null; failsafe?: bo
         // markDispatchFailed が `WHERE status = 'running'` で何行更新するかは
         // この遷移に依存するため、模倣しないと影響行数が実際とずれる。
         if (claimable && row) {
-          // settleOnClaim は「確保直後にcallbackが着地して終端した」状況の再現に使う。
-          row["status"] = row["settleOnClaim"] ? "pr_created" : "running";
+          row["status"] = "running";
           row["confirmed_at"] = "2026-08-05T00:00:00.000Z";
         }
         return { rows: claimable ? [{ task_id: row?.["task_id"] }] : [], rowCount: claimable ? 1 : 0 };
@@ -319,8 +318,8 @@ describe("hashConfirmToken使用の確認 (ADR-0006: 平文トークン非保存
   });
 });
 
-describe("confirm の二重dispatch防止 [ADR-0006]", () => {
-  it("既にrunningのタスクはclaimに失敗しdispatchしない", async () => {
+describe("confirm の二重dispatch防止 [DevOps:REQ-028 / ADR-0006]", () => {
+  it("既にrunningのタスクはclaimに失敗しdispatchしない [DevOps:REQ-028]", async () => {
     const h = makeHarness({ row: makeRowFor({ status: "running", confirmed_at: "2026-07-07T00:00:10.000Z" }) });
 
     const res = await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
@@ -333,7 +332,7 @@ describe("confirm の二重dispatch防止 [ADR-0006]", () => {
     expect(h.dispatchCalls).toHaveLength(0);
   });
 
-  it("claim は dispatch より前に実行される（順序が逆だと二重起動を防げない）", async () => {
+  it("claim は dispatch より前に実行される（順序が逆だと二重起動を防げない） [DevOps:REQ-028]", async () => {
     const h = makeHarness();
 
     await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
@@ -349,7 +348,7 @@ describe("confirm の二重dispatch防止 [ADR-0006]", () => {
     expect(h.dispatchOrder).toBeGreaterThan(claimIndex);
   });
 
-  it("dispatch失敗時はqueuedへ戻さずfailedで終端する（二重起動を許さない）", async () => {
+  it("dispatch失敗時は状態を動かさずrunningのまま残す（二重起動もfalse failedも作らない） [DevOps:REQ-028]", async () => {
     const h = makeHarness({ dispatchError: new Error("boom") });
 
     const res = await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
@@ -359,14 +358,36 @@ describe("confirm の二重dispatch防止 [ADR-0006]", () => {
     });
 
     expect(res.status).toBe(502);
-    const failedUpdate = h.updateCalls.find((c) => c.text.includes("SET status = 'failed'"));
-    expect(failedUpdate).toBeDefined();
+    // queued へ戻さない（戻すと再confirmで二重起動する）
     expect(h.updateCalls.every((c) => !c.text.includes("SET status = 'queued'"))).toBe(true);
+    // failed でも終端させない（実際に走ったジョブのcallbackが弾かれるため）
+    expect(h.updateCalls.every((c) => !c.text.includes("SET status = 'failed'"))).toBe(true);
     const logs = await h.auditLog.readAll();
-    expect(logs.some((l) => l.action === "coding_task_dispatch_failed")).toBe(true);
+    expect(logs.some((l) => l.action === "coding_task_dispatch_outcome_unknown")).toBe(true);
+    expect(logs.some((l) => l.action === "coding_task_dispatch_failed")).toBe(false);
   });
 
-  it("dispatch例外の文字列は監査へ書く前にサニタイズする", async () => {
+  it("dispatch失敗後もclaim条件を満たさないため再confirmでdispatchされない [DevOps:REQ-028]", async () => {
+    const row = makeRowFor();
+    const h = makeHarness({ row, dispatchError: new Error("boom") });
+
+    await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+    const dispatchesAfterFirst = h.dispatchCalls.length;
+    await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `token=${h.token}`,
+    });
+
+    expect(row["status"]).toBe("running");
+    expect(h.dispatchCalls.length).toBe(dispatchesAfterFirst);
+  });
+
+  it("dispatch例外の文字列は監査へ書く前にサニタイズする [DevOps:REQ-028]", async () => {
     const h = makeHarness({
       dispatchError: new Error("auth failed for ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"),
     });
@@ -378,29 +399,9 @@ describe("confirm の二重dispatch防止 [ADR-0006]", () => {
     });
 
     const logs = await h.auditLog.readAll();
-    const entry = logs.find((l) => l.action === "coding_task_dispatch_failed")!;
+    const entry = logs.find((l) => l.action === "coding_task_dispatch_outcome_unknown")!;
     const detail = entry.detail as { error: string };
     expect(detail.error).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
     expect(detail.error).toContain("REDACTED");
-  });
-
-  it("dispatch例外時に行が既に遷移済みなら失敗と断定せず ambiguous として記録する", async () => {
-    // 例外の直前に callback が着地して pr_created へ遷移した状況。
-    // markDispatchFailed は 0 行更新になり、「失敗した」とは書けない。
-    const row = makeRowFor();
-    const h = makeHarness({ row, dispatchError: new Error("socket hang up") });
-    const originalStatus = row["status"];
-    expect(originalStatus).toBe("queued");
-    row["settleOnClaim"] = true;
-
-    await h.app.request(`/coding-tasks/${TASK_ID}/confirm`, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: `token=${h.token}`,
-    });
-
-    const actions = (await h.auditLog.readAll()).map((l) => l.action);
-    expect(actions).toContain("coding_task_dispatch_ambiguous_after_completion");
-    expect(actions).not.toContain("coding_task_dispatch_failed");
   });
 });

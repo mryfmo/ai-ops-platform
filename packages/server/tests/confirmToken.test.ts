@@ -93,13 +93,13 @@ describe("confirm token expiry [ADR-0006]", () => {
   });
 });
 
-describe("旧形式トークンの移行受け入れ [ADR-0006]", () => {
+describe("旧形式トークンの移行受け入れ [DevOps:REQ-028 / ADR-0006]", () => {
   const SECRET = "s".repeat(32);
   const TASK = "task-legacy";
   const legacy = createHmac("sha256", SECRET).update(TASK, "utf8").digest("hex");
   const createdAt = Date.parse("2026-08-05T00:00:00.000Z");
 
-  it("作成時刻をTTL内に持つ旧形式リンクは受け付ける", () => {
+  it("作成時刻をTTL内に持つ旧形式リンクは受け付ける [DevOps:REQ-028]", () => {
     expect(
       verifyConfirmToken(TASK, legacy, SECRET, {
         issuedAtFallbackMs: createdAt,
@@ -108,7 +108,7 @@ describe("旧形式トークンの移行受け入れ [ADR-0006]", () => {
     ).toBe(true);
   });
 
-  it("旧形式でもTTLを超えたら失効する（無期限有効の抜け穴を残さない）", () => {
+  it("旧形式でもTTLを超えたら失効する（無期限有効の抜け穴を残さない） [DevOps:REQ-028]", () => {
     expect(
       verifyConfirmToken(TASK, legacy, SECRET, {
         issuedAtFallbackMs: createdAt,
@@ -117,17 +117,17 @@ describe("旧形式トークンの移行受け入れ [ADR-0006]", () => {
     ).toBe(false);
   });
 
-  it("発行時刻を代替できない場合は旧形式を受け付けない", () => {
+  it("発行時刻を代替できない場合は旧形式を受け付けない [DevOps:REQ-028]", () => {
     expect(verifyConfirmToken(TASK, legacy, SECRET, { nowMs: createdAt })).toBe(false);
   });
 
-  it("旧形式でも別taskId向けトークンの流用は拒否する", () => {
+  it("旧形式でも別taskId向けトークンの流用は拒否する [DevOps:REQ-028]", () => {
     expect(verifyConfirmToken("other-task", legacy, SECRET, { issuedAtFallbackMs: createdAt, nowMs: createdAt })).toBe(
       false,
     );
   });
 
-  it("ドットを含まない不正な長さの文字列は拒否する", () => {
+  it("ドットを含まない不正な長さの文字列は拒否する [DevOps:REQ-028]", () => {
     expect(verifyConfirmToken(TASK, "deadbeef", SECRET, { issuedAtFallbackMs: createdAt, nowMs: createdAt })).toBe(
       false,
     );

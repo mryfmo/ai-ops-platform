@@ -113,8 +113,8 @@ describe("GitHubClient.listIssues (ADR-0005)", () => {
   });
 });
 
-describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
-  it("ワークフローファイル・event・created下限で問い合わせ、status/conclusionを正規化する", async () => {
+describe("GitHubClient.listWorkflowRuns [DevOps:SPEC-INT-020 / ADR-0006]", () => {
+  it("ワークフローファイル・event・created下限で問い合わせ、status/conclusionを正規化する [DevOps:SPEC-INT-020]", async () => {
     const urls: string[] = [];
     const fetchImpl: GhFetchLike = async (url) => {
       urls.push(url);
@@ -145,7 +145,7 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     ]);
   });
 
-  it("total_countに届くまでページを辿る（新しい順のため1ページ目だけでは古いrunを見落とす）", async () => {
+  it("total_countに届くまでページを辿る（新しい順のため1ページ目だけでは古いrunを見落とす） [DevOps:SPEC-INT-020]", async () => {
     const pages: string[] = [];
     const fetchImpl: GhFetchLike = async (url) => {
       pages.push(url);
@@ -173,7 +173,7 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     expect(listing.runs.some((r) => r.status !== "completed")).toBe(true);
   });
 
-  it("ページ上限で打ち切ったときは complete=false を返す（黙って全件扱いにしない）", async () => {
+  it("ページ上限で打ち切ったときは complete=false を返す（黙って全件扱いにしない） [DevOps:SPEC-INT-020]", async () => {
     const client = new GitHubClient(tokenProvider, async () =>
       jsonResponse({
         total_count: 100,
@@ -194,7 +194,7 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     expect(listing.runs).toHaveLength(4);
   });
 
-  it("workflow_runsが欠落していても空配列を返す", async () => {
+  it("workflow_runsが欠落していても空配列を返す [DevOps:SPEC-INT-020]", async () => {
     const client = new GitHubClient(tokenProvider, async () => jsonResponse({}));
 
     expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual({
@@ -203,7 +203,7 @@ describe("GitHubClient.listWorkflowRuns (ADR-0006)", () => {
     });
   });
 
-  it("非2xxは黙って空を返さず例外にする", async () => {
+  it("非2xxは黙って空を返さず例外にする [DevOps:SPEC-INT-020]", async () => {
     // 5xxはfetchWithBackoffが再試行するため、再試行対象外の404で終端挙動を検証する。
     const client = new GitHubClient(tokenProvider, async () => jsonResponse({ message: "not found" }, 404));
 

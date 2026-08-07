@@ -206,21 +206,25 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
         },
       });
     } catch (error) {
-      // queued へは戻さない。dispatch が GitHub 側に届いたかどうかは失敗応答からは
-      // 判別できず、戻すと二重起動を許すため。ADR-0006 の「誤発火防止」に従い、
-      // 不確かなときは再実行させない側に倒し、失敗として終端させる。
-      const { updated } = await deps.codingTasksRepo.markDispatchFailed(taskId);
+      // 状態を動かさず running のまま残す。失敗応答からは dispatch が GitHub に届いたか
+      // 判別できず、queued へ戻せば二重起動を許し、failed で終端させれば実際に走って PR を
+      // 作ったジョブの callback が `WHERE status = 'running'` に弾かれて台帳が現実と食い違う。
+      // running なら confirm の再確保（status='queued' が条件）は依然として通らないので
+      // 二重起動は防げるうえ、実際に run が出たかどうかは reaper が観測して安全に終端できる。
+      // 訂正できない追記専用ログ（原則5）へ「失敗した」と断定する記録も残さない。
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "SERVER",
-        // dispatch が GitHub に届いた後にタイムアウト/切断で例外化した場合、先に callback が
-        // 着地して遷移済みのことがある。その行を failed にはできない（更新0行）ので、
-        // 「失敗した」と断定する記録も残さない。追記専用ログは訂正できない（原則5）。
-        action: updated ? "coding_task_dispatch_failed" : "coding_task_dispatch_ambiguous_after_completion",
+        action: "coding_task_dispatch_outcome_unknown",
         basis: "ADR-0006",
         // 例外文字列は注入されたGitHubクライアント/TokenProvider由来で、資格情報を含み得る。
         // 監査ログは追記専用で訂正できないため、書く前にサニタイズする（CLAUDE.md原則4(c)）。
-        detail: { taskId, projectId: task.projectId, error: sanitizeSecrets(String(error)).sanitized },
+        detail: {
+          taskId,
+          projectId: task.projectId,
+          error: sanitizeSecrets(String(error)).sanitized,
+          resolution: "left running for the coding-task reaper to resolve from observed workflow runs",
+        },
         at: new Date().toISOString(),
       });
       return c.html(
