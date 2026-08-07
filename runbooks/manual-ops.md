@@ -89,20 +89,20 @@ ADR-0014 以降、PrjOps のアウトバウンド配信は package-local workflo
    設定不足、または payload/コード不具合を解消する。通常の処理失敗なら audit action
    `event_dispatch_dead` が残る。lease 切れ回収で dead になった場合はこの action が無いため、同時刻帯の
    scheduler/server 障害と直前の event log を確認する。原因未解消の event は再投入しない。
-3. **再投入**: アプリケーションの管理用実行環境から、DevOps の `AuditLogWriter` を注入して
-   `EventsRepo.requeueDead` を1件ずつ呼ぶ。actor、障害・変更チケットを含む reason、操作用 trace ID は必須。
+3. **再投入**: `DATABASE_URL` と通常のDB接続設定を指定した管理用 source-checkout 環境で build 後、
+   CLIを event ID ごとに実行する。actor は64文字以内の英数字・`._@-`、reason は障害・変更チケットと解消内容を含める。
 
-   ```ts
-   const result = await eventsRepo.requeueDead(eventId, {
-     actor: "USER:<operator ID>",
-     reason: "<ticket ID>: <確認した原因と解消内容>",
-     traceId: crypto.randomUUID(),
-     now: new Date(),
-   });
+   ```bash
+   mise run build
+   pnpm --filter @aiops/server run events:requeue-dead -- \
+     --eventId "<event UUID>" \
+     --actor "<operator-id>" \
+     --reason "<ticket ID>: <確認した原因と解消内容>"
    ```
 
-   `result` が `null` なら status が既に変わっているため再実行しない。HTTP route や直接 UPDATE は、
-   reason 検証と追記専用監査を迂回するため使用しない。`attempts` は累積試行履歴として**保持する**。
+   CLI は操作用 trace ID を生成し、再投入結果とともにJSONで出力する。対象が dead でなければ失敗するため再実行しない。
+   HTTP route や直接 UPDATE は、reason のsanitization/検証と追記専用監査を迂回するため使用しない。
+   `attempts` は累積試行履歴として**保持する**。
    リセットして過去の試行回数を失わせず、再投入後の1回が失敗すれば即座に dead へ戻す。
 
 4. **監視復帰**: event が `queued` → `dispatched` → `done` と進み、

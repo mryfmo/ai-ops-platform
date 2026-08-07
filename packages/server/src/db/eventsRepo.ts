@@ -5,6 +5,7 @@
  *   重い処理（Graph本文取得・LLM解釈・GitHub操作）はディスパッチャが非同期に行う。
  */
 import { PgAuditLog, sanitizeSecrets, validateReasonRequirement, type PgQueryable } from "@aiops/shared";
+import { normalizeAuditActor } from "../lib/auditActor.js";
 import type { EventQueueMetric } from "../observability/metrics.js";
 
 export type EventSource = "github" | "monitor" | "inbound";
@@ -319,9 +320,9 @@ export class EventsRepo {
    */
   async requeueDead(eventId: string, options: RequeueDeadOptions): Promise<RequeuedDeadEvent | null> {
     const now = options.now ?? new Date();
-    const actor = options.actor.trim();
-    if (!actor) throw new Error("requeueDead requires a non-empty actor");
+    const actor = normalizeAuditActor(options.actor);
     validateReasonRequirement("status_override", options.reason);
+    const reason = sanitizeSecrets(options.reason.trim()).sanitized;
     if (!hasConnect(this.db)) throw new Error("requeueDead requires a transactional database connection");
 
     const client = await this.db.connect();
@@ -348,9 +349,9 @@ export class EventsRepo {
             fromStatus: "dead",
             toStatus: "queued",
             attemptsPolicy: "preserve",
-            reason: options.reason.trim(),
+            reason,
           },
-          reason: options.reason.trim(),
+          reason,
           at: now.toISOString(),
         });
       }

@@ -53,7 +53,7 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
     const repo = new EventsRepo(db);
 
     const result = await repo.requeueDead("evt-dead", {
-      actor: "USER:operator-1",
+      actor: "operator-1",
       reason: "INC-123: upstream outage resolved",
       traceId: "11111111-1111-4111-8111-111111111111",
       now: new Date("2026-08-07T00:00:00Z"),
@@ -69,7 +69,7 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
     expect(calls[2]!.params?.slice(0, 5)).toEqual([
       "devops_1y",
       "11111111-1111-4111-8111-111111111111",
-      "USER:operator-1",
+      "operator-1",
       "status_override",
       "DevOps:SPEC-INT-010",
     ]);
@@ -90,7 +90,7 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
 
     await expect(
       repo.requeueDead("evt-not-dead", {
-        actor: "USER:operator-1",
+        actor: "operator-1",
         reason: "INC-123: verify stale recovery request",
         traceId: "11111111-1111-4111-8111-111111111111",
         now: new Date("2026-08-07T00:00:00Z"),
@@ -108,7 +108,7 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
 
     await expect(
       repo.requeueDead("evt-dead", {
-        actor: "USER:operator-1",
+        actor: "operator-1",
         reason: " ",
         traceId: "11111111-1111-4111-8111-111111111111",
       }),
@@ -127,9 +127,43 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
         reason: "INC-123: upstream outage resolved",
         traceId: "11111111-1111-4111-8111-111111111111",
       }),
-    ).rejects.toThrow("non-empty actor");
+    ).rejects.toThrow("valid actor identifier");
 
     expect(calls).toHaveLength(0);
+  });
+
+  it("actor が識別子形式でなければ監査も状態変更も行わない [DevOps:SPEC-INT-010]", async () => {
+    const { db, calls } = makeRequeueDb({ event_id: "evt-dead", attempts: 5 });
+    const repo = new EventsRepo(db);
+
+    await expect(
+      repo.requeueDead("evt-dead", {
+        actor: "operator name\nforged",
+        reason: "INC-123: upstream outage resolved",
+        traceId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).rejects.toThrow("valid actor identifier");
+
+    expect(calls).toHaveLength(0);
+  });
+
+  it("secretを含むreasonをredactして再投入と監査追記を成功させる [DevOps:SPEC-INT-010]", async () => {
+    const { db, calls } = makeRequeueDb({ event_id: "evt-dead", attempts: 5 });
+    const repo = new EventsRepo(db);
+    const secret = "api_key=abcdefghijklmnopqrstuvwx";
+
+    await expect(
+      repo.requeueDead("evt-dead", {
+        actor: "operator-1",
+        reason: `INC-123: rotated ${secret}`,
+        traceId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).resolves.toEqual({ eventId: "evt-dead", attempts: 5 });
+
+    const detail = String(calls.find((call) => call.text.includes("INSERT INTO audit_log"))?.params?.[5]);
+    expect(detail).toContain("***REDACTED:generic_api_key_kv***");
+    expect(detail).not.toContain(secret);
+    expect(calls.at(-1)!.text).toBe("COMMIT");
   });
 
   it("監査追記に失敗したら状態変更も rollback する", async () => {
@@ -138,7 +172,7 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
 
     await expect(
       repo.requeueDead("evt-dead", {
-        actor: "USER:operator-1",
+        actor: "operator-1",
         reason: "INC-123: upstream outage resolved",
         traceId: "11111111-1111-4111-8111-111111111111",
       }),
