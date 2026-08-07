@@ -12,7 +12,7 @@ import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicC
 import { isAbsoluteHttpsUrl, type ChannelRef, type GraphClient } from "@aiops/shared/clients/graphClient.js";
 import type { GitHubClient } from "@aiops/shared/clients/githubClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";
-import { sanitizeForLlmInput } from "@aiops/shared/secretSanitizer.js";
+import { sanitizeForLlmInput, sanitizeSecrets, isFreeOfKnownSecrets } from "@aiops/shared/secretSanitizer.js";
 import { evaluateTh005Escalation, type Th005Input } from "../lib/thresholds.js";
 import { evaluateTh006FalsePositiveCandidate, type Th006Input } from "../lib/falsePositiveRule.js";
 
@@ -57,7 +57,12 @@ export async function classifyIncident(
       "あなたはSREのインシデント一次切り分けアシスタントです。アラート内容・直近メトリクス・" +
       "過去90日の類似インシデントから、重大度候補(sev1-4)、影響プロジェクト、判断根拠を返してください。" +
       "sev1(全面停止/データ漏えい疑い)は候補提示に留め、人間が確定させます。",
-    user: `アラート: ${sanitized}\nメトリクス: ${recentMetricsSummary}\n類似インシデント: ${similarIncidentsSummary}`,
+    // メトリクス・類似インシデントも外部由来。中央ゲートで最終的にはsanitizeされるが、
+    // 局所でも通す（CLAUDE.md原則4(b)）。
+    user:
+      `アラート: ${sanitized}\n` +
+      `メトリクス: ${sanitizeForLlmInput(recentMetricsSummary).sanitized}\n` +
+      `類似インシデント: ${sanitizeForLlmInput(similarIncidentsSummary).sanitized}`,
     toolName: "emit_incident_classification",
     toolDescription: "インシデント分類結果を返す",
     inputSchema: CLASSIFICATION_SCHEMA,
@@ -65,6 +70,20 @@ export async function classifyIncident(
     maxAttempts: 2,
   });
   return result.value;
+}
+
+/** 秘密が残った場合に本文の代わりに出す固定文（AGT-03 の FALLBACK_REASON と同趣旨）。 */
+const RATIONALE_FALLBACK = "根拠テキストは出力前検査で除去されました。詳細は監査ログを参照してください。";
+const PROJECT_FALLBACK = "unknown";
+
+/**
+ * LLM 由来テキストを公開出力へ載せる前に通す。sanitizeSecrets で既知パターンを伏せ、
+ * それでも検出が残るなら本文自体を捨てる。伏字にしきれない形が残るより、
+ * 情報を落とす方が安全な方向である。
+ */
+function redactedOrFallback(text: string, fallback: string): string {
+  const redacted = sanitizeSecrets(text).sanitized;
+  return isFreeOfKnownSecrets(redacted) ? redacted : fallback;
 }
 
 /** DevOps:REQ-015: TH-004 SLA内に起票・通知する（AC-015c: sev1は候補としてのみ扱う） */
@@ -78,11 +97,17 @@ export async function triageAndNotify(
   const effectiveSeverity = classification.severity_candidate === "sev1" ? "sev2" : classification.severity_candidate;
   const labelSuffix = classification.severity_candidate === "sev1" ? " (Sev1候補)" : "";
 
+  // rationale / affected_projects は LLM 出力であり、prompt injection されたアラート本文から
+  // 秘密風文字列が復元され得る。Issue は公開度が高い出力先なので、出力前にサニタイズし、
+  // それでも既知パターンが残る場合は本文を落とす（AGT-03 と同じ層(c)の扱い。所見 ADV-SEC-008）。
+  const safeRationale = redactedOrFallback(classification.rationale, RATIONALE_FALLBACK);
+  const safeProjects = classification.affected_projects.map((project) => redactedOrFallback(project, PROJECT_FALLBACK));
+
   const issue = await deps.githubClient.createIssue({
     owner,
     repo,
-    title: `[${effectiveSeverity.toUpperCase()}][${classification.affected_projects[0] ?? "unknown"}] ${classification.rationale.slice(0, 40)}${labelSuffix}`,
-    body: `重大度候補: ${classification.severity_candidate}\n影響プロジェクト: ${classification.affected_projects.join(", ")}\n根拠: ${classification.rationale}`,
+    title: `[${effectiveSeverity.toUpperCase()}][${safeProjects[0] ?? "unknown"}] ${safeRationale.slice(0, 40)}${labelSuffix}`,
+    body: `重大度候補: ${classification.severity_candidate}\n影響プロジェクト: ${safeProjects.join(", ")}\n根拠: ${safeRationale}`,
     labels: ["incident", effectiveSeverity, "auto-triaged"],
   });
   const issueUrl = issue.htmlUrl.trim();
