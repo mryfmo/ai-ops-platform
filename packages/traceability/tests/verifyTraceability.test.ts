@@ -10,6 +10,16 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runTraceability, runTraceabilityCli } from "../src/verifyTraceability.js";
 
+/**
+ * fixture 用の仕様ID を実行時に組み立てる。
+ *
+ * `buildCorpus` はこのテストファイルも両systemのテストコーパスに含めるため、リテラルで
+ * 書いた ID は「そのIDを検証したテストがある」という証拠として matrix に計上される。
+ * ヘッダパーサの検証にしか使っていない ID がカバレッジを押し上げるのは偽の証跡なので、
+ * 走査器から見えない形で組み立てる（既存の missingAdr と同趣旨）。
+ */
+const specId = (prefix: string, number: string, suffix = ""): string => `${prefix}-${number}${suffix}`;
+
 const fixtures: string[] = [];
 const missingAdr = (number: number): string => `ADR-${number}`;
 
@@ -1437,11 +1447,11 @@ describe("根拠ヘッダが受け付けるIDカテゴリ [PrjOps:SPEC-INT-070 /
   // 従来 SPEC-EXT と TH を受け付けておらず、それらだけを根拠とする正当なファイルが落ちていた。
   // 実在検証が入ったので、各IDを spec-ids へ登録したうえで受理されることを見る。
   const accepted = [
-    { id: "REQ-001", opts: { prjopsReqs: ["REQ-001"] } },
-    { id: "SPEC-INT-010", opts: { prjopsSpecInts: ["SPEC-INT-010"] } },
-    { id: "SPEC-EXT-020", opts: { prjopsSpecExts: ["SPEC-EXT-020"] } },
-    { id: "TH-001", opts: { devopsThs: ["TH-001"] } },
-    { id: "AC-001-1", opts: { prjopsAcs: ["AC-001-1"] } },
+    { id: specId("REQ", "001"), opts: { prjopsReqs: [specId("REQ", "001")] } },
+    { id: specId("SPEC-INT", "010"), opts: { prjopsSpecInts: [specId("SPEC-INT", "010")] } },
+    { id: specId("SPEC-EXT", "020"), opts: { prjopsSpecExts: [specId("SPEC-EXT", "020")] } },
+    { id: specId("TH", "001"), opts: { devopsThs: [specId("TH", "001")] } },
+    { id: specId("AC", "001", "-1"), opts: { prjopsAcs: [specId("AC", "001", "-1")] } },
     { id: "ADR-0004", opts: {} },
   ] as const;
 
@@ -1458,7 +1468,10 @@ describe("根拠ヘッダが受け付けるIDカテゴリ [PrjOps:SPEC-INT-070 /
 
   it("語中の TH- を根拠と誤認しない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     const root = fixture({});
-    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: MONTH-001 */\nexport const x = 1;\n");
+    writeFileSync(
+      join(root, "packages/devops/src/basis.ts"),
+      `/** 根拠: ${specId("MONTH", "001")} */\nexport const x = 1;\n`,
+    );
 
     const result = await runFailure(root);
 
@@ -1472,7 +1485,13 @@ describe("根拠ヘッダIDの境界と桁数 [PrjOps:SPEC-INT-070 / DevOps:SPEC
   // ADR 系は文字列を分割して組み立てる。4桁ゼロの ADR 参照を literal で書くと、
   // ADR参照ガードが対応する docs/adr ファイルの実在を要求して別途落ちる
   // （このファイル冒頭の missingAdr ヘルパーが存在するのと同じ理由）。
-  const malformed = ["REQ-00000", "REQ-01", `ADR-${"00000"}`, "SPEC-INT-0001", "XREQ-001"] as const;
+  const malformed = [
+    specId("REQ", "00000"),
+    specId("REQ", "01"),
+    `ADR-${"00000"}`,
+    specId("SPEC-INT", "0001"),
+    specId("XREQ", "001"),
+  ] as const;
 
   for (const id of malformed) {
     it(`${id} を根拠と認めない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]`, async () => {
@@ -1486,10 +1505,12 @@ describe("根拠ヘッダIDの境界と桁数 [PrjOps:SPEC-INT-070 / DevOps:SPEC
     });
   }
 
-  it("AC の接尾辞形（AC-001-2 / AC-001a）を認める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
-    const root = fixture({ prjopsAcs: ["AC-001-2", "AC-001a"] });
-    writeFileSync(join(root, "packages/devops/src/a.ts"), "/** 根拠: AC-001-2 */\nexport const x = 1;\n");
-    writeFileSync(join(root, "packages/devops/src/b.ts"), "/** 根拠: AC-001a */\nexport const y = 1;\n");
+  it("AC の接尾辞形（連番形・英字形）を認める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const numbered = specId("AC", "001", "-2");
+    const lettered = specId("AC", "001", "a");
+    const root = fixture({ prjopsAcs: [numbered, lettered] });
+    writeFileSync(join(root, "packages/devops/src/a.ts"), `/** 根拠: ${numbered} */\nexport const x = 1;\n`);
+    writeFileSync(join(root, "packages/devops/src/b.ts"), `/** 根拠: ${lettered} */\nexport const y = 1;\n`);
 
     const result = await runFailure(root);
 
@@ -1600,7 +1621,7 @@ describe("根拠IDの実在検証 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", 
 
   it("書式は正しいが未登録のIDを根拠と認めない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     // 未知の bare ID は名前空間ガードも素通りするため、ここで見なければ誰も見ない。
-    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    const root = fixture({ prjopsReqs: [specId("REQ", "001")] });
     writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: REQ-999 */\nexport const x = 1;\n");
 
     const result = await runFailure(root);
@@ -1610,7 +1631,7 @@ describe("根拠IDの実在検証 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", 
   });
 
   it("インデックスに実在するIDは通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
-    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    const root = fixture({ prjopsReqs: [specId("REQ", "001")] });
     writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: REQ-001 */\nexport const x = 1;\n");
 
     const result = await runFailure(root);
@@ -1629,7 +1650,7 @@ describe("根拠IDの実在検証 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", 
 
   it("引用の1つでも実在すれば通す（全件必須にしない） [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     // 範囲記法の受入条件が未登録のまま残っており、その扱いは仕様側の裁定待ちのため。
-    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    const root = fixture({ prjopsReqs: [specId("REQ", "001")] });
     writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: REQ-001 / REQ-999 */\nexport const x = 1;\n");
 
     const result = await runFailure(root);
@@ -1654,7 +1675,7 @@ describe("先頭が行コメントのヘッダ [PrjOps:SPEC-INT-070 / DevOps:SPE
 
 describe("実在判定は根拠宣言以降に限る [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
   it("宣言より前の散文にある実在IDでは通さない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
-    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    const root = fixture({ prjopsReqs: [specId("REQ", "001")] });
     writeFileSync(
       join(root, "packages/devops/src/basis.ts"),
       "/**\n * ADR-0004 に沿って書かれている。\n * 根拠: REQ-999\n */\nexport const x = 1;\n",
@@ -1670,7 +1691,7 @@ describe("実在判定は根拠宣言以降に限る [PrjOps:SPEC-INT-070 / DevO
 describe("名前空間ガードも発見したパッケージを対象にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
   it("新しいパッケージの bare な衝突IDを検出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
     // REQ-001 を両systemに登録して衝突IDにする。namespace 無しでは system を特定できない。
-    const root = fixture({ prjopsReqs: ["REQ-001"], devopsReqs: ["REQ-001"] });
+    const root = fixture({ prjopsReqs: [specId("REQ", "001")], devopsReqs: [specId("REQ", "001")] });
     mkdirSync(join(root, "packages/newpkg/src"), { recursive: true });
     writeFileSync(join(root, "packages/newpkg/src/a.ts"), "/** 根拠: REQ-001 */\nexport const x = 1;\n");
 
