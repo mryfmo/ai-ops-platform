@@ -1422,3 +1422,30 @@ describe("根拠ヘッダガードの走査範囲 [PrjOps:SPEC-INT-070 / DevOps:
     expect(result.stderr).toContain("basis header missing: packages/web/src/page.tsx");
   });
 });
+
+describe("根拠ヘッダが受け付けるIDカテゴリ [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  // AGENTS.md 設計原則3 は REQ / SPEC-INT / SPEC-EXT / TH / AC / ADR を列挙する。
+  // 従来 SPEC-EXT と TH を受け付けておらず、それらだけを根拠とする正当なファイルが落ちていた。
+  const accepted = ["REQ-001", "SPEC-INT-010", "SPEC-EXT-020", "TH-001", "AC-001-1", "ADR-0004"] as const;
+
+  for (const id of accepted) {
+    it(`${id} だけを根拠とするファイルを通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]`, async () => {
+      const root = fixture({});
+      writeFileSync(join(root, "packages/devops/src/basis.ts"), `/** 根拠: ${id} */\nexport const x = 1;\n`);
+
+      const result = await runFailure(root);
+
+      expect(result.stderr).not.toContain("basis header missing: packages/devops/src/basis.ts");
+    });
+  }
+
+  it("語中の TH- を根拠と誤認しない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: MONTH-001 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("basis header missing: packages/devops/src/basis.ts");
+  });
+});

@@ -796,6 +796,16 @@ function formatDispositions(indexes: SpecIndex[]): string {
  * shared の reporting 以外は規約の外に置かれていた。規約が自己申告どおりの範囲を
  * 持つよう、全パッケージの src/ を対象にする。
  */
+/**
+ * 根拠ヘッダとして受け付ける ID の集合。AGENTS.md 設計原則3 が列挙する
+ * REQ / SPEC-INT / SPEC-EXT / TH / AC / ADR に揃える。
+ *
+ * 従来は SPEC-EXT と TH を受け付けていなかったため、それらだけを根拠とする正当なファイルが
+ * 「根拠ヘッダ不足」になる。走査範囲を全パッケージへ広げるとこの取りこぼしが実害になる。
+ * `TH-` は `MONTH-001` のような語中一致を避けるため直前が英字でないことを要求する。
+ */
+const BASIS_HEADER_ID = /根拠:[\s\S]*(?:^|[^A-Za-z])(?:REQ|SPEC-INT|SPEC-EXT|TH|AC|ADR)-\d{3,4}/;
+
 const BASIS_HEADER_DIRS: readonly (readonly string[])[] = [
   ["packages", "shared", "src"],
   ["packages", "prjops", "src"],
@@ -807,12 +817,7 @@ const BASIS_HEADER_DIRS: readonly (readonly string[])[] = [
 
 function basisHeaderFailures(repoRoot: string): string[] {
   return BASIS_HEADER_DIRS.flatMap((parts) => listFiles(join(repoRoot, ...parts), [".ts", ".tsx"]))
-    .filter(
-      (file) =>
-        !readFileSync(file, "utf8")
-          .slice(0, 500)
-          .match(/根拠:[\s\S]*(REQ|SPEC-INT|AC|ADR)-\d{3,4}/),
-    )
+    .filter((file) => !readFileSync(file, "utf8").slice(0, 500).match(BASIS_HEADER_ID))
     .map((file) => file.replace(`${repoRoot}/`, ""));
 }
 
