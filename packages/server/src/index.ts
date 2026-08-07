@@ -14,6 +14,7 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { deriveCapabilityState, reportDegradation } from "./lib/degradedCapabilities.js";
 import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
@@ -309,6 +310,39 @@ export async function main(
           },
         };
 
+  // composition root は設定・実行時状態の正規化だけを担い、機能間の依存判定は lib/ に委ねる。
+  let subscriptionsPresent = false;
+  const refreshSubscriptionPresence = async (): Promise<void> => {
+    const notification = await graphSubscriptionsRepo.listByMode("notification");
+    const polling = await graphSubscriptionsRepo.listByMode("polling");
+    subscriptionsPresent = notification.length + polling.length > 0;
+  };
+  const capabilityState = () =>
+    deriveCapabilityState({
+      reportDeliveryEnabled: config.REPORT_DELIVERY_ENABLED,
+      fromMailboxConfigured: Boolean(config.FROM_MAILBOX),
+      reportIngestConfigured: Boolean(config.REPORT_INGEST_SECRET),
+      xlsxImportConfigured: Boolean(config.XLSX_IMPORT_SECRET),
+      teamsPersonaConfigured: Boolean(config.STAKEHOLDERS_DIR),
+      llmFreeTextConfigured: Boolean(config.ANTHROPIC_API_KEY),
+      githubConfigured: githubPolicy.enabled,
+      githubProjectConfigured: Boolean(config.GITHUB_PROJECT_NODE_ID),
+      sevenKeysSnapshotConfigured: false,
+      heartbeatConfigured: Boolean(config.HEARTBEAT_URL),
+      metricsEndpointConfigured: Boolean(config.METRICS_TOKEN),
+      defaultTeamsTeamConfigured: Boolean(config.DEFAULT_TEAMS_TEAM_ID),
+      defaultTeamsChannelConfigured: Boolean(config.DEFAULT_TEAMS_CHANNEL_ID),
+      telemetryConfigured: Boolean(config.OTEL_EXPORTER_OTLP_ENDPOINT ?? config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT),
+      graphSubscriptionsPresent: subscriptionsPresent,
+    });
+  const publishCapabilities = (): string[] => {
+    const state = capabilityState();
+    metrics.setCapabilities(state);
+    return reportDegradation(state).disabled;
+  };
+  await refreshSubscriptionPresence();
+  publishCapabilities();
+
   const scheduler = startScheduler(
     [
       observedTask(
@@ -327,6 +361,15 @@ export async function main(
           traceIdProvider: () => randomUUID(),
         }),
       ),
+      observedTask({
+        name: "capability-metrics-refresh-30s",
+        intervalMs: 30_000,
+        async run(): Promise<void> {
+          // /metrics は同期描画のまま保ち、DBを毎scrapeせず、既存スケジューラで購読状態を更新する。
+          await refreshSubscriptionPresence();
+          publishCapabilities();
+        },
+      }),
       ...(githubPolicy.enabled
         ? [
             observedTask(
@@ -472,9 +515,11 @@ export async function main(
     readiness: createReadinessCheck({
       checkDependencies: async () => {
         await pool.query("SELECT 1");
+        await refreshSubscriptionPresence();
       },
       isFailsafeActive: () => failsafeActive,
       isShuttingDown: () => shuttingDown,
+      degradedCapabilities: publishCapabilities,
     }),
     metrics,
     metricsToken: config.METRICS_TOKEN,
