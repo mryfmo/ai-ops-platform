@@ -5,7 +5,13 @@
  *   個別runを特定できない制約下で、判断が常に安全側（回収しない側）へ倒れることを固定する。
  */
 import { describe, expect, it } from "vitest";
-import { classifyStaleRun, RUN_LOOKBACK_MINUTES, runLookbackSince } from "../src/lib/codingTaskReap.js";
+import {
+  classifyStaleRun,
+  KNOWN_RUN_CONCLUSIONS,
+  normalizeConclusion,
+  RUN_LOOKBACK_MINUTES,
+  runLookbackSince,
+} from "../src/lib/codingTaskReap.js";
 
 const complete = (runs: Array<{ id: number; status: string | null; conclusion: string | null }>) => ({
   runs,
@@ -72,5 +78,26 @@ describe("runLookbackSince [DevOps:REQ-028 / ADR-0006]", () => {
 
   it("解釈できない時刻はそのまま返す（勝手にずらして観測窓を壊さない） [DevOps:REQ-028]", () => {
     expect(runLookbackSince("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("normalizeConclusion [DevOps:REQ-028]", () => {
+  it("既知のconclusionはそのまま通す [DevOps:REQ-028]", () => {
+    for (const known of KNOWN_RUN_CONCLUSIONS) expect(normalizeConclusion(known)).toBe(known);
+  });
+
+  it("未知の文字列はunknownへ写す（外部由来の値を追記専用ログへ通さない） [DevOps:REQ-028]", () => {
+    expect(normalizeConclusion("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB")).toBe("unknown");
+    expect(normalizeConclusion("")).toBe("unknown");
+    expect(normalizeConclusion(null)).toBe("unknown");
+  });
+
+  it("classifyStaleRunの結果も正規化済みになる [DevOps:REQ-028]", () => {
+    const decision = classifyStaleRun({
+      runs: [{ id: 1, status: "completed", conclusion: "token ghp_secretsecretsecretsecret" }],
+      complete: true,
+    });
+
+    expect(decision).toEqual({ reap: true, reason: "all_runs_completed", conclusions: ["unknown"] });
   });
 });

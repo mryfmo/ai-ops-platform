@@ -52,17 +52,17 @@ describe("confirmToken (ADR-0006)", () => {
   });
 });
 
-describe("confirm token expiry [ADR-0006]", () => {
+describe("confirm token expiry [DevOps:REQ-028 / ADR-0006]", () => {
   const secret = "s".repeat(32);
   const taskId = "11111111-1111-1111-1111-111111111111";
 
-  it("発行直後のトークンは有効", () => {
+  it("発行直後のトークンは有効 [DevOps:REQ-028]", () => {
     const now = 1_700_000_000_000;
     const token = generateConfirmToken(taskId, secret, now);
     expect(verifyConfirmToken(taskId, token, secret, { nowMs: now })).toBe(true);
   });
 
-  it("TTLを過ぎたトークンは拒否する", () => {
+  it("TTLを過ぎたトークンは拒否する [DevOps:REQ-028]", () => {
     const issued = 1_700_000_000_000;
     const token = generateConfirmToken(taskId, secret, issued);
     const past = issued + 61 * 60_000;
@@ -70,7 +70,7 @@ describe("confirm token expiry [ADR-0006]", () => {
     expect(verifyConfirmToken(taskId, token, secret, { nowMs: issued + 59 * 60_000, ttlMinutes: 60 })).toBe(true);
   });
 
-  it("発行時刻を書き換えても署名対象なので拒否される", () => {
+  it("発行時刻を書き換えても署名対象なので拒否される [DevOps:REQ-028]", () => {
     const issued = 1_700_000_000_000;
     const token = generateConfirmToken(taskId, secret, issued);
     const signature = token.slice(token.indexOf(".") + 1);
@@ -78,13 +78,13 @@ describe("confirm token expiry [ADR-0006]", () => {
     expect(verifyConfirmToken(taskId, forged, secret, { nowMs: issued })).toBe(false);
   });
 
-  it("未来日付のトークンは拒否する", () => {
+  it("未来日付のトークンは拒否する [DevOps:REQ-028]", () => {
     const issued = 1_700_000_000_000;
     const token = generateConfirmToken(taskId, secret, issued);
     expect(verifyConfirmToken(taskId, token, secret, { nowMs: issued - 60_000 })).toBe(false);
   });
 
-  it("形式不正・別taskId向けは従来どおり拒否する", () => {
+  it("形式不正・別taskId向けは従来どおり拒否する [DevOps:REQ-028]", () => {
     const now = 1_700_000_000_000;
     const token = generateConfirmToken(taskId, secret, now);
     expect(verifyConfirmToken(taskId, "no-separator", secret, { nowMs: now })).toBe(false);

@@ -194,12 +194,33 @@ describe("GitHubClient.listWorkflowRuns [DevOps:SPEC-INT-020 / ADR-0006]", () =>
     expect(listing.runs).toHaveLength(4);
   });
 
-  it("workflow_runsが欠落していても空配列を返す [DevOps:SPEC-INT-020]", async () => {
+  it("workflow_runsが欠落した応答は「run無し」ではなく観測不能として返す [DevOps:SPEC-INT-020]", async () => {
+    // 呼び出し側はこれを回収の根拠にするため、壊れた応答を空の全件観測と読み替えない。
     const client = new GitHubClient(tokenProvider, async () => jsonResponse({}));
 
     expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual({
       runs: [],
-      complete: true,
+      complete: false,
+    });
+  });
+
+  it("workflow_runsが配列でなければ観測不能として返す [DevOps:SPEC-INT-020]", async () => {
+    const client = new GitHubClient(tokenProvider, async () => jsonResponse({ total_count: 1, workflow_runs: "nope" }));
+
+    expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual({
+      runs: [],
+      complete: false,
+    });
+  });
+
+  it("total_countが数値でなければ観測不能として返す [DevOps:SPEC-INT-020]", async () => {
+    const client = new GitHubClient(tokenProvider, async () =>
+      jsonResponse({ workflow_runs: [{ id: 1, status: "completed", conclusion: "success" }] }),
+    );
+
+    expect(await client.listWorkflowRuns("acme", "repo", { workflowFileName: "coding-task.yml" })).toEqual({
+      runs: [],
+      complete: false,
     });
   });
 

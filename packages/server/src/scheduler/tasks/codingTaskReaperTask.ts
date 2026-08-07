@@ -55,8 +55,6 @@ export interface CodingTaskReaperTaskDeps {
   codingTasksRepo: CodingTasksRepo;
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
-  /** taskIdのprojectIdから対象GitHubリポジトリを解決する（未登録ならnull） */
-  resolveRepoForProject(projectId: string): Promise<{ githubOwner: string; githubRepo: string } | null>;
   /** 未設定なら観測不能として一切回収しない。 */
   githubClient?: CodingTaskReaperGithubClient;
   /** running のまま許容する分数。未指定なら DEFAULT_CODING_TASK_TIMEOUT_MINUTES。 */
@@ -95,10 +93,12 @@ export function createCodingTaskReaperTask(deps: CodingTaskReaperTaskDeps): Sche
       }
 
       for (const task of stale) {
-        const scope = await deps.resolveRepoForProject(task.projectId);
-        if (!scope) {
+        // dispatch 時に確定したスコープだけを使う。project_channels から引き直すと、
+        // running の間にチャネル構成が変わった場合に別リポジトリを観測してしまい、
+        // そこには run が無いので「run 皆無」と誤判定して実行中のタスクを終端させる。
+        if (!task.githubOwner || !task.githubRepo) {
           await audit("coding_task_reap_skipped_unobservable", {
-            reason: "project has no GitHub repository mapping",
+            reason: "task has no dispatch-time GitHub repository scope",
             taskId: task.taskId,
             projectId: task.projectId,
           });
@@ -107,7 +107,7 @@ export function createCodingTaskReaperTask(deps: CodingTaskReaperTaskDeps): Sche
 
         let listing: WorkflowRunListing;
         try {
-          listing = await githubClient.listWorkflowRuns(scope.githubOwner, scope.githubRepo, {
+          listing = await githubClient.listWorkflowRuns(task.githubOwner, task.githubRepo, {
             workflowFileName: CODING_TASK_WORKFLOW_FILE,
             event: "workflow_dispatch",
             // DBとGitHubの時計ずれで当該runが下限を下回るのを防ぐため手前へ広げる。

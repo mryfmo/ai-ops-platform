@@ -323,11 +323,6 @@ export async function main(
           auditLog: devopsAuditLog,
           traceIdProvider: () => randomUUID(),
           githubClient: githubPolicy.enabled ? githubClient : undefined,
-          resolveRepoForProject: async (projectId) => {
-            const channel = await projectChannelsRepo.findByProjectId(projectId);
-            if (!channel?.githubOwner || !channel.githubRepo) return null;
-            return { githubOwner: channel.githubOwner, githubRepo: channel.githubRepo };
-          },
         }),
       ),
       observedTask(

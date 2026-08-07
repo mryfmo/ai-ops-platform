@@ -30,7 +30,7 @@ export const RUN_LOOKBACK_MINUTES = 15;
 
 export type StaleRunDecision =
   | { reap: false; reason: "still_executing" | "observation_incomplete" }
-  | { reap: true; reason: "no_run_observed" | "all_runs_completed"; conclusions: string[] };
+  | { reap: true; reason: "no_run_observed" | "all_runs_completed"; conclusions: RunConclusion[] };
 
 /** 観測の下限時刻を、時計ずれを見込んで confirmed_at より手前へ広げる。 */
 export function runLookbackSince(confirmedAtIso: string, lookbackMinutes = RUN_LOOKBACK_MINUTES): string {
@@ -55,6 +55,31 @@ export function classifyStaleRun(listing: WorkflowRunListing): StaleRunDecision 
   return {
     reap: true,
     reason: "all_runs_completed",
-    conclusions: listing.runs.map((run) => run.conclusion ?? "unknown"),
+    conclusions: listing.runs.map((run) => normalizeConclusion(run.conclusion)),
   };
+}
+
+/**
+ * GitHub が返す conclusion の既知集合。監査へ書くのはこの語彙に正規化した値だけにする。
+ *
+ * conclusion は外部応答由来の任意文字列で、監査ログは追記専用のため訂正できない
+ * （CLAUDE.md 原則4(c)/原則5）。サニタイズではなく既知値への写像にしているのは、
+ * 未知の文字列が一切通らないことを型と実装の両方で保証できるからである。
+ */
+export const KNOWN_RUN_CONCLUSIONS = [
+  "success",
+  "failure",
+  "neutral",
+  "cancelled",
+  "skipped",
+  "timed_out",
+  "action_required",
+  "stale",
+  "startup_failure",
+] as const;
+
+export type RunConclusion = (typeof KNOWN_RUN_CONCLUSIONS)[number] | "unknown";
+
+export function normalizeConclusion(conclusion: string | null): RunConclusion {
+  return KNOWN_RUN_CONCLUSIONS.find((known) => known === conclusion) ?? "unknown";
 }

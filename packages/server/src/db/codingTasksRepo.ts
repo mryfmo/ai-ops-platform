@@ -45,6 +45,15 @@ export interface InsertCodingTaskInput {
   confirmTokenHash: string;
 }
 
+/** 回収候補。github_owner/repo は dispatch 時に確定したスコープ（導入前の行は null）。 */
+export interface StaleCodingTask {
+  taskId: string;
+  projectId: string;
+  githubOwner: string | null;
+  githubRepo: string | null;
+  confirmedAt: string;
+}
+
 export interface MarkConfirmedAndDispatchedInput {
   workflowRunId?: number | null;
 }
@@ -130,13 +139,13 @@ export class CodingTasksRepo {
    * 同名ブランチへのpushで衝突する。dispatch より前にここで確保し、更新行が無ければ
    * 既に他が確保済みとして扱う。
    */
-  async claimForDispatch(taskId: string): Promise<boolean> {
+  async claimForDispatch(taskId: string, scope: { githubOwner: string; githubRepo: string }): Promise<boolean> {
     const res = await this.db.query(
       `UPDATE coding_tasks
-       SET status = 'running', confirmed_at = now(), updated_at = now()
+       SET status = 'running', confirmed_at = now(), github_owner = $2, github_repo = $3, updated_at = now()
        WHERE task_id = $1 AND status = 'queued' AND confirmed_at IS NULL
        RETURNING task_id`,
-      [taskId],
+      [taskId, scope.githubOwner, scope.githubRepo],
     );
     return res.rows.length > 0;
   }
@@ -159,13 +168,15 @@ export class CodingTasksRepo {
 
   /**
    * timeout を過ぎても running のまま残っているタスクを回収候補として返す（callback喪失対策）。
+   *
    * confirmed_at は呼び出し側が Actions の run 一覧を時刻で絞るために使う。
+   * github_owner/github_repo は dispatch 時に確定したスコープで、reap 時に project_channels から
+   * 引き直さないために持つ（引き直すと構成変更で別リポジトリを観測して誤終端する）。
+   * 本カラム導入前の行は NULL で、呼び出し側は観測不能として回収しない。
    */
-  async findStaleRunning(
-    olderThanMinutes: number,
-  ): Promise<Array<{ taskId: string; projectId: string; confirmedAt: string }>> {
+  async findStaleRunning(olderThanMinutes: number): Promise<StaleCodingTask[]> {
     const res = await this.db.query(
-      `SELECT task_id, project_id, confirmed_at FROM coding_tasks
+      `SELECT task_id, project_id, confirmed_at, github_owner, github_repo FROM coding_tasks
        WHERE status = 'running' AND confirmed_at IS NOT NULL
          AND confirmed_at < now() - ($1 || ' minutes')::interval`,
       [String(olderThanMinutes)],
@@ -173,6 +184,8 @@ export class CodingTasksRepo {
     return res.rows.map((r) => ({
       taskId: String(r["task_id"]),
       projectId: String(r["project_id"]),
+      githubOwner: r["github_owner"] == null ? null : String(r["github_owner"]),
+      githubRepo: r["github_repo"] == null ? null : String(r["github_repo"]),
       confirmedAt: new Date(r["confirmed_at"] as string | Date).toISOString(),
     }));
   }

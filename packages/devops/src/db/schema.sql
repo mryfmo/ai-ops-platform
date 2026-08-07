@@ -454,6 +454,10 @@ CREATE TABLE IF NOT EXISTS coding_tasks (
   workflow_run_id BIGINT,
   pr_url          TEXT,
   branch          TEXT,
+  -- dispatch時に選ばれたGitHubリポジトリ。reaperはこの不変スコープに対して実行状態を観測する
+  -- （reap時にproject_channelsから引き直すと、チャネル構成の変化で別リポジトリを見て誤終端する）。
+  github_owner    TEXT,
+  github_repo     TEXT,
   confirmed_at    TIMESTAMPTZ,
   confirm_token_hash TEXT,
   trace_id        UUID NOT NULL,

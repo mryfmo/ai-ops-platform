@@ -19,7 +19,6 @@ interface HarnessOptions {
   incomplete?: boolean;
   runsError?: Error;
   omitGithubClient?: boolean;
-  unmappedProject?: boolean;
   updateRowCount?: number;
 }
 
@@ -38,7 +37,6 @@ function makeHarness(staleRows: Array<Record<string, unknown>>, options: Harness
     codingTasksRepo: new CodingTasksRepo(db),
     auditLog,
     traceIdProvider: () => "trace-reaper",
-    resolveRepoForProject: async () => (options.unmappedProject ? null : { githubOwner: "o", githubRepo: "r" }),
     githubClient: options.omitGithubClient
       ? undefined
       : {
@@ -52,12 +50,22 @@ function makeHarness(staleRows: Array<Record<string, unknown>>, options: Harness
   return { task, calls, auditLog, lookups };
 }
 
+const STALE_ROW = {
+  task_id: "t-1",
+  project_id: "PJ-001",
+  confirmed_at: "2026-08-04T00:00:00.000Z",
+  github_owner: "o",
+  github_repo: "r",
+};
+/** dispatch時スコープを持たない行（カラム導入前に running だったタスク）。 */
+const UNSCOPED_ROW = { ...STALE_ROW, github_owner: null, github_repo: null };
+
 const AT = new Date("2026-08-05T00:00:00.000Z");
 const updateCalls = (calls: Array<{ text: string }>) => calls.filter((c) => c.text.includes("SET status = 'failed'"));
 
 describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   it("実行が観測されないtimeout超過タスクをfailedへ終端し監査に残す [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [],
     });
 
@@ -71,7 +79,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("完了済みrunだけならcallback喪失として回収し、conclusionを監査に残す [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [{ id: 9, status: "completed", conclusion: "success" }],
     });
 
@@ -83,7 +91,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("runner待ちでqueuedのままのrunがあれば回収しない（経過時間で終端させない） [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [{ id: 9, status: "queued", conclusion: null }],
     });
 
@@ -94,7 +102,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("ワークフローとconfirmed_at以降で観測する（dispatchのrefはmainで作業ブランチは紐づかない） [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [],
     });
 
@@ -118,7 +126,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("run一覧を全件見られていなければ回収せず、理由を監査に残す [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [{ id: 9, status: "completed", conclusion: "success" }],
       incomplete: true,
     });
@@ -132,7 +140,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("GitHubクライアントが無ければ観測不能として回収せず理由を監査に残す [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       omitGithubClient: true,
     });
 
@@ -144,7 +152,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("run照会が失敗しても回収せず、例外文字列はサニタイズして監査する [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runsError: new Error("token ghp_0123456789abcdefghijklmnopqrstuvwxyzAB rejected"),
     });
 
@@ -156,10 +164,8 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
     expect(detail.error).toContain("REDACTED");
   });
 
-  it("リポジトリ未対応のprojectは回収せず理由を監査に残す [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
-      unmappedProject: true,
-    });
+  it("dispatch時スコープを持たない行は回収せず理由を監査に残す [DevOps:REQ-028]", async () => {
+    const h = makeHarness([UNSCOPED_ROW]);
 
     await h.task.run(AT);
 
@@ -168,7 +174,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("更新が0行なら監査に書かない（追記専用ログへ嘘を残さない） [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [],
       updateRowCount: 0,
     });
@@ -193,7 +199,7 @@ describe("coding task reaper [DevOps:REQ-028 / ADR-0006]", () => {
   });
 
   it("failedへの更新はrunningの行だけを対象にする（遅延callbackとの競合対策） [DevOps:REQ-028]", async () => {
-    const h = makeHarness([{ task_id: "t-1", project_id: "PJ-001", confirmed_at: "2026-08-04T00:00:00.000Z" }], {
+    const h = makeHarness([STALE_ROW], {
       runs: [],
     });
 

@@ -347,8 +347,13 @@ export class GitHubClient {
       const res = await this.fetch(`${this.baseUrl}${path}?${params.toString()}`, { method: "GET", headers });
       if (!res.ok) throw new Error(`E-ING05: listWorkflowRuns failed with status ${res.status}`);
       const body = (await res.json()) as { workflow_runs?: unknown; total_count?: unknown };
-      totalCount = typeof body.total_count === "number" ? body.total_count : runs.length;
-      const pageRuns = Array.isArray(body.workflow_runs) ? body.workflow_runs : [];
+      // 形が違う応答を「run が無い」と読み替えない。呼び出し側はこれを回収の根拠にするので、
+      // 壊れた応答は観測できなかったこととして扱う（complete: false）。
+      if (!Array.isArray(body.workflow_runs) || typeof body.total_count !== "number") {
+        return { runs, complete: false };
+      }
+      totalCount = body.total_count;
+      const pageRuns = body.workflow_runs;
       for (const run of pageRuns) {
         const record = run as Record<string, unknown>;
         runs.push({

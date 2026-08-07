@@ -177,7 +177,12 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
     // dispatch より前にDB側で原子的に確保する。上の status 判定と dispatch の間には
     // 隙があり、同一トークンの並行 confirm が両方通過して二重 dispatch し得るため
     // （coding-task.yml の concurrency はキャンセルせずキューするので2本目も走る）。
-    const claimed = await deps.codingTasksRepo.claimForDispatch(taskId);
+    // 確保と同時に dispatch 先リポジトリを固定する。reaper はこの不変スコープを観測する
+    // （reap 時に project_channels から引き直すと構成変更で別リポジトリを見て誤終端する）。
+    const claimed = await deps.codingTasksRepo.claimForDispatch(taskId, {
+      githubOwner: repoScope.githubOwner,
+      githubRepo: repoScope.githubRepo,
+    });
     if (!claimed) {
       await deps.auditLog.append({
         trace_id: traceId,
