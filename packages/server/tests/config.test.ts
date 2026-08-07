@@ -58,7 +58,7 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.ANTHROPIC_PRICING_USD_PER_MTOK["claude-sonnet-4-6"]).toEqual({ input: 3, output: 15 });
   });
 
-  it("DevOps:SPEC-INT-061: GitHub App設定は3変数が揃えばパースされる", () => {
+  it("DevOps:SPEC-INT-070: GitHub App設定は3変数が揃えばパースされる", () => {
     const config = loadConfig({
       ...validEnv,
       GITHUB_APP_ID: "123",
@@ -71,7 +71,7 @@ describe("loadConfig (ADR-0005)", () => {
   });
 
   it.each(["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_INSTALLATION_ID"])(
-    "DevOps:SPEC-INT-061: App設定が一部だけのときE-CFG01: %s",
+    "DevOps:SPEC-INT-070: App設定が一部だけのときE-CFG01: %s",
     (name) => {
       expect(() => loadConfig({ ...validEnv, [name]: "configured" })).toThrow("E-CFG01");
     },
@@ -161,16 +161,16 @@ describe("loadConfig (ADR-0005)", () => {
     expect(() => loadConfig(rest)).toThrow("E-CFG01");
   });
 
-  it("CODING_TASK_CONFIRM_SECRETが短すぎるとE-CFG01 [DevOps:SPEC-INT-061 / ADR-0006]", () => {
+  it("CODING_TASK_CONFIRM_SECRETが短すぎるとE-CFG01 [DevOps:SPEC-INT-070 / ADR-0006]", () => {
     expect(() => loadConfig({ ...validEnv, CODING_TASK_CONFIRM_SECRET: "short" })).toThrow("E-CFG01");
   });
 
-  it("CODING_TASK_CONFIRM_SECRET欠落でE-CFG01 [DevOps:SPEC-INT-061]", () => {
+  it("CODING_TASK_CONFIRM_SECRET欠落でE-CFG01 [DevOps:SPEC-INT-070]", () => {
     const { CODING_TASK_CONFIRM_SECRET: _drop, ...rest } = validEnv;
     expect(() => loadConfig(rest)).toThrow("E-CFG01");
   });
 
-  it("確認トークン鍵とcallback鍵は別の値として読まれる [DevOps:SPEC-INT-061]", () => {
+  it("確認トークン鍵とcallback鍵は別の値として読まれる [DevOps:SPEC-INT-070]", () => {
     // 兼用していた頃は、Actionsへ渡るcallback鍵から任意taskIdの確認トークンを再計算でき、
     // 人間クリック無しでdispatchできた。両者が独立していることを設定層で固定する。
     const config = loadConfig({
@@ -184,7 +184,7 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.CODING_TASK_CONFIRM_SECRET).not.toBe(config.CODING_TASK_CALLBACK_SECRET);
   });
 
-  it("2つの鍵に同じ値を設定するとE-CFG01 [DevOps:SPEC-INT-061]", () => {
+  it("2つの鍵に同じ値を設定するとE-CFG01 [DevOps:SPEC-INT-070]", () => {
     // 別変数にしても同値なら、Actionsへ渡る値から確認トークンを再計算できる状態に戻る。
     const same = "s".repeat(32);
     expect(() =>
