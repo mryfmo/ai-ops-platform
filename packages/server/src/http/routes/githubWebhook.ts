@@ -73,9 +73,13 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
     // delivery id は監査のために引き続き記録する（GitHub 側との突合に要る）が、
     // 一意性の根拠には使わない。GitHub 自身による正当な再送も同じボディなので、
     // 意図どおり重複として弾かれる。
+    // キーは**署名対象であるボディだけ**から導く。`X-GitHub-Event` も `X-GitHub-Delivery` と
+    // 同じく署名の外にあるヘッダなので、鍵に混ぜると攻撃者がイベント名を変えるだけでキーを
+    // 変えられ、同じ署名済みボディを何度でも挿入できてしまう（`dispatchGithubWebhookEvent`
+    // が未知のイベント名を捨てるのはキュー投入の後である）。
     const payloadDigest = createHash("sha256").update(rawBody, "utf8").digest("hex");
     const inserted = await deps.enqueueGithubEvent(eventName, payload, traceId, {
-      dedupeKey: `github:${eventName}:${payloadDigest}`,
+      dedupeKey: `github:${payloadDigest}`,
     });
     if (!inserted) {
       await deps.auditLog.append({

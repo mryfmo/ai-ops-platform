@@ -499,7 +499,7 @@ describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
     expect(githubEvents[0]!.eventName).toBe("workflow_run");
     // 重複判定は署名対象のボディから導く。delivery id はヘッダで署名の外にあるため使わない。
     const digest = createHash("sha256").update(payload, "utf8").digest("hex");
-    expect(githubEvents[0]!.dedupeKey).toBe(`github:workflow_run:${digest}`);
+    expect(githubEvents[0]!.dedupeKey).toBe(`github:${digest}`);
   });
 
   it("署名済みGitHub webhookのdelivery id欠落は400+監査ログでfail-closedし、エンキューしない", async () => {
@@ -535,6 +535,26 @@ describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
 
     expect((await send("delivery-a")).status).toBe(202);
     expect((await send("delivery-b")).status).toBe(202);
+
+    expect(githubEvents).toHaveLength(1);
+  });
+
+  it("event名を差し替えた再送も重複として弾く（イベント名も署名対象外）", async () => {
+    // delivery id と同様に X-GitHub-Event も署名の外にある。鍵に混ぜると攻撃者が
+    // イベント名を変えるだけで無制限に挿入できる（所見 ADV-INT-006）。
+    const { deps, githubEvents } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const send = (eventName: string) =>
+      app.request("/webhooks/github", {
+        method: "POST",
+        headers: { "x-hub-signature-256": sig, "x-github-event": eventName, "x-github-delivery": "d" },
+        body: payload,
+      });
+
+    expect((await send("push")).status).toBe(202);
+    expect((await send("anything_else")).status).toBe(202);
 
     expect(githubEvents).toHaveLength(1);
   });
