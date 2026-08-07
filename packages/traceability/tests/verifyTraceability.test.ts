@@ -1073,3 +1073,39 @@ describe("設定変数の短い名前 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084
     expect(result.code).toBe(0);
   });
 });
+
+describe("設定変数のアンダースコア始まり [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  const withUnderscoreKey = [
+    "/** 根拠: ADR-0004 */",
+    "const baseConfigSchema = z.object({",
+    "  DATABASE_URL: z.string(),",
+    "  PORT: z.coerce.number(),",
+    "  _JAVA_OPTIONS: z.string(),",
+    "});",
+    "const configSchema = baseConfigSchema;",
+    "",
+  ].join("\n");
+
+  it("_始まりの変数もインベントリ対象にする [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const result = await runFailure(fixture({ serverConfigText: withUnderscoreKey }));
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: _JAVA_OPTIONS is in the server Zod schema");
+  });
+
+  it("_始まりも表と .env.example に揃っていれば通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: withUnderscoreKey,
+      configDocText: fixtureConfigDoc(
+        ["| `DATABASE_URL` | Yes |", "| `PORT` | No |", "| `_JAVA_OPTIONS` | No |"],
+        ["| `AUTH_SECRET` | Yes |"],
+      ),
+      envExampleText: ["DATABASE_URL=", "PORT=8080", "_JAVA_OPTIONS=-Xmx1g", "AUTH_SECRET=", ""].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+  });
+});
