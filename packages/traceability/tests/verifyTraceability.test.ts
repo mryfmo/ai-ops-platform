@@ -1109,3 +1109,51 @@ describe("設定変数のアンダースコア始まり [PrjOps:SPEC-INT-070 / D
     expect(result.code).toBe(0);
   });
 });
+
+describe("設定変数の名前の形に依存しない抽出 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  // 大文字限定・3文字以上・`_`始まり不可、と個別に穴が見つかったため、
+  // 識別子として妥当な形すべてを受けることを固定する。
+  const shapes = ["TZ", "_JAVA_OPTIONS", "http_proxy", "MixedCase"] as const;
+
+  for (const key of shapes) {
+    it(`${key} をスキーマだけに足すと失敗する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]`, async () => {
+      const root = fixture({
+        serverConfigText: [
+          "/** 根拠: ADR-0004 */",
+          "const baseConfigSchema = z.object({",
+          "  DATABASE_URL: z.string(),",
+          "  PORT: z.coerce.number(),",
+          `  ${key}: z.string(),`,
+          "});",
+          "const configSchema = baseConfigSchema;",
+          "",
+        ].join("\n"),
+      });
+
+      const result = await runFailure(root);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain(`config inventory: ${key} is in the server Zod schema`);
+    });
+  }
+
+  it("クォート付きのキーも抽出する [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({
+      serverConfigText: [
+        "/** 根拠: ADR-0004 */",
+        "const baseConfigSchema = z.object({",
+        "  DATABASE_URL: z.string(),",
+        "  PORT: z.coerce.number(),",
+        '  "QUOTED_KEY": z.string(),',
+        "});",
+        "const configSchema = baseConfigSchema;",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("config inventory: QUOTED_KEY is in the server Zod schema");
+  });
+});

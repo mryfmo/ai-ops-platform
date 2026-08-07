@@ -295,17 +295,31 @@ export function configInventoryFailures(repoRoot: string): string[] {
     const end = text.indexOf(to, start + from.length);
     return text.slice(start, end < 0 ? text.length : end);
   };
+  // 名前の形を狭く決め打つと、そこから外れたキーが3つの抽出すべてから漏れ、
+  // 他のキーが残るので空スキーマ判定にも掛からず、key-for-key の保証が静かに破れる。
+  // 大文字限定 → 3文字以上 → `_` 始まり不可、と個別に穴が見つかった経緯があるため、
+  // 識別子として妥当な形すべてを受ける。クォート付きキー（`"KEY": z.string()`）も拾う。
+  //
+  // 広く取ると本来キーでない行を拾い得るが、その場合に起きるのは「文書に足せ」という失敗であり、
+  // 漏らした場合に起きる「気づかないまま緑」より安全な方向である。意図的にこちら側へ倒している。
+  const IDENTIFIER = String.raw`[A-Za-z_$][A-Za-z0-9_$]*`;
   const schemaKeys = (body: string): string[] => [
-    ...new Set([...body.matchAll(/^\s{2,4}([A-Z_][A-Z0-9_]*)\s*:/gm)].map((match) => match[1]!)),
+    ...new Set(
+      [...body.matchAll(new RegExp(String.raw`^\s{2,4}"?(${IDENTIFIER})"?\s*:`, "gm"))].map((match) => match[1]!),
+    ),
   ];
   const tableKeys = (section: string): Set<string> =>
-    new Set([...section.matchAll(/^\|\s*`([A-Z_][A-Z0-9_]*)`\s*\|/gm)].map((match) => match[1]!));
+    new Set(
+      [...section.matchAll(new RegExp(String.raw`^\|\s*\`(${IDENTIFIER})\`\s*\|`, "gm"))].map((match) => match[1]!),
+    );
 
   const serverKeys = schemaKeys(between(serverSource!, "const baseConfigSchema", "const configSchema"));
   const webKeys = schemaKeys(between(webSource!, "const webConfigSchema", ".superRefine"));
   const docServer = tableKeys(between(docSource!, "## Server", "## Web"));
   const docWeb = tableKeys(between(docSource!, "## Web", "## Report Generation"));
-  const envKeys = new Set([...envSource!.matchAll(/^#?\s*([A-Z_][A-Z0-9_]*)=/gm)].map((match) => match[1]!));
+  const envKeys = new Set(
+    [...envSource!.matchAll(new RegExp(String.raw`^#?\s*(${IDENTIFIER})=`, "gm"))].map((match) => match[1]!),
+  );
 
   // スキーマ本体を読めていない場合に空集合同士が一致して黙って通るのを防ぐ。
   if (serverKeys.length === 0 || webKeys.length === 0) {
