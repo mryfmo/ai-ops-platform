@@ -16,6 +16,9 @@ const missingAdr = (number: number): string => `ADR-${number}`;
 interface FixtureOptions {
   prjopsReqs?: string[];
   prjopsSpecInts?: string[];
+  prjopsSpecExts?: string[];
+  prjopsAcs?: string[];
+  devopsThs?: string[];
   devopsReqs?: string[];
   prjopsSystem?: string;
   devopsSystem?: string;
@@ -124,12 +127,18 @@ function fixture(options: FixtureOptions | string[] = {}): string {
       system: normalized.prjopsSystem ?? "PrjOps",
       REQ: normalized.prjopsReqs ?? [],
       "SPEC-INT": normalized.prjopsSpecInts ?? [],
+      "SPEC-EXT": normalized.prjopsSpecExts ?? [],
+      AC: normalized.prjopsAcs ?? [],
       dispositions: normalized.prjopsDispositions,
     }),
   );
   writeFileSync(
     join(root, "packages/traceability/spec-ids/devops.json"),
-    JSON.stringify({ system: normalized.devopsSystem ?? "DevOps", REQ: normalized.devopsReqs ?? [] }),
+    JSON.stringify({
+      system: normalized.devopsSystem ?? "DevOps",
+      REQ: normalized.devopsReqs ?? [],
+      TH: normalized.devopsThs ?? [],
+    }),
   );
   // 名前空間ガード用のsrc fixtureは根拠ヘッダガードの対象でもある（走査範囲を全パッケージ
   // src/へ広げたため）。当該テストの主題ではないので、ヘッダを持たない指定にだけ補う。
@@ -1426,11 +1435,19 @@ describe("根拠ヘッダガードの走査範囲 [PrjOps:SPEC-INT-070 / DevOps:
 describe("根拠ヘッダが受け付けるIDカテゴリ [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
   // AGENTS.md 設計原則3 は REQ / SPEC-INT / SPEC-EXT / TH / AC / ADR を列挙する。
   // 従来 SPEC-EXT と TH を受け付けておらず、それらだけを根拠とする正当なファイルが落ちていた。
-  const accepted = ["REQ-001", "SPEC-INT-010", "SPEC-EXT-020", "TH-001", "AC-001-1", "ADR-0004"] as const;
+  // 実在検証が入ったので、各IDを spec-ids へ登録したうえで受理されることを見る。
+  const accepted = [
+    { id: "REQ-001", opts: { prjopsReqs: ["REQ-001"] } },
+    { id: "SPEC-INT-010", opts: { prjopsSpecInts: ["SPEC-INT-010"] } },
+    { id: "SPEC-EXT-020", opts: { prjopsSpecExts: ["SPEC-EXT-020"] } },
+    { id: "TH-001", opts: { devopsThs: ["TH-001"] } },
+    { id: "AC-001-1", opts: { prjopsAcs: ["AC-001-1"] } },
+    { id: "ADR-0004", opts: {} },
+  ] as const;
 
-  for (const id of accepted) {
+  for (const { id, opts } of accepted) {
     it(`${id} だけを根拠とするファイルを通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]`, async () => {
-      const root = fixture({});
+      const root = fixture(opts);
       writeFileSync(join(root, "packages/devops/src/basis.ts"), `/** 根拠: ${id} */\nexport const x = 1;\n`);
 
       const result = await runFailure(root);
@@ -1470,7 +1487,7 @@ describe("根拠ヘッダIDの境界と桁数 [PrjOps:SPEC-INT-070 / DevOps:SPEC
   }
 
   it("AC の接尾辞形（AC-001-2 / AC-001a）を認める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
-    const root = fixture({});
+    const root = fixture({ prjopsAcs: ["AC-001-2", "AC-001a"] });
     writeFileSync(join(root, "packages/devops/src/a.ts"), "/** 根拠: AC-001-2 */\nexport const x = 1;\n");
     writeFileSync(join(root, "packages/devops/src/b.ts"), "/** 根拠: AC-001a */\nexport const y = 1;\n");
 
@@ -1575,5 +1592,62 @@ describe("根拠は先頭コメントに限定する [PrjOps:SPEC-INT-070 / DevO
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(MISSING_BASIS);
+  });
+});
+
+describe("根拠IDの実在検証 [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  const MISSING = "basis header missing: packages/devops/src/basis.ts";
+
+  it("書式は正しいが未登録のIDを根拠と認めない [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // 未知の bare ID は名前空間ガードも素通りするため、ここで見なければ誰も見ない。
+    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: REQ-999 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MISSING);
+  });
+
+  it("インデックスに実在するIDは通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: REQ-001 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain(MISSING);
+  });
+
+  it("実在するADRは通す [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: ADR-0004 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain(MISSING);
+  });
+
+  it("引用の1つでも実在すれば通す（全件必須にしない） [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    // 範囲記法の受入条件が未登録のまま残っており、その扱いは仕様側の裁定待ちのため。
+    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    writeFileSync(join(root, "packages/devops/src/basis.ts"), "/** 根拠: REQ-001 / REQ-999 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain(MISSING);
+  });
+});
+
+describe("先頭が行コメントのヘッダ [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("// を連ねた先頭コメントも根拠ヘッダと認める [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const root = fixture({});
+    writeFileSync(
+      join(root, "packages/devops/src/basis.ts"),
+      "// packages/devops/src/basis.ts\n// 根拠: ADR-0004\nexport const x = 1;\n",
+    );
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain("basis header missing: packages/devops/src/basis.ts");
   });
 });

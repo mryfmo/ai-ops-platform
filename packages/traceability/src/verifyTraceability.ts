@@ -806,6 +806,7 @@ function formatDispositions(indexes: SpecIndex[]): string {
  * 書いたヘッダがガードを通る**。桁数だけを緩く見る書き方は、ここでは穴になる。
  */
 const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}`;
+const BASIS_ID_BOUNDED = String.raw`(?<![A-Za-z0-9_-])(${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`;
 const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9_-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`);
 
 /**
@@ -819,10 +820,14 @@ const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9_-])(?
  * それらを読み飛ばしてから最初のブロックコメントを取る。先頭コメントが無ければ根拠も無い。
  * 文字数で切らないので、長い先頭コメントの末尾に書かれた ID も正しく拾える。
  */
-const LEADING_BLOCK_COMMENT = /^\uFEFF?(?:\s*#![^\n]*\n)?(?:\s*(['"])use [a-z-]+\1;?)*\s*(\/\*[\s\S]*?\*\/)/;
+const LEADING_PROLOGUE = String.raw`^\uFEFF?(?:\s*#![^\n]*\n)?(?:\s*(['"])use [a-z-]+\1;?)*\s*`;
+const LEADING_BLOCK_COMMENT = new RegExp(LEADING_PROLOGUE + String.raw`(\/\*[\s\S]*?\*\/)`);
+// `//` を連ねた先頭コメントも規約上は先頭コメントである。ブロックコメントしか見ないと、
+// 正しく書かれたファイルを「根拠ヘッダ不足」で落とす。
+const LEADING_LINE_COMMENT = new RegExp(LEADING_PROLOGUE + String.raw`((?:\/\/[^\n]*\n?)+)`);
 
-function leadingBlockComment(text: string): string {
-  return LEADING_BLOCK_COMMENT.exec(text)?.[2] ?? "";
+function leadingComment(text: string): string {
+  return LEADING_BLOCK_COMMENT.exec(text)?.[2] ?? LEADING_LINE_COMMENT.exec(text)?.[2] ?? "";
 }
 
 function isDirectory(path: string): boolean {
@@ -851,11 +856,42 @@ function basisHeaderDirs(repoRoot: string): string[] {
   return entries.map((entry) => join(packagesDir, entry, "src")).filter(isDirectory);
 }
 
-function basisHeaderFailures(repoRoot: string): string[] {
+/**
+ * 根拠ヘッダが**実在する ID** を引いているかまで見る。
+ *
+ * 書式が正しいだけでは足りない。`根拠: REQ-999` は文法に適合するがどのインデックスにも無く、
+ * bare な未知 ID は名前空間ガードも素通りするため、**実在しない仕様を根拠に掲げたファイルが
+ * 緑のまま通る**。ADR に既存の実在チェックがあるのと同じ扱いを、仕様IDにも適用する。
+ *
+ * 判定は「引用のうち少なくとも 1 つが実在する」こと。全引用の検証にしないのは、範囲記法の
+ * 受入条件（`AC-011〜015共通-1` 等）が文法上表現できず未登録のまま残っており、その扱いが
+ * 仕様側の裁定待ちだからである（所見 ADV-VER-014）。裁定前に全件必須にすると、正当な既存
+ * ファイルを落とすことになる。
+ */
+function basisHeaderFailures(repoRoot: string, knownIds: ReadonlySet<string> = new Set()): string[] {
+  const adrEntries = readdirSyncSafe(join(repoRoot, "docs", "adr"));
+  const idExists = (id: string): boolean =>
+    id.startsWith("ADR-")
+      ? adrEntries.some((entry) => entry.startsWith(`${id.slice(4)}-`) && entry.endsWith(".md"))
+      : knownIds.has(id);
+
   return basisHeaderDirs(repoRoot)
     .flatMap((dir) => listFiles(dir, [".ts", ".tsx"]))
-    .filter((file) => !BASIS_HEADER_ID.test(leadingBlockComment(readFileSync(file, "utf8"))))
+    .filter((file) => {
+      const comment = leadingComment(readFileSync(file, "utf8"));
+      if (!BASIS_HEADER_ID.test(comment)) return true;
+      const cited = [...comment.matchAll(new RegExp(BASIS_ID_BOUNDED, "g"))].map((match) => match[1]!);
+      return !cited.some(idExists);
+    })
     .map((file) => file.replace(`${repoRoot}/`, ""));
+}
+
+function readdirSyncSafe(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 function adrReferenceFailures(repoRoot: string): string[] {
@@ -933,6 +969,9 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   // 報告と失敗収集で同じ結果を使う。片方だけに現れると、失敗した実行の成果物が
   // 全ガード clean に見えてしまう。
   const configGuardFailures = configInventoryFailures(repoRoot);
+  // 根拠ヘッダの ID 実在チェックに使う。報告と失敗収集で同じ結果を使うため一度だけ計算する。
+  const allKnownIds = new Set([...prjopsIds, ...devopsIds]);
+  const basisGuardFailures = basisHeaderFailures(repoRoot, allKnownIds);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsIndex.system, prjopsReferences, collidingIds),
@@ -972,7 +1011,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
       "",
       "## Traceability Guards",
       "",
-      `- 根拠ヘッダ不足: ${basisHeaderFailures(repoRoot).join(", ") || "—"}`,
+      `- 根拠ヘッダ不足: ${basisGuardFailures.join(", ") || "—"}`,
       `- 存在しないADR参照: ${adrReferenceFailures(repoRoot).join(", ") || "—"}`,
       `- 名前空間参照不正: ${namespaceFailures.join(", ") || "—"}`,
       `- 仕様IDインデックス不正: ${indexGuardFailures.join(", ") || "—"}`,
@@ -994,7 +1033,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
 
   const failures = collectFailureMessages(
     [...prjopsResults, ...devopsResults],
-    basisHeaderFailures(repoRoot),
+    basisGuardFailures,
     adrReferenceFailures(repoRoot),
     namespaceFailures,
     [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],
