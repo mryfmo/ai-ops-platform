@@ -151,7 +151,7 @@ describe("EventsRepo dead-letter recovery [DevOps:SPEC-INT-010]", () => {
     const { db, calls } = makeRequeueDb({ event_id: "evt-dead", attempts: 5 });
     const repo = new EventsRepo(db);
     // Runtimeでは sanitizer の検知対象を再現しつつ、静的secret scannerには偽資格情報を直書きしない。
-    const secret = ["api", "_key=", "abcdefghijkl", "mnopqrstuvwx"].join("");
+    const secret = ["api", "_key=", "fake-example-", "credential-123456"].join("");
 
     await expect(
       repo.requeueDead("evt-dead", {
