@@ -1,5 +1,12 @@
 /**
  * packages/devops/src/templates/index.ts
+ *
+ * 根拠: DevOps:SPEC-INT-033 AGT-RPT（DevOps:REQ-020〜023 / DevOps:SPEC-EXT-020〜026）。
+ *   DevOps:REQ-020 共通要件: HTML形式で生成し、集計期間・生成時刻をヘッダーに明記する。
+ *   DevOps:REQ-021 PRF-M（メンバー日次）/ DevOps:REQ-022 PRF-L（リーダー日次・週次）/
+ *   DevOps:REQ-023 PRF-G（マネージャー週次・月次）の件名と本文HTMLを合成する。
+ *   数値はプロファイル別データから直接埋め込み、LLMは呼び出さない決定的処理とする
+ *   （CLAUDE.md 設計原則2）。
  */
 import { renderDevOpsReportShell, buildSubject } from "./reportShell.js";
 import {

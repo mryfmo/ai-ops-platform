@@ -1,5 +1,9 @@
 /**
- * 根拠: P010-F02-T02 / DEC-SPEC-001
+ * packages/prjops/src/lib/prjopsDataSnapshotValidator.ts
+ *
+ * 根拠: PrjOps:SPEC-INT-010（prjops-data privateリポジトリが正本データ）/
+ *   PrjOps:REQ-001（プロジェクトマスタ）/ PrjOps:REQ-002（関係者・企業マスタ）/
+ *   PrjOps:REQ-033（正本リポジトリへの書込制御）/ P010-F02-T02 / DEC-SPEC-001
  *
  * prjops-data の取得済みentryを外部I/Oなしで検証する。
  * エラー優先順とcanonical manifest bytesは docs/contracts/prjops-data.md が正本。

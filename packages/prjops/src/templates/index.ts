@@ -1,9 +1,16 @@
 /**
  * packages/prjops/src/templates/index.ts
- * PrjOps:REQ-010〜016（PrjOps:REQ-016: 多言語生成。ja/en切り替えでcommon.langを指定するだけで全プロファイルが
- * 対応する。AC-016-1: 同一データから生成したja版とen版で数値・色判定が完全一致することは
- * reportTemplates.test.tsの「英語版レポート」テストで検証済み）を満たす完成レポートHTMLを
- * 組み立てるエントリポイント。
+ *
+ * 根拠: PrjOps:REQ-010（自己完結型HTML）〜PrjOps:REQ-016（多言語生成。ja/en切り替えは
+ *   common.lang の指定のみで全プロファイルが対応する）を満たす完成レポートHTMLを
+ *   組み立てるエントリポイント。
+ *   同一データから生成したja版とen版で数値・色判定が完全一致することは、
+ *   reportTemplates.test.ts の「英語版レポート」テストで検証する。
+ *
+ * 注: 変更前は上記の検証対象を `AC-016-1` と記載していたが、このIDは PrjOps/DevOps いずれの
+ *   spec-ids にも spec-id-catalog.md にも存在しない（PRD 03_PRD.md:109 にのみ定義がある）。
+ *   実在しないIDを引くと「検証済みのAC」という誤った証跡になるため、ID参照を外して事実だけを残す。
+ *   PRD 側のIDを登録するか否かは仕様側の裁定事項。
  */
 import type { Lang } from "@aiops/shared/language.js";
 import { renderReportShell, type ReportShellOptions } from "./reportShell.js";

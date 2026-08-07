@@ -787,17 +787,120 @@ function formatDispositions(indexes: SpecIndex[]): string {
   ].join("\n");
 }
 
-function basisHeaderFailures(repoRoot: string): string[] {
-  const reportingDir = join(repoRoot, "packages", "shared", "src", "reporting");
-  const serverDir = join(repoRoot, "packages", "server", "src");
-  return [...listFiles(reportingDir, [".ts"]), ...listFiles(serverDir, [".ts"])]
-    .filter(
-      (file) =>
-        !readFileSync(file, "utf8")
-          .slice(0, 500)
-          .match(/根拠:[\s\S]*(REQ|SPEC-INT|AC|ADR)-\d{3,4}/),
-    )
+/**
+ * 根拠ヘッダガードの走査対象（所見 ADV-VER-005）。
+ *
+ * AGENTS.md 設計原則3 は「新規ファイルの先頭コメントに根拠となる仕様IDを記載する。
+ * `mise run traceability` が検証する」と述べるが、実際の走査は shared/src/reporting と
+ * server/src の 2 ディレクトリだけで、prjops / devops / web / traceability /
+ * shared の reporting 以外は規約の外に置かれていた。規約が自己申告どおりの範囲を
+ * 持つよう、全パッケージの src/ を対象にする。
+ */
+/**
+ * 根拠ヘッダとして受け付ける ID の文法。AGENTS.md 設計原則3 が列挙する
+ * REQ / SPEC-INT / SPEC-EXT / TH / AC / ADR に揃える（ISS/TOBE/ASM は文書間トレーサビリティ用で
+ * 実装の根拠にはならないため含めない）。
+ *
+ * 桁数と前後の境界まで含めて一致させる。前方境界が無いと `MONTH-001` の語中が `TH-001` に、
+ * 後方境界が無いと `REQ-00000` の先頭 4 桁が `REQ-0000` に一致してしまい、**実在しない ID を
+ * 書いたヘッダがガードを通る**。桁数だけを緩く見る書き方は、ここでは穴になる。
+ */
+const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}`;
+const BASIS_ID_BOUNDED = String.raw`(?<![A-Za-z0-9_-])(${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`;
+const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9_-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`);
+
+/**
+ * ファイル先頭のブロックコメントを取り出す。
+ *
+ * 「先頭 N 文字に `根拠:` と ID があること」を条件にすると、`const note = "根拠: ADR-0004"`
+ * のような**コード中の文字列**でもガードを満たせてしまう。規約が要求しているのは
+ * 「先頭コメントに根拠を書くこと」なので、判定対象を先頭コメントそのものに限定する。
+ *
+ * BOM・shebang・`"use client"` 等のディレクティブプロローグはコメントより前に置けるので、
+ * それらを読み飛ばしてから最初のブロックコメントを取る。先頭コメントが無ければ根拠も無い。
+ * 文字数で切らないので、長い先頭コメントの末尾に書かれた ID も正しく拾える。
+ */
+const LEADING_PROLOGUE = String.raw`^\uFEFF?(?:\s*#![^\n]*\n)?(?:\s*(['"])use [a-z-]+\1;?)*\s*`;
+const LEADING_BLOCK_COMMENT = new RegExp(LEADING_PROLOGUE + String.raw`(\/\*[\s\S]*?\*\/)`);
+// `//` を連ねた先頭コメントも規約上は先頭コメントである。ブロックコメントしか見ないと、
+// 正しく書かれたファイルを「根拠ヘッダ不足」で落とす。
+const LEADING_LINE_COMMENT = new RegExp(LEADING_PROLOGUE + String.raw`((?:\/\/[^\n]*\n?)+)`);
+
+function leadingComment(text: string): string {
+  return LEADING_BLOCK_COMMENT.exec(text)?.[2] ?? LEADING_LINE_COMMENT.exec(text)?.[2] ?? "";
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 走査対象のパッケージ src/ を実在するディレクトリから求める（所見 ADV-VER-005）。
+ *
+ * 固定配列で列挙すると、`pnpm-workspace.yaml` の `packages/*` に新しいパッケージを足したとき、
+ * そのパッケージだけ規約の外に落ちる——しかも **CI は緑のまま**なので誰も気づかない。
+ * 「全パッケージが対象」という主張を、列挙ではなく発見で満たす。
+ */
+function discoveredPackageDirs(repoRoot: string): string[] {
+  const packagesDir = join(repoRoot, "packages");
+  let entries: string[];
+  try {
+    entries = readdirSync(packagesDir);
+  } catch {
+    return [];
+  }
+  return entries.map((entry) => join(packagesDir, entry)).filter(isDirectory);
+}
+
+function basisHeaderDirs(repoRoot: string): string[] {
+  return discoveredPackageDirs(repoRoot)
+    .map((dir) => join(dir, "src"))
+    .filter(isDirectory);
+}
+
+/**
+ * 根拠ヘッダが**実在する ID** を引いているかまで見る。
+ *
+ * 書式が正しいだけでは足りない。`根拠: REQ-999` は文法に適合するがどのインデックスにも無く、
+ * bare な未知 ID は名前空間ガードも素通りするため、**実在しない仕様を根拠に掲げたファイルが
+ * 緑のまま通る**。ADR に既存の実在チェックがあるのと同じ扱いを、仕様IDにも適用する。
+ *
+ * 判定は「引用のうち少なくとも 1 つが実在する」こと。全引用の検証にしないのは、範囲記法の
+ * 受入条件（`AC-011〜015共通-1` 等）が文法上表現できず未登録のまま残っており、その扱いが
+ * 仕様側の裁定待ちだからである（所見 ADV-VER-014）。裁定前に全件必須にすると、正当な既存
+ * ファイルを落とすことになる。
+ */
+function basisHeaderFailures(repoRoot: string, knownIds: ReadonlySet<string> = new Set()): string[] {
+  const adrEntries = readdirSyncSafe(join(repoRoot, "docs", "adr"));
+  const idExists = (id: string): boolean =>
+    id.startsWith("ADR-")
+      ? adrEntries.some((entry) => entry.startsWith(`${id.slice(4)}-`) && entry.endsWith(".md"))
+      : knownIds.has(id);
+
+  return basisHeaderDirs(repoRoot)
+    .flatMap((dir) => listFiles(dir, [".ts", ".tsx"]))
+    .filter((file) => {
+      const comment = leadingComment(readFileSync(file, "utf8"));
+      if (!BASIS_HEADER_ID.test(comment)) return true;
+      // 実在判定は `根拠:` 以降だけを見る。コメント全体を見ると、宣言より前の散文に実在IDが
+      // あるだけで通ってしまい、根拠として掲げた未登録IDが素通りする。
+      const attributed = comment.slice(comment.indexOf("根拠:"));
+      const cited = [...attributed.matchAll(new RegExp(BASIS_ID_BOUNDED, "g"))].map((match) => match[1]!);
+      return !cited.some(idExists);
+    })
     .map((file) => file.replace(`${repoRoot}/`, ""));
+}
+
+function readdirSyncSafe(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 function adrReferenceFailures(repoRoot: string): string[] {
@@ -851,7 +954,9 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   const devopsDir = join(repoRoot, "packages", "devops");
   const serverDir = join(repoRoot, "packages", "server");
   const webDir = join(repoRoot, "packages", "web");
-  const packageDirs = [sharedDir, traceabilityDir, prjopsDir, devopsDir, serverDir, webDir];
+  // 名前空間ガードも根拠ヘッダガードと同じ発見結果を使う。片方だけ固定配列だと、
+  // 新しいパッケージが bare な衝突ID（両systemに存在するID）を書いても素通りする。
+  const packageDirs = discoveredPackageDirs(repoRoot);
 
   const prjopsCorpus = buildCorpus([sharedDir, traceabilityDir, prjopsDir, serverDir, webDir]);
   const devopsCorpus = buildCorpus([sharedDir, traceabilityDir, devopsDir, serverDir, webDir]);
@@ -875,6 +980,9 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   // 報告と失敗収集で同じ結果を使う。片方だけに現れると、失敗した実行の成果物が
   // 全ガード clean に見えてしまう。
   const configGuardFailures = configInventoryFailures(repoRoot);
+  // 根拠ヘッダの ID 実在チェックに使う。報告と失敗収集で同じ結果を使うため一度だけ計算する。
+  const allKnownIds = new Set([...prjopsIds, ...devopsIds]);
+  const basisGuardFailures = basisHeaderFailures(repoRoot, allKnownIds);
 
   const prjopsResults: CategoryResult[] = [
     checkCategory(prjopsIndex.REQ, "REQ", prjopsIndex.system, prjopsReferences, collidingIds),
@@ -914,7 +1022,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
       "",
       "## Traceability Guards",
       "",
-      `- 根拠ヘッダ不足: ${basisHeaderFailures(repoRoot).join(", ") || "—"}`,
+      `- 根拠ヘッダ不足: ${basisGuardFailures.join(", ") || "—"}`,
       `- 存在しないADR参照: ${adrReferenceFailures(repoRoot).join(", ") || "—"}`,
       `- 名前空間参照不正: ${namespaceFailures.join(", ") || "—"}`,
       `- 仕様IDインデックス不正: ${indexGuardFailures.join(", ") || "—"}`,
@@ -936,7 +1044,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
 
   const failures = collectFailureMessages(
     [...prjopsResults, ...devopsResults],
-    basisHeaderFailures(repoRoot),
+    basisGuardFailures,
     adrReferenceFailures(repoRoot),
     namespaceFailures,
     [...dispositionFailures(repoRoot, prjopsIndex), ...dispositionFailures(repoRoot, devopsIndex)],

@@ -14,6 +14,7 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
@@ -162,6 +163,29 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  // audit_log の追記専用は「接続ロールが UPDATE/DELETE を持たないこと」で強制される。
+  // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
+  // 黙って外れる。起動時に実権限を確認し、成立していなければ起動を止める
+  // （所見 ADV-SEC-005 / DevOps:REQ-028）。
+  // パーティション**全体**を見る。PostgreSQL のリレーション権限は親から leaf へ継承されない
+  // ので、親だけを調べると「leaf にだけ UPDATE を持つロール」を追記専用と誤判定する。
+  // ロールはその leaf を直接指定して書けるし、所有していればトリガも落とせる。
+  // 実測: leaf 1 枚に GRANT UPDATE した状態で、親のみの判定は false、集約は true を返す。
+  const privilegeRow = await pool.query(
+    `SELECT bool_or(has_table_privilege(current_user, relid, 'UPDATE')) AS can_update,
+            bool_or(has_table_privilege(current_user, relid, 'DELETE')) AS can_delete,
+            bool_or(has_table_privilege(current_user, relid, 'TRUNCATE')) AS can_truncate
+       FROM pg_partition_tree('audit_log')`,
+  );
+  const privilegeVerdict = judgeAuditLogPrivilege({
+    canUpdate: privilegeRow.rows[0]?.["can_update"] === true,
+    canDelete: privilegeRow.rows[0]?.["can_delete"] === true,
+    canTruncate: privilegeRow.rows[0]?.["can_truncate"] === true,
+  });
+  if (!privilegeVerdict.appendOnly) {
+    throw new Error(`E-AUDIT01: ${privilegeVerdict.reason ?? "audit_log is not append-only for this role"}`);
+  }
+
   const stakeholderProvider = config.STAKEHOLDERS_DIR
     ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
     : null;
@@ -245,7 +269,7 @@ export async function main(
     llmClient,
     resolveCallerProfile: stakeholderMaster.resolveCallerProfile,
     codingTasksRepo,
-    confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
+    confirmTokenSecret: config.CODING_TASK_CONFIRM_SECRET,
     publicBaseUrl: config.PUBLIC_BASE_URL,
   });
 
@@ -492,7 +516,9 @@ export async function main(
       codingTasksRepo,
       githubClient,
       auditLog: devopsAuditLog,
-      confirmTokenSecret: config.CODING_TASK_CALLBACK_SECRET,
+      // 確認トークンの鍵と callback の Bearer は別物。前者は Actions へ渡らない
+      // （所見 ADV-SEC-002 / ADV-INT-003）。
+      confirmTokenSecret: config.CODING_TASK_CONFIRM_SECRET,
       callbackSecret: config.CODING_TASK_CALLBACK_SECRET,
       resolveRepoForProject: async (projectId) => {
         const channel = await projectChannelsRepo.findByProjectId(projectId);
