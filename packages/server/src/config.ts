@@ -124,6 +124,8 @@ const baseConfigSchema = z.object({
   REPORT_INGEST_SECRET: z.string().min(32).optional(),
   /** ADR-0008: /xlsx-import/* HMAC鍵。未設定時はxlsx import disabled。 */
   XLSX_IMPORT_SECRET: z.string().min(32).optional(),
+  /** AUD-OPM-001: Auth.js検証済みEntra subjectをWeb BFFから受ける署名鍵。未設定時はapprovals disabled。 */
+  WEB_BFF_IDENTITY_SECRET: z.string().min(32).optional(),
   /** ADR-0008: xlsx import executeを許可する owner/repo のカンマ区切りallowlist。 */
   XLSX_IMPORT_ALLOWED_REPOS: z
     .string()
@@ -167,6 +169,28 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
       path: ["CODING_TASK_CONFIRM_SECRET"],
       message: "must differ from CODING_TASK_CALLBACK_SECRET; the callback value is exposed to GitHub Actions",
     });
+  }
+  if (config.WEB_BFF_IDENTITY_SECRET) {
+    const otherSecrets = [
+      config.GRAPH_CLIENT_STATE,
+      config.GITHUB_WEBHOOK_SECRET,
+      config.GRAPH_CLIENT_SECRET,
+      config.METRICS_TOKEN,
+      config.ANTHROPIC_API_KEY,
+      config.GITHUB_APP_PRIVATE_KEY,
+      config.GITHUB_TOKEN,
+      config.REPORT_INGEST_SECRET,
+      config.XLSX_IMPORT_SECRET,
+      config.CODING_TASK_CONFIRM_SECRET,
+      config.CODING_TASK_CALLBACK_SECRET,
+    ];
+    if (otherSecrets.some((secret) => secret === config.WEB_BFF_IDENTITY_SECRET)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["WEB_BFF_IDENTITY_SECRET"],
+        message: "must differ from every other configured secret",
+      });
+    }
   }
   const githubAppValues = [config.GITHUB_APP_ID, config.GITHUB_APP_PRIVATE_KEY, config.GITHUB_APP_INSTALLATION_ID];
   const configuredGithubAppValues = githubAppValues.filter(Boolean).length;

@@ -192,6 +192,27 @@ describe("loadConfig (ADR-0005)", () => {
     ).toThrow("E-CFG01");
   });
 
+  it("AUD-OPM-001: WEB_BFF_IDENTITY_SECRETは未設定ならapprovalsを無効化し32文字以上だけ受理する", () => {
+    expect(loadConfig(validEnv).WEB_BFF_IDENTITY_SECRET).toBeUndefined();
+    expect(() => loadConfig({ ...validEnv, WEB_BFF_IDENTITY_SECRET: "short" })).toThrow("E-CFG01");
+    expect(loadConfig({ ...validEnv, WEB_BFF_IDENTITY_SECRET: "w".repeat(32) }).WEB_BFF_IDENTITY_SECRET).toBe(
+      "w".repeat(32),
+    );
+  });
+
+  it.each([
+    "GRAPH_CLIENT_STATE",
+    "GITHUB_WEBHOOK_SECRET",
+    "GRAPH_CLIENT_SECRET",
+    "REPORT_INGEST_SECRET",
+    "XLSX_IMPORT_SECRET",
+    "CODING_TASK_CONFIRM_SECRET",
+    "CODING_TASK_CALLBACK_SECRET",
+  ] as const)("AUD-OPM-001: identity envelope鍵は%sと同値を拒否する", (otherKey) => {
+    const same = "s".repeat(32);
+    expect(() => loadConfig({ ...validEnv, [otherKey]: same, WEB_BFF_IDENTITY_SECRET: same })).toThrow("E-CFG01");
+  });
+
   it("ADR-0014の配信設定をパースできる", () => {
     const config = loadConfig({
       ...validEnv,

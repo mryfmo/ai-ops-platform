@@ -31,6 +31,7 @@ const allConfigured: CapabilityInputs = {
   defaultTeamsChannelConfigured: true,
   telemetryConfigured: true,
   graphSubscriptionsPresent: true,
+  approvalsConfigured: true,
 };
 
 describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
@@ -54,6 +55,12 @@ describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
         graphSubscriptionsPresent: false,
       }),
     ).toMatchObject({ report_delivery: false, teams_default_channel: false, graph_subscriptions: false });
+  });
+
+  it("AUD-OPM-001: identity secret未設定をapprovals縮退として公開する", () => {
+    expect(deriveCapabilityState({ ...allConfigured, approvalsConfigured: false })).toMatchObject({
+      approvals: false,
+    });
   });
 });
 

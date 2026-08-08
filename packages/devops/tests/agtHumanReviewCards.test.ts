@@ -3,7 +3,7 @@
  *
  * 根拠: DevOps:SPEC-EXT-010 / DevOps:REQ-015 / AC-015c（Graphカードの人間レビュー導線）
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { InMemoryAuditLog, buildHolidayCalendar } from "@aiops/shared";
 import type { AdaptiveCardPayload } from "@aiops/shared/clients/graphClient.js";
 import { sendApprovalCard, type ChgDependencies } from "../src/agents/AGT_CHG.js";
@@ -11,21 +11,26 @@ import { triageAndNotify, type IncDependencies } from "../src/agents/AGT_INC.js"
 
 const channel = { teamId: "team-1", channelId: "channel-1" };
 
-function approvalPackage(decisionUrl: string) {
+const APPROVAL_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function approvalPackage() {
   return {
+    projectId: "PJ-001",
+    targetId: "release-42",
     projectName: "Sample",
     diffSummaryLines: ["one change"],
     testSummary: { successCount: 1, failureCount: 0, coveragePct: 90 },
     riskScore: { score: 10, factors: { A: 0, B: 0, C: 0, D: 0, E: 0 }, isHighRisk: false },
     rollbackSummary: "deploy previous version",
     approvalDeadlineLabel: "2026-07-11 18:00",
-    decisionUrl,
   };
 }
 
 describe("sendApprovalCard [DevOps:SPEC-EXT-010]", () => {
   it("reviewed decision URLを唯一のOpenUrl actionとして送る", async () => {
     const cards: AdaptiveCardPayload[] = [];
+    const create = vi.fn(async () => ({ approvalId: APPROVAL_ID }));
+    const markDelivered = vi.fn(async () => {});
     const deps: ChgDependencies = {
       llmClient: {} as ChgDependencies["llmClient"],
       graphClient: {
@@ -38,38 +43,74 @@ describe("sendApprovalCard [DevOps:SPEC-EXT-010]", () => {
       auditLog: new InMemoryAuditLog(),
       traceId: "trace-1",
       cal: buildHolidayCalendar([]),
+      publicBaseUrl: "https://example.test",
+      approvalsRepo: { create, markDelivered },
     };
-    await sendApprovalCard(approvalPackage("https://example.test/decisions/release-1"), channel, deps);
+    await sendApprovalCard(approvalPackage(), channel, deps);
+    expect(create).toHaveBeenCalledWith({
+      approvalType: "change",
+      targetId: "release-42",
+      projectId: "PJ-001",
+      requestedBy: "AGT-CHG",
+      traceId: "trace-1",
+    });
     expect(cards[0]!.actions).toEqual([]);
     expect(cards[0]!.openUrlActions).toEqual([
-      { title: "承認判断を開く", url: "https://example.test/decisions/release-1" },
+      { title: "承認判断を開く", url: `https://example.test/app/approvals?approvalId=${APPROVAL_ID}` },
     ]);
+    expect(markDelivered).toHaveBeenCalledWith(APPROVAL_ID, "trace-1");
   });
 
-  it.each([undefined, "", "   "])("missing/blank decision URLはGraph送信前に拒否する: %s", async (decisionUrl) => {
-    let sent = false;
+  it("Graph送信失敗時はapprovalをdelivered化しない", async () => {
+    const markDelivered = vi.fn(async () => {});
     const deps = {
       llmClient: {} as ChgDependencies["llmClient"],
       graphClient: {
         sendAdaptiveCard: async () => {
-          sent = true;
-          return { messageId: "unexpected" };
+          throw new Error("Graph unavailable");
         },
         sendMail: async () => {},
       },
       auditLog: new InMemoryAuditLog(),
-      traceId: "trace-2",
+      traceId: "trace-delivery-failure",
       cal: buildHolidayCalendar([]),
+      publicBaseUrl: "https://example.test",
+      approvalsRepo: { create: async () => ({ approvalId: APPROVAL_ID }), markDelivered },
     } satisfies ChgDependencies;
-    await expect(sendApprovalCard(approvalPackage(decisionUrl as unknown as string), channel, deps)).rejects.toThrow(
-      /decision URL/i,
-    );
-    expect(sent).toBe(false);
+    await expect(sendApprovalCard(approvalPackage(), channel, deps)).rejects.toThrow("Graph unavailable");
+    expect(markDelivered).not.toHaveBeenCalled();
   });
 
-  it.each(["http://example.test/review", "javascript:alert(1)", "data:text/plain,unsafe"])(
-    "non-HTTPS decision URLはGraph送信前に拒否する: %s",
-    async (decisionUrl) => {
+  it.each([undefined, "", "   "])(
+    "repoが返すmissing/blank approval IDはGraph送信前に拒否する: %s",
+    async (approvalId) => {
+      let sent = false;
+      const deps = {
+        llmClient: {} as ChgDependencies["llmClient"],
+        graphClient: {
+          sendAdaptiveCard: async () => {
+            sent = true;
+            return { messageId: "unexpected" };
+          },
+          sendMail: async () => {},
+        },
+        auditLog: new InMemoryAuditLog(),
+        traceId: "trace-2",
+        cal: buildHolidayCalendar([]),
+        publicBaseUrl: "https://example.test",
+        approvalsRepo: {
+          create: async () => ({ approvalId: approvalId as unknown as string }),
+          markDelivered: async () => {},
+        },
+      } satisfies ChgDependencies;
+      await expect(sendApprovalCard(approvalPackage(), channel, deps)).rejects.toThrow(/approval/i);
+      expect(sent).toBe(false);
+    },
+  );
+
+  it.each(["http://example.test", "javascript:alert(1)", "data:text/plain,unsafe"])(
+    "non-HTTPS public base URLはGraph送信前に拒否する: %s",
+    async (publicBaseUrl) => {
       let sent = false;
       const deps = {
         llmClient: {} as ChgDependencies["llmClient"],
@@ -83,8 +124,10 @@ describe("sendApprovalCard [DevOps:SPEC-EXT-010]", () => {
         auditLog: new InMemoryAuditLog(),
         traceId: "trace-unsafe",
         cal: buildHolidayCalendar([]),
+        publicBaseUrl,
+        approvalsRepo: { create: async () => ({ approvalId: APPROVAL_ID }), markDelivered: async () => {} },
       } satisfies ChgDependencies;
-      await expect(sendApprovalCard(approvalPackage(decisionUrl), channel, deps)).rejects.toThrow(/decision URL/i);
+      await expect(sendApprovalCard(approvalPackage(), channel, deps)).rejects.toThrow(/decision URL/i);
       expect(sent).toBe(false);
     },
   );

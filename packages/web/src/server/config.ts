@@ -43,6 +43,8 @@ const webConfigSchema = z
     PUBLIC_BASE_URL: z.string().url(),
     /** Excel取込のHMAC鍵。ブラウザへ公開せずRoute Handlerのみで使用する。 */
     XLSX_IMPORT_SECRET: z.string().min(32).optional(),
+    /** AUD-OPM-001: Auth.js検証済みEntra subjectをHonoへ署名伝搬する用途限定鍵。 */
+    WEB_BFF_IDENTITY_SECRET: z.string().min(32).optional(),
     /** Anthropic APIキー（/api/chat用。未設定時はチャット機能を503で無効化する） */
     ANTHROPIC_API_KEY: z.string().optional(),
     ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
@@ -70,6 +72,21 @@ const webConfigSchema = z
     PAGE_AGENT_THINKING_BUDGET_TOKENS: z.coerce.number().int().min(1024).max(64000).optional(),
   })
   .superRefine((config, context) => {
+    if (
+      config.WEB_BFF_IDENTITY_SECRET &&
+      [
+        config.AUTH_SECRET,
+        config.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+        config.XLSX_IMPORT_SECRET,
+        config.ANTHROPIC_API_KEY,
+      ].some((secret) => secret === config.WEB_BFF_IDENTITY_SECRET)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["WEB_BFF_IDENTITY_SECRET"],
+        message: "must differ from every other configured secret",
+      });
+    }
     const snapshotConfig = [
       config.PRJOPS_DATA_DIR,
       config.PRJOPS_DATA_COMMIT_SHA,

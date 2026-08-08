@@ -87,6 +87,37 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
     expect(queried).toBe(false);
   });
 
+  it("DevOps:REQ-010 / DEC-SPEC-002: 署名検証済みsubjectはserver設定に依存せずactive assignmentを毎回照会する", async () => {
+    const queries: Array<{ text: string; params?: unknown[] }> = [];
+    const repo = new RecipientsRepo({
+      query: async (text, params) => {
+        queries.push({ text, params });
+        return {
+          rows: [
+            {
+              user_id: "ST-001",
+              profile: "PRF-L",
+              persona: "leader",
+              email: "leader@example.com",
+              projects: ["PJ-001"],
+              language: "ja",
+              active: true,
+              teams_team_id: null,
+              teams_channel_id: null,
+            },
+          ],
+        };
+      },
+    });
+
+    await expect(
+      repo.findActiveByTrustedSubject("11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"),
+    ).resolves.toMatchObject({ profile: "PRF-L", active: true });
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.text).toContain("active = true");
+    expect(queries[0]?.text).toContain("backfill_state = 'applied'");
+  });
+
   it("P010-F02-T03 / DEC-SPEC-002: tenant設定なしまたはmalformed objectはDB照会前に拒否する", async () => {
     let queries = 0;
     const db = {

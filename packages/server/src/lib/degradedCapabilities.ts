@@ -29,6 +29,7 @@ export const CAPABILITIES = [
   "teams_default_channel",
   "telemetry",
   "graph_subscriptions",
+  "approvals",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -50,6 +51,7 @@ export interface CapabilityInputs {
   defaultTeamsChannelConfigured: boolean;
   telemetryConfigured: boolean;
   graphSubscriptionsPresent: boolean;
+  approvalsConfigured: boolean;
 }
 
 /** 各機能が有効かどうか。 */
@@ -71,6 +73,7 @@ export function deriveCapabilityState(input: CapabilityInputs): CapabilityState 
     teams_default_channel: input.defaultTeamsTeamConfigured && input.defaultTeamsChannelConfigured,
     telemetry: input.telemetryConfigured,
     graph_subscriptions: input.graphSubscriptionsPresent,
+    approvals: input.approvalsConfigured,
   };
 }
 
