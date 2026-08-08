@@ -70,3 +70,41 @@ ADR-0014 以降、PrjOps のアウトバウンド配信は package-local workflo
 以降のLLM呼び出しジョブは`DailyCostLimitExceededError`で停止する。運用担当は
 `audit/llm_usage.jsonl`（またはDB相当）を確認し、異常な呼び出し量がないか調査した上で、
 翌日まで待つか、設定ファイルで上限額を一時的に引き上げる（PRF-03の承認が必要）。
+
+## 6. dead letter event の復旧
+
+`AiOpsDeadLetterQueueNotEmpty` は、再試行上限へ到達した event が1件でも5分間残ると発火する。
+無条件の一括再投入は poison event を再実行するため、以下を event ID ごとに行う。
+
+1. **検知**: alert の発火後、対象と累積試行回数を確認し、出力を障害・変更チケットへ保存する。
+
+   ```sql
+   SELECT event_id, trace_id, source, status, attempts, received_at
+   FROM events
+   WHERE status = 'dead'
+   ORDER BY received_at;
+   ```
+
+2. **原因確認**: 手順1の `trace_id` と `event_id` で `audit_log` と server log を照合し、外部API障害、
+   設定不足、または payload/コード不具合を解消する。通常の処理失敗なら audit action
+   `event_dispatch_dead` が残る。lease 切れ回収で dead になった場合はこの action が無いため、同時刻帯の
+   scheduler/server 障害と直前の event log を確認する。原因未解消の event は再投入しない。
+3. **再投入**: `DATABASE_URL` と通常のDB接続設定を指定した管理用 source-checkout 環境で build 後、
+   CLIを event ID ごとに実行する。actor は64文字以内の英数字・`._@-`、reason は障害・変更チケットと解消内容を含める。
+
+   ```bash
+   mise run build
+   pnpm --filter @aiops/server run events:requeue-dead -- \
+     --eventId "<event UUID>" \
+     --actor "<operator-id>" \
+     --reason "<ticket ID>: <確認した原因と解消内容>"
+   ```
+
+   CLI は操作用 trace ID を生成し、再投入結果とともにJSONで出力する。対象が dead でなければ失敗するため再実行しない。
+   HTTP route や直接 UPDATE は、reason のsanitization/検証と追記専用監査を迂回するため使用しない。
+   `attempts` は累積試行履歴として**保持する**。
+   リセットして過去の試行回数を失わせず、再投入後の1回が失敗すれば即座に dead へ戻す。
+
+4. **監視復帰**: event が `queued` → `dispatched` → `done` と進み、
+   `aiops_events_queue_depth{status="dead"}` が0へ戻って alert が解消することを確認する。
+   再び dead になった場合は再投入を繰り返さず、手順2へ戻る。

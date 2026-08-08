@@ -6,10 +6,18 @@ title = "ai-ops-platform gitleaks config"
 [extend]
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 description = "Intentional fake tokens in secret-redaction test fixtures"
 paths = [
   '''packages/shared/tests/secretSanitizer\.test\.ts''',
   '''packages/server/tests/freeTextIntent\.test\.ts''',
   '''packages/server/tests/pmTimeseriesRepo\.test\.ts''',
 ]
+
+[[allowlists]]
+description = "Intentional fake generic API key in dead-letter reason sanitizer test fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = ['''packages/server/tests/eventsRepoDeadLetter\.test\.ts''']
+regexes = ['''^\s*const secret = "api_key=abcdefghijklm[n]opqrstuvwx";$''']

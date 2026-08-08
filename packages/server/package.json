@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "graph:smoke": "node dist/tools/graphSmoke.js",
+    "events:requeue-dead": "node dist/tools/requeueDeadEvent.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit",

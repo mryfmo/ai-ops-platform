@@ -4,9 +4,9 @@
  * 根拠: ADR-0005 / DevOps:SPEC-INT-010: webhook受信は検証後ただちにeventsテーブルへキューイングし、
  *   重い処理（Graph本文取得・LLM解釈・GitHub操作）はディスパッチャが非同期に行う。
  */
-import type { PgQueryable } from "@aiops/shared";
+import { PgAuditLog, sanitizeSecrets, validateReasonRequirement, type PgQueryable } from "@aiops/shared";
+import { normalizeAuditActor } from "../lib/auditActor.js";
 import type { EventQueueMetric } from "../observability/metrics.js";
-import { sanitizeSecrets } from "@aiops/shared";
 
 export type EventSource = "github" | "monitor" | "inbound";
 
@@ -40,6 +40,18 @@ export interface MarkFailedOptions {
 export interface MarkFailedResult {
   status: "queued" | "dead" | "stale";
   attempts: number;
+}
+
+export interface RequeuedDeadEvent {
+  eventId: string;
+  attempts: number;
+}
+
+export interface RequeueDeadOptions {
+  actor: string;
+  reason: string;
+  traceId: string;
+  now?: Date;
 }
 
 interface PgTransactionClient extends PgQueryable {
@@ -301,13 +313,72 @@ export class EventsRepo {
     return { status: row.status as MarkFailedResult["status"], attempts: Number(row.attempts) };
   }
 
+  /**
+   * 運用者が原因を解消した dead event を1件だけ再投入する。
+   * attempts は累積試行履歴なのでリセットしない。これにより過去の試行回数を失わず、
+   * 手動再投入後の1回が再び失敗した場合は markFailed が直ちに dead へ戻す。
+   */
+  async requeueDead(eventId: string, options: RequeueDeadOptions): Promise<RequeuedDeadEvent | null> {
+    const now = options.now ?? new Date();
+    const actor = normalizeAuditActor(options.actor);
+    validateReasonRequirement("status_override", options.reason);
+    const reason = sanitizeSecrets(options.reason.trim()).sanitized;
+    if (!hasConnect(this.db)) throw new Error("requeueDead requires a transactional database connection");
+
+    const client = await this.db.connect();
+    let released = false;
+    try {
+      await client.query("BEGIN");
+      const res = await client.query(
+        `UPDATE events
+         SET status = 'queued', next_attempt_at = $2::timestamptz, claimed_at = NULL
+         WHERE event_id = $1 AND status = 'dead'
+         RETURNING event_id, attempts`,
+        [eventId, now.toISOString()],
+      );
+      const row = res.rows[0];
+      if (row) {
+        await new PgAuditLog(client, "devops_1y").append({
+          trace_id: options.traceId,
+          actor,
+          action: "status_override",
+          basis: "DevOps:SPEC-INT-010",
+          detail: {
+            entity: "events",
+            eventId,
+            fromStatus: "dead",
+            toStatus: "queued",
+            attemptsPolicy: "preserve",
+            reason,
+          },
+          reason,
+          at: now.toISOString(),
+        });
+      }
+      await client.query("COMMIT");
+      return row ? { eventId: String(row.event_id), attempts: Number(row.attempts) } : null;
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        const releaseError = toError(rollbackError);
+        client.release(releaseError);
+        released = true;
+        throw releaseError;
+      }
+      throw error;
+    } finally {
+      if (!released) client.release();
+    }
+  }
+
   async getQueueMetrics(now: Date = new Date()): Promise<EventQueueMetric[]> {
     const res = await this.db.query(
       `SELECT status,
               count(*)::int AS depth,
               COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - MIN(received_at))), 0) AS oldest_age_seconds
        FROM events
-       WHERE status IN ('queued', 'delayed', 'dispatched')
+       WHERE status IN ('queued', 'delayed', 'dispatched', 'dead')
        GROUP BY status`,
       [now.toISOString()],
     );
