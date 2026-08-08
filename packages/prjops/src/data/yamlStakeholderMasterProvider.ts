@@ -251,6 +251,11 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
     return records;
   }
 
+  /** PrjOps:SPEC-INT-051(b): 配信前の個人名検査用に、マスタ上の氏名を重複なく返す。 */
+  async listPersonalNames(): Promise<string[]> {
+    return [...new Set((await this.readAll()).map((stakeholder) => stakeholder.name))].sort();
+  }
+
   async findProfileByTeamsUserId(teamsUserId: string | null, projectId: string): Promise<Profile | null> {
     if (!teamsUserId) return null;
     const stakeholder = (await this.readAll()).find((input) => input.teams_user_id === teamsUserId);

@@ -70,6 +70,10 @@ export class MetricsRegistry {
     if (amount > 0) this.inc("aiops_report_delivery_total", { result }, amount);
   }
 
+  recordReportVerificationFailure(code: string): void {
+    this.inc("aiops_report_verification_failures_total", { code });
+  }
+
   setEventQueue(metrics: EventQueueMetric[]): void {
     for (const status of EVENT_QUEUE_STATUSES) {
       this.setGauge("aiops_events_queue_depth", { status }, 0);
@@ -116,6 +120,8 @@ export class MetricsRegistry {
       "# TYPE aiops_task_failures_total counter",
       "# HELP aiops_report_delivery_total Report delivery outcomes.",
       "# TYPE aiops_report_delivery_total counter",
+      "# HELP aiops_report_verification_failures_total Report delivery verification failures by code.",
+      "# TYPE aiops_report_verification_failures_total counter",
       "# HELP aiops_capability_enabled 1 when an optional capability is configured and active, 0 when degraded.",
       "# TYPE aiops_capability_enabled gauge",
       "# HELP aiops_db_pool_connections PostgreSQL pool connection counts.",

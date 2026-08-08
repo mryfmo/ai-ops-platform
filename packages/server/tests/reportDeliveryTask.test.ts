@@ -12,6 +12,10 @@ import type { DeliveryRecipient } from "../src/db/recipientsRepo.js";
 import type { StandardReportRecord } from "../src/db/standardReportsRepo.js";
 
 const EMAIL_ADDRESS = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
+const verificationProviders = {
+  personalNamesProvider: async (): Promise<readonly string[]> => [],
+  internalTermsProvider: (): readonly string[] => [],
+};
 
 const payload = {
   schemaVersion: "standard-report.v2",
@@ -58,6 +62,7 @@ function recipient(overrides: Partial<DeliveryRecipient> = {}): DeliveryRecipien
 
 function deliveryTask(overrides: Partial<ReportDeliveryTaskDeps> = {}) {
   return createReportDeliveryTask({
+    ...verificationProviders,
     enabled: true,
     fromMailbox: "from@example.com",
     publicBaseUrl: "https://aiops.example.com",
@@ -77,6 +82,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     const auditLog = new InMemoryAuditLog();
     const mails: unknown[] = [];
     const task = createReportDeliveryTask({
+      ...verificationProviders,
       enabled: true,
       publicBaseUrl: "https://aiops.example.com",
       calendar: buildHolidayCalendar([]),
@@ -107,6 +113,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     } as unknown as NonNullable<ReportDeliveryTaskDeps["logger"]>;
     const store = new InMemoryDeliveryLogStore();
     const deps = {
+      ...verificationProviders,
       fromMailbox: "from@example.com",
       publicBaseUrl: "https://aiops.example.com",
       recipientsRepo: { listForDelivery: async () => [recipient(), recipient({ userId: "ST-002", active: false })] },
@@ -154,6 +161,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     const result = await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         publicBaseUrl: "https://aiops.example.com",
         recipientsRepo: { listForDelivery: async () => [recipient()] },
@@ -194,6 +202,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
       const result = await deliverStandardReportToRecipients(
         report,
         {
+          ...verificationProviders,
           fromMailbox: "from@example.com",
           publicBaseUrl: "https://aiops.example.com",
           recipientsRepo: { listForDelivery: async () => [recipient({ userId })] },
@@ -226,6 +235,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     const result = await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         publicBaseUrl: "https://aiops.example.com",
         recipientsRepo: { listForDelivery: async () => [recipient()] },
@@ -261,6 +271,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         publicBaseUrl: "https://aiops.example.com",
         recipientsRepo: { listForDelivery: async () => [recipient()] },
@@ -286,6 +297,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     const result = await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         publicBaseUrl: "https://aiops.example.com",
         recipientsRepo: {
@@ -324,6 +336,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         publicBaseUrl: "https://aiops.example.com",
         recipientsRepo: { listForDelivery: async () => [recipient()] },
@@ -348,6 +361,187 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     expect(html).toContain("[masked]");
   });
 
+  it("PrjOps:SPEC-INT-051: metricsをkey順のdata-src spanとas_ofとして描画する", () => {
+    const html = renderStandardReportHtml(
+      {
+        ...payload,
+        metrics: {
+          zeta: { value: 2, source: "code:z", as_of: "2026-07-06T02:00:00.000Z" },
+          alpha: { value: 1, source: "code:a", as_of: "2026-07-06T01:00:00.000Z" },
+        },
+      },
+      recipient(),
+    );
+    expect(html).toContain('<span data-src="alpha#value">1</span>');
+    expect(html).toContain('<time datetime="2026-07-06T01:00:00.000Z">2026-07-06T01:00:00.000Z</time>');
+    expect(html.indexOf("alpha#value")).toBeLessThan(html.indexOf("zeta#value"));
+  });
+
+  const changingMetricValues = [1, 2];
+  const changingMetric = {
+    source: "code:v-a-test",
+    as_of: "2026-07-06T00:00:00.000Z",
+  };
+  Object.defineProperty(changingMetric, "value", {
+    enumerable: true,
+    get: () => changingMetricValues.shift() ?? 2,
+  });
+  const vAFailedReport = {
+    ...report,
+    payload: { ...payload, metrics: { completed: changingMetric } },
+  } as StandardReportRecord;
+
+  it.each([
+    ["V-A", "E-VER0A", vAFailedReport, recipient(), verificationProviders],
+    [
+      "V-B",
+      "E-VER0B",
+      report,
+      recipient({ profile: "PRF-04" }),
+      { ...verificationProviders, personalNamesProvider: async () => ["Alice"] },
+    ],
+    [
+      "V-C",
+      "E-VER0C",
+      { ...report, payload: { ...payload, slots: { ...payload.slots, conclusion: "{{todo}}" } } },
+      recipient(),
+      verificationProviders,
+    ],
+  ] as const)(
+    "PrjOps:REQ-019/AC-019-1: %s NGは送信せず%s監査・warn・metricを残す",
+    async (_failureCode, errorCode, failedReport, failedRecipient, providers) => {
+      const auditLog = new InMemoryAuditLog();
+      const metrics = new MetricsRegistry();
+      const mails: unknown[] = [];
+      const warnings: unknown[] = [];
+      const result = await deliverStandardReportToRecipients(
+        failedReport,
+        {
+          ...providers,
+          fromMailbox: "from@example.com",
+          publicBaseUrl: "https://aiops.example.com",
+          recipientsRepo: { listForDelivery: async () => [failedRecipient] },
+          graphClient: {
+            sendMail: async (mail) => void mails.push(mail),
+            sendAdaptiveCard: async () => ({ messageId: "m" }),
+          },
+          deliveryLogStore: new InMemoryDeliveryLogStore(),
+          auditLog,
+          traceIdProvider: () => "trace-verification",
+          metrics,
+          logger: {
+            child: () => ({ info: () => {}, warn: (...args: unknown[]) => void warnings.push(args) }),
+          } as unknown as NonNullable<ReportDeliveryTaskDeps["logger"]>,
+        },
+        "trace-verification",
+      );
+      expect(mails).toHaveLength(0);
+      expect(result).toMatchObject({ sent: 0, failed: 1 });
+      expect(await auditLog.readAll()).toContainEqual(
+        expect.objectContaining({
+          action: "report_delivery_verification_failed",
+          detail: { reportId: "STD-1", recipientId: failedRecipient.userId, code: errorCode },
+        }),
+      );
+      expect(warnings).toHaveLength(1);
+      expect(metrics.renderPrometheus()).toContain(`aiops_report_verification_failures_total{code="${errorCode}"} 1`);
+    },
+  );
+
+  it("PrjOps:REQ-019/AC-019-1: V-D NGは実送信先不一致を送信せずE-VER0D監査する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const mails: unknown[] = [];
+    const changingRecipient = recipient();
+    const emails = ["intended@example.com", "intended@example.com", "actual@example.com"];
+    Object.defineProperty(changingRecipient, "email", {
+      enumerable: true,
+      get: () => emails.shift() ?? "actual@example.com",
+    });
+    const result = await deliverStandardReportToRecipients(
+      report,
+      {
+        ...verificationProviders,
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: { listForDelivery: async () => [changingRecipient] },
+        graphClient: {
+          sendMail: async (mail) => void mails.push(mail),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog,
+        traceIdProvider: () => "trace-v-d",
+      },
+      "trace-v-d",
+    );
+    expect(mails).toHaveLength(0);
+    expect(result.failed).toBe(1);
+    expect(await auditLog.readAll()).toContainEqual(
+      expect.objectContaining({ detail: { reportId: "STD-1", recipientId: "ST-001", code: "E-VER0D" } }),
+    );
+  });
+
+  it("PrjOps:REQ-019/AC-019-1: 1受信者のV-B NGを隔離し他受信者を配信する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const mails: string[] = [];
+    const result = await deliverStandardReportToRecipients(
+      report,
+      {
+        ...verificationProviders,
+        personalNamesProvider: async () => ["Alice"],
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: {
+          listForDelivery: async () => [
+            recipient({ userId: "ST-001", profile: "PRF-04", email: "blocked@example.com" }),
+            recipient({ userId: "ST-002", profile: "PRF-02", email: "allowed@example.com" }),
+          ],
+        },
+        graphClient: {
+          sendMail: async ({ toEmail }) => void mails.push(toEmail),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog,
+        traceIdProvider: () => "trace-isolation",
+      },
+      "trace-isolation",
+    );
+    expect(mails).toEqual(["allowed@example.com"]);
+    expect(result).toMatchObject({ sent: 1, failed: 1, activeRecipients: 2 });
+  });
+
+  it("PrjOps:REQ-019/AC-019-1: 個人名provider不在はPRF-04だけをfail-closeしPRF-02を配信する", async () => {
+    const mails: string[] = [];
+    const result = await deliverStandardReportToRecipients(
+      report,
+      {
+        ...verificationProviders,
+        personalNamesProvider: async () => {
+          throw new Error("provider unavailable");
+        },
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: {
+          listForDelivery: async () => [
+            recipient({ userId: "ST-001", profile: "PRF-04", email: "blocked@example.com" }),
+            recipient({ userId: "ST-002", profile: "PRF-02", email: "allowed@example.com" }),
+          ],
+        },
+        graphClient: {
+          sendMail: async ({ toEmail }) => void mails.push(toEmail),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => "trace-provider-isolation",
+      },
+      "trace-provider-isolation",
+    );
+    expect(mails).toEqual(["allowed@example.com"]);
+    expect(result).toMatchObject({ sent: 1, failed: 1, activeRecipients: 2 });
+  });
+
   it("PRF-Gは空projectsでもglobal audienceとして標準レポート本文を読める", () => {
     const html = renderStandardReportHtml(
       payload,
@@ -362,6 +556,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         defaultTeamsTeamId: "team-1",
         defaultTeamsChannelId: "chan-1",
@@ -393,6 +588,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         defaultTeamsTeamId: "team-1",
         defaultTeamsChannelId: "chan-1",
@@ -422,6 +618,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
   it("月曜祝日なら週内の次営業日にキャッチアップ配信する", async () => {
     const mails: unknown[] = [];
     const task = createReportDeliveryTask({
+      ...verificationProviders,
       enabled: true,
       fromMailbox: "from@example.com",
       publicBaseUrl: "https://aiops.example.com",
@@ -714,6 +911,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     const result = await deliverStandardReportToRecipients(
       report,
       {
+        ...verificationProviders,
         fromMailbox: "from@example.com",
         publicBaseUrl: "not-a-url",
         recipientsRepo: {
