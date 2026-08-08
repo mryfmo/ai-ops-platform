@@ -26,6 +26,7 @@ import type { StandardReportRecord } from "../../db/standardReportsRepo.js";
 import type { Logger } from "../../observability/logger.js";
 import type { MetricsRegistry } from "../../observability/metrics.js";
 import { buildDashboardDeepLink } from "../../lib/dashboardDeepLink.js";
+import { evaluateReportVerificationGate, reportMetricDisplayValue } from "../../lib/reportVerificationGate.js";
 import type { ScheduledTask } from "../scheduler.js";
 
 export interface ReportDeliveryTaskDeps {
@@ -40,6 +41,8 @@ export interface ReportDeliveryTaskDeps {
   graphClient: Pick<GraphClient, "sendMail" | "sendAdaptiveCard">;
   deliveryLogStore: DeliveryLogStore;
   auditLog: AuditLogWriter;
+  personalNamesProvider(): Promise<readonly string[]>;
+  internalTermsProvider(): readonly string[];
   traceIdProvider(): string;
   heartbeatUrl?: string;
   heartbeatTimeoutMs?: number;
@@ -173,8 +176,16 @@ function visibleSlots(payload: StandardReportPayload, recipient: DeliveryRecipie
 
 export function renderStandardReportHtml(payload: StandardReportPayload, recipient: DeliveryRecipient): string {
   const slots = visibleSlots(payload, recipient);
+  const metrics = Object.entries(payload.metrics)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(
+      ([key, metric]) =>
+        `<dt>${escapeHtml(key)}</dt><dd><span data-src="${escapeHtml(key)}#value">${reportMetricDisplayValue(metric.value)}</span> <time datetime="${escapeHtml(metric.as_of)}">${escapeHtml(metric.as_of)}</time></dd>`,
+    )
+    .join("");
   return [
     `<h1>${escapeHtml(payload.reportType)} ${escapeHtml(payload.period.label)}</h1>`,
+    `<section><h2>Metrics</h2><dl>${metrics}</dl></section>`,
     `<h2>Conclusion</h2><p>${escapeHtml(slots.conclusion)}</p>`,
     `<h2>Risk</h2><p>${escapeHtml(slots.riskSummary)}</p>`,
     `<h2>Next actions</h2><p>${escapeHtml(slots.nextActions)}</p>`,
@@ -191,12 +202,29 @@ export async function deliverStandardReportToRecipients(
   const logger = deps.logger?.child({ trace_id: traceId, report_id: record.reportId });
   logger?.info("report delivery started");
   const recipients = await deps.recipientsRepo.listForDelivery();
+  const internalTerms = deps.internalTermsProvider();
   const activeRecords = devopsActiveRecords(recipients);
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
   const targets: DeliveryTarget[] = [];
   let invalidRecipientCount = 0;
   let defaultTeamsCardAssigned = false;
   let targetFailures = 0;
+  let personalNamesPromise: Promise<readonly string[]> | undefined;
+  const recordVerificationFailures = async (recipientId: string, codes: readonly string[]): Promise<void> => {
+    for (const code of codes) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-07",
+        action: "report_delivery_verification_failed",
+        basis: "PrjOps:REQ-019 PrjOps:SPEC-INT-051 PrjOps:AC-019-1",
+        detail: { reportId: record.reportId, recipientId, code },
+        at: new Date().toISOString(),
+      });
+      deps.metrics?.recordReportVerificationFailure(code);
+    }
+    logger?.warn({ recipient_id: recipientId, codes }, "report delivery verification failed");
+    targetFailures += 1;
+  };
   for (const recipient of activeRecipients) {
     if (!isSafeRecipientId(recipient.userId)) {
       invalidRecipientCount += 1;
@@ -210,7 +238,8 @@ export async function deliverStandardReportToRecipients(
       });
       continue;
     }
-    if (audienceForRecipient(recipient) === null) {
+    const audience = audienceForRecipient(recipient);
+    if (audience === null) {
       // プロファイルが解決できない受信者へは配信しない（fail-closed。所見 ADV-SEC-009）。
       invalidRecipientCount += 1;
       await deps.auditLog.append({
@@ -224,6 +253,15 @@ export async function deliverStandardReportToRecipients(
         at: new Date().toISOString(),
       });
       continue;
+    }
+    let personalNames: readonly string[] = [];
+    if (audience === "PRF-04" || audience === "PRF-05" || audience === "investor") {
+      try {
+        personalNames = await (personalNamesPromise ??= deps.personalNamesProvider());
+      } catch {
+        await recordVerificationFailures(recipient.userId, ["E-VER0B"]);
+        continue;
+      }
     }
     const persona = recipient.persona ?? recipient.profile;
     const recipientTeamsTarget =
@@ -256,16 +294,32 @@ export async function deliverStandardReportToRecipients(
         continue;
       }
     }
-    targets.push({
+    const intendedRecipientEmail = recipient.email;
+    const html = renderStandardReportHtml(record.payload, recipient);
+    const target = {
       reportId: record.reportId,
       recipientId: recipient.userId,
       recipientEmail: recipient.email,
       subject: `[ai-ops] ${record.payload.reportType} ${record.periodLabel}`,
-      html: renderStandardReportHtml(record.payload, recipient),
+      html,
       postTeamsSummaryCard: Boolean(teamsTarget),
       teamsTarget,
       dashboardUrl,
+    } satisfies DeliveryTarget;
+    const verification = evaluateReportVerificationGate({
+      payload: record.payload,
+      html,
+      audience,
+      personalNames,
+      internalTerms,
+      intendedRecipientEmail,
+      actualToEmail: target.recipientEmail,
     });
+    if (!verification.ok) {
+      await recordVerificationFailures(recipient.userId, verification.errorCodes);
+      continue;
+    }
+    targets.push(target);
     if (defaultTeamsTarget) defaultTeamsCardAssigned = true;
   }
   const auditSafeGraphClient: Pick<GraphClient, "sendMail" | "sendAdaptiveCard"> = {

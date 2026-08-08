@@ -30,6 +30,7 @@ import {
   buildHolidayCalendarFromYaml,
   type HolidayEntry,
 } from "@aiops/shared";
+import { SPEC_INTERNAL_TERMS_PROVIDER } from "@aiops/shared/reporting/internalTerms.js";
 import { YamlStakeholderMasterProvider } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
@@ -220,6 +221,17 @@ export async function main(
   const stakeholderProvider = config.STAKEHOLDERS_DIR
     ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
     : null;
+  const personalNamesProvider = (): Promise<readonly string[]> => {
+    if (!stakeholderProvider) throw new Error("Stakeholder master is required for report delivery verification");
+    return stakeholderProvider.listPersonalNames();
+  };
+  const internalTermsProvider = (): readonly string[] => SPEC_INTERNAL_TERMS_PROVIDER.listInternalTerms();
+  if (internalTermsProvider().length === 0) {
+    logger.warn(
+      { version: SPEC_INTERNAL_TERMS_PROVIDER.version },
+      "report delivery internal terms list is unpopulated",
+    );
+  }
   const stakeholderMaster = decideStakeholderMaster(stakeholderProvider);
   if (stakeholderMaster.auditIntent) {
     await prjopsAuditLog.append({
@@ -527,6 +539,8 @@ export async function main(
             graphClient,
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog: prjopsAuditLog,
+            personalNamesProvider,
+            internalTermsProvider,
             traceIdProvider: () => randomUUID(),
             heartbeatUrl: config.HEARTBEAT_URL,
             logger,
@@ -647,6 +661,8 @@ export async function main(
             graphClient,
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog: prjopsAuditLog,
+            personalNamesProvider,
+            internalTermsProvider,
             traceIdProvider: () => randomUUID(),
             logger,
             metrics,
