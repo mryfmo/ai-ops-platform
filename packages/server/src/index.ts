@@ -48,6 +48,7 @@ import { SevenKeysSnapshotsRepo } from "./db/sevenKeysSnapshotsRepo.js";
 import { RecipientsRepo } from "./db/recipientsRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
+import { ApprovalsRepo } from "./db/approvalsRepo.js";
 import { buildApp } from "./http/app.js";
 import {
   guardFailsafeTask,
@@ -90,6 +91,7 @@ export * from "./http/routes/codingTasks.js";
 export * from "./http/routes/xlsxImport.js";
 export * from "./http/routes/reportIngest.js";
 export * from "./http/routes/webuiProxy.js";
+export * from "./http/routes/approvals.js";
 export * from "./scheduler/scheduler.js";
 export * from "./scheduler/tasks/healthcheckTask.js";
 export * from "./scheduler/tasks/jitRevocationTask.js";
@@ -128,6 +130,7 @@ export * from "./db/sevenKeysSnapshotsRepo.js";
 export * from "./db/recipientsRepo.js";
 export * from "./db/standardReportsRepo.js";
 export * from "./db/reportDeliveryLogRepo.js";
+export * from "./db/approvalsRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./auth/githubAppTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
@@ -195,6 +198,20 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  const approvalsRepo = new ApprovalsRepo(pool, async (work) => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await work({ db: client, auditLog: new PgAuditLog(client, "devops_1y") });
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
   // audit_log の追記専用は「接続ロールが UPDATE/DELETE を持たないこと」で強制される。
   // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
   // 黙って外れる。起動時に実権限を確認し、成立していなければ起動を止める
@@ -376,6 +393,7 @@ export async function main(
       defaultTeamsChannelConfigured: Boolean(config.DEFAULT_TEAMS_CHANNEL_ID),
       telemetryConfigured: Boolean(config.OTEL_EXPORTER_OTLP_ENDPOINT ?? config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT),
       graphSubscriptionsPresent: subscriptionsPresent,
+      approvalsConfigured: Boolean(config.WEB_BFF_IDENTITY_SECRET),
     });
   const publishCapabilities = (): string[] => {
     const state = capabilityState();
@@ -670,6 +688,13 @@ export async function main(
           traceId,
         );
       },
+    },
+    approvals: {
+      approvalsRepo,
+      recipientsRepo,
+      auditLog: devopsAuditLog,
+      identitySecret: config.WEB_BFF_IDENTITY_SECRET,
+      traceIdProvider: () => randomUUID(),
     },
     webui: { targetBaseUrl: `http://127.0.0.1:${config.WEBUI_INTERNAL_PORT}` },
   });

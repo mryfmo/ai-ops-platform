@@ -49,6 +49,12 @@ export class RecipientsRepo {
     ) {
       return null;
     }
+    return this.findActiveByTrustedSubject(tenantId, objectId);
+  }
+
+  /** DevOps:REQ-010: HMAC envelope検証後のsubjectをrequest-time active assignmentへ解決する。 */
+  async findActiveByTrustedSubject(tenantId: string, objectId: string): Promise<DeliveryRecipient | null> {
+    if (!canonicalUuid.test(tenantId) || !canonicalUuid.test(objectId)) return null;
     const res = await this.db.query(
       `SELECT user_id, profile, persona, email, projects, language, active, teams_team_id, teams_channel_id
        FROM recipients

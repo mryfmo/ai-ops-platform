@@ -30,6 +30,18 @@ export interface ChgDependencies {
   auditLog: AuditLogWriter;
   traceId: string;
   cal: HolidayCalendar;
+  /** ADR-0005: WebUI承認画面の公開base URL。 */
+  publicBaseUrl: string;
+  approvalsRepo: {
+    create(input: {
+      approvalType: "change";
+      targetId: string;
+      projectId: string;
+      requestedBy: "AGT-CHG";
+      traceId: string;
+    }): Promise<{ approvalId: string }>;
+    markDelivered(approvalId: string, traceId: string): Promise<unknown>;
+  };
 }
 
 /** DevOps:SPEC-INT-031: 差分要約(PROMPT-CHG-01、最大10行) */
@@ -50,13 +62,32 @@ export async function summarizeChangeDiff(diffText: string, deps: ChgDependencie
 }
 
 export interface ApprovalPackage {
+  projectId: string;
+  targetId: string;
   projectName: string;
   diffSummaryLines: string[];
   testSummary: { successCount: number; failureCount: number; coveragePct: number };
   riskScore: RiskScoreBreakdown;
   rollbackSummary: string;
   approvalDeadlineLabel: string;
-  decisionUrl: string;
+}
+
+const APPROVAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function approvalPageUrl(publicBaseUrl: string): URL {
+  try {
+    const url = new URL("/app/approvals", publicBaseUrl);
+    if (!isAbsoluteHttpsUrl(url.toString())) throw new Error("unsafe protocol");
+    return url;
+  } catch {
+    throw new Error("Approval card requires a reviewed HTTPS decision URL");
+  }
+}
+
+function approvalDecisionUrl(pageUrl: URL, approvalId: string): string {
+  if (!APPROVAL_ID.test(approvalId)) throw new Error("Approval card requires a canonical approval ID");
+  pageUrl.searchParams.set("approvalId", approvalId);
+  return pageUrl.toString();
 }
 
 /** DevOps:SPEC-EXT-010: 本番デプロイ承認カードを送信する（表示項目の順序固定） */
@@ -65,8 +96,15 @@ export async function sendApprovalCard(
   channel: ChannelRef,
   deps: ChgDependencies,
 ): Promise<void> {
-  const decisionUrl = pkg.decisionUrl?.trim();
-  if (!isAbsoluteHttpsUrl(decisionUrl)) throw new Error("Approval card requires a reviewed HTTPS decision URL");
+  const pageUrl = approvalPageUrl(deps.publicBaseUrl);
+  const approval = await deps.approvalsRepo.create({
+    approvalType: "change",
+    targetId: pkg.targetId,
+    projectId: pkg.projectId,
+    requestedBy: "AGT-CHG",
+    traceId: deps.traceId,
+  });
+  const decisionUrl = approvalDecisionUrl(pageUrl, approval.approvalId?.trim());
   const card: AdaptiveCardPayload = {
     body: [
       { type: "TextBlock", text: `${pkg.projectName} — 対象環境: 本番`, weight: "bolder" },
@@ -89,6 +127,7 @@ export async function sendApprovalCard(
   };
 
   await deps.graphClient.sendAdaptiveCard({ target: channel, card });
+  await deps.approvalsRepo.markDelivered(approval.approvalId, deps.traceId);
   await deps.auditLog.append({
     trace_id: deps.traceId,
     actor: "AGT-CHG",

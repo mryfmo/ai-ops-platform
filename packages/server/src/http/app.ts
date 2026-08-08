@@ -21,6 +21,7 @@ import { registerCodingTaskRoutes, type CodingTaskRoutesDeps } from "./routes/co
 import { registerWebuiProxy, type WebuiProxyDeps } from "./routes/webuiProxy.js";
 import { registerXlsxImportRoutes, type XlsxImportRoutesDeps } from "./routes/xlsxImport.js";
 import { registerReportIngestRoutes, type ReportIngestDeps } from "./routes/reportIngest.js";
+import { registerApprovalRoutes, type ApprovalRoutesDeps } from "./routes/approvals.js";
 import { MetricsRegistry } from "../observability/metrics.js";
 import { registerMetricsRoutes } from "./routes/metrics.js";
 import { verifyBearerToken } from "../lib/confirmToken.js";
@@ -36,6 +37,7 @@ export interface AppDependencies {
   metricsToken?: string;
   reports?: ReportIngestDeps;
   webui?: WebuiProxyDeps; // 未指定時は /app/* を503にする（WebUI未起動の縮退運転）
+  approvals?: ApprovalRoutesDeps;
 }
 
 export function buildApp(deps: AppDependencies): Hono {
@@ -72,6 +74,7 @@ export function buildApp(deps: AppDependencies): Hono {
   registerCodingTaskRoutes(app, deps.codingTasks);
   registerXlsxImportRoutes(app, deps.xlsxImport);
   registerReportIngestRoutes(app, deps.reports);
+  registerApprovalRoutes(app, deps.approvals);
   registerWebuiProxy(app, deps.webui);
   return app;
 }

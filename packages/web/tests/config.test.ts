@@ -62,4 +62,20 @@ describe("loadWebConfig model configuration [PrjOps:SPEC-INT-060]", () => {
       }),
     ).toThrow("E-CFG02");
   });
+
+  it("AUD-OPM-001: WEB_BFF_IDENTITY_SECRETは任意だが32文字以上で他用途鍵と分離する", () => {
+    expect(loadWebConfig(validEnv).WEB_BFF_IDENTITY_SECRET).toBeUndefined();
+    expect(() => loadWebConfig({ ...validEnv, WEB_BFF_IDENTITY_SECRET: "short" })).toThrow("E-CFG02");
+    expect(loadWebConfig({ ...validEnv, WEB_BFF_IDENTITY_SECRET: "w".repeat(32) }).WEB_BFF_IDENTITY_SECRET).toBe(
+      "w".repeat(32),
+    );
+    const same = "s".repeat(32);
+    expect(() => loadWebConfig({ ...validEnv, AUTH_SECRET: same, WEB_BFF_IDENTITY_SECRET: same })).toThrow("E-CFG02");
+    expect(() =>
+      loadWebConfig({ ...validEnv, AUTH_MICROSOFT_ENTRA_ID_SECRET: same, WEB_BFF_IDENTITY_SECRET: same }),
+    ).toThrow("E-CFG02");
+    expect(() => loadWebConfig({ ...validEnv, XLSX_IMPORT_SECRET: same, WEB_BFF_IDENTITY_SECRET: same })).toThrow(
+      "E-CFG02",
+    );
+  });
 });

@@ -43,7 +43,12 @@ describe("createLogger の redact [ADR-0005 / DevOps:REQ-028]", () => {
   it("実際のServerConfigキー名を伏せる（config丸ごと渡す誤用の本命） [DevOps:REQ-028]", () => {
     // camelCase だけを並べても ServerConfig のプロパティには一つも当たらない。
     const output = logAndCapture({
-      config: { GRAPH_CLIENT_SECRET: SECRET, METRICS_TOKEN: SECRET, CODING_TASK_CONFIRM_SECRET: SECRET },
+      config: {
+        GRAPH_CLIENT_SECRET: SECRET,
+        METRICS_TOKEN: SECRET,
+        CODING_TASK_CONFIRM_SECRET: SECRET,
+        WEB_BFF_IDENTITY_SECRET: SECRET,
+      },
     });
 
     expect(output).not.toContain(SECRET);

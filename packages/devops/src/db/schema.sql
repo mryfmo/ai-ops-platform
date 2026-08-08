@@ -468,6 +468,32 @@ CREATE INDEX IF NOT EXISTS idx_coding_tasks_status ON coding_tasks (status);
 CREATE INDEX IF NOT EXISTS idx_coding_tasks_project ON coding_tasks (project_id);
 -- rollback: DROP TABLE coding_tasks;
 
+-- DevOps:SPEC-EXT-010 / AUD-OPM-001: 人間承認の状態正本。
+CREATE TABLE IF NOT EXISTS approvals (
+  approval_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  approval_type       TEXT NOT NULL CHECK (approval_type IN ('change', 'report', 'jit_grant')),
+  target_id           TEXT NOT NULL,
+  project_id          TEXT,
+  status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  requested_by        TEXT NOT NULL,
+  approver_tenant_id  UUID,
+  approver_object_id  UUID,
+  decided_at          TIMESTAMPTZ,
+  reason              TEXT,
+  delivered_at        TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (
+    (status = 'pending' AND approver_tenant_id IS NULL AND approver_object_id IS NULL AND decided_at IS NULL AND reason IS NULL)
+    OR (status = 'approved' AND approver_tenant_id IS NOT NULL AND approver_object_id IS NOT NULL AND decided_at IS NOT NULL)
+    OR (status = 'rejected' AND approver_tenant_id IS NOT NULL AND approver_object_id IS NOT NULL AND decided_at IS NOT NULL
+        AND NULLIF(btrim(reason), '') IS NOT NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals (created_at, approval_id) WHERE status = 'pending';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approvals_pending_target
+  ON approvals (approval_type, target_id) WHERE status = 'pending';
+-- rollback: DROP TABLE approvals;
+
 -- ADR-0008 / REQ-037 / DevOps:SPEC-INT-063: Excelインポート台帳。
 CREATE TABLE IF NOT EXISTS import_ledger (
   source_key     TEXT PRIMARY KEY,

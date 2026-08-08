@@ -44,6 +44,7 @@
 | `DEFAULT_TEAMS_CHANNEL_ID`                  | No       | unset                    | Default Teams channel for cards. With delivery enabled, team/channel defaults are both-or-neither.                                                                    |
 | `CODING_TASK_CONFIRM_SECRET`                | Yes      | None                     | HMAC key for confirmation-link tokens; minimum length 32. Server-only: anyone holding it can forge a confirmation and dispatch without a human click.                 |
 | `CODING_TASK_CALLBACK_SECRET`               | Yes      | None                     | Bearer secret for the coding-task callback; minimum length 32. Reaches Actions runners, so it must not sign confirmation tokens.                                      |
+| `WEB_BFF_IDENTITY_SECRET`                   | No       | unset                    | Dedicated HMAC key for Auth.js-validated Entra identity envelopes. Missing disables approval routes; it must differ from every other configured secret.               |
 
 `loadConfig()` fails fast with `E-CFG01` when required values are missing or invalid. Recipient rows do not extend these allowlists: `GraphClient` checks the normalized team or sender again before requesting a token or calling Graph.
 
@@ -63,6 +64,7 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 | `PUBLIC_BASE_URL`                   | Yes      | None                    | Allowed origin for authenticated Excel import state changes.                          |
 | `AIOPS_SERVER_INTERNAL_URL`         | No       | `http://127.0.0.1:8080` | Internal Hono endpoint used only by the server-side Excel import proxy.               |
 | `XLSX_IMPORT_SECRET`                | No       | unset                   | HMAC key retained by server-side routes; if unset, Excel import returns 503.          |
+| `WEB_BFF_IDENTITY_SECRET`           | No       | unset                   | Dedicated Web BFF identity-envelope HMAC key; if unset, approvals return 503.         |
 | `ANTHROPIC_API_KEY`                 | No       | unset                   | If unset, `/app/api/chat` returns 503 and does not call a model.                      |
 | `ANTHROPIC_DEFAULT_MODEL`           | No       | `claude-sonnet-4-6`     | Model ID for chat calls; same format constraint as the server variable.               |
 | `ANTHROPIC_PRICING_USD_PER_MTOK`    | No       | unset                   | Model pricing JSON for `PgCostGuard`; malformed JSON fails with `E-CFG02`.            |
