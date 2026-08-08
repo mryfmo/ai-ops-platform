@@ -16,9 +16,20 @@
 import { randomUUID } from "node:crypto";
 import { deriveCapabilityState, reportDegradation } from "./lib/degradedCapabilities.js";
 import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
+import {
+  CALENDAR_COVERAGE_WARNING_DAYS,
+  evaluateCalendarCoverage,
+  type CalendarCoverage,
+} from "./lib/calendarCoverage.js";
 import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
-import { GraphClient, AnthropicStructuredClient, PgCostGuard, buildHolidayCalendarFromYaml } from "@aiops/shared";
+import {
+  GraphClient,
+  AnthropicStructuredClient,
+  PgCostGuard,
+  buildHolidayCalendarFromYaml,
+  type HolidayEntry,
+} from "@aiops/shared";
 import { YamlStakeholderMasterProvider } from "@aiops/prjops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
@@ -125,6 +136,17 @@ function loadJpHolidayCalendar() {
   return buildHolidayCalendarFromYaml(readFileSync(yamlUrl, "utf8"));
 }
 
+export function updateCalendarCoverageMetric(
+  metrics: Pick<MetricsRegistry, "setCalendarCoverageDays">,
+  entries: readonly HolidayEntry[],
+  now: Date,
+): CalendarCoverage {
+  const coverage = evaluateCalendarCoverage(entries, now);
+  // 不正日を有効日のcoverageで隠さず、空データと同じ -1 で監視をfail-closedにする。
+  metrics.setCalendarCoverageDays(coverage.invalidDates.length > 0 ? null : coverage.remainingDays);
+  return coverage;
+}
+
 export function githubCompositionPolicy(mode: GitHubAuthMode): {
   enabled: boolean;
   blocksWhen(failsafeActive: boolean): boolean;
@@ -143,6 +165,14 @@ export async function main(
   const config = bootstrap.config ?? loadConfig();
   const logger = bootstrap.logger ?? createLogger(config.LOG_LEVEL);
   const metrics = new MetricsRegistry();
+  const jpHolidayCalendar = loadJpHolidayCalendar();
+  const calendarCoverage = updateCalendarCoverageMetric(metrics, jpHolidayCalendar.entries, new Date());
+  if (calendarCoverage.shouldWarn) {
+    logger.warn(
+      { ...calendarCoverage, warningDays: CALENDAR_COVERAGE_WARNING_DAYS },
+      "Japanese holiday calendar coverage is low",
+    );
+  }
   const telemetry = bootstrap.telemetry ?? { shutdown: async () => {} };
   const pool = createPool(config.DATABASE_URL, {
     max: config.DB_POOL_MAX,
@@ -364,8 +394,10 @@ export async function main(
       observedTask({
         name: "capability-metrics-refresh-30s",
         intervalMs: 30_000,
-        async run(): Promise<void> {
+        async run(now): Promise<void> {
           // /metrics は同期描画のまま保ち、DBを毎scrapeせず、既存スケジューラで購読状態を更新する。
+          // coverage残日数は壁時計で減るため、長期稼働中も同じ30秒taskで閾値 crossing を反映する。
+          updateCalendarCoverageMetric(metrics, jpHolidayCalendar.entries, now);
           await refreshSubscriptionPresence();
           publishCapabilities();
         },
@@ -475,7 +507,7 @@ export async function main(
             repo: sevenKeysSnapshotsRepo,
             disabledReason: "PrjOps report data provider is not configured",
             auditLog: prjopsAuditLog,
-            calendar: loadJpHolidayCalendar(),
+            calendar: jpHolidayCalendar,
             traceIdProvider: () => randomUUID(),
           }),
           prjopsAuditLog,
@@ -489,7 +521,7 @@ export async function main(
             defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
             defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
             publicBaseUrl: config.PUBLIC_BASE_URL,
-            calendar: loadJpHolidayCalendar(),
+            calendar: jpHolidayCalendar,
             recipientsRepo,
             standardReportsRepo,
             graphClient,
