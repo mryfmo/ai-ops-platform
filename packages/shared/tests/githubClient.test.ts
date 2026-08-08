@@ -197,10 +197,57 @@ describe("GitHubClient [DevOps:SPEC-INT-061, REQ-025/033]", () => {
   });
 
   it("getWorkflowJobLog は1MB超のログを末尾優先で切り詰める（SPEC-INT-011）", async () => {
-    const bigLog = "x".repeat(1_500_000);
+    const bigLog = `${"x".repeat(500_000)}${"y".repeat(1_000_000)}`;
     const fetchImpl: GhFetchLike = async () => new Response(bigLog, { status: 200 });
     const client = new GitHubClient(tokenProvider, fetchImpl);
     const log = await client.getWorkflowJobLog("acme", "devops-system", 123);
     expect(log.length).toBe(1_000_000);
+    expect(log).toBe("y".repeat(1_000_000));
+  });
+
+  it("getWorkflowRunFailureLog はfailed jobs APIと個別ログを結合する（DevOps:SPEC-INT-011）", async () => {
+    const calls: string[] = [];
+    const fetchImpl: GhFetchLike = async (url) => {
+      calls.push(url);
+      if (url.includes("/actions/runs/456/jobs")) {
+        return new Response(
+          JSON.stringify({
+            total_count: 2,
+            jobs: [
+              {
+                id: 11,
+                name: "test",
+                conclusion: "failure",
+                steps: [{ name: "vitest", conclusion: "failure" }],
+              },
+              { id: 12, name: "lint", conclusion: "success", steps: [] },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("AssertionError: expected 1 to be 2", { status: 200 });
+    };
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    const evidence = await client.getWorkflowRunFailureLog("acme", "devops-system", 456);
+
+    expect(evidence).toContain("Failed job: test");
+    expect(evidence).toContain("Failed step: vitest");
+    expect(evidence).toContain("AssertionError");
+    expect(calls).toEqual([
+      expect.stringContaining("/repos/acme/devops-system/actions/runs/456/jobs"),
+      expect.stringContaining("/repos/acme/devops-system/actions/jobs/11/logs"),
+    ]);
+  });
+
+  it("getWorkflowRunFailureLog は100件上限で全jobを観測できない応答を拒否する（DevOps:SPEC-INT-011）", async () => {
+    const fetchImpl: GhFetchLike = async () =>
+      new Response(JSON.stringify({ total_count: 101, jobs: [{ id: 11, name: "test", conclusion: "failure" }] }), {
+        status: 200,
+      });
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    await expect(client.getWorkflowRunFailureLog("acme", "devops-system", 456)).rejects.toThrow(/incomplete/i);
   });
 });

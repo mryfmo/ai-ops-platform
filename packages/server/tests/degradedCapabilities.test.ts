@@ -57,6 +57,21 @@ describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
     ).toMatchObject({ report_delivery: false, teams_default_channel: false, graph_subscriptions: false });
   });
 
+  it("AGT_BLD/AGT_INC は必要な外部依存が欠けたら縮退する [ADR-0014 / DevOps:SPEC-INT-011/030]", () => {
+    expect(deriveCapabilityState({ ...allConfigured, llmFreeTextConfigured: false })).toMatchObject({
+      build_triage: false,
+      incident_triage: false,
+    });
+    expect(deriveCapabilityState({ ...allConfigured, githubConfigured: false })).toMatchObject({
+      build_triage: false,
+      incident_triage: false,
+    });
+    expect(deriveCapabilityState({ ...allConfigured, defaultTeamsChannelConfigured: false })).toMatchObject({
+      build_triage: true,
+      incident_triage: false,
+    });
+  });
+
   it("AUD-OPM-001: identity secret未設定をapprovals縮退として公開する", () => {
     expect(deriveCapabilityState({ ...allConfigured, approvalsConfigured: false })).toMatchObject({
       approvals: false,

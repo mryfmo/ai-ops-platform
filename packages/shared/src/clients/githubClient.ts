@@ -106,6 +106,34 @@ export interface WorkflowRunListing {
   complete: boolean;
 }
 
+const MAX_WORKFLOW_LOG_BYTES = 1_000_000;
+
+function truncateUtf8Tail(text: string, maxBytes: number): string {
+  const bytes = Buffer.from(text, "utf8");
+  if (bytes.length <= maxBytes) return text;
+  let tail = bytes.subarray(bytes.length - maxBytes).toString("utf8");
+  while (Buffer.byteLength(tail, "utf8") > maxBytes) tail = tail.slice(1);
+  return tail;
+}
+
+async function readResponseTextTail(response: Response, maxBytes: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  let tail = Buffer.alloc(0);
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = Buffer.from(value);
+    if (chunk.length >= maxBytes) {
+      tail = Buffer.from(chunk.subarray(chunk.length - maxBytes));
+      continue;
+    }
+    const previousBytesToKeep = Math.min(tail.length, maxBytes - chunk.length);
+    tail = Buffer.concat([tail.subarray(tail.length - previousBytesToKeep), chunk], previousBytesToKeep + chunk.length);
+  }
+  return truncateUtf8Tail(tail.toString("utf8"), maxBytes);
+}
+
 export interface ProjectV2SnapshotRecord {
   projectId: string | null;
   repository: string | null;
@@ -375,11 +403,60 @@ export class GitHubClient {
       headers,
     });
     if (!res.ok) throw new Error(`E-ING04: getWorkflowJobLog failed with status ${res.status}`);
-    const text = await res.text();
-    const MAX_BYTES = 1_000_000;
-    if (Buffer.byteLength(text, "utf8") <= MAX_BYTES) return text;
-    // 末尾優先で切り詰め（SPEC-INT-011）
-    return text.slice(-MAX_BYTES);
+    return readResponseTextTail(res, MAX_WORKFLOW_LOG_BYTES);
+  }
+
+  /**
+   * workflow run の失敗証拠を取得する（DevOps:SPEC-INT-011 手順2）。
+   *
+   * run 全体の archive は redirect 先がZIPになり得る一方、job log API はplain textを返す。
+   * 依存を増やさず確実に扱うため、jobs JSONで失敗job/stepを特定して個別ログを取得する。
+   * 観測上限は1ページ100 jobs・失敗10 jobs・結合後1MB。上限超過を部分成功に見せず拒否する。
+   */
+  async getWorkflowRunFailureLog(owner: string, repo: string, runId: number): Promise<string> {
+    const headers = await this.headers();
+    const params = new URLSearchParams({ filter: "latest", per_page: "100", page: "1" });
+    const res = await this.fetch(
+      `${this.baseUrl}/repos/${owner}/${repo}/actions/runs/${runId}/jobs?${params.toString()}`,
+      { method: "GET", headers },
+    );
+    if (!res.ok) throw new Error(`E-ING06: list workflow jobs failed with status ${res.status}`);
+    const body = (await res.json()) as { total_count?: unknown; jobs?: unknown };
+    if (typeof body.total_count !== "number" || !Array.isArray(body.jobs)) {
+      throw new Error("E-ING07: malformed workflow jobs response");
+    }
+    if (body.total_count > 100 || body.jobs.length < body.total_count) {
+      throw new Error("E-ING08: incomplete workflow jobs response exceeds observation bound");
+    }
+
+    const failedJobs = body.jobs.filter((job) => {
+      const record = job as Record<string, unknown>;
+      return record["conclusion"] === "failure";
+    });
+    if (failedJobs.length === 0) throw new Error("E-ING09: workflow failure has no failed job evidence");
+    if (failedJobs.length > 10) throw new Error("E-ING10: failed workflow jobs exceed observation bound");
+
+    const sections: string[] = [];
+    for (const job of failedJobs) {
+      const record = job as Record<string, unknown>;
+      const id = record["id"];
+      const name = record["name"];
+      if (!Number.isSafeInteger(id) || Number(id) <= 0 || typeof name !== "string") {
+        throw new Error("E-ING11: malformed failed workflow job");
+      }
+      const failedSteps = Array.isArray(record["steps"])
+        ? record["steps"]
+            .filter((step) => (step as Record<string, unknown>)["conclusion"] === "failure")
+            .map((step) => (step as Record<string, unknown>)["name"])
+            .filter((stepName): stepName is string => typeof stepName === "string")
+        : [];
+      const log = truncateUtf8Tail(
+        await this.getWorkflowJobLog(owner, repo, Number(id)),
+        Math.floor(900_000 / failedJobs.length),
+      );
+      sections.push([`Failed job: ${name}`, ...failedSteps.map((step) => `Failed step: ${step}`), "", log].join("\n"));
+    }
+    return truncateUtf8Tail(sections.join("\n\n"), MAX_WORKFLOW_LOG_BYTES);
   }
 
   /** リポジトリ/Environmentへの権限付与（DevOps AGT-SEC, DevOps:SPEC-INT-053 grants） */

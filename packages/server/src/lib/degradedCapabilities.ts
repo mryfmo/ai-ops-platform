@@ -30,6 +30,8 @@ export const CAPABILITIES = [
   "telemetry",
   "graph_subscriptions",
   "approvals",
+  "build_triage",
+  "incident_triage",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -74,6 +76,12 @@ export function deriveCapabilityState(input: CapabilityInputs): CapabilityState 
     telemetry: input.telemetryConfigured,
     graph_subscriptions: input.graphSubscriptionsPresent,
     approvals: input.approvalsConfigured,
+    build_triage: input.llmFreeTextConfigured && input.githubConfigured,
+    incident_triage:
+      input.llmFreeTextConfigured &&
+      input.githubConfigured &&
+      input.defaultTeamsTeamConfigured &&
+      input.defaultTeamsChannelConfigured,
   };
 }
 
