@@ -30,9 +30,10 @@ export class MetricsRegistry {
   private readonly gauges = new Map<string, { name: string; labels: Labels; value: number }>();
   private readonly histograms = new Map<
     string,
-    { labels: Labels; buckets: Map<number, number>; sum: number; count: number }
+    { name: string; labels: Labels; buckets: Map<number, number>; sum: number; count: number }
   >();
   private readonly taskBuckets = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60];
+  private readonly httpBuckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 
   inc(name: string, labels: Labels = {}, amount = 1): void {
     const key = `${name}:${labelKey(labels)}`;
@@ -46,18 +47,27 @@ export class MetricsRegistry {
   }
 
   observeTaskDuration(task: string, status: "success" | "failure", seconds: number): void {
-    const labels = { task, status };
-    const key = labelKey(labels);
+    this.observeHistogram("aiops_task_run_duration_seconds", { task, status }, seconds, this.taskBuckets);
+  }
+
+  recordHttpRequest(method: string, route: string, status: number, seconds: number): void {
+    this.inc("aiops_http_requests_total", { method, route, status: String(status) });
+    this.observeHistogram("aiops_http_request_duration_seconds", { method, route }, seconds, this.httpBuckets);
+  }
+
+  private observeHistogram(name: string, labels: Labels, value: number, boundaries: number[]): void {
+    const key = `${name}:${labelKey(labels)}`;
     const histogram = this.histograms.get(key) ?? {
+      name,
       labels,
-      buckets: new Map(this.taskBuckets.map((bucket) => [bucket, 0])),
+      buckets: new Map(boundaries.map((bucket) => [bucket, 0])),
       sum: 0,
       count: 0,
     };
-    for (const bucket of this.taskBuckets) {
-      if (seconds <= bucket) histogram.buckets.set(bucket, (histogram.buckets.get(bucket) ?? 0) + 1);
+    for (const bucket of boundaries) {
+      if (value <= bucket) histogram.buckets.set(bucket, (histogram.buckets.get(bucket) ?? 0) + 1);
     }
-    histogram.sum += seconds;
+    histogram.sum += value;
     histogram.count += 1;
     this.histograms.set(key, histogram);
   }
@@ -68,6 +78,11 @@ export class MetricsRegistry {
 
   recordDelivery(result: "sent" | "failed" | "skipped", amount = 1): void {
     if (amount > 0) this.inc("aiops_report_delivery_total", { result }, amount);
+  }
+
+  setReportDeliveryFailureRatios(ratios: { sevenDay: number | null; threeDay: number | null }): void {
+    this.setGauge("aiops_report_delivery_failure_ratio_7d", {}, ratios.sevenDay ?? -1);
+    this.setGauge("aiops_report_delivery_failure_ratio_3d", {}, ratios.threeDay ?? -1);
   }
 
   recordReportVerificationFailure(code: string): void {
@@ -118,8 +133,16 @@ export class MetricsRegistry {
       "# TYPE aiops_task_run_duration_seconds histogram",
       "# HELP aiops_task_failures_total Scheduler task failures.",
       "# TYPE aiops_task_failures_total counter",
+      "# HELP aiops_http_requests_total HTTP requests by method, matched route, and status.",
+      "# TYPE aiops_http_requests_total counter",
+      "# HELP aiops_http_request_duration_seconds HTTP request duration by method and matched route.",
+      "# TYPE aiops_http_request_duration_seconds histogram",
       "# HELP aiops_report_delivery_total Report delivery outcomes.",
       "# TYPE aiops_report_delivery_total counter",
+      "# HELP aiops_report_delivery_failure_ratio_7d Report delivery failure ratio over the trailing seven days, or -1 when no attempts exist.",
+      "# TYPE aiops_report_delivery_failure_ratio_7d gauge",
+      "# HELP aiops_report_delivery_failure_ratio_3d Report delivery failure ratio over the trailing three days, or -1 when no attempts exist.",
+      "# TYPE aiops_report_delivery_failure_ratio_3d gauge",
       "# HELP aiops_report_verification_failures_total Report delivery verification failures by code.",
       "# TYPE aiops_report_verification_failures_total counter",
       "# HELP aiops_capability_enabled 1 when an optional capability is configured and active, 0 when degraded.",
@@ -137,15 +160,11 @@ export class MetricsRegistry {
     }
     for (const histogram of this.histograms.values()) {
       for (const [le, value] of histogram.buckets) {
-        lines.push(
-          `aiops_task_run_duration_seconds_bucket${renderLabels({ ...histogram.labels, le: String(le) })} ${value}`,
-        );
+        lines.push(`${histogram.name}_bucket${renderLabels({ ...histogram.labels, le: String(le) })} ${value}`);
       }
-      lines.push(
-        `aiops_task_run_duration_seconds_bucket${renderLabels({ ...histogram.labels, le: "+Inf" })} ${histogram.count}`,
-      );
-      lines.push(`aiops_task_run_duration_seconds_sum${renderLabels(histogram.labels)} ${histogram.sum}`);
-      lines.push(`aiops_task_run_duration_seconds_count${renderLabels(histogram.labels)} ${histogram.count}`);
+      lines.push(`${histogram.name}_bucket${renderLabels({ ...histogram.labels, le: "+Inf" })} ${histogram.count}`);
+      lines.push(`${histogram.name}_sum${renderLabels(histogram.labels)} ${histogram.sum}`);
+      lines.push(`${histogram.name}_count${renderLabels(histogram.labels)} ${histogram.count}`);
     }
     return `${lines.join("\n")}\n`;
   }

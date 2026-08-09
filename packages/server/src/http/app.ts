@@ -23,6 +23,7 @@ import { registerXlsxImportRoutes, type XlsxImportRoutesDeps } from "./routes/xl
 import { registerReportIngestRoutes, type ReportIngestDeps } from "./routes/reportIngest.js";
 import { registerApprovalRoutes, type ApprovalRoutesDeps } from "./routes/approvals.js";
 import { MetricsRegistry } from "../observability/metrics.js";
+import { httpMetricsMiddleware } from "../observability/httpMetrics.js";
 import { registerMetricsRoutes } from "./routes/metrics.js";
 import { verifyBearerToken } from "../lib/confirmToken.js";
 
@@ -42,7 +43,9 @@ export interface AppDependencies {
 
 export function buildApp(deps: AppDependencies): Hono {
   const app = new Hono();
+  const metrics = deps.metrics ?? new MetricsRegistry();
   const metricsToken = deps.metricsToken;
+  app.use("*", httpMetricsMiddleware(metrics));
   app.use("/coding-tasks/:taskId/confirm", async (c, next) => {
     await next();
     c.header(
@@ -68,7 +71,7 @@ export function buildApp(deps: AppDependencies): Hono {
     }
     await next();
   });
-  registerMetricsRoutes(app, deps.metrics ?? new MetricsRegistry());
+  registerMetricsRoutes(app, metrics);
   registerGraphNotificationRoutes(app, deps.graph);
   registerGithubWebhookRoutes(app, deps.github);
   registerCodingTaskRoutes(app, deps.codingTasks);

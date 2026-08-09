@@ -19,7 +19,7 @@ AC-029a「エージェント停止状態で手動デプロイ手順が実行可�
    の承認が求められる。この承認operationが、エージェント経由の承認（TH-002）の代替となる
    （SPEC-INT-060「Environments保護ルールの必須レビュアー承認が代替の人間承認として機能する」）。
 4. デプロイ後の監視（TH-003相当）は、エージェント停止中は自動化されないため、
-   デプロイ実施者が最低15分間、監視ダッシュボード（Datadog等）を目視で確認すること。
+   デプロイ実施者が最低15分間、Application Insights / Log Analyticsの監視ダッシュボードを目視で確認すること。
    異常があれば、同じworkflow_dispatchから`rollback=true`で手動ロールバックする。
 
 ## 2. DevOps: エージェント停止（フェイルセーフ発動）時の対応
@@ -106,5 +106,6 @@ ADR-0014 以降、PrjOps のアウトバウンド配信は package-local workflo
    リセットして過去の試行回数を失わせず、再投入後の1回が失敗すれば即座に dead へ戻す。
 
 4. **監視復帰**: event が `queued` → `dispatched` → `done` と進み、
-   `aiops_events_queue_depth{status="dead"}` が0へ戻って alert が解消することを確認する。
+   Application Insights `AppMetrics` の `aiops_events_queue_depth`（`Properties.status="dead"`）が0へ戻り、
+   `AiOpsDeadLetterQueueNotEmpty` alert が解消することを確認する。
    再び dead になった場合は再投入を繰り返さず、手順2へ戻る。

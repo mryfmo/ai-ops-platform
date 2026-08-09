@@ -1,0 +1,180 @@
+# ADR-0016 / AUD-OPS-002: Azure Monitor scheduled-query definitions replacing ops/prometheus-rules.yml.
+# `source_for` is converted to consecutive one-minute `failing_periods`; PT0M becomes one evaluation.
+api_version: aiops/v1
+kind: AzureMonitorScheduledQueryRuleSet
+
+telemetry_contract:
+  table: AppMetrics
+  metric_name_column: Name
+  value_column: Sum
+  dimensions_column: Properties
+  counter_temporality: delta
+  note: D-04 must map each Prometheus sample to AppMetrics and preserve labels in Properties before applying these rules.
+  derived_gauges:
+    aiops_report_delivery_failure_ratio_7d: trailing 7d ratio from bounded audit_log delivery-cycle aggregates
+    aiops_report_delivery_failure_ratio_3d: trailing 3d ratio from the same bounded aggregate
+  derived_gauge_refresh: PT1M
+
+defaults:
+  evaluation_frequency: PT1M
+  window_size: PT1M
+  severity: 2
+  auto_mitigate: true
+
+rules:
+  - name: AiOpsIngestToDispatchLatency
+    source_expression: 'aiops_events_queue_oldest_age_seconds{status="queued"} > 300'
+    source_for: PT10M
+    query_lookback: PT1M
+    failing_periods:
+      number_of_evaluation_periods: 10
+      minimum_failing_periods_to_alert: 10
+    criteria:
+      time_aggregation: Maximum
+      operator: GreaterThan
+      threshold: 300
+      metric_measure_column: metric_value
+    labels:
+      slo: ingest-to-dispatch-latency
+    summary: Queued events are older than the five-minute SLO
+    runbook: runbooks/observability-slo.md
+    query: |
+      AppMetrics
+      | where TimeGenerated >= ago(1m)
+      | where Name == "aiops_events_queue_oldest_age_seconds"
+      | extend status = tostring(Properties["status"])
+      | where status == "queued"
+      | summarize metric_value = max(todouble(Sum))
+
+  - name: AiOpsDeadLetterQueueNotEmpty
+    source_expression: 'aiops_events_queue_depth{status="dead"} > 0'
+    source_for: PT5M
+    query_lookback: PT1M
+    failing_periods:
+      number_of_evaluation_periods: 5
+      minimum_failing_periods_to_alert: 5
+    criteria:
+      time_aggregation: Maximum
+      operator: GreaterThan
+      threshold: 0
+      metric_measure_column: metric_value
+    labels:
+      severity: warning
+    summary: One or more events exhausted their retry budget
+    runbook: runbooks/manual-ops.md
+    query: |
+      AppMetrics
+      | where TimeGenerated >= ago(1m)
+      | where Name == "aiops_events_queue_depth"
+      | extend status = tostring(Properties["status"])
+      | where status == "dead"
+      | summarize metric_value = max(todouble(Sum))
+
+  - name: AiOpsReportDeliverySuccess
+    source_expression: "failed / (sent + failed) over 7d > 0.01"
+    source_for: PT30M
+    source_window: P7D
+    query_lookback: PT1M
+    failing_periods:
+      number_of_evaluation_periods: 30
+      minimum_failing_periods_to_alert: 30
+    criteria:
+      time_aggregation: Maximum
+      operator: GreaterThan
+      threshold: 0.01
+      metric_measure_column: metric_value
+    labels:
+      slo: report-delivery-success
+    summary: Report delivery failure ratio exceeds the 1% error budget
+    runbook: runbooks/observability-slo.md
+    query: |
+      AppMetrics
+      | where TimeGenerated >= ago(1m)
+      | where Name == "aiops_report_delivery_failure_ratio_7d"
+      | where todouble(Sum) >= 0
+      | summarize arg_max(TimeGenerated, Sum)
+      | project metric_value = todouble(Sum)
+
+  - name: AiOpsSchedulerTaskSuccess
+    source_expression: "failures / task runs over 24h > 0.005 by task"
+    source_for: PT0M
+    query_lookback: P1D
+    failing_periods:
+      number_of_evaluation_periods: 1
+      minimum_failing_periods_to_alert: 1
+    criteria:
+      time_aggregation: Maximum
+      operator: GreaterThan
+      threshold: 0.005
+      metric_measure_column: metric_value
+    labels:
+      slo: scheduler-task-success
+    summary: A scheduler task's 24-hour success ratio is below 99.5%
+    runbook: runbooks/observability-slo.md
+    query: |
+      let failures = AppMetrics
+        | where TimeGenerated >= ago(24h)
+        | where Name == "aiops_task_failures_total"
+        | extend task = tostring(Properties["task"])
+        | summarize failed = sum(todouble(Sum)) by task;
+      let runs = AppMetrics
+        | where TimeGenerated >= ago(24h)
+        | where Name == "aiops_task_run_duration_seconds_count"
+        | extend task = tostring(Properties["task"])
+        | summarize total = sum(todouble(Sum)) by task;
+      failures
+      | join kind=inner runs on task
+      | where total > 0
+      | project task, metric_value = failed / total
+
+  - name: AiOpsReportDeliveryFastBurn
+    source_expression: "failed / (sent + failed) over 1h > 0.06"
+    source_for: PT0M
+    query_lookback: PT1H
+    failing_periods:
+      number_of_evaluation_periods: 1
+      minimum_failing_periods_to_alert: 1
+    criteria:
+      time_aggregation: Maximum
+      operator: GreaterThan
+      threshold: 0.06
+      metric_measure_column: metric_value
+    labels:
+      slo: report-delivery-success
+      burn_rate: fast
+    summary: Report delivery is consuming its 1% error budget at more than 6x over 1h
+    runbook: runbooks/observability-slo.md
+    query: |
+      AppMetrics
+      | where TimeGenerated >= ago(1h)
+      | where Name == "aiops_report_delivery_total"
+      | extend result = tostring(Properties["result"]), sample = todouble(Sum)
+      | summarize failed = sumif(sample, result == "failed"), total = sumif(sample, result in ("sent", "failed"))
+      | where total > 0
+      | project metric_value = failed / total
+
+  - name: AiOpsReportDeliverySlowBurn
+    source_expression: "failed / (sent + failed) over 3d > 0.01"
+    source_for: PT0M
+    source_window: P3D
+    query_lookback: PT1M
+    failing_periods:
+      number_of_evaluation_periods: 1
+      minimum_failing_periods_to_alert: 1
+    criteria:
+      time_aggregation: Maximum
+      operator: GreaterThan
+      threshold: 0.01
+      metric_measure_column: metric_value
+    labels:
+      slo: report-delivery-success
+      burn_rate: slow
+    summary: Report delivery is consuming its 1% error budget at more than 1x over 3d
+    runbook: runbooks/observability-slo.md
+    query: |
+      AppMetrics
+      | where TimeGenerated >= ago(1m)
+      | where Name == "aiops_report_delivery_failure_ratio_3d"
+      | where todouble(Sum) >= 0
+      | summarize arg_max(TimeGenerated, Sum)
+      | project metric_value = todouble(Sum)
