@@ -41,4 +41,6 @@
 
 ## GitHub evidence
 
-- PR/check/thread evidence is appended after publication and must be green before AGMSG-RESULT.
+- PR: https://github.com/mryfmo/ai-ops-platform/pull/149
+- Implementation commit: `b94b266`.
+- Final check/thread evidence is verified on the evidence-update head before AGMSG-RESULT.
