@@ -236,14 +236,18 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
       message: "PrjOps snapshot directory, accepted/source commits, and content checksum must be configured together",
     });
   }
-  if (!config.REPORT_DELIVERY_ENABLED) return;
-  if (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX)) {
+  const scheduledMailEnabled = config.REPORT_DELIVERY_ENABLED || Boolean(config.PMO_NOTIFY_MAILBOX);
+  if (
+    scheduledMailEnabled &&
+    (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX))
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["FROM_MAILBOX"],
-      message: "must be in Graph mailbox allowlist",
+      message: "is required and must be in the Graph mailbox allowlist when scheduled mail is enabled",
     });
   }
+  if (!config.REPORT_DELIVERY_ENABLED) return;
   if (Boolean(config.DEFAULT_TEAMS_TEAM_ID) !== Boolean(config.DEFAULT_TEAMS_CHANNEL_ID)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

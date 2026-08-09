@@ -59,4 +59,25 @@ describe("prjopsWeeklyAnalyzeTask [PrjOps:REQ-006/007 / PrjOps:SPEC-INT-040]", (
     expect(analyze).toHaveBeenCalledTimes(3);
     expect(sendMail).toHaveBeenCalledOnce();
   });
+
+  it("PMO mail失敗時はweekly slotを完了せず10分後にmailだけ再試行する", async () => {
+    const provider = vi.fn(async () => Promise.reject(new Error("analysis failed")));
+    const sendMail = vi.fn().mockRejectedValueOnce(new Error("Graph unavailable")).mockResolvedValue(undefined);
+    const task = createPrjopsWeeklyAnalyzeTask({
+      provider: { listActiveProjects: provider },
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-pmo-retry",
+      pmoNotifyMailbox: "pmo@example.com",
+      fromMailbox: "reports@example.com",
+      graphClient: { sendMail },
+    });
+    await task.run(new Date("2026-07-19T21:00:00Z"));
+    await task.run(new Date("2026-07-19T21:10:00Z"));
+    await task.run(new Date("2026-07-19T21:20:00Z"));
+    await task.run(new Date("2026-07-19T21:29:00Z"));
+    expect(sendMail).toHaveBeenCalledOnce();
+    await task.run(new Date("2026-07-19T21:30:00Z"));
+    expect(sendMail).toHaveBeenCalledTimes(2);
+    expect(provider).toHaveBeenCalledTimes(3);
+  });
 });

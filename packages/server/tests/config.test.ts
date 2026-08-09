@@ -68,9 +68,35 @@ describe("loadConfig (ADR-0005)", () => {
   });
 
   it("A046: PMO_NOTIFY_MAILBOXをcanonical emailとして読む", () => {
-    expect(loadConfig({ ...validEnv, PMO_NOTIFY_MAILBOX: " PMO@Example.com " }).PMO_NOTIFY_MAILBOX).toBe(
-      "pmo@example.com",
-    );
+    expect(
+      loadConfig({
+        ...validEnv,
+        FROM_MAILBOX: "reports@example.com",
+        PMO_NOTIFY_MAILBOX: " PMO@Example.com ",
+      }).PMO_NOTIFY_MAILBOX,
+    ).toBe("pmo@example.com");
+  });
+
+  it("A046: report delivery無効でもPMO escalation senderを明示allowlistで検証する", () => {
+    expect(
+      loadConfig({
+        ...validEnv,
+        REPORT_DELIVERY_ENABLED: "false",
+        FROM_MAILBOX: "reports@example.com",
+        PMO_NOTIFY_MAILBOX: "pmo@example.com",
+      }).REPORT_DELIVERY_ENABLED,
+    ).toBe(false);
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        REPORT_DELIVERY_ENABLED: "false",
+        FROM_MAILBOX: "outside@example.com",
+        PMO_NOTIFY_MAILBOX: "pmo@example.com",
+      }),
+    ).toThrow("E-CFG01");
+    expect(() =>
+      loadConfig({ ...validEnv, REPORT_DELIVERY_ENABLED: "false", PMO_NOTIFY_MAILBOX: "pmo@example.com" }),
+    ).toThrow("E-CFG01");
   });
 
   it("PrjOps:REQ-002: STAKEHOLDERS_DIRは絶対パスだけを許可する", () => {

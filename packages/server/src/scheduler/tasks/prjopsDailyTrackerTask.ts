@@ -48,13 +48,55 @@ const emptyState = (actionId: string): ActionReminderState => ({
 
 export function createPrjopsDailyTrackerTask(deps: PrjopsDailyTrackerTaskDeps): ScheduledTask {
   let retry: { attemptNumber: number; nextAttemptAtMs: number; slot: string } | null = null;
+  let pmoRetry: { nextAttemptAtMs: number; slot: string } | null = null;
   let completedSlot: string | null = null;
+  let notifiedSlot: string | null = null;
+  const notifiedActionIds = new Set<string>();
+
+  const sendPmoEscalation = async (): Promise<void> => {
+    await deps.graphClient!.sendMail({
+      toEmail: deps.pmoNotifyMailbox!,
+      fromMailbox: deps.fromMailbox!,
+      subject: "[ai-ops] PrjOps daily tracking failed",
+      htmlBody: "<p>AGT-06 daily tracking failed after three attempts. Check the audit trace.</p>",
+    });
+  };
 
   return {
     name: "prjops-daily-tracker",
     intervalMs: deps.intervalMs ?? 60_000,
     async run(now): Promise<void> {
       const slot = todayJstDateString(now);
+      if (pmoRetry) {
+        if (now.getTime() < pmoRetry.nextAttemptAtMs) return;
+        const pendingSlot = pmoRetry.slot;
+        const traceId = deps.traceIdProvider();
+        try {
+          await sendPmoEscalation();
+        } catch (error) {
+          pmoRetry.nextAttemptAtMs = now.getTime() + 10 * 60_000;
+          await deps.auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-01",
+            action: "pmo_escalation_retry",
+            basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+            detail: { jobName: "prjops-daily-tracker", error: sanitizeSecrets(String(error)).sanitized },
+            at: now.toISOString(),
+          });
+          return;
+        }
+        pmoRetry = null;
+        completedSlot = pendingSlot;
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-01",
+          action: "pmo_escalation_delivered",
+          basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+          detail: { jobName: "prjops-daily-tracker" },
+          at: now.toISOString(),
+        });
+        return;
+      }
       const retryDue = retry !== null && now.getTime() >= retry.nextAttemptAtMs;
       if (!retryDue && (!isDailyTrackingDue(deps.calendar, now) || completedSlot === slot)) return;
       const traceId = deps.traceIdProvider();
@@ -73,6 +115,10 @@ export function createPrjopsDailyTrackerTask(deps: PrjopsDailyTrackerTaskDeps): 
       }
 
       try {
+        if (notifiedSlot !== slot) {
+          notifiedSlot = slot;
+          notifiedActionIds.clear();
+        }
         const sourceActions = await deps.provider.listOpenActions();
         const states = await deps.stateRepo.findMany(sourceActions.map((action) => action.id));
         const process = deps.processAction ?? processActionForDay;
@@ -83,13 +129,28 @@ export function createPrjopsDailyTrackerTask(deps: PrjopsDailyTrackerTaskDeps): 
             ...persisted,
             remindersSentCount: Math.max(persisted.remindersSentCount, source.remindersSentCountBaseline ?? 0),
           };
-          if (state.escalatedAt || (state.lastNotifiedAt && isSameJstDate(state.lastNotifiedAt, slot))) continue;
+          if (
+            state.escalatedAt ||
+            notifiedActionIds.has(source.id) ||
+            (state.lastNotifiedAt && isSameJstDate(state.lastNotifiedAt, slot))
+          )
+            continue;
           const { managerEmail, remindersSentCountBaseline, ...action } = source;
           const result = await process(
             { ...action, remindersSentCount: state.remindersSentCount },
             {
               cal: deps.calendar,
-              graphClient: deps.graphClient,
+              graphClient: {
+                sendMail: async (input) => {
+                  await deps.graphClient!.sendMail(input);
+                  notifiedActionIds.add(source.id);
+                },
+                sendAdaptiveCard: async (input) => {
+                  const result = await deps.graphClient!.sendAdaptiveCard(input);
+                  notifiedActionIds.add(source.id);
+                  return result;
+                },
+              },
               auditLog: deps.auditLog,
               traceId,
               todayJst: slot,
@@ -98,6 +159,7 @@ export function createPrjopsDailyTrackerTask(deps: PrjopsDailyTrackerTaskDeps): 
             },
           );
           if (result !== "none") {
+            notifiedActionIds.add(source.id);
             await deps.stateRepo.recordOutcome(
               source.id,
               result as ReminderOutcome,
@@ -136,13 +198,29 @@ export function createPrjopsDailyTrackerTask(deps: PrjopsDailyTrackerTaskDeps): 
           return;
         }
         retry = null;
-        completedSlot = slot;
         if (deps.pmoNotifyMailbox) {
-          await deps.graphClient.sendMail({
-            toEmail: deps.pmoNotifyMailbox,
-            fromMailbox: deps.fromMailbox,
-            subject: "[ai-ops] PrjOps daily tracking failed",
-            htmlBody: "<p>AGT-06 daily tracking failed after three attempts. Check the audit trace.</p>",
+          try {
+            await sendPmoEscalation();
+          } catch (error) {
+            pmoRetry = { nextAttemptAtMs: now.getTime() + 10 * 60_000, slot };
+            await deps.auditLog.append({
+              trace_id: traceId,
+              actor: "AGT-01",
+              action: "pmo_escalation_retry",
+              basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+              detail: { jobName: "prjops-daily-tracker", error: sanitizeSecrets(String(error)).sanitized },
+              at: now.toISOString(),
+            });
+            return;
+          }
+          completedSlot = slot;
+          await deps.auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-01",
+            action: "pmo_escalation_delivered",
+            basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+            detail: { jobName: "prjops-daily-tracker" },
+            at: now.toISOString(),
           });
         } else {
           await deps.auditLog.append({
@@ -153,6 +231,7 @@ export function createPrjopsDailyTrackerTask(deps: PrjopsDailyTrackerTaskDeps): 
             detail: { reason: "PMO_NOTIFY_MAILBOX is not configured" },
             at: now.toISOString(),
           });
+          completedSlot = slot;
         }
       }
     },

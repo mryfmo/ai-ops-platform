@@ -121,4 +121,63 @@ describe("prjopsDailyTrackerTask [PrjOps:REQ-006/009 / PrjOps:SPEC-INT-040]", ()
     await task.run(new Date("2026-07-20T00:20:00Z"));
     expect((await auditLog.readAll()).map((record) => record.action)).toContain("pmo_escalation_disabled");
   });
+
+  it("notify成功後のstate write失敗を同日retryしても再送しない", async () => {
+    const sendMail = vi.fn(async () => undefined);
+    const processAction = vi.fn(async (_action, deps) => {
+      await deps.graphClient.sendMail({
+        toEmail: "owner@example.com",
+        fromMailbox: "reports@example.com",
+        subject: "reminder",
+        htmlBody: "<p>reminder</p>",
+      });
+      return "reminded" as const;
+    });
+    const recordOutcome = vi.fn(async () => Promise.reject(new Error("state write failed")));
+    const task = createPrjopsDailyTrackerTask({
+      provider: { listOpenActions: async () => [action] },
+      stateRepo: { findMany: async () => new Map(), recordOutcome },
+      processAction,
+      graphClient: { sendMail, sendAdaptiveCard: vi.fn() },
+      fromMailbox: "reports@example.com",
+      calendar: buildHolidayCalendar([]),
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-write-crash",
+    });
+
+    await task.run(new Date("2026-07-20T00:00:00Z"));
+    await task.run(new Date("2026-07-20T00:10:00Z"));
+    expect(sendMail).toHaveBeenCalledOnce();
+    expect(processAction).toHaveBeenCalledOnce();
+    expect(recordOutcome).toHaveBeenCalledOnce();
+
+    await task.run(new Date("2026-07-21T00:00:00Z"));
+    expect(sendMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("PMO mail失敗時はslotを未完了のまま10分後にmailだけ再試行する", async () => {
+    const provider = vi.fn(async () => Promise.reject(new Error("tracking failed")));
+    const sendMail = vi.fn().mockRejectedValueOnce(new Error("Graph unavailable")).mockResolvedValue(undefined);
+    const task = createPrjopsDailyTrackerTask({
+      provider: { listOpenActions: provider },
+      stateRepo: { findMany: vi.fn(), recordOutcome: vi.fn() },
+      graphClient: { sendMail, sendAdaptiveCard: vi.fn() },
+      fromMailbox: "reports@example.com",
+      pmoNotifyMailbox: "pmo@example.com",
+      calendar: buildHolidayCalendar([]),
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-pmo-retry",
+    });
+
+    await task.run(new Date("2026-07-20T00:00:00Z"));
+    await task.run(new Date("2026-07-20T00:10:00Z"));
+    await task.run(new Date("2026-07-20T00:20:00Z"));
+    await task.run(new Date("2026-07-20T00:29:00Z"));
+    expect(sendMail).toHaveBeenCalledOnce();
+    await task.run(new Date("2026-07-20T00:30:00Z"));
+    expect(sendMail).toHaveBeenCalledTimes(2);
+    expect(provider).toHaveBeenCalledTimes(3);
+    await task.run(new Date("2026-07-20T00:40:00Z"));
+    expect(sendMail).toHaveBeenCalledTimes(2);
+  });
 });

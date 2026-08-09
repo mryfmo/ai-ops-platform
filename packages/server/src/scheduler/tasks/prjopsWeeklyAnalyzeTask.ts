@@ -27,13 +27,53 @@ export interface PrjopsWeeklyAnalyzeTaskDeps {
 
 export function createPrjopsWeeklyAnalyzeTask(deps: PrjopsWeeklyAnalyzeTaskDeps): ScheduledTask {
   let retry: { attemptNumber: number; nextAttemptAtMs: number; slot: string } | null = null;
+  let pmoRetry: { nextAttemptAtMs: number; slot: string } | null = null;
   let completedSlot: string | null = null;
+
+  const sendPmoEscalation = async (): Promise<void> => {
+    await deps.graphClient!.sendMail({
+      toEmail: deps.pmoNotifyMailbox!,
+      fromMailbox: deps.fromMailbox!,
+      subject: "[ai-ops] PrjOps weekly analysis failed",
+      htmlBody: "<p>AGT-03 weekly analysis failed after three attempts. Check the audit trace.</p>",
+    });
+  };
 
   return {
     name: "prjops-weekly-analyze",
     intervalMs: deps.intervalMs ?? 60_000,
     async run(now): Promise<void> {
       const slot = todayJstDateString(now);
+      if (pmoRetry) {
+        if (now.getTime() < pmoRetry.nextAttemptAtMs) return;
+        const pendingSlot = pmoRetry.slot;
+        const traceId = deps.traceIdProvider();
+        try {
+          await sendPmoEscalation();
+        } catch (error) {
+          pmoRetry.nextAttemptAtMs = now.getTime() + 10 * 60_000;
+          await deps.auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-01",
+            action: "pmo_escalation_retry",
+            basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+            detail: { jobName: "prjops-weekly-analyze", error: sanitizeSecrets(String(error)).sanitized },
+            at: now.toISOString(),
+          });
+          return;
+        }
+        pmoRetry = null;
+        completedSlot = pendingSlot;
+        await deps.auditLog.append({
+          trace_id: traceId,
+          actor: "AGT-01",
+          action: "pmo_escalation_delivered",
+          basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+          detail: { jobName: "prjops-weekly-analyze" },
+          at: now.toISOString(),
+        });
+        return;
+      }
       const retryDue = retry !== null && now.getTime() >= retry.nextAttemptAtMs;
       if (!retryDue && (!isWeeklyAnalysisDue(now) || completedSlot === slot)) return;
       const attemptNumber = retryDue ? retry!.attemptNumber : 1;
@@ -82,13 +122,29 @@ export function createPrjopsWeeklyAnalyzeTask(deps: PrjopsWeeklyAnalyzeTaskDeps)
           return;
         }
         retry = null;
-        completedSlot = slot;
         if (deps.graphClient && deps.pmoNotifyMailbox && deps.fromMailbox) {
-          await deps.graphClient.sendMail({
-            toEmail: deps.pmoNotifyMailbox,
-            fromMailbox: deps.fromMailbox,
-            subject: "[ai-ops] PrjOps weekly analysis failed",
-            htmlBody: "<p>AGT-03 weekly analysis failed after three attempts. Check the audit trace.</p>",
+          try {
+            await sendPmoEscalation();
+          } catch (error) {
+            pmoRetry = { nextAttemptAtMs: now.getTime() + 10 * 60_000, slot };
+            await deps.auditLog.append({
+              trace_id: traceId,
+              actor: "AGT-01",
+              action: "pmo_escalation_retry",
+              basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+              detail: { jobName: "prjops-weekly-analyze", error: sanitizeSecrets(String(error)).sanitized },
+              at: now.toISOString(),
+            });
+            return;
+          }
+          completedSlot = slot;
+          await deps.auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-01",
+            action: "pmo_escalation_delivered",
+            basis: "PrjOps:REQ-006 / PrjOps:SPEC-INT-040",
+            detail: { jobName: "prjops-weekly-analyze" },
+            at: now.toISOString(),
           });
         } else {
           await deps.auditLog.append({
@@ -99,6 +155,7 @@ export function createPrjopsWeeklyAnalyzeTask(deps: PrjopsWeeklyAnalyzeTaskDeps)
             detail: { reason: "PMO_NOTIFY_MAILBOX or Graph mail dependency is not configured" },
             at: now.toISOString(),
           });
+          completedSlot = slot;
         }
       }
     },
