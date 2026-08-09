@@ -12,7 +12,12 @@ const payload: StandardReportPayload = {
   evidenceIds: ["PrjOps:REQ-042"],
   period: { label: "2026-W28", generatedAt: "2026-07-06T00:00:00.000Z" },
   metrics: {
-    completed: { value: 1, source: "test:completed", as_of: "2026-07-06T00:00:00.000Z" },
+    completed: {
+      value: 1,
+      source: "test:completed",
+      as_of: "2026-07-06T00:00:00.000Z",
+      scope: { kind: "project", projectId: "PJ-001" },
+    },
   },
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };
@@ -85,6 +90,23 @@ describe("POST /reports/ingest [PrjOps:REQ-042 SPEC-INT-069 SPEC-INT-083 PrjOps:
     expect(inserts).toHaveLength(0);
   });
 
+  it("PrjOps:REQ-019: 新規v2 ingestはmetric scope欠落を422で拒否する", async () => {
+    const { app, inserts } = makeApp();
+    const unscoped = {
+      ...payload,
+      metrics: { completed: { value: 1, source: "test:completed", as_of: "2026-07-06T00:00:00.000Z" } },
+    };
+    const raw = JSON.stringify(unscoped);
+    const res = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(raw) },
+      body: raw,
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ details: [expect.stringMatching(/missing scope/)] });
+    expect(inserts).toHaveLength(0);
+  });
+
   it("正常系は保存して配信パイプラインへ渡す", async () => {
     const { app, inserts, delivered } = makeApp();
     const raw = JSON.stringify(payload);
@@ -132,5 +154,41 @@ describe("POST /reports/ingest [PrjOps:REQ-042 SPEC-INT-069 SPEC-INT-083 PrjOps:
     });
     expect(res.status).toBe(200);
     expect(delivered).toEqual([standardReportId(payload), standardReportId(payload)]);
+  });
+
+  it("PrjOps:REQ-019: portfolio scope順だけが違う再送は同一report IDへ正規化する", async () => {
+    const { app, inserts, delivered } = makeApp();
+    const withProjects = (projectIds: string[]): StandardReportPayload => ({
+      ...payload,
+      metrics: {
+        completed: {
+          ...payload.metrics.completed!,
+          scope: { kind: "portfolio", projectIds },
+        },
+      },
+    });
+    const first = withProjects(["PJ-002", "PJ-001"]);
+    const retry = withProjects(["PJ-001", "PJ-002"]);
+    const firstRaw = JSON.stringify(first);
+    const retryRaw = JSON.stringify(retry);
+
+    const firstResponse = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(firstRaw) },
+      body: firstRaw,
+    });
+    const retryResponse = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(retryRaw) },
+      body: retryRaw,
+    });
+
+    expect(firstResponse.status).toBe(201);
+    expect(retryResponse.status).toBe(200);
+    expect(inserts[0]!.metrics.completed!.scope).toEqual({
+      kind: "portfolio",
+      projectIds: ["PJ-001", "PJ-002"],
+    });
+    expect(delivered[0]).toBe(delivered[1]);
   });
 });

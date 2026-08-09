@@ -248,6 +248,13 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
     });
   }
   if (!config.REPORT_DELIVERY_ENABLED) return;
+  if (!config.STAKEHOLDERS_DIR) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["STAKEHOLDERS_DIR"],
+      message: "is required when report delivery is enabled",
+    });
+  }
   if (Boolean(config.DEFAULT_TEAMS_TEAM_ID) !== Boolean(config.DEFAULT_TEAMS_CHANNEL_ID)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

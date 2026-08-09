@@ -6,7 +6,12 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Hono } from "hono";
-import { validateStandardReportPayload, type AuditLogWriter, type StandardReportPayload } from "@aiops/shared";
+import {
+  assertProducerMetricScopes,
+  validateStandardReportPayload,
+  type AuditLogWriter,
+  type StandardReportPayload,
+} from "@aiops/shared";
 
 export interface ReportIngestDeps {
   ingestSecret?: string;
@@ -33,6 +38,20 @@ function verifyReportSignature(rawBody: string, signature: string | null, secret
   } catch {
     return false;
   }
+}
+
+function normalizePortfolioMetricScopes(payload: StandardReportPayload): StandardReportPayload {
+  return {
+    ...payload,
+    metrics: Object.fromEntries(
+      Object.entries(payload.metrics).map(([key, metric]) => [
+        key,
+        metric.scope?.kind === "portfolio"
+          ? { ...metric, scope: { ...metric.scope, projectIds: [...metric.scope.projectIds].sort() } }
+          : metric,
+      ]),
+    ),
+  };
 }
 
 export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): void {
@@ -76,7 +95,16 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
       return c.json({ error: "invalid report", details: validation.errors }, 422);
     }
 
-    const reportPayload = payload as StandardReportPayload;
+    try {
+      assertProducerMetricScopes((payload as StandardReportPayload).metrics);
+    } catch (error) {
+      return c.json(
+        { error: "invalid report", details: [error instanceof Error ? error.message : "missing scope"] },
+        422,
+      );
+    }
+
+    const reportPayload = normalizePortfolioMetricScopes(payload as StandardReportPayload);
     const inserted = await deps.reportsRepo.insert(reportPayload, traceId);
     await deps.auditLog.append({
       trace_id: traceId,

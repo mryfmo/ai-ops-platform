@@ -14,6 +14,7 @@ import {
   type StandardReportSlots,
 } from "./reportSchema.js";
 import { findNarrativeNumberTokens } from "./narrativeNumberGuard.js";
+import { isValidId } from "../ids.js";
 
 export interface ReportValidationResult {
   ok: boolean;
@@ -28,8 +29,12 @@ export interface ReportSlotNumericFinding {
 const ISO_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 const REPORT_KEYS = ["schemaVersion", "reportType", "evidenceIds", "period", "metrics", "slots"];
 const PERIOD_KEYS = ["label", "generatedAt"];
-const MEASURED_METRIC_KEYS = ["value", "source", "as_of"];
-const UNAVAILABLE_METRIC_KEYS = ["value", "unavailable_reason", "source", "as_of"];
+const MEASURED_METRIC_KEYS = ["value", "source", "as_of", "scope"];
+const UNAVAILABLE_METRIC_KEYS = ["value", "unavailable_reason", "source", "as_of", "scope"];
+
+function isCanonicalReportProjectId(value: string): boolean {
+  return isValidId("project", value) || isValidId("projectDevOps", value);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -194,6 +199,29 @@ function validateMetric(name: string, metric: unknown): string[] {
     errors.push(`${path}.source must be a non-empty stable source id`);
   }
   if (!isIsoDateTime(metric.as_of)) errors.push(`${path}.as_of must be an ISO-8601 date-time with timezone`);
+  if (metric.scope !== undefined) {
+    if (!isRecord(metric.scope)) {
+      errors.push(`${path}.scope must be a project or portfolio scope`);
+    } else if (metric.scope.kind === "project") {
+      validateAllowedKeys(metric.scope, ["kind", "projectId"], `${path}.scope.`, errors);
+      if (typeof metric.scope.projectId !== "string" || !isCanonicalReportProjectId(metric.scope.projectId)) {
+        errors.push(`${path}.scope.projectId must be a canonical project id`);
+      }
+    } else if (metric.scope.kind === "portfolio") {
+      validateAllowedKeys(metric.scope, ["kind", "projectIds"], `${path}.scope.`, errors);
+      const ids = metric.scope.projectIds;
+      if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        ids.some((id) => typeof id !== "string" || !isCanonicalReportProjectId(id)) ||
+        new Set(ids).size !== ids.length
+      ) {
+        errors.push(`${path}.scope.projectIds must contain unique non-empty ids`);
+      }
+    } else {
+      errors.push(`${path}.scope.kind must be project or portfolio`);
+    }
+  }
   return errors;
 }
 
@@ -276,6 +304,15 @@ export function validateStandardReportPayload(payload: unknown): ReportValidatio
 export function assertValidStandardReportPayload(payload: unknown): asserts payload is StandardReportPayload {
   const result = validateStandardReportPayload(payload);
   if (!result.ok) throw new Error(`E-RPT02: invalid standard report: ${result.errors.join("; ")}`);
+}
+
+/** New producer boundary: persisted v2 may omit scope, freshly emitted metrics may not. */
+export function assertProducerMetricScopes(metrics: Record<string, unknown>): void {
+  const missing = Object.entries(metrics)
+    .filter(([, metric]) => !isRecord(metric) || metric.scope === undefined)
+    .map(([key]) => key)
+    .sort();
+  if (missing.length > 0) throw new Error(`E-RPT07: producer metrics missing scope: ${missing.join(", ")}`);
 }
 
 function truncateText(value: string, maxChars: number): string {

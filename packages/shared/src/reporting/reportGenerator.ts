@@ -9,6 +9,7 @@ import {
   createReportSlotsToolSchema,
   STANDARD_REPORT_SCHEMA_VERSION,
   type StandardReportMetric,
+  type ReportMetricScope,
   type StandardReportPayload,
   type StandardReportSlots,
 } from "./reportSchema.js";
@@ -20,6 +21,7 @@ export interface ReportStructuredClient {
 }
 
 export interface GenerateReportSlotsOptions extends WeeklySummaryPromptInput {
+  metricScope: ReportMetricScope;
   traceId: string;
   actor: string;
   client: ReportStructuredClient;
@@ -34,6 +36,10 @@ export interface GenerateReportSlotsResult {
 
 export type StandardReportEvidenceBuildInput = Omit<WeeklySummaryPromptInput, "metrics"> & {
   metrics: Record<string, StandardReportMetric>;
+};
+
+export type StandardReportProducerInput = WeeklySummaryPromptInput & {
+  metricScope: ReportMetricScope;
 };
 
 function parseClientSlots(raw: unknown): { slots?: StandardReportSlots; errors: string[] } {
@@ -121,7 +127,7 @@ export async function generateReportSlots(opts: GenerateReportSlotsOptions): Pro
 }
 
 export function buildStandardReportPayload(
-  input: WeeklySummaryPromptInput,
+  input: StandardReportProducerInput,
   slots: StandardReportSlots,
   generatedAt = new Date().toISOString(),
 ): StandardReportPayload {
@@ -131,7 +137,7 @@ export function buildStandardReportPayload(
       metrics: Object.fromEntries(
         Object.entries(input.metrics).map(([key, value]) => [
           key,
-          { value, source: `code:standard-report-generator:${key}`, as_of: generatedAt },
+          { value, source: `code:standard-report-generator:${key}`, as_of: generatedAt, scope: input.metricScope },
         ]),
       ),
     },

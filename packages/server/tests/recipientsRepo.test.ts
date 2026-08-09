@@ -2,6 +2,20 @@ import { describe, it, expect } from "vitest";
 import { RecipientsRepo } from "../src/db/recipientsRepo.js";
 
 describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
+  it("PrjOps:REQ-019: inactive/pending recipientをscope検証前にDB取得対象から除外する", async () => {
+    let queryText = "";
+    const repo = new RecipientsRepo({
+      query: async (text) => {
+        queryText = text;
+        return { rows: [] };
+      },
+    });
+
+    await expect(repo.listForDelivery()).resolves.toEqual([]);
+    expect(queryText).toContain("active = true");
+    expect(queryText).toContain("backfill_state = 'applied'");
+  });
+
   it("配信用recipientをDBから読み直す", async () => {
     const repo = new RecipientsRepo({
       query: async () => ({
@@ -12,6 +26,7 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
             persona: "investor",
             email: "investor@example.com",
             projects: ["PJ-001"],
+            scope_mode: "project",
             language: "en",
             active: true,
             teams_team_id: "team-1",
@@ -25,6 +40,7 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
       userId: "ST-001",
       profile: "PRF-05",
       persona: "investor",
+      scopeMode: "project",
       teamsChannelId: "channel-1",
     });
   });
@@ -43,6 +59,7 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
                 persona: "manager",
                 email: "manager@example.com",
                 projects: ["PJ-001"],
+                scope_mode: "project",
                 language: "ja",
                 active: true,
                 teams_team_id: null,
@@ -100,6 +117,7 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
               persona: "leader",
               email: "leader@example.com",
               projects: ["PJ-001"],
+              scope_mode: "project",
               language: "ja",
               active: true,
               teams_team_id: null,
@@ -140,5 +158,31 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
       ),
     ).resolves.toBeNull();
     expect(queries).toBe(0);
+  });
+
+  it.each([
+    ["missing mode", undefined, ["PJ-001"]],
+    ["project without projects", "project", []],
+    ["global with projects", "global", ["PJ-001"]],
+  ])("PrjOps:REQ-019: 不整合scopeを明示errorにしてcycle成功扱いを防ぐ: %s", async (_label, scope_mode, projects) => {
+    const repo = new RecipientsRepo({
+      query: async () => ({
+        rows: [
+          {
+            user_id: "ST-001",
+            profile: "PRF-04",
+            persona: "executive",
+            email: "executive@example.com",
+            projects,
+            scope_mode,
+            language: "ja",
+            active: true,
+            teams_team_id: null,
+            teams_channel_id: null,
+          },
+        ],
+      }),
+    });
+    await expect(repo.listForDelivery()).rejects.toThrow("E-DLV03");
   });
 });
