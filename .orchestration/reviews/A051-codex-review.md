@@ -12,3 +12,10 @@
 2. **Limit project-scoped PRF-G to assigned projects — rejected.** A051 implementation requirement 1 explicitly requires `PRF-G` to approve all change projects as current behavior, and the work plan records that task-specific ruling. Applying the suggestion would reverse the assigned acceptance matrix.
 
 The broader contract tension identified by the reviewer is real but cannot be resolved by silently overriding A051's explicit task contract inside this worker change.
+
+## GitHub review follow-up
+
+The ready-state GitHub Codex review independently repeated both findings. The worker replied with the same task-contract dispositions and regression evidence, then resolved both threads:
+
+- https://github.com/mryfmo/ai-ops-platform/pull/151#discussion_r3745429805
+- https://github.com/mryfmo/ai-ops-platform/pull/151#discussion_r3745429890

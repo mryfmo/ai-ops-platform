@@ -12,4 +12,5 @@
 - Advanced the real-PostgreSQL approval fixture through the already-existing current schema/migrations so clean-database coverage exercises the columns used by the current repository.
 - Independent review raised two P1 suggestions that conflict with A051's explicit acceptance text (hide unauthorized list rows; scope project-mode `PRF-G`). They were not applied and are dispositioned in `.orchestration/reviews/A051-codex-review.md`.
 - GitHub workflow run `31308497540` passed `build-test` (4m29s) and `gitleaks` on evidence head `11ca554c9dbdaab6ceaf1dd7ddbbbd30f9d08ed5`.
-- Ready-state CodeRabbit review completed with no review thread, the merge state was CLEAN, and the PR carries `ai-generated` and remains unmerged.
+- Ready-state GitHub Codex review later raised the same two task-contract conflicts as the local independent review. Both received evidence-backed no-change dispositions and were resolved; final unresolved thread count is 0.
+- CodeRabbit completed its initial ready check and later reported its review limit on bookkeeping-only revisions. The merge state was CLEAN, the PR carries `ai-generated`, and it remains unmerged.
