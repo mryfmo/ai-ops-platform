@@ -41,6 +41,28 @@ SET ROLE app_role;
 INSERT INTO audit_log (retention_class, trace_id, actor, action, basis, detail, at)
 VALUES ('devops_1y', '00000000-0000-0000-0000-000000000001', 'AGT-INC', 'detected', 'REQ-028', '{"ok":true}', now());
 SELECT trace_id FROM audit_log WHERE trace_id = '00000000-0000-0000-0000-000000000001';
+INSERT INTO action_reminder_state (action_id, reminders_sent_count, last_notified_at)
+VALUES ('ACT-001', 1, '2026-08-09T00:00:00Z')
+ON CONFLICT (action_id) DO UPDATE SET
+  reminders_sent_count = LEAST(action_reminder_state.reminders_sent_count + 1, 3),
+  last_notified_at = EXCLUDED.last_notified_at;
+INSERT INTO action_reminder_state (action_id, reminders_sent_count, last_notified_at)
+VALUES ('ACT-001', 1, '2026-08-10T00:00:00Z')
+ON CONFLICT (action_id) DO UPDATE SET
+  reminders_sent_count = LEAST(action_reminder_state.reminders_sent_count + 1, 3),
+  last_notified_at = EXCLUDED.last_notified_at;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM action_reminder_state
+    WHERE action_id = 'ACT-001'
+      AND reminders_sent_count = 2
+      AND last_notified_at = '2026-08-10T00:00:00Z'
+  ) THEN
+    RAISE EXCEPTION 'action reminder state upsert did not persist the expected outcome';
+  END IF;
+END;
+$$;
 RESET ROLE;
 SQL
 
@@ -54,6 +76,18 @@ if "${psql_cmd[@]}" -c "SET ROLE app_role; UPDATE audit_log SET actor = 'changed
 fi
 if "${psql_cmd[@]}" -c "SET ROLE app_role; DELETE FROM audit_log"; then
   echo "app_role DELETE was accepted" >&2
+  exit 1
+fi
+if "${psql_cmd[@]}" -c "INSERT INTO action_reminder_state (action_id, reminders_sent_count, last_notified_at) VALUES ('invalid', 1, now())"; then
+  echo "invalid action reminder identifier was accepted" >&2
+  exit 1
+fi
+if "${psql_cmd[@]}" -c "INSERT INTO action_reminder_state (action_id, reminders_sent_count) VALUES ('ACT-002', 1)"; then
+  echo "nonzero reminder state without notification time was accepted" >&2
+  exit 1
+fi
+if "${psql_cmd[@]}" -c "SET ROLE app_role; DELETE FROM action_reminder_state"; then
+  echo "app_role action reminder DELETE was accepted" >&2
   exit 1
 fi
 

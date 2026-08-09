@@ -42,6 +42,35 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.GITHUB_APP_INSTALLATION_ID).toBeUndefined();
     expect(config.GITHUB_TOKEN).toBeUndefined();
     expect(config.STAKEHOLDERS_DIR).toBeUndefined();
+    expect(config.PRJOPS_DATA_DIR).toBeUndefined();
+    expect(config.PMO_NOTIFY_MAILBOX).toBeUndefined();
+  });
+
+  it("A046: pinned PrjOps snapshotは4変数all-or-none、絶対pathとdigest形状を要求する", () => {
+    const configured = loadConfig({
+      ...validEnv,
+      PRJOPS_DATA_DIR: "/srv/prjops-data",
+      PRJOPS_DATA_COMMIT_SHA: "1".repeat(40),
+      PRJOPS_DATA_SOURCE_COMMIT_SHA: "1".repeat(40),
+      PRJOPS_DATA_CONTENT_SHA256: "2".repeat(64),
+    });
+    expect(configured.PRJOPS_DATA_DIR).toBe("/srv/prjops-data");
+    expect(() => loadConfig({ ...validEnv, PRJOPS_DATA_DIR: "/srv/prjops-data" })).toThrow("E-CFG01");
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        PRJOPS_DATA_DIR: "relative",
+        PRJOPS_DATA_COMMIT_SHA: "1".repeat(40),
+        PRJOPS_DATA_SOURCE_COMMIT_SHA: "1".repeat(40),
+        PRJOPS_DATA_CONTENT_SHA256: "2".repeat(64),
+      }),
+    ).toThrow("E-CFG01");
+  });
+
+  it("A046: PMO_NOTIFY_MAILBOXをcanonical emailとして読む", () => {
+    expect(loadConfig({ ...validEnv, PMO_NOTIFY_MAILBOX: " PMO@Example.com " }).PMO_NOTIFY_MAILBOX).toBe(
+      "pmo@example.com",
+    );
   });
 
   it("PrjOps:REQ-002: STAKEHOLDERS_DIRは絶対パスだけを許可する", () => {

@@ -32,6 +32,8 @@ const allConfigured: CapabilityInputs = {
   telemetryConfigured: true,
   graphSubscriptionsPresent: true,
   approvalsConfigured: true,
+  prjopsDataConfigured: true,
+  pmoNotifyMailboxConfigured: true,
 };
 
 describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
@@ -75,6 +77,20 @@ describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
   it("AUD-OPM-001: identity secret未設定をapprovals縮退として公開する", () => {
     expect(deriveCapabilityState({ ...allConfigured, approvalsConfigured: false })).toMatchObject({
       approvals: false,
+    });
+  });
+
+  it("A046: pinned data/FROM_MAILBOX/PMO mailbox依存を個別に縮退公開する", () => {
+    expect(deriveCapabilityState({ ...allConfigured, prjopsDataConfigured: false })).toMatchObject({
+      prjops_weekly_analysis: false,
+      prjops_daily_tracking: false,
+    });
+    expect(deriveCapabilityState({ ...allConfigured, fromMailboxConfigured: false })).toMatchObject({
+      prjops_daily_tracking: false,
+      prjops_job_escalation: false,
+    });
+    expect(deriveCapabilityState({ ...allConfigured, pmoNotifyMailboxConfigured: false })).toMatchObject({
+      prjops_job_escalation: false,
     });
   });
 });

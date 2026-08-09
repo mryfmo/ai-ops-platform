@@ -1,6 +1,6 @@
 # トレーサビリティ検証結果
 
-生成日時: 2026-08-09T00:06:40.645Z
+生成日時: 2026-08-09T01:01:02.671Z
 
 凡例: 「source参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。
 「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。
@@ -11,9 +11,9 @@ ISS/TOBE/ASMは文書間トレーサビリティの記録用IDであり、実装
 
 | カテゴリ   | 総数 | source参照あり | テスト参照あり | source参照なし                                                                                                                                                                            |
 | ---------- | ---- | -------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| REQ        | 35   | 35 (100%)      | 26 (74%)       | —                                                                                                                                                                                         |
+| REQ        | 35   | 35 (100%)      | 27 (77%)       | —                                                                                                                                                                                         |
 | SPEC-EXT   | 27   | 21 (78%)       | 7 (26%)        | PrjOps:SPEC-EXT-001, PrjOps:SPEC-EXT-002, PrjOps:SPEC-EXT-022, PrjOps:SPEC-EXT-028, PrjOps:SPEC-EXT-031, PrjOps:SPEC-EXT-033                                                              |
-| SPEC-INT   | 31   | 31 (100%)      | 25 (81%)       | —                                                                                                                                                                                         |
+| SPEC-INT   | 31   | 31 (100%)      | 26 (84%)       | —                                                                                                                                                                                         |
 | AC         | 39   | 28 (72%)       | 29 (74%)       | PrjOps:AC-001-2, PrjOps:AC-002-2, PrjOps:AC-003-1, PrjOps:AC-003-2, PrjOps:AC-003-3, PrjOps:AC-004-1, PrjOps:AC-005-3, PrjOps:AC-006-1, PrjOps:AC-006-2, PrjOps:AC-020-2, PrjOps:AC-036-1 |
 | ISS(参考)  | 10   | 1 (10%)        | 1 (10%)        | PrjOps:ISS-002, PrjOps:ISS-003, PrjOps:ISS-004, PrjOps:ISS-005, PrjOps:ISS-006, PrjOps:ISS-007, PrjOps:ISS-008, PrjOps:ISS-009, PrjOps:ISS-010                                            |
 | TOBE(参考) | 10   | 2 (20%)        | 0 (0%)         | PrjOps:TOBE-02, PrjOps:TOBE-03, PrjOps:TOBE-04, PrjOps:TOBE-05, PrjOps:TOBE-06, PrjOps:TOBE-07, PrjOps:TOBE-08, PrjOps:TOBE-09                                                            |

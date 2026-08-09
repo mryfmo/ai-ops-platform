@@ -71,7 +71,7 @@
 | ASM-003 | 標準タイムゾーンはAsia/Tokyo（JST）とし、全スケジュール時刻はJSTで定義する | REQ-010, SPEC-EXT-030台, SPEC-INT-040台 |
 | ASM-004 | 経営陣・投資元向けレポートは配信前にマネージャー（PRF-03）1名の承認を必須とする | REQ-017, SPEC-EXT-024, SPEC-INT-050 |
 | ASM-005 | データの正本（Single Source of Truth）はGitHub上の専用プライベートリポジトリ `prjops-data` に置く | DOC-05全体 |
-| ASM-006 | 本システムの実行基盤はGitHub Actions（スケジュール実行）＋Claude Agent SDK とし、独自サーバは持たない | DOC-05 §3, DOC-06, DOC-07 |
+| ASM-006 | report生成はGitHub Actions、AGT-03/06の定期処理と検証済みreport配信は既存resident server scheduler、文章生成はClaude Agent SDKを使う。secrets・DB operational state・監査・Graph tokenを二重化しないため、R-02-2で常駐結線へ改訂した | DOC-05 §1, §5, ADR-0003, ADR-0014 |
 | ASM-007 | 開発体制は1名、開発期間の目安は3〜4か月とする（環境表の金額試算の前提） | DOC-06, DOC-07 |
 
 ## 8. 用語集（抜粋・全文書で同一の意味で使用）

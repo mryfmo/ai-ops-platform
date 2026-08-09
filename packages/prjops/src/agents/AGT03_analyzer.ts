@@ -6,6 +6,7 @@
  * 判定計算そのもの（judgeStatus, evaluateEscalationTrigger）はLLMを使わない純粋関数
  * （lib/statusJudge.ts, lib/severityProposal.ts、いずれもオフライン検証済み）。
  * LLMは「重要度引き上げ提案の理由文生成」（PrjOps:SPEC-INT-001の(c)）のみに用いる。
+ * A046でstatus分析はresident `prjops-weekly-analyze` taskへ結線済み。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
 import type { AuditLogWriter } from "@aiops/shared/auditLog.js";

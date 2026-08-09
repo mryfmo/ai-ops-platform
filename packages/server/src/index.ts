@@ -32,7 +32,11 @@ import {
   type HolidayEntry,
 } from "@aiops/shared";
 import { SPEC_INTERNAL_TERMS_PROVIDER } from "@aiops/shared/reporting/internalTerms.js";
-import { YamlStakeholderMasterProvider } from "@aiops/prjops";
+import {
+  FileSystemPrjopsJobSnapshotSource,
+  YamlPrjopsJobDataProvider,
+  YamlStakeholderMasterProvider,
+} from "@aiops/prjops";
 import {
   classifyBuildFailure,
   classifyIncident,
@@ -56,6 +60,7 @@ import { RecipientsRepo } from "./db/recipientsRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { ApprovalsRepo } from "./db/approvalsRepo.js";
+import { ActionReminderStateRepo } from "./db/actionReminderStateRepo.js";
 import { buildApp } from "./http/app.js";
 import {
   guardFailsafeTask,
@@ -72,6 +77,8 @@ import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js"
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
+import { createPrjopsWeeklyAnalyzeTask } from "./scheduler/tasks/prjopsWeeklyAnalyzeTask.js";
+import { createPrjopsDailyTrackerTask } from "./scheduler/tasks/prjopsDailyTrackerTask.js";
 import { createMsalGraphTokenProvider } from "./auth/graphTokenProvider.js";
 import { createGitHubClientForConfig, type GitHubAuthMode } from "./auth/githubAppTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
@@ -114,6 +121,8 @@ export * from "./scheduler/tasks/eventsPollingTask.js";
 export * from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 export * from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 export * from "./scheduler/tasks/reportDeliveryTask.js";
+export * from "./scheduler/tasks/prjopsWeeklyAnalyzeTask.js";
+export * from "./scheduler/tasks/prjopsDailyTrackerTask.js";
 export * from "./observability/logger.js";
 export * from "./observability/metrics.js";
 export * from "./observability/telemetry.js";
@@ -145,6 +154,7 @@ export * from "./db/recipientsRepo.js";
 export * from "./db/standardReportsRepo.js";
 export * from "./db/reportDeliveryLogRepo.js";
 export * from "./db/approvalsRepo.js";
+export * from "./db/actionReminderStateRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./auth/githubAppTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
@@ -226,6 +236,7 @@ export async function main(
       client.release();
     }
   });
+  const actionReminderStateRepo = new ActionReminderStateRepo(pool);
   // audit_log の追記専用は「接続ロールが UPDATE/DELETE を持たないこと」で強制される。
   // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
   // 黙って外れる。起動時に実権限を確認し、成立していなければ起動を止める
@@ -252,6 +263,13 @@ export async function main(
   const stakeholderProvider = config.STAKEHOLDERS_DIR
     ? new YamlStakeholderMasterProvider(config.STAKEHOLDERS_DIR)
     : null;
+  const prjopsJobDataProvider = config.PRJOPS_DATA_DIR
+    ? new YamlPrjopsJobDataProvider(
+        new FileSystemPrjopsJobSnapshotSource(config.PRJOPS_DATA_DIR, config.PRJOPS_DATA_SOURCE_COMMIT_SHA!),
+        config.PRJOPS_DATA_COMMIT_SHA!,
+        config.PRJOPS_DATA_CONTENT_SHA256!,
+      )
+    : undefined;
   const personalNamesProvider = (): Promise<readonly string[]> => {
     if (!stakeholderProvider) throw new Error("Stakeholder master is required for report delivery verification");
     return stakeholderProvider.listPersonalNames();
@@ -456,6 +474,8 @@ export async function main(
       telemetryConfigured: Boolean(config.OTEL_EXPORTER_OTLP_ENDPOINT ?? config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT),
       graphSubscriptionsPresent: subscriptionsPresent,
       approvalsConfigured: Boolean(config.WEB_BFF_IDENTITY_SECRET),
+      prjopsDataConfigured: Boolean(config.PRJOPS_DATA_DIR),
+      pmoNotifyMailboxConfigured: Boolean(config.PMO_NOTIFY_MAILBOX),
     });
   const publishCapabilities = (): string[] => {
     const state = capabilityState();
@@ -600,6 +620,34 @@ export async function main(
             disabledReason: "PrjOps report data provider is not configured",
             auditLog: prjopsAuditLog,
             calendar: jpHolidayCalendar,
+            traceIdProvider: () => randomUUID(),
+          }),
+          prjopsAuditLog,
+        ),
+      ),
+      observedTask(
+        guardTask(
+          createPrjopsWeeklyAnalyzeTask({
+            provider: prjopsJobDataProvider,
+            auditLog: prjopsAuditLog,
+            traceIdProvider: () => randomUUID(),
+            graphClient,
+            pmoNotifyMailbox: config.PMO_NOTIFY_MAILBOX,
+            fromMailbox: config.FROM_MAILBOX,
+          }),
+          prjopsAuditLog,
+        ),
+      ),
+      observedTask(
+        guardTask(
+          createPrjopsDailyTrackerTask({
+            provider: prjopsJobDataProvider,
+            stateRepo: actionReminderStateRepo,
+            graphClient,
+            fromMailbox: config.FROM_MAILBOX,
+            pmoNotifyMailbox: config.PMO_NOTIFY_MAILBOX,
+            calendar: jpHolidayCalendar,
+            auditLog: prjopsAuditLog,
             traceIdProvider: () => randomUUID(),
           }),
           prjopsAuditLog,
