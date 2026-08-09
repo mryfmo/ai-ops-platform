@@ -14,6 +14,7 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 import { deriveCapabilityState, reportDegradation } from "./lib/degradedCapabilities.js";
 import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
 import {
@@ -32,6 +33,12 @@ import {
 } from "@aiops/shared";
 import { SPEC_INTERNAL_TERMS_PROVIDER } from "@aiops/shared/reporting/internalTerms.js";
 import { YamlStakeholderMasterProvider } from "@aiops/prjops";
+import {
+  classifyBuildFailure,
+  classifyIncident,
+  generateFixSuggestionIfApplicable,
+  triageAndNotify,
+} from "@aiops/devops";
 import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
@@ -75,6 +82,12 @@ import {
 } from "./lib/githubEventRouter.js";
 import { decideStakeholderMaster } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
+import {
+  createBuildEventHandler,
+  createIncidentIssueClient,
+  createIncidentEventHandler,
+  createRecencySimilarIncidentsProvider,
+} from "./agents/devopsEventHandlers.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
 import type { Logger } from "./observability/logger.js";
@@ -116,6 +129,7 @@ export * from "./lib/githubEventRouter.js";
 export * from "./lib/stakeholderProfileResolver.js";
 export * from "./lib/stakeholderYamlLoader.js";
 export * from "./lib/graphLifecycleHandler.js";
+export * from "./agents/devopsEventHandlers.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
 export * from "./db/grantsRepo.js";
@@ -286,18 +300,49 @@ export async function main(
       )
     : undefined;
 
+  const similarIncidents = createRecencySimilarIncidentsProvider(async ({ since, limit }) => {
+    const result = await pool.query<{ at: Date; detail: unknown }>(
+      `SELECT at, detail
+         FROM audit_log
+        WHERE retention_class = $1
+          AND action = $2
+          AND at >= $3
+        ORDER BY at DESC, log_id DESC
+        LIMIT $4`,
+      ["devops_1y", "triage", since, limit],
+    );
+    return result.rows.map((row) => ({ at: row.at.toISOString(), detail: row.detail }));
+  });
+  const buildTriageConfigured = githubPolicy.enabled && llmClient !== undefined;
+  const defaultIncidentChannel =
+    config.DEFAULT_TEAMS_TEAM_ID && config.DEFAULT_TEAMS_CHANNEL_ID
+      ? { teamId: config.DEFAULT_TEAMS_TEAM_ID, channelId: config.DEFAULT_TEAMS_CHANNEL_ID }
+      : undefined;
+  const incidentTriageConfigured = buildTriageConfigured && defaultIncidentChannel !== undefined;
+  const configuredCheckoutRepository = process.env["GITHUB_REPOSITORY"]?.trim();
+  const configuredCheckoutPath = process.env["GITHUB_WORKSPACE"]?.trim();
   const devopsEventHandlers: Record<DevopsAgentId, (event: DevopsEventHandlerInput, traceId: string) => Promise<void>> =
     {
-      AGT_BLD: async (event, traceId) => {
-        await devopsAuditLog.append({
-          trace_id: traceId,
-          actor: "AGT-BLD",
-          action: "github_event_received",
-          basis: "SPEC-INT-011",
-          detail: { eventName: event.eventName },
-          at: new Date().toISOString(),
-        });
-      },
+      AGT_BLD: createBuildEventHandler({
+        configured: buildTriageConfigured,
+        disabledReason: !githubPolicy.enabled
+          ? "GitHub authentication is not configured"
+          : "ANTHROPIC_API_KEY is not configured",
+        githubClient,
+        auditLog: devopsAuditLog,
+        repoCheckoutPathFor: (repositoryFullName) =>
+          configuredCheckoutRepository === repositoryFullName &&
+          configuredCheckoutPath &&
+          isAbsolute(configuredCheckoutPath)
+            ? configuredCheckoutPath
+            : null,
+        classify: (evidence, deps) => classifyBuildFailure(evidence, { ...deps, llmClient: llmClient! }),
+        generate: (classification, repoCheckoutPath, deps) =>
+          generateFixSuggestionIfApplicable(classification, repoCheckoutPath, {
+            ...deps,
+            llmClient: llmClient!,
+          }),
+      }),
       AGT_DEP: async (event, traceId) => {
         await devopsAuditLog.append({
           trace_id: traceId,
@@ -308,16 +353,33 @@ export async function main(
           at: new Date().toISOString(),
         });
       },
-      AGT_INC: async (event, traceId) => {
-        await devopsAuditLog.append({
-          trace_id: traceId,
-          actor: "AGT-INC",
-          action: "github_event_received",
-          basis: "DevOps:SPEC-INT-030",
-          detail: { eventName: event.eventName },
-          at: new Date().toISOString(),
-        });
-      },
+      AGT_INC: createIncidentEventHandler({
+        configured: incidentTriageConfigured,
+        disabledReason: !githubPolicy.enabled
+          ? "GitHub authentication is not configured"
+          : !llmClient
+            ? "ANTHROPIC_API_KEY is not configured"
+            : "Default Teams channel is not configured",
+        channel: defaultIncidentChannel,
+        metricsSnapshot: () => metrics.renderPrometheus(),
+        similarIncidents,
+        findExistingIssue: (owner, repo, marker) => githubClient.findIssueByBodyMarker(owner, repo, marker),
+        auditLog: devopsAuditLog,
+        classify: (alert, metricsSummary, similarSummary, deps) =>
+          classifyIncident(alert, metricsSummary, similarSummary, {
+            ...deps,
+            llmClient: llmClient!,
+            graphClient,
+            githubClient,
+          }),
+        triage: (classification, owner, repo, channel, deps) =>
+          triageAndNotify(classification, owner, repo, channel, {
+            ...deps,
+            llmClient: llmClient!,
+            graphClient,
+            githubClient: createIncidentIssueClient(githubClient, deps.sourceIssueMarker, deps.existingIssue),
+          }),
+      }),
     };
 
   const teamsConversationAgent = new TeamsConversationAgent({
