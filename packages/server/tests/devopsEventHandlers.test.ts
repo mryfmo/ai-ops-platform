@@ -110,7 +110,7 @@ describe("AGT_DEP staging runtime wiring [DevOps:REQ-003 / TH-001]", () => {
       configured: false,
       coverageEvidence: { read: vi.fn() },
       criticalCountEvidence: { read: vi.fn() },
-      deploymentState: { markMonitoring },
+      deploymentState: { markMonitoring, markWorkflowFailed: vi.fn() },
       auditLog: new InMemoryAuditLog(),
       promote,
     });
@@ -127,6 +127,37 @@ describe("AGT_DEP staging runtime wiring [DevOps:REQ-003 / TH-001]", () => {
     );
 
     expect(markMonitoring).toHaveBeenCalledWith("acme", "widget", "a".repeat(40));
+    expect(promote).not.toHaveBeenCalled();
+  });
+
+  it("deploy-prod workflow失敗は対応するprod_deploying rowをdispatch_failedへ終端する", async () => {
+    const markWorkflowFailed = vi.fn(async () => true);
+    const promote = vi.fn();
+    const handler = createDeployEventHandler({
+      configured: false,
+      coverageEvidence: { read: vi.fn() },
+      criticalCountEvidence: { read: vi.fn() },
+      deploymentState: { markMonitoring: vi.fn(), markWorkflowFailed },
+      auditLog: new InMemoryAuditLog(),
+      promote,
+    });
+
+    await handler(
+      {
+        ...workflowSuccess,
+        payload: {
+          ...workflowSuccess.payload,
+          workflow_run: {
+            ...workflowSuccess.payload.workflow_run,
+            conclusion: "failure",
+            path: ".github/workflows/deploy-prod.yml",
+          },
+        },
+      },
+      "trace-prod-failed",
+    );
+
+    expect(markWorkflowFailed).toHaveBeenCalledWith("acme", "widget", "a".repeat(40));
     expect(promote).not.toHaveBeenCalled();
   });
 });

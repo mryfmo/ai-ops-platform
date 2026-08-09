@@ -43,7 +43,48 @@ describe("DeploymentsRepo dispatch state [DevOps:SPEC-INT-020]", () => {
     const query = vi.fn(async () => ({ rows: [{ deploy_id: deployId }] }));
     const repo = new DeploymentsRepo({ query });
     await expect(repo.markMonitoring("acme", "widget", "a".repeat(40))).resolves.toBe(true);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining("LIMIT 1"), ["acme", "widget", "a".repeat(40)]);
-    expect(query.mock.calls[0]![0]).toContain("state = 'monitoring'");
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("LIMIT 1"), [
+      "acme",
+      "widget",
+      "a".repeat(40),
+      "monitoring",
+    ]);
+  });
+
+  it("deploy-prod失敗はrepo/commit一致の最古1 rowだけをdispatch_failedへCAS遷移する", async () => {
+    const query = vi.fn(async () => ({ rows: [{ deploy_id: deployId }] }));
+    const repo = new DeploymentsRepo({ query });
+    await expect(repo.markWorkflowFailed("acme", "widget", "a".repeat(40))).resolves.toBe(true);
+    expect(query.mock.calls[0]![1]).toEqual(["acme", "widget", "a".repeat(40), "dispatch_failed"]);
+    expect(query.mock.calls[0]![0]).toContain("LIMIT 1");
+  });
+
+  it("approved work itemをbounded取得しdispatchとrollbackをCAS遷移する", async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("WHERE state = 'approved'")) {
+        return {
+          rows: [
+            {
+              deploy_id: deployId,
+              project_id: "PJ-001",
+              github_owner: "acme",
+              github_repo: "widget",
+              commit_sha: "a".repeat(40),
+            },
+          ],
+        };
+      }
+      return { rows: [{ deploy_id: deployId }] };
+    });
+    const repo = new DeploymentsRepo({ query });
+    await expect(repo.findNextApprovedDispatch()).resolves.toMatchObject({ deployId, owner: "acme" });
+    await expect(repo.markDispatching(deployId)).resolves.toBe(true);
+    await expect(repo.markRollingBack(deployId)).resolves.toBe(true);
+    await repo.markRolledBack(deployId);
+    expect(query.mock.calls.slice(1).map(([, params]) => params)).toEqual([
+      [deployId, "prod_deploying", "approved"],
+      [deployId, "rolling_back", "monitoring"],
+      [deployId, "rolled_back", "rolling_back"],
+    ]);
   });
 });

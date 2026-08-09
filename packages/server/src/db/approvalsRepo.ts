@@ -38,6 +38,7 @@ export interface CreateApprovalInput {
 
 export interface ApprovedDeployClaim {
   approvalId: string;
+  deployId: string | null;
   projectId: string | null;
   commitSha: string | null;
   repositories: Array<{ owner: string; repo: string }>;
@@ -185,7 +186,8 @@ export class ApprovalsRepo {
          SELECT candidate.approval_id,
                 COALESCE(
                   jsonb_agg(jsonb_build_object('owner', pc.github_owner, 'repo', pc.github_repo))
-                    FILTER (WHERE pc.github_owner IS NOT NULL AND pc.github_repo IS NOT NULL),
+                    FILTER (WHERE pc.github_owner IS NOT NULL AND btrim(pc.github_owner) <> ''
+                              AND pc.github_repo IS NOT NULL AND btrim(pc.github_repo) <> ''),
                   '[]'::jsonb
                 ) AS repo_mappings
          FROM candidate
@@ -201,16 +203,36 @@ export class ApprovalsRepo {
          WHERE approvals.approval_id = candidate.approval_id
            AND approvals.dispatched_at IS NULL
          RETURNING approvals.*
+       ), work_item AS (
+         INSERT INTO deployments (
+           project_id, github_owner, github_repo, commit_sha, env, state, trace_id
+         )
+         SELECT claimed.project_id,
+                mappings.repo_mappings->0->>'owner',
+                mappings.repo_mappings->0->>'repo',
+                claimed.target_sha,
+                'prod',
+                'approved',
+                $1::uuid
+         FROM claimed
+         JOIN mappings USING (approval_id)
+         WHERE claimed.project_id IS NOT NULL
+           AND claimed.target_sha IS NOT NULL
+           AND jsonb_array_length(mappings.repo_mappings) = 1
+         RETURNING deploy_id
        )
-       SELECT claimed.*, mappings.repo_mappings
+       SELECT claimed.*, mappings.repo_mappings,
+              (SELECT deploy_id FROM work_item) AS deploy_id
        FROM claimed
        JOIN mappings USING (approval_id)`,
+        [traceId],
       );
       const row = result.rows[0];
       if (!row) return null;
       const mappings = Array.isArray(row.repo_mappings) ? row.repo_mappings : [];
       const claim = {
         approvalId: String(row.approval_id),
+        deployId: row.deploy_id == null ? null : String(row.deploy_id),
         projectId: row.project_id == null ? null : String(row.project_id),
         commitSha: row.target_sha == null ? null : String(row.target_sha),
         repositories: mappings.map((mapping) => {
@@ -228,6 +250,7 @@ export class ApprovalsRepo {
           projectId: claim.projectId,
           targetShaAvailable: claim.commitSha !== null,
           repositoryMappingCount: claim.repositories.length,
+          workItemCreated: claim.deployId !== null,
         },
         at: new Date().toISOString(),
       });

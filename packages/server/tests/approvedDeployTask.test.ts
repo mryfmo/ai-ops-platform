@@ -10,6 +10,7 @@ import { createApprovedDeployTask } from "../src/scheduler/tasks/approvedDeployT
 
 const claim = {
   approvalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  deployId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   projectId: "PJ-001",
   commitSha: "a".repeat(40),
   repositories: [{ owner: "acme", repo: "widget" }],
@@ -18,10 +19,14 @@ const claim = {
 describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
   it("approved changeを一度claimし、workflow存在時だけprod_deployingを記録して実行する", async () => {
     const execute = vi.fn(async () => undefined);
-    const createDispatch = vi.fn(async () => ({ deployId: "deploy-1" }));
+    const markDispatching = vi.fn(async () => true);
     const task = createApprovedDeployTask({
       approvalsRepo: { claimNextApprovedChange: vi.fn(async () => claim) },
-      deploymentsRepo: { createDispatch, markDispatchFailed: vi.fn() },
+      deploymentsRepo: {
+        findNextApprovedDispatch: vi.fn(async () => null),
+        markDispatching,
+        markDispatchFailed: vi.fn(),
+      },
       workflowExists: vi.fn(async () => true),
       execute,
       auditLog: new InMemoryAuditLog(),
@@ -30,19 +35,21 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
 
     await task.run(new Date("2026-08-09T00:00:00Z"));
 
-    expect(createDispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "PJ-001", commitSha: "a".repeat(40), state: "prod_deploying" }),
-    );
+    expect(markDispatching).toHaveBeenCalledWith(claim.deployId);
     expect(execute).toHaveBeenCalledWith("acme", "widget", "a".repeat(40), "trace-approved");
   });
 
   it("D-04 workflow不在ではdispatchを一度も試みずdispatch_failedを記録する", async () => {
     const execute = vi.fn();
-    const createDispatch = vi.fn(async () => ({ deployId: "deploy-failed" }));
+    const markDispatchFailed = vi.fn(async () => undefined);
     const auditLog = new InMemoryAuditLog();
     const task = createApprovedDeployTask({
       approvalsRepo: { claimNextApprovedChange: vi.fn(async () => claim) },
-      deploymentsRepo: { createDispatch, markDispatchFailed: vi.fn() },
+      deploymentsRepo: {
+        findNextApprovedDispatch: vi.fn(async () => null),
+        markDispatching: vi.fn(),
+        markDispatchFailed,
+      },
       workflowExists: vi.fn(async () => false),
       execute,
       auditLog,
@@ -52,17 +59,21 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
     await task.run(new Date("2026-08-09T00:00:00Z"));
 
     expect(execute).not.toHaveBeenCalled();
-    expect(createDispatch).toHaveBeenCalledWith(expect.objectContaining({ state: "dispatch_failed" }));
+    expect(markDispatchFailed).toHaveBeenCalledWith(claim.deployId);
     expect((await auditLog.readAll()).map((record) => record.action)).toContain("prod_deploy_disabled");
   });
 
   it("workflow実在確認APIの失敗もdispatchせずconsumed claimをdispatch_failedで終端する", async () => {
     const execute = vi.fn();
-    const createDispatch = vi.fn(async () => ({ deployId: "deploy-failed" }));
+    const markDispatchFailed = vi.fn(async () => undefined);
     const auditLog = new InMemoryAuditLog();
     const task = createApprovedDeployTask({
       approvalsRepo: { claimNextApprovedChange: vi.fn(async () => claim) },
-      deploymentsRepo: { createDispatch, markDispatchFailed: vi.fn() },
+      deploymentsRepo: {
+        findNextApprovedDispatch: vi.fn(async () => null),
+        markDispatching: vi.fn(),
+        markDispatchFailed,
+      },
       workflowExists: vi.fn(async () => {
         throw new Error("GitHub unavailable");
       }),
@@ -74,7 +85,7 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
     await task.run(new Date("2026-08-09T00:00:00Z"));
 
     expect(execute).not.toHaveBeenCalled();
-    expect(createDispatch).toHaveBeenCalledWith(expect.objectContaining({ state: "dispatch_failed" }));
+    expect(markDispatchFailed).toHaveBeenCalledWith(claim.deployId);
     expect((await auditLog.readAll()).map((record) => record.action)).toContain(
       "prod_deploy_workflow_observation_failed",
     );
@@ -95,7 +106,11 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
     const auditLog = new InMemoryAuditLog();
     const task = createApprovedDeployTask({
       approvalsRepo: { claimNextApprovedChange: vi.fn(async () => invalidClaim) },
-      deploymentsRepo: { createDispatch: vi.fn(), markDispatchFailed: vi.fn() },
+      deploymentsRepo: {
+        findNextApprovedDispatch: vi.fn(async () => null),
+        markDispatching: vi.fn(),
+        markDispatchFailed: vi.fn(),
+      },
       workflowExists: vi.fn(),
       execute,
       auditLog,
@@ -104,6 +119,33 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
     await task.run(new Date("2026-08-09T00:00:00Z"));
     expect(execute).not.toHaveBeenCalled();
     expect((await auditLog.readAll()).map((record) => record.action)).toContain("prod_deploy_target_invalid");
+  });
+
+  it("claim後にworkerが停止しても永続approved work itemを次tickで回収する", async () => {
+    const execute = vi.fn(async () => undefined);
+    const recovered = {
+      deployId: claim.deployId,
+      projectId: claim.projectId,
+      owner: "acme",
+      repo: "widget",
+      commitSha: claim.commitSha,
+    };
+    const task = createApprovedDeployTask({
+      approvalsRepo: { claimNextApprovedChange: vi.fn(async () => null) },
+      deploymentsRepo: {
+        findNextApprovedDispatch: vi.fn(async () => recovered),
+        markDispatching: vi.fn(async () => true),
+        markDispatchFailed: vi.fn(),
+      },
+      workflowExists: vi.fn(async () => true),
+      execute,
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-recovered",
+    });
+
+    await task.run(new Date("2026-08-09T00:00:00Z"));
+
+    expect(execute).toHaveBeenCalledWith("acme", "widget", claim.commitSha, "trace-recovered");
   });
 
   it("repo claim queryはapproved changeだけをCAS consumedにする", async () => {
@@ -121,6 +163,7 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
     expect(sql).toContain("status = 'approved'");
     expect(sql).toContain("dispatched_at IS NULL");
     expect(sql).toMatch(/UPDATE approvals[\s\S]+dispatched_at = now\(\)/);
+    expect(sql).toMatch(/INSERT INTO deployments[\s\S]+state[\s\S]+'approved'/);
   });
 
   it("CAS claimと曖昧mappingの件数を同一transactionの監査へ残す", async () => {
@@ -132,6 +175,7 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
             approval_id: claim.approvalId,
             project_id: claim.projectId,
             target_sha: claim.commitSha,
+            deploy_id: claim.deployId,
             repo_mappings: [
               { owner: "acme", repo: "one" },
               { owner: "acme", repo: "two" },
@@ -147,6 +191,7 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
         { owner: "acme", repo: "one" },
         { owner: "acme", repo: "two" },
       ],
+      deployId: claim.deployId,
     });
     expect(await auditLog.readAll()).toContainEqual(
       expect.objectContaining({

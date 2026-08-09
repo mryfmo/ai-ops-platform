@@ -5,13 +5,23 @@
  * 60秒 cadenceで監視対象を評価し、欠落入力は0へ補完しない。
  */
 import type { AuditLogWriter, ChannelRef } from "@aiops/shared";
-import type { RollbackOutcome, StableVersionRecord, Th003Input } from "@aiops/devops";
+import {
+  evaluateTh003Rollback,
+  selectRollbackTarget,
+  type RollbackOutcome,
+  type StableVersionRecord,
+  type Th003Input,
+} from "@aiops/devops";
 import type { MonitoringDeploymentTarget } from "../../db/deploymentsRepo.js";
 import type { ScheduledTask } from "../scheduler.js";
 
 export interface ProdMonitorTaskDeps {
   /** Repo query is bounded to at most 100 active monitoring rows per tick. */
-  deploymentsRepo: { listMonitoringTargets(): Promise<MonitoringDeploymentTarget[]> };
+  deploymentsRepo: {
+    listMonitoringTargets(): Promise<MonitoringDeploymentTarget[]>;
+    markRollingBack(deployId: string): Promise<boolean>;
+    markRolledBack(deployId: string): Promise<void>;
+  };
   metricsProvider: { read(target: MonitoringDeploymentTarget, now: Date): Promise<Th003Input | null> };
   stableVersionsProvider: {
     read(target: MonitoringDeploymentTarget, now: Date): Promise<StableVersionRecord[] | null>;
@@ -81,7 +91,11 @@ export function createProdMonitorTask(deps: ProdMonitorTaskDeps): ScheduledTask 
             at: now.toISOString(),
           });
         }
-        await deps.evaluate(input, rollbackCandidates, target, target.channels[0]!, traceId);
+        const willDispatch =
+          evaluateTh003Rollback(input).shouldRollback && selectRollbackTarget(rollbackCandidates) !== null;
+        if (willDispatch && !(await deps.deploymentsRepo.markRollingBack(target.deployId))) continue;
+        const outcome = await deps.evaluate(input, rollbackCandidates, target, target.channels[0]!, traceId);
+        if (outcome.rolledBack) await deps.deploymentsRepo.markRolledBack(target.deployId);
       }
     },
   };

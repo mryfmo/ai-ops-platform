@@ -6,21 +6,15 @@
  */
 import { sanitizeSecrets, type AuditLogWriter } from "@aiops/shared";
 import type { ApprovedDeployClaim } from "../../db/approvalsRepo.js";
-import type { DispatchState } from "../../db/deploymentsRepo.js";
+import type { ApprovedDeploymentTarget } from "../../db/deploymentsRepo.js";
 import type { ScheduledTask } from "../scheduler.js";
 
 export interface ApprovedDeployTaskDeps {
   approvalsRepo: { claimNextApprovedChange(traceId: string): Promise<ApprovedDeployClaim | null> };
   deploymentsRepo: {
-    createDispatch(input: {
-      projectId: string;
-      owner: string;
-      repo: string;
-      commitSha: string;
-      state: DispatchState;
-      traceId: string;
-    }): Promise<{ deployId: string }>;
-    markDispatchFailed(deployId: string): Promise<void>;
+    findNextApprovedDispatch(): Promise<ApprovedDeploymentTarget | null>;
+    markDispatching(deployId: string): Promise<boolean>;
+    markDispatchFailed(deployId: string): Promise<boolean>;
   };
   workflowExists(owner: string, repo: string): Promise<boolean>;
   execute(owner: string, repo: string, commitSha: string, traceId: string): Promise<void>;
@@ -30,9 +24,11 @@ export interface ApprovedDeployTaskDeps {
 
 function validTarget(
   claim: ApprovedDeployClaim,
-): claim is ApprovedDeployClaim & { projectId: string; commitSha: string } {
+): claim is ApprovedDeployClaim & { deployId: string; projectId: string; commitSha: string } {
   const repository = claim.repositories[0];
   return (
+    typeof claim.deployId === "string" &&
+    claim.deployId.length > 0 &&
     typeof claim.projectId === "string" &&
     claim.projectId.trim().length > 0 &&
     typeof claim.commitSha === "string" &&
@@ -43,6 +39,18 @@ function validTarget(
   );
 }
 
+function targetFromClaim(
+  claim: ApprovedDeployClaim & { deployId: string; projectId: string; commitSha: string },
+): ApprovedDeploymentTarget {
+  return {
+    deployId: claim.deployId,
+    projectId: claim.projectId,
+    owner: claim.repositories[0]!.owner,
+    repo: claim.repositories[0]!.repo,
+    commitSha: claim.commitSha,
+  };
+}
+
 export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): ScheduledTask {
   return {
     name: "approved-prod-deploy-30s",
@@ -50,37 +58,36 @@ export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): Schedule
     runOnStart: true,
     async run(now): Promise<void> {
       const traceId = deps.traceIdProvider();
-      const claim = await deps.approvalsRepo.claimNextApprovedChange(traceId);
-      if (!claim) return;
-      if (!validTarget(claim)) {
-        await deps.auditLog.append({
-          trace_id: traceId,
-          actor: "AGT-DEP",
-          action: "prod_deploy_target_invalid",
-          basis: "DevOps:REQ-010 / AC-010a",
-          detail: {
-            approvalId: claim.approvalId,
-            projectIdAvailable: Boolean(claim.projectId),
-            commitShaAvailable: Boolean(claim.commitSha),
-            repositoryMappingCount: claim.repositories.length,
-          },
-          at: now.toISOString(),
-        });
-        return;
+      let target = await deps.deploymentsRepo.findNextApprovedDispatch();
+      let approvalId: string | null = null;
+      if (!target) {
+        const claim = await deps.approvalsRepo.claimNextApprovedChange(traceId);
+        if (!claim) return;
+        approvalId = claim.approvalId;
+        if (!validTarget(claim)) {
+          await deps.auditLog.append({
+            trace_id: traceId,
+            actor: "AGT-DEP",
+            action: "prod_deploy_target_invalid",
+            basis: "DevOps:REQ-010 / AC-010a",
+            detail: {
+              approvalId: claim.approvalId,
+              projectIdAvailable: Boolean(claim.projectId),
+              commitShaAvailable: Boolean(claim.commitSha),
+              repositoryMappingCount: claim.repositories.length,
+              workItemCreated: Boolean(claim.deployId),
+            },
+            at: now.toISOString(),
+          });
+          return;
+        }
+        target = targetFromClaim(claim);
       }
-      const repository = claim.repositories[0]!;
       let workflowAvailable: boolean;
       try {
-        workflowAvailable = await deps.workflowExists(repository.owner, repository.repo);
+        workflowAvailable = await deps.workflowExists(target.owner, target.repo);
       } catch (error) {
-        await deps.deploymentsRepo.createDispatch({
-          projectId: claim.projectId,
-          owner: repository.owner,
-          repo: repository.repo,
-          commitSha: claim.commitSha,
-          state: "dispatch_failed",
-          traceId,
-        });
+        await deps.deploymentsRepo.markDispatchFailed(target.deployId);
         await deps.auditLog.append({
           trace_id: traceId,
           actor: "AGT-DEP",
@@ -92,36 +99,22 @@ export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): Schedule
         return;
       }
       if (!workflowAvailable) {
-        await deps.deploymentsRepo.createDispatch({
-          projectId: claim.projectId,
-          owner: repository.owner,
-          repo: repository.repo,
-          commitSha: claim.commitSha,
-          state: "dispatch_failed",
-          traceId,
-        });
+        await deps.deploymentsRepo.markDispatchFailed(target.deployId);
         await deps.auditLog.append({
           trace_id: traceId,
           actor: "AGT-DEP",
           action: "prod_deploy_disabled",
           basis: "ADR-0014 / DevOps:REQ-010 / D-04",
-          detail: { approvalId: claim.approvalId, reason: "deploy-prod.yml is absent" },
+          detail: { approvalId, deployId: target.deployId, reason: "deploy-prod.yml is absent" },
           at: now.toISOString(),
         });
         return;
       }
-      const deployment = await deps.deploymentsRepo.createDispatch({
-        projectId: claim.projectId,
-        owner: repository.owner,
-        repo: repository.repo,
-        commitSha: claim.commitSha,
-        state: "prod_deploying",
-        traceId,
-      });
+      if (!(await deps.deploymentsRepo.markDispatching(target.deployId))) return;
       try {
-        await deps.execute(repository.owner, repository.repo, claim.commitSha, traceId);
+        await deps.execute(target.owner, target.repo, target.commitSha, traceId);
       } catch (error) {
-        await deps.deploymentsRepo.markDispatchFailed(deployment.deployId);
+        await deps.deploymentsRepo.markDispatchFailed(target.deployId);
         await deps.auditLog.append({
           trace_id: traceId,
           actor: "AGT-DEP",

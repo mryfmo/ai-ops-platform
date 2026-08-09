@@ -132,6 +132,7 @@ export interface DeployHandlerDeps {
   };
   deploymentState?: {
     markMonitoring(owner: string, repo: string, commitSha: string): Promise<boolean>;
+    markWorkflowFailed(owner: string, repo: string, commitSha: string): Promise<boolean>;
   };
   auditLog: AuditLogWriter;
   promote(input: Th001Input, channel: ChannelRef, commitShaShort: string, traceId: string): Promise<boolean>;
@@ -179,7 +180,7 @@ export function createDeployEventHandler(deps: DeployHandlerDeps): DevopsEventHa
     const payload = asRecord(event.payload);
     const workflowRun = payload && asRecord(payload["workflow_run"]);
     if (!payload || !workflowRun) throw new Error("Malformed workflow_run event payload");
-    if (payload["action"] !== "completed" || workflowRun["conclusion"] !== "success") return;
+    if (payload["action"] !== "completed") return;
     const repository = repositoryCoordinates(payload);
     const runId = workflowRun["id"];
     const headSha = workflowRun["head_sha"];
@@ -193,18 +194,26 @@ export function createDeployEventHandler(deps: DeployHandlerDeps): DevopsEventHa
     }
     const workflowPath = workflowRun["path"];
     if (typeof workflowPath === "string" && /(^|\/)deploy-prod\.yml(?:@|$)/.test(workflowPath)) {
+      const succeeded = workflowRun["conclusion"] === "success";
       const transitioned =
-        (await deps.deploymentState?.markMonitoring(repository.owner, repository.repo, headSha)) ?? false;
+        (await (succeeded
+          ? deps.deploymentState?.markMonitoring(repository.owner, repository.repo, headSha)
+          : deps.deploymentState?.markWorkflowFailed(repository.owner, repository.repo, headSha))) ?? false;
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "AGT-DEP",
-        action: transitioned ? "prod_deploy_monitoring" : "prod_deploy_state_unmatched",
+        action: transitioned
+          ? succeeded
+            ? "prod_deploy_monitoring"
+            : "prod_deploy_failed"
+          : "prod_deploy_state_unmatched",
         basis: "DevOps:SPEC-INT-020 / DevOps:REQ-012",
         detail: { commitSha: headSha },
         at: new Date().toISOString(),
       });
       return;
     }
+    if (workflowRun["conclusion"] !== "success") return;
     if (!deps.configured || !deps.channel) {
       await deps.auditLog.append({
         trace_id: traceId,

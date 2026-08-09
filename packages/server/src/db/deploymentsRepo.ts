@@ -6,7 +6,15 @@
  */
 import type { ChannelRef, PgQueryable } from "@aiops/shared";
 
-export type DispatchState = "prod_deploying" | "dispatch_failed";
+export type DispatchState = "approved" | "prod_deploying" | "dispatch_failed";
+
+export interface ApprovedDeploymentTarget {
+  deployId: string;
+  projectId: string;
+  owner: string;
+  repo: string;
+  commitSha: string;
+}
 
 export interface MonitoringDeploymentTarget {
   deployId: string;
@@ -44,19 +52,81 @@ export class DeploymentsRepo {
     return { deployId: String(result.rows[0].deploy_id) };
   }
 
-  async markDispatchFailed(deployId: string): Promise<void> {
+  async findNextApprovedDispatch(): Promise<ApprovedDeploymentTarget | null> {
+    const result = await this.db.query(
+      `SELECT deploy_id, project_id, github_owner, github_repo, commit_sha
+       FROM deployments
+       WHERE state = 'approved' AND env = 'prod'
+         AND github_owner IS NOT NULL AND btrim(github_owner) <> ''
+         AND github_repo IS NOT NULL AND btrim(github_repo) <> ''
+         AND commit_sha ~ '^[0-9a-f]{40}$'
+       ORDER BY created_at, deploy_id
+       LIMIT 1`,
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          deployId: String(row.deploy_id),
+          projectId: String(row.project_id),
+          owner: String(row.github_owner),
+          repo: String(row.github_repo),
+          commitSha: String(row.commit_sha),
+        }
+      : null;
+  }
+
+  async markDispatching(deployId: string): Promise<boolean> {
+    return this.transition(deployId, "approved", "prod_deploying");
+  }
+
+  async markDispatchFailed(deployId: string): Promise<boolean> {
     if (!UUID.test(deployId)) throw new Error("Invalid deploy_id");
     const result = await this.db.query(
       `UPDATE deployments
        SET state = 'dispatch_failed', updated_at = now()
-       WHERE deploy_id = $1::uuid AND state = 'prod_deploying'
+       WHERE deploy_id = $1::uuid AND state IN ('approved', 'prod_deploying')
        RETURNING deploy_id`,
       [deployId],
     );
-    if (!result.rows[0]) throw new Error("Deployment dispatch state could not be failed");
+    return result.rows.length === 1;
+  }
+
+  async markWorkflowFailed(owner: string, repo: string, commitSha: string): Promise<boolean> {
+    return this.transitionByTarget(owner, repo, commitSha, "dispatch_failed");
   }
 
   async markMonitoring(owner: string, repo: string, commitSha: string): Promise<boolean> {
+    return this.transitionByTarget(owner, repo, commitSha, "monitoring");
+  }
+
+  async markRollingBack(deployId: string): Promise<boolean> {
+    return this.transition(deployId, "monitoring", "rolling_back");
+  }
+
+  async markRolledBack(deployId: string): Promise<void> {
+    if (!(await this.transition(deployId, "rolling_back", "rolled_back"))) {
+      throw new Error("Deployment rollback state could not be completed");
+    }
+  }
+
+  private async transition(deployId: string, from: string, to: string): Promise<boolean> {
+    if (!UUID.test(deployId)) throw new Error("Invalid deploy_id");
+    const result = await this.db.query(
+      `UPDATE deployments
+       SET state = $2, updated_at = now()
+       WHERE deploy_id = $1::uuid AND state = $3
+       RETURNING deploy_id`,
+      [deployId, to, from],
+    );
+    return result.rows.length === 1;
+  }
+
+  private async transitionByTarget(
+    owner: string,
+    repo: string,
+    commitSha: string,
+    to: "monitoring" | "dispatch_failed",
+  ): Promise<boolean> {
     if (!owner.trim() || !repo.trim() || !/^[0-9a-f]{40}$/.test(commitSha))
       throw new Error("Invalid deployment target");
     const result = await this.db.query(
@@ -70,11 +140,11 @@ export class DeploymentsRepo {
          LIMIT 1
        )
        UPDATE deployments
-       SET state = 'monitoring', updated_at = now()
+       SET state = $4, updated_at = now()
        FROM candidate
        WHERE deployments.deploy_id = candidate.deploy_id
        RETURNING deployments.deploy_id`,
-      [owner, repo, commitSha],
+      [owner, repo, commitSha, to],
     );
     return result.rows.length === 1;
   }

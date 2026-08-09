@@ -22,7 +22,11 @@ describe("production RED monitoring [DevOps:REQ-012 / TH-003]", () => {
     const evaluate = vi.fn();
     const auditLog = new InMemoryAuditLog();
     const task = createProdMonitorTask({
-      deploymentsRepo: { listMonitoringTargets: vi.fn(async () => [target]) },
+      deploymentsRepo: {
+        listMonitoringTargets: vi.fn(async () => [target]),
+        markRollingBack: vi.fn(),
+        markRolledBack: vi.fn(),
+      },
       metricsProvider: { read: vi.fn(async () => null) },
       stableVersionsProvider: { read: vi.fn(async () => null) },
       workflowExists: vi.fn(async () => false),
@@ -39,7 +43,11 @@ describe("production RED monitoring [DevOps:REQ-012 / TH-003]", () => {
     const evaluate = vi.fn(async () => ({ rolledBack: false, matchedConditions: ["a"] }));
     const auditLog = new InMemoryAuditLog();
     const task = createProdMonitorTask({
-      deploymentsRepo: { listMonitoringTargets: vi.fn(async () => [target]) },
+      deploymentsRepo: {
+        listMonitoringTargets: vi.fn(async () => [target]),
+        markRollingBack: vi.fn(),
+        markRolledBack: vi.fn(),
+      },
       metricsProvider: { read: vi.fn(async () => metrics) },
       stableVersionsProvider: { read: vi.fn(async () => null) },
       workflowExists: vi.fn(async () => false),
@@ -56,7 +64,11 @@ describe("production RED monitoring [DevOps:REQ-012 / TH-003]", () => {
     const stable = [{ version: "v1", stableSince: "2026-08-08T00:00:00Z", stableDurationMinutesAsOfFailure: 20 }];
     const evaluate = vi.fn(async () => ({ rolledBack: false, matchedConditions: ["a"] }));
     const task = createProdMonitorTask({
-      deploymentsRepo: { listMonitoringTargets: vi.fn(async () => [target]) },
+      deploymentsRepo: {
+        listMonitoringTargets: vi.fn(async () => [target]),
+        markRollingBack: vi.fn(),
+        markRolledBack: vi.fn(),
+      },
       metricsProvider: { read: vi.fn(async () => metrics) },
       stableVersionsProvider: { read: vi.fn(async () => stable) },
       workflowExists: vi.fn(async () => false),
@@ -66,5 +78,35 @@ describe("production RED monitoring [DevOps:REQ-012 / TH-003]", () => {
     });
     await task.run(new Date("2026-08-09T00:00:00Z"));
     expect(evaluate).toHaveBeenCalledWith(metrics, [], target, target.channels[0], "trace-workflow-guard");
+  });
+
+  it("rollback dispatch前にmonitoringをCASし、成功後rolled_backへ終端する", async () => {
+    const stable = [{ version: "v1", stableSince: "2026-08-08T00:00:00Z", stableDurationMinutesAsOfFailure: 20 }];
+    const calls: string[] = [];
+    const task = createProdMonitorTask({
+      deploymentsRepo: {
+        listMonitoringTargets: vi.fn(async () => [target]),
+        markRollingBack: vi.fn(async () => {
+          calls.push("rolling_back");
+          return true;
+        }),
+        markRolledBack: vi.fn(async () => {
+          calls.push("rolled_back");
+        }),
+      },
+      metricsProvider: { read: vi.fn(async () => metrics) },
+      stableVersionsProvider: { read: vi.fn(async () => stable) },
+      workflowExists: vi.fn(async () => true),
+      evaluate: vi.fn(async () => {
+        calls.push("dispatch");
+        return { rolledBack: true, matchedConditions: ["a"] };
+      }),
+      auditLog: new InMemoryAuditLog(),
+      traceIdProvider: () => "trace-rollback",
+    });
+
+    await task.run(new Date("2026-08-09T00:00:00Z"));
+
+    expect(calls).toEqual(["rolling_back", "dispatch", "rolled_back"]);
   });
 });
