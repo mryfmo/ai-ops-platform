@@ -3,8 +3,8 @@
  *
  * 根拠: PrjOps:SPEC-INT-033（定型コマンドの正規表現判定が不一致の場合のみLLMで意図解釈へフォールバック）/
  *   ADR-0005（Teamsチャネル自由文からのGitHub照会・操作意図の解釈）。
- *   packages/prjops/src/agents/AGT02_collector.ts の structureFreeText() と同一設計
- *   （AnthropicStructuredClient、tool_choice強制、温度0、sanitizeForLlmInput()適用）を踏襲する。
+ *   status ingest の pure contract は @aiops/shared/reporting/statusIngestContract.js に保持し、
+ *   runtime 接続は A054 で扱う。本モジュールは PrjOps:SPEC-INT-033 の intent 判定だけを担う。
  *
  * 呼び出し条件: commandParser.parseCommand() が ok:false かつ usageHint が無い場合のみ
  *   （定型コマンド系統に一切一致しない自由文の場合。呼び出し判断はteamsConversationAgent側で行う）。

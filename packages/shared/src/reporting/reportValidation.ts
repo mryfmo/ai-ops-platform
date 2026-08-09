@@ -13,6 +13,7 @@ import {
   type StandardReportSlotKey,
   type StandardReportSlots,
 } from "./reportSchema.js";
+import { findNarrativeNumberTokens } from "./narrativeNumberGuard.js";
 
 export interface ReportValidationResult {
   ok: boolean;
@@ -24,7 +25,6 @@ export interface ReportSlotNumericFinding {
   value: string;
 }
 
-const NUMBER_PATTERN = /\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|\d+(?:\.\d+)?%?/g;
 const ISO_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 const REPORT_KEYS = ["schemaVersion", "reportType", "evidenceIds", "period", "metrics", "slots"];
 const PERIOD_KEYS = ["label", "generatedAt"];
@@ -88,11 +88,8 @@ function metricNumberStrings(metrics: Record<string, unknown>): Set<string> {
 }
 
 function normalizeNumberText(value: string): string {
-  return (value.endsWith("%") ? value.slice(0, -1) : value).replaceAll(",", "");
-}
-
-function extractNumberTexts(text: string): string[] {
-  return text.match(NUMBER_PATTERN) ?? [];
+  const normalized = value.normalize("NFKC");
+  return (normalized.endsWith("%") ? normalized.slice(0, -1) : normalized).replaceAll(",", "");
 }
 
 function stripLiteralText(value: string, literals: Iterable<string>): string {
@@ -112,7 +109,7 @@ export function findUngroundedSlotNumbers(
   const allowed = metricNumberStrings(metrics);
   const findings: ReportSlotNumericFinding[] = [];
   for (const key of standardReportSlotKeys()) {
-    const matches = extractNumberTexts(stripLiteralText(slots[key], ignoredLiterals));
+    const matches = findNarrativeNumberTokens(stripLiteralText(slots[key], ignoredLiterals));
     for (const raw of matches) {
       const normalized = normalizeNumberText(raw);
       if (!allowed.has(normalized)) findings.push({ slot: key, value: raw });
