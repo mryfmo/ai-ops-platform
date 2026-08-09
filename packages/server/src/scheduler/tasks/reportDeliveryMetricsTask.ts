@@ -20,7 +20,13 @@ export function createReportDeliveryMetricsTask(deps: {
     // Azure alertの1分評価に合わせる。各tickはatで7日に限定され、retention/at partition pruningが効くread-only集計だけを行う。
     intervalMs: 60_000,
     async run(now): Promise<void> {
-      deps.metrics.setReportDeliveryFailureRatios(await deps.provider.failureRatios(now));
+      try {
+        deps.metrics.setReportDeliveryFailureRatios(await deps.provider.failureRatios(now));
+      } catch (error) {
+        // 前回値を残すとDB障害中もfresh sampleとして再公開されるため、alert対象外のno-dataへ即時無効化する。
+        deps.metrics.setReportDeliveryFailureRatios({ sevenDay: null, threeDay: null });
+        throw error;
+      }
     },
   };
 }

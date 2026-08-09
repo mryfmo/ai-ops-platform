@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { ReportDeliveryMetricsRepo } from "../src/db/reportDeliveryMetricsRepo.js";
 
-describe("ReportDeliveryMetricsRepo [ADR-0016 / AUD-OPS-002]", () => {
-  it("injected nowから7d/3d境界を作りaudit queryを有界化する", async () => {
+describe("ReportDeliveryMetricsRepo [ADR-0016 / DevOps:SPEC-INT-010 / AUD-OPS-002]", () => {
+  it("DevOps:SPEC-INT-010 injected nowから7d/3d境界を作りaudit queryを有界化する", async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [{ sent_7d: "90", failed_7d: "10", sent_3d: "49", failed_3d: "1" }],
     });
@@ -23,7 +23,7 @@ describe("ReportDeliveryMetricsRepo [ADR-0016 / AUD-OPS-002]", () => {
     ]);
   });
 
-  it("attemptがないwindowを成功率0と誤表示せずnullにする", async () => {
+  it("DevOps:SPEC-INT-010 attemptがないwindowを成功率0と誤表示せずnullにする", async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [{ sent_7d: "0", failed_7d: "0", sent_3d: "0", failed_3d: "0" }],
     });

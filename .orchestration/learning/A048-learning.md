@@ -1,3 +1,5 @@
+<!-- 根拠: ADR-0016 / DevOps:SPEC-INT-010 / AUD-OPS-002 -->
+
 # A048 learning triage
 
 ## Validated learning

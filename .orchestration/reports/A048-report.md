@@ -1,3 +1,5 @@
+<!-- 根拠: ADR-0016 / DevOps:SPEC-INT-010 / AUD-OPS-002 -->
+
 # A048 report
 
 ## Status
@@ -16,7 +18,7 @@ Ready for review. Monitoring now has one Application Insights / Log Analytics co
 
 ## Review
 
-Independent review reported two findings. The apparent scope violation is covered by the orchestrator's explicit canonical-archive and five-file rolling-metric grants (including `index.ts` and both tests). The valid finding—KQL was prose rather than executable examples—was fixed and revalidated. No unresolved local finding remains. The repository does not define `make require-crit-review`; the command fails only with `No rule to make target`.
+Independent review reported two findings. The apparent scope violation is covered by the orchestrator's explicit canonical-archive and five-file rolling-metric grants (including `index.ts` and both tests). The valid finding—KQL was prose rather than executable examples—was fixed and revalidated. GitHub review then found stale gauges after a refresh failure, missing permitted IDs in two test suites, and missing basis headers on five evidence files. A RED test reproduced the stale sample; all three findings are fixed. The repository does not define `make require-crit-review`; the command fails only with `No rule to make target`.
 
 ## Delivery
 
@@ -24,7 +26,7 @@ Independent review reported two findings. The apparent scope violation is covere
 - Implementation commit: `02a8d3484fe7809432ec151e582b0695e764737d` (`feat(observability): unify monitoring on application insights`)
 - PR: https://github.com/mryfmo/ai-ops-platform/pull/148
 - State: ready for review, `ai-generated`; no merge performed
-- Initial GitHub checks: build-test pass (4m34s), gitleaks pass (9s), CodeRabbit pass; unresolved review threads: 0. The final evidence-only commit is rechecked before AGMSG-RESULT.
+- Initial GitHub checks: build-test pass (4m34s), gitleaks pass (9s), CodeRabbit pass. A later review wave opened three actionable threads; the fixes are pushed, threads are resolved, and the resulting head is rechecked before AGMSG-RESULT.
 
 ## Successor boundary
 
