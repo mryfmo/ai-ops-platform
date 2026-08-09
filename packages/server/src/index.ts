@@ -59,6 +59,7 @@ import { SevenKeysSnapshotsRepo } from "./db/sevenKeysSnapshotsRepo.js";
 import { RecipientsRepo } from "./db/recipientsRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
+import { ReportDeliveryMetricsRepo } from "./db/reportDeliveryMetricsRepo.js";
 import { ApprovalsRepo } from "./db/approvalsRepo.js";
 import { ActionReminderStateRepo } from "./db/actionReminderStateRepo.js";
 import { buildApp } from "./http/app.js";
@@ -77,6 +78,7 @@ import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js"
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
+import { createReportDeliveryMetricsTask } from "./scheduler/tasks/reportDeliveryMetricsTask.js";
 import { createPrjopsWeeklyAnalyzeTask } from "./scheduler/tasks/prjopsWeeklyAnalyzeTask.js";
 import { createPrjopsDailyTrackerTask } from "./scheduler/tasks/prjopsDailyTrackerTask.js";
 import { createMsalGraphTokenProvider } from "./auth/graphTokenProvider.js";
@@ -222,6 +224,7 @@ export async function main(
   const recipientsRepo = new RecipientsRepo(pool);
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
+  const reportDeliveryMetricsRepo = new ReportDeliveryMetricsRepo(pool);
   const approvalsRepo = new ApprovalsRepo(pool, async (work) => {
     const client = await pool.connect();
     try {
@@ -514,6 +517,8 @@ export async function main(
           publishCapabilities();
         },
       }),
+      // Read-only monitoring must continue during failsafe, so this task is intentionally not guardFailsafeTask-wrapped.
+      observedTask(createReportDeliveryMetricsTask({ provider: reportDeliveryMetricsRepo, metrics })),
       ...(githubPolicy.enabled
         ? [
             observedTask(
@@ -778,7 +783,7 @@ export async function main(
           });
           return;
         }
-        await deliverStandardReportToRecipients(
+        const result = await deliverStandardReportToRecipients(
           report,
           {
             fromMailbox: config.FROM_MAILBOX,
@@ -797,6 +802,14 @@ export async function main(
           },
           traceId,
         );
+        await prjopsAuditLog.append({
+          trace_id: traceId,
+          actor: "AGT-05",
+          action: result.failed === 0 ? "report_delivery_cycle_completed" : "report_delivery_cycle_failed",
+          basis: "PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1",
+          detail: { sent: result.sent, skipped: result.skipped, failed: result.failed },
+          at: new Date().toISOString(),
+        });
       },
     },
     approvals: {
