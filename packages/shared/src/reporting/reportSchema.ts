@@ -23,10 +23,14 @@ export const REPORT_METRIC_UNAVAILABLE_REASONS = [
 
 export type ReportMetricUnavailableReason = (typeof REPORT_METRIC_UNAVAILABLE_REASONS)[number];
 
+export type ReportMetricScope = { kind: "project"; projectId: string } | { kind: "portfolio"; projectIds: string[] };
+
 export interface MeasuredReportMetric {
   value: number;
   source: string;
   as_of: string;
+  /** Optional only for persisted standard-report.v2 compatibility; new producers must always set it. */
+  scope?: ReportMetricScope;
 }
 
 export interface UnavailableReportMetric {
@@ -34,6 +38,8 @@ export interface UnavailableReportMetric {
   unavailable_reason: ReportMetricUnavailableReason;
   source: string;
   as_of: string;
+  /** Optional only for persisted standard-report.v2 compatibility; new producers must always set it. */
+  scope?: ReportMetricScope;
 }
 
 export type StandardReportMetric = MeasuredReportMetric | UnavailableReportMetric;
@@ -80,6 +86,31 @@ function slotProperties(): Record<StandardReportSlotKey, Record<string, unknown>
   return properties;
 }
 
+const metricScopeSchema = {
+  oneOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind", "projectId"],
+      properties: { kind: { const: "project" }, projectId: { type: "string", pattern: "^P(?:J|RJ)-\\d{3,}$" } },
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind", "projectIds"],
+      properties: {
+        kind: { const: "portfolio" },
+        projectIds: {
+          type: "array",
+          minItems: 1,
+          uniqueItems: true,
+          items: { type: "string", pattern: "^P(?:J|RJ)-\\d{3,}$" },
+        },
+      },
+    },
+  ],
+} as const;
+
 export const STANDARD_REPORT_JSON_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://aiops.local/schemas/standard-report.v2.json",
@@ -112,22 +143,24 @@ export const STANDARD_REPORT_JSON_SCHEMA = {
           {
             type: "object",
             additionalProperties: false,
-            required: ["value", "source", "as_of"],
+            required: ["value", "source", "as_of", "scope"],
             properties: {
               value: { type: "number" },
               source: { type: "string", minLength: 1, pattern: "^\\S(?:.*\\S)?$" },
               as_of: { type: "string", format: "date-time" },
+              scope: metricScopeSchema,
             },
           },
           {
             type: "object",
             additionalProperties: false,
-            required: ["value", "unavailable_reason", "source", "as_of"],
+            required: ["value", "unavailable_reason", "source", "as_of", "scope"],
             properties: {
               value: { type: "null" },
               unavailable_reason: { enum: REPORT_METRIC_UNAVAILABLE_REASONS },
               source: { type: "string", minLength: 1, pattern: "^\\S(?:.*\\S)?$" },
               as_of: { type: "string", format: "date-time" },
+              scope: metricScopeSchema,
             },
           },
         ],

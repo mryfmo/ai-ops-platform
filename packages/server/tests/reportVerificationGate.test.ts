@@ -3,7 +3,11 @@
  */
 import { describe, expect, it } from "vitest";
 import type { StandardReportPayload } from "@aiops/shared";
-import { evaluateReportVerificationGate, reportMetricDisplayValue } from "../src/lib/reportVerificationGate.js";
+import {
+  evaluateReportVerificationGate,
+  filterReportContentForRecipient,
+  reportMetricDisplayValue,
+} from "../src/lib/reportVerificationGate.js";
 
 const payload: StandardReportPayload = {
   schemaVersion: "standard-report.v2",
@@ -18,7 +22,7 @@ const payload: StandardReportPayload = {
 
 const baseInput = {
   payload,
-  html: '<span data-src="completed#value">7</span>',
+  html: '<span data-src="MTR-COMPLETED#value">7</span>',
   audience: "PRF-02" as const,
   personalNames: [] as string[],
   internalTerms: [] as string[],
@@ -27,6 +31,58 @@ const baseInput = {
 };
 
 describe("reportVerificationGate [PrjOps:REQ-019 PrjOps:SPEC-INT-051 PrjOps:AC-019-1]", () => {
+  it("out-of-scope metricが1件でもあれば非数値narrativeもpure policyでfail-closeする", () => {
+    const result = filterReportContentForRecipient(
+      {
+        ...payload,
+        metrics: {
+          completed: {
+            value: 7,
+            source: "code:test",
+            as_of: payload.period.generatedAt,
+            scope: { kind: "project", projectId: "PJ-002" },
+          },
+        },
+        slots: { ...payload.slots, conclusion: "Project Orion is delayed" },
+      },
+      "PRF-02",
+      {
+        recipientStakeholderId: "ST-001",
+        projectIds: ["PJ-001"],
+        scopeMode: "project",
+        projectDomain: "prjops",
+      },
+    );
+
+    expect(result.visibleMetricEntries).toEqual([]);
+    expect(result.safeSlots).toEqual({ conclusion: "[masked]", riskSummary: "[masked]", nextActions: "[masked]" });
+  });
+
+  it("global recipientでもPrjOps/DevOps project名前空間を越えてmetricを公開しない", () => {
+    const mixedPayload: StandardReportPayload = {
+      ...payload,
+      metrics: {
+        completed: { ...payload.metrics.completed!, scope: { kind: "project", projectId: "PJ-001" } },
+        blocked: { ...payload.metrics.completed!, scope: { kind: "project", projectId: "PRJ-001" } },
+      },
+    };
+    const prjops = filterReportContentForRecipient(mixedPayload, "PRF-04", {
+      recipientStakeholderId: "ST-001",
+      projectIds: [],
+      scopeMode: "global",
+      projectDomain: "prjops",
+    });
+    const devops = filterReportContentForRecipient(mixedPayload, "PRF-04", {
+      recipientStakeholderId: "ST-002",
+      projectIds: [],
+      scopeMode: "global",
+      projectDomain: "devops",
+    });
+
+    expect(prjops.visibleMetricEntries.map(([key]) => key)).toEqual(["completed"]);
+    expect(devops.visibleMetricEntries.map(([key]) => key)).toEqual(["blocked"]);
+  });
+
   it("一致するmetricsと大文字小文字だけ異なる宛先を許可する", () => {
     expect(evaluateReportVerificationGate(baseInput)).toEqual({
       ok: true,
@@ -53,7 +109,7 @@ describe("reportVerificationGate [PrjOps:REQ-019 PrjOps:SPEC-INT-051 PrjOps:AC-0
       evaluateReportVerificationGate({
         ...baseInput,
         payload: unavailablePayload,
-        html: '<span data-src="completed#value">N/A</span>',
+        html: '<span data-src="MTR-COMPLETED#value">N/A</span>',
       }).ok,
     ).toBe(true);
   });
@@ -80,7 +136,7 @@ describe("reportVerificationGate [PrjOps:REQ-019 PrjOps:SPEC-INT-051 PrjOps:AC-0
   });
 
   it.each([
-    ["V-A", "E-VER0A", { html: '<span data-src="completed#value">8</span>' }],
+    ["V-A", "E-VER0A", { html: '<span data-src="MTR-COMPLETED#value">8</span>' }],
     ["V-B", "E-VER0B", { html: "Alice", audience: "PRF-04", personalNames: ["Alice"] }],
     ["V-C", "E-VER0C", { html: "{{todo}}" }],
     ["V-D", "E-VER0D", { intendedRecipientEmail: "a@example.com", actualToEmail: "b@example.com" }],

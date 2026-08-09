@@ -90,6 +90,7 @@ The server and web tables above list every key in the two Zod schemas, and the r
 
 | Variable               | Required | Default                   | Used By                                                                                                                             |
 | ---------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `REPORT_PROJECT_IDS`   | Yes      | unset                     | `calculateReportMetrics.ts`; comma-separated canonical project IDs used as each generated metric's authorization scope.             |
 | `REPORT_COMPLETED`     | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                         |
 | `REPORT_BLOCKED`       | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                         |
 | `REPORT_EVIDENCE_IDS`  | No       | `REQ-040`                 | `finalizeReportJson.ts`                                                                                                             |

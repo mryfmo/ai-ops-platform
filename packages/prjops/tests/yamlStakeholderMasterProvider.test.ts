@@ -112,6 +112,31 @@ describe("YamlStakeholderMasterProvider [PrjOps:REQ-002, PrjOps:SPEC-INT-010, Pr
       },
     ]);
     await expect(provider.findBySubject(OTHER_SUBJECT)).resolves.toEqual([]);
+    await expect(provider.findEmailByStakeholderId("ST-010")).resolves.toBe("yamada@example.com");
+    await expect(provider.findEmailByStakeholderId("ST-999")).resolves.toBeNull();
+    await expect(provider.findEmailsByStakeholderIds(["ST-010", "ST-999"])).resolves.toEqual(
+      new Map([["ST-010", "yamada@example.com"]]),
+    );
+  });
+
+  it("PrjOps:SPEC-INT-051: 配信用の氏名・メールsnapshotを1回のhardened scanで返す", async () => {
+    const fixture = fakeFs({
+      "ST-010.yaml": yaml("ST-010", "first@example.com"),
+      "ST-011.yaml": yaml("ST-011", "second@example.com", undefined, OTHER_SUBJECT.objectId),
+    });
+    const snapshot = await new YamlStakeholderMasterProvider(
+      "/data/stakeholders",
+      fixture.fs,
+    ).loadDeliveryVerificationSnapshot();
+
+    expect(snapshot.personalNames).toEqual(["Test User"]);
+    expect(snapshot.stakeholderEmails).toEqual(
+      new Map([
+        ["ST-010", "first@example.com"],
+        ["ST-011", "second@example.com"],
+      ]),
+    );
+    expect(fixture.fs.readdir).toHaveBeenCalledOnce();
   });
 
   it("同じhardened scanからTeams userとprojectのprofileを解決する [PrjOps:REQ-002, SPEC-INT-022]", async () => {

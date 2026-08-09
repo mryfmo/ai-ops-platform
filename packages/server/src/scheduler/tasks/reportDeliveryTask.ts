@@ -20,13 +20,19 @@ import {
   type GraphClient,
   type HolidayCalendar,
   type StandardReportPayload,
+  sanitizeSecrets,
 } from "@aiops/shared";
+import { metricDisplayDefinition, undefinedMetricDisplayKeys } from "@aiops/shared/reporting/metricDisplayNames.js";
 import type { DeliveryRecipient } from "../../db/recipientsRepo.js";
 import type { StandardReportRecord } from "../../db/standardReportsRepo.js";
 import type { Logger } from "../../observability/logger.js";
 import type { MetricsRegistry } from "../../observability/metrics.js";
 import { buildDashboardDeepLink } from "../../lib/dashboardDeepLink.js";
-import { evaluateReportVerificationGate, reportMetricDisplayValue } from "../../lib/reportVerificationGate.js";
+import {
+  evaluateReportVerificationGate,
+  filterReportContentForRecipient,
+  reportMetricDisplayValue,
+} from "../../lib/reportVerificationGate.js";
 import type { ScheduledTask } from "../scheduler.js";
 
 export interface ReportDeliveryTaskDeps {
@@ -42,6 +48,8 @@ export interface ReportDeliveryTaskDeps {
   deliveryLogStore: DeliveryLogStore;
   auditLog: AuditLogWriter;
   personalNamesProvider(): Promise<readonly string[]>;
+  stakeholderEmailsProvider(stakeholderIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
+  verificationSnapshotProvider?(): Promise<ReportDeliveryVerificationSnapshot>;
   internalTermsProvider(): readonly string[];
   traceIdProvider(): string;
   heartbeatUrl?: string;
@@ -50,6 +58,30 @@ export interface ReportDeliveryTaskDeps {
   intervalMs?: number;
   logger?: Logger;
   metrics?: MetricsRegistry;
+}
+
+export interface ReportDeliveryVerificationSnapshot {
+  personalNames: readonly string[];
+  stakeholderEmails: ReadonlyMap<string, string>;
+}
+
+function verificationProvidersFromSnapshot(
+  provider: NonNullable<ReportDeliveryTaskDeps["verificationSnapshotProvider"]>,
+): Pick<ReportDeliveryTaskDeps, "personalNamesProvider" | "stakeholderEmailsProvider"> {
+  let snapshotPromise: Promise<ReportDeliveryVerificationSnapshot> | undefined;
+  const snapshot = (): Promise<ReportDeliveryVerificationSnapshot> => (snapshotPromise ??= provider());
+  return {
+    personalNamesProvider: async () => (await snapshot()).personalNames,
+    stakeholderEmailsProvider: async (stakeholderIds) => {
+      const emails = (await snapshot()).stakeholderEmails;
+      return new Map(
+        stakeholderIds.flatMap((id) => {
+          const email = emails.get(id);
+          return email ? [[id, email] as const] : [];
+        }),
+      );
+    },
+  };
 }
 
 function jstDayOfWeek(now: Date): number {
@@ -165,6 +197,7 @@ function visibleSlots(payload: StandardReportPayload, recipient: DeliveryRecipie
     recipientAssignedProjectIds: recipient.projects,
     recipientParticipatingProjectIds: recipient.projects,
     investedProjectIds: recipient.projects,
+    scopeMode: recipient.scopeMode,
   });
   const byKey = new Map(filtered.map((i) => [String((i as unknown as { slotKey: string }).slotKey), i.detail]));
   return {
@@ -176,19 +209,26 @@ function visibleSlots(payload: StandardReportPayload, recipient: DeliveryRecipie
 
 export function renderStandardReportHtml(payload: StandardReportPayload, recipient: DeliveryRecipient): string {
   const slots = visibleSlots(payload, recipient);
-  const metrics = Object.entries(payload.metrics)
+  const audience = audienceForRecipient(recipient);
+  const { visibleMetricEntries, safeSlots } = filterReportContentForRecipient({ ...payload, slots }, audience, {
+    recipientStakeholderId: recipient.userId,
+    projectIds: recipient.projects,
+    scopeMode: recipient.scopeMode,
+    projectDomain: ["PRF-M", "PRF-L", "PRF-G"].includes(recipient.profile) ? "devops" : "prjops",
+  });
+  const metrics = visibleMetricEntries
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(
-      ([key, metric]) =>
-        `<dt>${escapeHtml(key)}</dt><dd><span data-src="${escapeHtml(key)}#value">${reportMetricDisplayValue(metric.value)}</span> <time datetime="${escapeHtml(metric.as_of)}">${escapeHtml(metric.as_of)}</time></dd>`,
-    )
+    .map(([key, metric]) => {
+      const definition = metricDisplayDefinition(key)!;
+      return `<dt>${escapeHtml(definition.displayName[recipient.language])}</dt><dd><span data-src="${escapeHtml(definition.publicId)}#value">${reportMetricDisplayValue(metric.value)}</span> <time datetime="${escapeHtml(metric.as_of)}">${escapeHtml(metric.as_of)}</time></dd>`;
+    })
     .join("");
   return [
     `<h1>${escapeHtml(payload.reportType)} ${escapeHtml(payload.period.label)}</h1>`,
     `<section><h2>Metrics</h2><dl>${metrics}</dl></section>`,
-    `<h2>Conclusion</h2><p>${escapeHtml(slots.conclusion)}</p>`,
-    `<h2>Risk</h2><p>${escapeHtml(slots.riskSummary)}</p>`,
-    `<h2>Next actions</h2><p>${escapeHtml(slots.nextActions)}</p>`,
+    `<h2>Conclusion</h2><p>${escapeHtml(safeSlots.conclusion)}</p>`,
+    `<h2>Risk</h2><p>${escapeHtml(safeSlots.riskSummary)}</p>`,
+    `<h2>Next actions</h2><p>${escapeHtml(safeSlots.nextActions)}</p>`,
   ].join("\n");
 }
 
@@ -200,11 +240,36 @@ export async function deliverStandardReportToRecipients(
   traceId: string,
 ): Promise<{ sent: number; skipped: number; failed: number; activeRecipients: number }> {
   const logger = deps.logger?.child({ trace_id: traceId, report_id: record.reportId });
+  const verificationProviders = deps.verificationSnapshotProvider
+    ? verificationProvidersFromSnapshot(deps.verificationSnapshotProvider)
+    : deps;
   logger?.info("report delivery started");
+  const undefinedKeys = undefinedMetricDisplayKeys(Object.keys(record.payload.metrics));
+  if (undefinedKeys.length > 0) {
+    const safeUndefinedKeys = undefinedKeys.map((key) =>
+      sanitizeSecrets(key, { maskSuspiciousSequences: true }).sanitized.slice(0, 256),
+    );
+    logger?.warn(
+      { undefined_metric_keys: safeUndefinedKeys, undefined_metric_key_count: undefinedKeys.length },
+      "standard report contains undefined metric display keys",
+    );
+  }
   const recipients = await deps.recipientsRepo.listForDelivery();
   const internalTerms = deps.internalTermsProvider();
   const activeRecords = devopsActiveRecords(recipients);
   const activeRecipients = recipients.filter((r) => isActiveRecipient(activeRecords, r.userId));
+  const stakeholderIds = activeRecipients
+    .map((recipient) => recipient.userId)
+    .filter((id) => isValidId("stakeholder", id));
+  let stakeholderEmails: ReadonlyMap<string, string> = new Map();
+  let stakeholderEmailsUnavailable = false;
+  if (stakeholderIds.length > 0) {
+    try {
+      stakeholderEmails = await verificationProviders.stakeholderEmailsProvider(stakeholderIds);
+    } catch {
+      stakeholderEmailsUnavailable = true;
+    }
+  }
   const targets: DeliveryTarget[] = [];
   let invalidRecipientCount = 0;
   let defaultTeamsCardAssigned = false;
@@ -257,11 +322,20 @@ export async function deliverStandardReportToRecipients(
     let personalNames: readonly string[] = [];
     if (audience === "PRF-04" || audience === "PRF-05" || audience === "investor") {
       try {
-        personalNames = await (personalNamesPromise ??= deps.personalNamesProvider());
+        personalNames = await (personalNamesPromise ??= verificationProviders.personalNamesProvider());
       } catch {
         await recordVerificationFailures(recipient.userId, ["E-VER0B"]);
         continue;
       }
+    }
+    let intendedRecipientEmail = recipient.email;
+    if (isValidId("stakeholder", recipient.userId)) {
+      const masterEmail = stakeholderEmails.get(recipient.userId);
+      if (stakeholderEmailsUnavailable || !masterEmail) {
+        await recordVerificationFailures(recipient.userId, ["E-VER0D"]);
+        continue;
+      }
+      intendedRecipientEmail = masterEmail;
     }
     const persona = recipient.persona ?? recipient.profile;
     const recipientTeamsTarget =
@@ -294,7 +368,6 @@ export async function deliverStandardReportToRecipients(
         continue;
       }
     }
-    const intendedRecipientEmail = recipient.email;
     const html = renderStandardReportHtml(record.payload, recipient);
     const target = {
       reportId: record.reportId,
@@ -386,13 +459,20 @@ export function createReportDeliveryTask(deps: ReportDeliveryTaskDeps): Schedule
       let skipped = 0;
       let failed = 0;
       let processedCurrentReport = false;
+      const cycleDeps = deps.verificationSnapshotProvider
+        ? {
+            ...deps,
+            ...verificationProvidersFromSnapshot(deps.verificationSnapshotProvider),
+            verificationSnapshotProvider: undefined,
+          }
+        : deps;
       const weekStart = jstDateAtStart(now).getTime() - ((jstDayOfWeek(now) + 6) % 7) * 24 * 60 * 60 * 1000;
       for (const report of await deps.standardReportsRepo.listRecent(100)) {
         const generatedAt = Date.parse(report.generatedAt);
         processedCurrentReport ||= generatedAt >= weekStart && generatedAt <= now.getTime();
         const result = await deliverStandardReportToRecipients(
           report,
-          { ...deps, fromMailbox: deps.fromMailbox },
+          { ...cycleDeps, fromMailbox: deps.fromMailbox },
           traceId,
         );
         sent += result.sent;

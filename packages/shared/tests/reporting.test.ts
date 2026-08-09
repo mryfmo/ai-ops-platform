@@ -6,12 +6,12 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { InMemoryAuditLog } from "../src/auditLog.js";
 import {
-  buildStandardReportPayload,
+  buildStandardReportPayload as buildStandardReportPayloadRaw,
   buildStandardReportPayloadFromMetrics,
   countChars,
   createReportSlotsToolSchema,
   findUngroundedSlotNumbers,
-  generateReportSlots,
+  generateReportSlots as generateReportSlotsRaw,
   parseReportSlots,
   renderEvidenceHeader,
   standardReportSlotMaxChars,
@@ -48,6 +48,25 @@ const validSlots: StandardReportSlots = {
   nextActions: "未完了レビューを確認します。",
 };
 
+const defaultMetricScope = { kind: "portfolio" as const, projectIds: ["PJ-001"] };
+
+function buildStandardReportPayload(
+  input: Omit<Parameters<typeof buildStandardReportPayloadRaw>[0], "metricScope"> &
+    Partial<Pick<Parameters<typeof buildStandardReportPayloadRaw>[0], "metricScope">>,
+  ...rest: Tail<Parameters<typeof buildStandardReportPayloadRaw>>
+) {
+  return buildStandardReportPayloadRaw({ metricScope: defaultMetricScope, ...input }, ...rest);
+}
+
+function generateReportSlots(
+  input: Omit<Parameters<typeof generateReportSlotsRaw>[0], "metricScope"> &
+    Partial<Pick<Parameters<typeof generateReportSlotsRaw>[0], "metricScope">>,
+) {
+  return generateReportSlotsRaw({ metricScope: defaultMetricScope, ...input });
+}
+
+type Tail<T extends unknown[]> = T extends [unknown, ...infer Rest] ? Rest : never;
+
 const tsxImport = createRequire(import.meta.url).resolve("tsx");
 
 function runReportingCli(
@@ -56,31 +75,35 @@ function runReportingCli(
   env: NodeJS.ProcessEnv = {},
   cwd = process.cwd(),
 ): string {
-  const { REPORT_COMPLETED: _completed, REPORT_BLOCKED: _blocked, ...cleanEnv } = process.env;
+  const {
+    REPORT_COMPLETED: _completed,
+    REPORT_BLOCKED: _blocked,
+    REPORT_PROJECT_IDS: _projects,
+    ...cleanEnv
+  } = process.env;
   return execFileSync(
     process.execPath,
     ["--import", tsxImport, resolve(process.cwd(), "src/reporting", script), ...args],
-    { cwd, env: { ...cleanEnv, ...env }, encoding: "utf8" },
+    { cwd, env: { ...cleanEnv, REPORT_PROJECT_IDS: "PJ-001", ...env }, encoding: "utf8" },
   );
 }
 
 describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / PrjOps:SPEC-INT-067 / DevOps:SPEC-INT-082]", () => {
   it("根拠IDヘッダと固定スロットを検証する [PrjOps:AC-040-1, DevOps:AC-032a]", () => {
-    const payload = buildStandardReportPayload(
-      {
-        evidenceIds: ["REQ-040", "SPEC-INT-067"],
-        periodLabel: "2026-W28",
-        metrics: { completed: 3, blocked: 1 },
-      },
-      validSlots,
-      "2026-07-09T16:00:00+09:00",
-    );
+    const input = {
+      evidenceIds: ["REQ-040", "SPEC-INT-067"],
+      periodLabel: "2026-W28",
+      metrics: { completed: 3, blocked: 1 },
+      metricScope: { kind: "portfolio" as const, projectIds: ["PJ-001"] },
+    };
+    const payload = buildStandardReportPayload(input, validSlots, "2026-07-09T16:00:00+09:00");
     expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });
     expect(payload.schemaVersion).toBe("standard-report.v2");
     expect(payload.metrics.completed).toEqual({
       value: 3,
       source: "code:standard-report-generator:completed",
       as_of: "2026-07-09T16:00:00+09:00",
+      scope: { kind: "portfolio", projectIds: ["PJ-001"] },
     });
     expect(renderEvidenceHeader(payload.evidenceIds)).toContain("REQ-040");
   });
@@ -200,6 +223,7 @@ describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / P
       unavailable_reason: "missing_current",
       source: "env:REPORT_COMPLETED",
       as_of: "2026-07-09T16:00:00Z",
+      scope: defaultMetricScope,
     } as const;
     const payload = buildStandardReportPayloadFromMetrics(
       {
@@ -222,6 +246,7 @@ describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / P
       unavailable_reason: "missing_current",
       source: "env:REPORT_COMPLETED",
       as_of: asOf,
+      scope: { kind: "portfolio", projectIds: ["PJ-001"] },
     });
     const measured = JSON.parse(
       runReportingCli("calculateReportMetrics.ts", [], { REPORT_COMPLETED: "0", REPORT_AS_OF: asOf }),
@@ -230,6 +255,33 @@ describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / P
       value: 0,
       source: "env:REPORT_COMPLETED",
       as_of: asOf,
+      scope: { kind: "portfolio", projectIds: ["PJ-001"] },
+    });
+  });
+
+  it("PrjOps:SPEC-INT-067: calculate CLIは非canonical project IDをLLM前に拒否する", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["--import", tsxImport, resolve(process.cwd(), "src/reporting/calculateReportMetrics.ts")],
+      {
+        env: { ...process.env, REPORT_PROJECT_IDS: "not-a-project" },
+        encoding: "utf8",
+      },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/E-RPT07:.*canonical project IDs/);
+  });
+
+  it("DevOps:SPEC-INT-082: calculate CLIはDevOps project IDを受理しportfolio順序を正規化する", () => {
+    const metrics = JSON.parse(
+      runReportingCli("calculateReportMetrics.ts", [], {
+        REPORT_AS_OF: "2026-07-09T16:00:00Z",
+        REPORT_PROJECT_IDS: "PRJ-002,PJ-001,PRJ-001",
+      }),
+    );
+    expect(metrics.completed.scope).toEqual({
+      kind: "portfolio",
+      projectIds: ["PJ-001", "PRJ-001", "PRJ-002"],
     });
   });
 
@@ -254,6 +306,7 @@ describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / P
         unavailable_reason: "missing_current",
         source: "env:REPORT_COMPLETED",
         as_of: asOf,
+        scope: { kind: "portfolio", projectIds: ["PJ-001"] },
       });
       expect(payload.slots).toEqual(validSlots);
       expect(validateStandardReportPayload(payload)).toEqual({ ok: true, errors: [] });

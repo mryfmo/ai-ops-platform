@@ -106,6 +106,24 @@ describe("loadConfig (ADR-0005)", () => {
     expect(() => loadConfig({ ...validEnv, STAKEHOLDERS_DIR: "./stakeholders" })).toThrow("E-CFG01");
   });
 
+  it("PrjOps:REQ-019: report delivery有効時はSTAKEHOLDERS_DIRを必須にしてE-CFG01で止める", () => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        REPORT_DELIVERY_ENABLED: "true",
+        FROM_MAILBOX: "reports@example.com",
+      }),
+    ).toThrow(/E-CFG01:.*STAKEHOLDERS_DIR/);
+    expect(
+      loadConfig({
+        ...validEnv,
+        REPORT_DELIVERY_ENABLED: "true",
+        FROM_MAILBOX: "reports@example.com",
+        STAKEHOLDERS_DIR: "/etc/aiops/stakeholders",
+      }).STAKEHOLDERS_DIR,
+    ).toBe("/etc/aiops/stakeholders");
+  });
+
   it("Anthropic modelとpricingの現行既定値を維持する [PrjOps:SPEC-INT-001 / PrjOps:SPEC-INT-060]", () => {
     const config = loadConfig(validEnv);
     expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-sonnet-4-6");
@@ -273,6 +291,7 @@ describe("loadConfig (ADR-0005)", () => {
       ...validEnv,
       REPORT_DELIVERY_ENABLED: "true",
       FROM_MAILBOX: "reports@example.com",
+      STAKEHOLDERS_DIR: "/etc/aiops/stakeholders",
       REPORT_INGEST_SECRET: "report-ingest-secret-of-at-least-32-chars",
       HEARTBEAT_URL: "https://heartbeat.example.com/report-delivery",
       DEFAULT_TEAMS_TEAM_ID: "team-1",

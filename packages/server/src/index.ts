@@ -289,6 +289,14 @@ export async function main(
     if (!stakeholderProvider) throw new Error("Stakeholder master is required for report delivery verification");
     return stakeholderProvider.listPersonalNames();
   };
+  const stakeholderEmailsProvider = (stakeholderIds: readonly string[]): Promise<ReadonlyMap<string, string>> => {
+    if (!stakeholderProvider) throw new Error("Stakeholder master is required for report delivery verification");
+    return stakeholderProvider.findEmailsByStakeholderIds(stakeholderIds);
+  };
+  const verificationSnapshotProvider = () => {
+    if (!stakeholderProvider) throw new Error("Stakeholder master is required for report delivery verification");
+    return stakeholderProvider.loadDeliveryVerificationSnapshot();
+  };
   const internalTermsProvider = (): readonly string[] => SPEC_INTERNAL_TERMS_PROVIDER.listInternalTerms();
   if (internalTermsProvider().length === 0) {
     logger.warn(
@@ -761,6 +769,8 @@ export async function main(
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog: prjopsAuditLog,
             personalNamesProvider,
+            stakeholderEmailsProvider,
+            verificationSnapshotProvider,
             internalTermsProvider,
             traceIdProvider: () => randomUUID(),
             heartbeatUrl: config.HEARTBEAT_URL,
@@ -883,6 +893,8 @@ export async function main(
             deliveryLogStore: reportDeliveryLogRepo,
             auditLog: prjopsAuditLog,
             personalNamesProvider,
+            stakeholderEmailsProvider,
+            verificationSnapshotProvider,
             internalTermsProvider,
             traceIdProvider: () => randomUUID(),
             logger,

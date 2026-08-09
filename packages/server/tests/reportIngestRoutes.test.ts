@@ -12,7 +12,12 @@ const payload: StandardReportPayload = {
   evidenceIds: ["PrjOps:REQ-042"],
   period: { label: "2026-W28", generatedAt: "2026-07-06T00:00:00.000Z" },
   metrics: {
-    completed: { value: 1, source: "test:completed", as_of: "2026-07-06T00:00:00.000Z" },
+    completed: {
+      value: 1,
+      source: "test:completed",
+      as_of: "2026-07-06T00:00:00.000Z",
+      scope: { kind: "project", projectId: "PJ-001" },
+    },
   },
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };
@@ -82,6 +87,23 @@ describe("POST /reports/ingest [PrjOps:REQ-042 SPEC-INT-069 SPEC-INT-083 PrjOps:
     });
     expect(res.status).toBe(422);
     expect(await res.json()).toMatchObject({ details: expect.arrayContaining([expect.stringMatching(/legacy/i)]) });
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("PrjOps:REQ-019: 新規v2 ingestはmetric scope欠落を422で拒否する", async () => {
+    const { app, inserts } = makeApp();
+    const unscoped = {
+      ...payload,
+      metrics: { completed: { value: 1, source: "test:completed", as_of: "2026-07-06T00:00:00.000Z" } },
+    };
+    const raw = JSON.stringify(unscoped);
+    const res = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(raw) },
+      body: raw,
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ details: [expect.stringMatching(/missing scope/)] });
     expect(inserts).toHaveLength(0);
   });
 

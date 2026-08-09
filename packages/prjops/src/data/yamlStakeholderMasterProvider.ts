@@ -30,6 +30,13 @@ export interface StakeholderRecord {
 
 export interface StakeholderMasterProvider {
   findBySubject(subject: EntraSubject): Promise<StakeholderRecord[]>;
+  findEmailByStakeholderId(stakeholderId: string): Promise<string | null>;
+  findEmailsByStakeholderIds(stakeholderIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
+}
+
+export interface StakeholderDeliveryVerificationSnapshot {
+  personalNames: readonly string[];
+  stakeholderEmails: ReadonlyMap<string, string>;
 }
 
 interface FileStat {
@@ -249,6 +256,33 @@ export class YamlStakeholderMasterProvider implements StakeholderMasterProvider 
       }
     }
     return records;
+  }
+
+  async findEmailByStakeholderId(stakeholderId: string): Promise<string | null> {
+    return (await this.findEmailsByStakeholderIds([stakeholderId])).get(stakeholderId) ?? null;
+  }
+
+  async findEmailsByStakeholderIds(stakeholderIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const requested = new Set(stakeholderIds.filter((id) => isValidId("stakeholder", id)));
+    const emails = new Map<string, string>();
+    if (requested.size === 0) return emails;
+    for (const stakeholder of await this.readAll()) {
+      if (stakeholder.active && requested.has(stakeholder.id)) emails.set(stakeholder.id, stakeholder.email);
+    }
+    return emails;
+  }
+
+  /** PrjOps:SPEC-INT-051: 1配信cycleで共有する氏名・メールの整合済みsnapshot。 */
+  async loadDeliveryVerificationSnapshot(): Promise<StakeholderDeliveryVerificationSnapshot> {
+    const stakeholders = await this.readAll();
+    return {
+      personalNames: [...new Set(stakeholders.map((stakeholder) => stakeholder.name))].sort(),
+      stakeholderEmails: new Map(
+        stakeholders
+          .filter((stakeholder) => stakeholder.active)
+          .map((stakeholder) => [stakeholder.id, stakeholder.email] as const),
+      ),
+    };
   }
 
   /** PrjOps:SPEC-INT-051(b): 配信前の個人名検査用に、マスタ上の氏名を重複なく返す。 */

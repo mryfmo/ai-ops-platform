@@ -6,7 +6,12 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Hono } from "hono";
-import { validateStandardReportPayload, type AuditLogWriter, type StandardReportPayload } from "@aiops/shared";
+import {
+  assertProducerMetricScopes,
+  validateStandardReportPayload,
+  type AuditLogWriter,
+  type StandardReportPayload,
+} from "@aiops/shared";
 
 export interface ReportIngestDeps {
   ingestSecret?: string;
@@ -74,6 +79,15 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
     const validation = validateStandardReportPayload(payload);
     if (!validation.ok) {
       return c.json({ error: "invalid report", details: validation.errors }, 422);
+    }
+
+    try {
+      assertProducerMetricScopes((payload as StandardReportPayload).metrics);
+    } catch (error) {
+      return c.json(
+        { error: "invalid report", details: [error instanceof Error ? error.message : "missing scope"] },
+        422,
+      );
     }
 
     const reportPayload = payload as StandardReportPayload;

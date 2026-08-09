@@ -15,6 +15,12 @@ const EMAIL_ADDRESS = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
 const verificationProviders = {
   personalNamesProvider: async (): Promise<readonly string[]> => [],
   internalTermsProvider: (): readonly string[] => [],
+  stakeholderEmailsProvider: async (stakeholderIds: readonly string[]): Promise<ReadonlyMap<string, string>> =>
+    new Map(
+      stakeholderIds.flatMap((id) =>
+        id === "ST-001" ? [[id, "manager@example.com"]] : id === "ST-002" ? [[id, "allowed@example.com"]] : [],
+      ),
+    ),
 };
 
 const payload = {
@@ -27,6 +33,7 @@ const payload = {
       value: 1,
       source: "code:report-delivery-test",
       as_of: "2026-07-06T00:00:00.000Z",
+      scope: { kind: "project", projectId: "PJ-001" },
     },
   },
   slots: {
@@ -51,7 +58,8 @@ function recipient(overrides: Partial<DeliveryRecipient> = {}): DeliveryRecipien
     profile: "PRF-02",
     persona: "manager",
     email: "manager@example.com",
-    projects: ["global"],
+    projects: ["PJ-001"],
+    scopeMode: "project",
     language: "ja",
     active: true,
     teamsTeamId: null,
@@ -361,26 +369,108 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     expect(html).toContain("[masked]");
   });
 
-  it("PrjOps:SPEC-INT-051: metricsをkey順のdata-src spanとas_ofとして描画する", () => {
+  it("PrjOps:SPEC-INT-051: 権限内metricを公開IDと表示名で描画し内部keyを出さない", () => {
     const html = renderStandardReportHtml(
       {
         ...payload,
         metrics: {
-          zeta: { value: 2, source: "code:z", as_of: "2026-07-06T02:00:00.000Z" },
-          alpha: { value: 1, source: "code:a", as_of: "2026-07-06T01:00:00.000Z" },
+          blocked: {
+            value: 2,
+            source: "code:z",
+            as_of: "2026-07-06T02:00:00.000Z",
+            scope: { kind: "project", projectId: "PJ-001" },
+          },
+          completed: {
+            value: 1,
+            source: "code:a",
+            as_of: "2026-07-06T01:00:00.000Z",
+            scope: { kind: "project", projectId: "PJ-001" },
+          },
         },
       },
       recipient(),
     );
-    expect(html).toContain('<span data-src="alpha#value">1</span>');
+    expect(html).toContain('<span data-src="MTR-COMPLETED#value">1</span>');
+    expect(html).toContain("完了件数");
+    expect(html).not.toContain("completed");
     expect(html).toContain('<time datetime="2026-07-06T01:00:00.000Z">2026-07-06T01:00:00.000Z</time>');
-    expect(html.indexOf("alpha#value")).toBeLessThan(html.indexOf("zeta#value"));
+    expect(html.indexOf("MTR-BLOCKED#value")).toBeLessThan(html.indexOf("MTR-COMPLETED#value"));
+  });
+
+  it("PrjOps:REQ-016/PrjOps:SPEC-INT-051: metric表示名を受信者言語へ揃える", () => {
+    const html = renderStandardReportHtml(payload, recipient({ language: "en" }));
+    expect(html).toContain("Completed");
+    expect(html).not.toContain("完了件数");
+  });
+
+  it("PrjOps:SPEC-INT-051: scope欠落・権限外・表示名未定義metricを全audienceで省略する", () => {
+    const html = renderStandardReportHtml(
+      {
+        ...payload,
+        metrics: {
+          completed: { ...payload.metrics.completed, scope: { kind: "project", projectId: "PJ-OTHER" } },
+          blocked: { value: 2, source: "code:b", as_of: payload.period.generatedAt },
+          secret_internal_key: {
+            value: 99,
+            source: "code:secret",
+            as_of: payload.period.generatedAt,
+            scope: { kind: "project", projectId: "PJ-001" },
+          },
+        },
+      },
+      recipient(),
+    );
+    expect(html).not.toMatch(/99|secret_internal_key|MTR-COMPLETED|MTR-BLOCKED/);
+  });
+
+  it("PrjOps:SPEC-INT-051: project-scoped PRF-04は他project metricとその数値を含むslotを隠す", () => {
+    const html = renderStandardReportHtml(
+      {
+        ...payload,
+        metrics: {
+          completed: {
+            value: 99,
+            source: "code:other-project",
+            as_of: payload.period.generatedAt,
+            scope: { kind: "project", projectId: "PJ-OTHER" },
+          },
+        },
+        slots: { ...payload.slots, conclusion: "完了は99件です" },
+      },
+      recipient({ profile: "PRF-04", projects: ["PJ-OWN"] }),
+    );
+    expect(html).not.toContain("MTR-COMPLETED");
+    expect(html).not.toContain("99");
+    expect(html).toContain("[masked]");
+  });
+
+  it("PrjOps:SPEC-INT-051: 可視・非可視metricが同値でも非可視metric由来のslotをfail-closeする", () => {
+    const html = renderStandardReportHtml(
+      {
+        ...payload,
+        metrics: {
+          completed: { ...payload.metrics.completed, value: 5, scope: { kind: "project", projectId: "PJ-001" } },
+          blocked: {
+            value: 5,
+            source: "code:other-project",
+            as_of: payload.period.generatedAt,
+            scope: { kind: "project", projectId: "PJ-002" },
+          },
+        },
+        slots: { ...payload.slots, conclusion: "他案件のブロックは5件です" },
+      },
+      recipient({ profile: "PRF-04", projects: ["PJ-001"] }),
+    );
+    expect(html).toContain("MTR-COMPLETED");
+    expect(html).not.toContain("他案件のブロックは5件です");
+    expect(html).toContain("[masked]");
   });
 
   const changingMetricValues = [1, 2];
   const changingMetric = {
     source: "code:v-a-test",
     as_of: "2026-07-06T00:00:00.000Z",
+    scope: { kind: "project", projectId: "PJ-001" },
   };
   Object.defineProperty(changingMetric, "value", {
     enumerable: true,
@@ -461,6 +551,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
       report,
       {
         ...verificationProviders,
+        stakeholderEmailsProvider: async () => new Map([["ST-001", "intended@example.com"]]),
         fromMailbox: "from@example.com",
         publicBaseUrl: "https://aiops.example.com",
         recipientsRepo: { listForDelivery: async () => [changingRecipient] },
@@ -479,6 +570,107 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     expect(await auditLog.readAll()).toContainEqual(
       expect.objectContaining({ detail: { reportId: "STD-1", recipientId: "ST-001", code: "E-VER0D" } }),
     );
+  });
+
+  it.each(["missing", "error"])(
+    "PrjOps:REQ-019/AC-019-1: ST-idのmaster email %sはE-VER0Dでfail-closeする",
+    async (mode) => {
+      const auditLog = new InMemoryAuditLog();
+      const result = await deliverStandardReportToRecipients(
+        report,
+        {
+          ...verificationProviders,
+          stakeholderEmailsProvider: async () => {
+            if (mode === "error") throw new Error("master unavailable");
+            return new Map();
+          },
+          fromMailbox: "from@example.com",
+          publicBaseUrl: "https://aiops.example.com",
+          recipientsRepo: { listForDelivery: async () => [recipient()] },
+          graphClient: { sendMail: async () => {}, sendAdaptiveCard: async () => ({ messageId: "m" }) },
+          deliveryLogStore: new InMemoryDeliveryLogStore(),
+          auditLog,
+          traceIdProvider: () => "trace-master-v-d",
+        },
+        "trace-master-v-d",
+      );
+      expect(result.failed).toBe(1);
+      expect(await auditLog.readAll()).toContainEqual(
+        expect.objectContaining({ detail: { reportId: "STD-1", recipientId: "ST-001", code: "E-VER0D" } }),
+      );
+    },
+  );
+
+  it("PrjOps:REQ-019: stakeholder masterは複数ST受信者でもdelivery cycleごとに1回だけ読む", async () => {
+    let providerCalls = 0;
+    const mails: string[] = [];
+    await deliverStandardReportToRecipients(
+      report,
+      {
+        ...verificationProviders,
+        stakeholderEmailsProvider: async (ids) => {
+          providerCalls += 1;
+          return new Map(ids.map((id) => [id, id === "ST-001" ? "one@example.com" : "two@example.com"]));
+        },
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: {
+          listForDelivery: async () => [
+            recipient({ userId: "ST-001", email: "one@example.com" }),
+            recipient({ userId: "ST-002", email: "two@example.com" }),
+          ],
+        },
+        graphClient: {
+          sendMail: async ({ toEmail }) => void mails.push(toEmail),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => "trace-batch-master",
+      },
+      "trace-batch-master",
+    );
+    expect(providerCalls).toBe(1);
+    expect(mails).toEqual(["one@example.com", "two@example.com"]);
+  });
+
+  it("PrjOps:REQ-019/PrjOps:SPEC-INT-051: 即時ingestはV-B/V-Dを同じmaster snapshotで検証する", async () => {
+    let snapshotReads = 0;
+    const mails: string[] = [];
+    const result = await deliverStandardReportToRecipients(
+      report,
+      {
+        ...verificationProviders,
+        personalNamesProvider: async () => {
+          throw new Error("separate personal-name scan must not run");
+        },
+        stakeholderEmailsProvider: async () => {
+          throw new Error("separate email scan must not run");
+        },
+        verificationSnapshotProvider: async () => {
+          snapshotReads += 1;
+          return {
+            personalNames: ["Other Person"],
+            stakeholderEmails: new Map([["ST-001", "manager@example.com"]]),
+          };
+        },
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: { listForDelivery: async () => [recipient({ profile: "PRF-05", persona: "investor" })] },
+        graphClient: {
+          sendMail: async ({ toEmail }) => void mails.push(toEmail),
+          sendAdaptiveCard: async () => ({ messageId: "m" }),
+        },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => "trace-ingest-snapshot",
+      },
+      "trace-ingest-snapshot",
+    );
+
+    expect(snapshotReads).toBe(1);
+    expect(mails).toEqual(["manager@example.com"]);
+    expect(result).toMatchObject({ sent: 1, failed: 0 });
   });
 
   it("PrjOps:REQ-019/AC-019-1: 1受信者のV-B NGを隔離し他受信者を配信する", async () => {
@@ -544,8 +736,13 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
 
   it("PRF-Gは空projectsでもglobal audienceとして標準レポート本文を読める", () => {
     const html = renderStandardReportHtml(
-      payload,
-      recipient({ profile: "PRF-G", persona: "global-manager", projects: [] }),
+      {
+        ...payload,
+        metrics: {
+          completed: { ...payload.metrics.completed, scope: { kind: "project", projectId: "PRJ-001" } },
+        },
+      },
+      recipient({ profile: "PRF-G", persona: "global-manager", projects: [], scopeMode: "global" }),
     );
     expect(html).toContain("Alice finished InternalPhoenix migration");
     expect(html).not.toContain("[masked]");
@@ -589,6 +786,11 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
       report,
       {
         ...verificationProviders,
+        stakeholderEmailsProvider: async () =>
+          new Map([
+            ["ST-001", "manager@example.com"],
+            ["ST-002", "other@example.com"],
+          ]),
         fromMailbox: "from@example.com",
         defaultTeamsTeamId: "team-1",
         defaultTeamsChannelId: "chan-1",
@@ -719,6 +921,74 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
 
     expect(mails).toBe(2);
     expect(heartbeats).toBe(1);
+  });
+
+  it("PrjOps:REQ-019/PrjOps:SPEC-INT-051: 複数レポートでも関係者snapshotをサイクルごとに1回だけ読む", async () => {
+    let snapshotReads = 0;
+    const task = deliveryTask({
+      standardReportsRepo: { listRecent: async () => [report, { ...report, reportId: "STD-2" }] },
+      verificationSnapshotProvider: async () => {
+        snapshotReads += 1;
+        return {
+          personalNames: [],
+          stakeholderEmails: new Map([["ST-001", "manager@example.com"]]),
+        };
+      },
+    });
+
+    await task.run(new Date("2026-07-06T00:00:00.000Z"));
+
+    expect(snapshotReads).toBe(1);
+  });
+
+  it("PrjOps:SPEC-INT-051: 未知metric keyをsanitizeしてreportごとに1回だけ警告する", async () => {
+    const warnings: unknown[] = [];
+    const unknownKey = "api_key=abcdefghijklmnopqrstuvwxyz123456";
+    const unsafeReport = {
+      ...report,
+      payload: {
+        ...payload,
+        metrics: {
+          ...payload.metrics,
+          [unknownKey]: {
+            value: 9,
+            source: "code:unknown",
+            as_of: payload.period.generatedAt,
+            scope: { kind: "project", projectId: "PJ-001" },
+          },
+        },
+      },
+    } as StandardReportRecord;
+    await deliverStandardReportToRecipients(
+      unsafeReport,
+      {
+        ...verificationProviders,
+        stakeholderEmailsProvider: async () =>
+          new Map([
+            ["ST-001", "manager@example.com"],
+            ["ST-002", "allowed@example.com"],
+          ]),
+        fromMailbox: "from@example.com",
+        publicBaseUrl: "https://aiops.example.com",
+        recipientsRepo: {
+          listForDelivery: async () => [recipient(), recipient({ userId: "ST-002", email: "allowed@example.com" })],
+        },
+        graphClient: { sendMail: async () => {}, sendAdaptiveCard: async () => ({ messageId: "m" }) },
+        deliveryLogStore: new InMemoryDeliveryLogStore(),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => "trace-unknown-key",
+        logger: {
+          child: () => ({ info: () => {}, warn: (...args: unknown[]) => void warnings.push(args) }),
+        } as unknown as NonNullable<ReportDeliveryTaskDeps["logger"]>,
+      },
+      "trace-unknown-key",
+    );
+
+    const serialized = JSON.stringify(warnings);
+    expect(warnings).toHaveLength(1);
+    expect(serialized).toContain("undefined metric display keys");
+    expect(serialized).toContain("REDACTED");
+    expect(serialized).not.toContain(unknownKey);
   });
 
   it("PrjOps:REQ-042 AUD-OPM-009: HEARTBEAT_URL未設定時は外部通信しない", async () => {
@@ -912,6 +1182,11 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
       report,
       {
         ...verificationProviders,
+        stakeholderEmailsProvider: async () =>
+          new Map([
+            ["ST-001", "bad-link@example.com"],
+            ["ST-002", "ok@example.com"],
+          ]),
         fromMailbox: "from@example.com",
         publicBaseUrl: "not-a-url",
         recipientsRepo: {

@@ -35,7 +35,12 @@ const payload: StandardReportPayload = {
   evidenceIds: ["PrjOps:REQ-018", "PrjOps:REQ-042"],
   period: { label: "2026-W29", generatedAt: "2026-07-13T00:00:00.000Z" },
   metrics: {
-    completed: { value: 1, source: "test:completed", as_of: "2026-07-13T00:00:00.000Z" },
+    completed: {
+      value: 1,
+      source: "test:completed",
+      as_of: "2026-07-13T00:00:00.000Z",
+      scope: { kind: "portfolio", projectIds: ["PJ-001"] },
+    },
   },
   slots: { conclusion: "ok", riskSummary: "low", nextActions: "ship" },
 };

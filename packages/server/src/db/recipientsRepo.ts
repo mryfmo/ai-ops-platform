@@ -12,6 +12,7 @@ export interface DeliveryRecipient {
   persona: string | null;
   email: string;
   projects: string[];
+  scopeMode: "project" | "global";
   language: "ja" | "en";
   active: boolean;
   teamsTeamId: string | null;
@@ -20,13 +21,23 @@ export interface DeliveryRecipient {
 
 const canonicalUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-function toRecipient(row: Record<string, unknown>): DeliveryRecipient {
+function toRecipient(row: Record<string, unknown>): DeliveryRecipient | null {
+  const projects = Array.isArray(row.projects) ? (row.projects as string[]) : [];
+  const scopeMode = row.scope_mode;
+  if (
+    (scopeMode !== "project" && scopeMode !== "global") ||
+    (scopeMode === "project" && projects.length === 0) ||
+    (scopeMode === "global" && projects.length !== 0)
+  ) {
+    return null;
+  }
   return {
     userId: String(row.user_id),
     profile: String(row.profile),
     persona: row.persona ? String(row.persona) : null,
     email: String(row.email),
-    projects: Array.isArray(row.projects) ? (row.projects as string[]) : [],
+    projects,
+    scopeMode,
     language: row.language === "en" ? "en" : "ja",
     active: row.active === true,
     teamsTeamId: row.teams_team_id ? String(row.teams_team_id) : null,
@@ -56,7 +67,7 @@ export class RecipientsRepo {
   async findActiveByTrustedSubject(tenantId: string, objectId: string): Promise<DeliveryRecipient | null> {
     if (!canonicalUuid.test(tenantId) || !canonicalUuid.test(objectId)) return null;
     const res = await this.db.query(
-      `SELECT user_id, profile, persona, email, projects, language, active, teams_team_id, teams_channel_id
+      `SELECT user_id, profile, persona, email, projects, scope_mode, language, active, teams_team_id, teams_channel_id
        FROM recipients
        WHERE entra_tenant_id = $1::uuid
          AND entra_object_id = $2::uuid
@@ -70,10 +81,16 @@ export class RecipientsRepo {
 
   async listForDelivery(): Promise<DeliveryRecipient[]> {
     const res = await this.db.query(
-      `SELECT user_id, profile, persona, email, projects, language, active, teams_team_id, teams_channel_id
+      `SELECT user_id, profile, persona, email, projects, scope_mode, language, active, teams_team_id, teams_channel_id
        FROM recipients
+       WHERE active = true
+         AND backfill_state = 'applied'
        ORDER BY user_id`,
     );
-    return res.rows.map(toRecipient);
+    return res.rows.map((row) => {
+      const recipient = toRecipient(row);
+      if (!recipient) throw new Error("E-DLV03: invalid recipient authorization scope");
+      return recipient;
+    });
   }
 }

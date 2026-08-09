@@ -30,12 +30,21 @@ export GRAPH_TENANT_ID=...
 export GRAPH_ALLOWED_TEAM_IDS="<exact-team-id>[,<exact-team-id>]"
 export GRAPH_ALLOWED_FROM_MAILBOXES="reports@example.com[,other-sender@example.com]"
 export PUBLIC_BASE_URL=https://aiops.example.com
+export REPORT_DELIVERY_ENABLED=true
+export FROM_MAILBOX=reports@example.com
+export STAKEHOLDERS_DIR=/srv/prjops-data/stakeholders
 export CODING_TASK_CONFIRM_SECRET="$(openssl rand -hex 32)"   # server-only; never a GitHub Actions secret
 export CODING_TASK_CALLBACK_SECRET="$(openssl rand -hex 32)"  # shared with coding-task.yml; must differ from the above
 export ANTHROPIC_API_KEY=...
 ```
 
-`GRAPH_ALLOWED_TEAM_IDS` と `GRAPH_ALLOWED_FROM_MAILBOXES` は必須で、空リストと `*` は起動時に拒否される。team ID は各要素をtrim・重複排除した後もcase-sensitive exact match、mailboxはtrim・lowercase・重複排除して照合する。`REPORT_DELIVERY_ENABLED=true` の場合、`FROM_MAILBOX` はmailbox allowlist内、default Teams team/channelはboth-or-neitherでteam allowlist内でなければならない。DBのrecipient/subscription行はallowlistを拡張しない。
+`GRAPH_ALLOWED_TEAM_IDS` と `GRAPH_ALLOWED_FROM_MAILBOXES` は必須で、空リストと `*` は起動時に拒否される。team ID は各要素をtrim・重複排除した後もcase-sensitive exact match、mailboxはtrim・lowercase・重複排除して照合する。`REPORT_DELIVERY_ENABLED=true` の場合、`FROM_MAILBOX` はmailbox allowlist内、`STAKEHOLDERS_DIR` はabsolute pathで必須、default Teams team/channelはboth-or-neitherでteam allowlist内でなければならない。DBのrecipient/subscription行はallowlistを拡張しない。
+
+`report-generation.yml` の cron 実行前に、対象 portfolio の正本 project ID を repository variable として設定する。未設定・空・重複は E-RPT07 で生成を停止する。
+
+```sh
+gh variable set REPORT_PROJECT_IDS --body 'PJ-001,PJ-002'
+```
 
 web:
 
