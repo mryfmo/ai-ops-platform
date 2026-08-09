@@ -8,10 +8,12 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { InMemoryAuditLog, sanitizeSecrets } from "@aiops/shared";
 import {
+  ALERT_LABEL,
   createBuildEventHandler,
   createIncidentEventHandler,
+  createIncidentIssueClient,
   createRecencySimilarIncidentsProvider,
-} from "../src/lib/devopsEventHandlers.js";
+} from "../src/agents/devopsEventHandlers.js";
 
 const fakeGitHubToken = ["ghp", "_abcdefghijklmnopqrstuvwxyz123456"].join("");
 
@@ -50,7 +52,7 @@ describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:
       auditLog,
       classify,
       generate,
-      repoCheckoutPath: "/repo",
+      repoCheckoutPathFor: () => "/repo",
     });
 
     await handler(workflowFailure, "trace-build");
@@ -86,7 +88,7 @@ describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:
         confidence: 0.2,
       })),
       generate,
-      repoCheckoutPath: "/repo",
+      repoCheckoutPathFor: () => "/repo",
     });
 
     await handler(workflowFailure, "trace-low");
@@ -114,7 +116,7 @@ describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:
         confidence: 0.8,
       })),
       generate: vi.fn(async () => null),
-      repoCheckoutPath: "/repo",
+      repoCheckoutPathFor: () => "/repo",
     });
     const noPrEvent = {
       ...workflowFailure,
@@ -146,7 +148,7 @@ describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:
       auditLog,
       classify,
       generate: vi.fn(),
-      repoCheckoutPath: "/repo",
+      repoCheckoutPathFor: () => "/repo",
     });
 
     await handler(workflowFailure, "trace-disabled");
@@ -168,13 +170,43 @@ describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:
       auditLog: new InMemoryAuditLog(),
       classify,
       generate: vi.fn(),
-      repoCheckoutPath: "/repo",
+      repoCheckoutPathFor: () => "/repo",
     });
 
     await handler({ ...workflowFailure, eventName: "push", payload: {} }, "trace-push");
     await handler({ ...workflowFailure, eventName: "pull_request", payload: {} }, "trace-pr");
 
     expect(classify).not.toHaveBeenCalled();
+  });
+
+  it("明示的なcheckout mappingが無ければ分類のみ行い修正案をdegraded監査する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const generate = vi.fn();
+    const createIssueComment = vi.fn(async () => undefined);
+    const handler = createBuildEventHandler({
+      configured: true,
+      githubClient: {
+        getWorkflowRunFailureLog: vi.fn(async () => "test failed"),
+        createIssueComment,
+        createIssue: vi.fn(),
+      },
+      auditLog,
+      classify: vi.fn(async () => ({
+        classification: "test_failure" as const,
+        failed_job: "test",
+        failed_step: "vitest",
+        log_excerpt: "failed",
+        confidence: 0.9,
+      })),
+      generate,
+      repoCheckoutPathFor: () => null,
+    });
+
+    await handler(workflowFailure, "trace-no-checkout");
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(createIssueComment).toHaveBeenCalledOnce();
+    expect((await auditLog.readAll()).map((record) => record.action)).toContain("build_fix_suggestion_disabled");
   });
 });
 
@@ -207,6 +239,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
       channel: { teamId: "team", channelId: "channel" },
       metricsSnapshot: () => "aiops_events_queue_depth 3\n",
       similarIncidents: provider,
+      findExistingIssue: vi.fn(async () => null),
       auditLog,
       classify,
       triage,
@@ -220,7 +253,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
         payload: {
           action: "opened",
           repository: { full_name: "acme/widget" },
-          issue: { title: "Latency alert", body: alert, labels: [] },
+          issue: { number: 123, title: "Latency alert", body: alert, labels: [{ name: ALERT_LABEL }] },
         },
       },
       "trace-inc",
@@ -235,6 +268,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
     );
     expect(triage).toHaveBeenCalledOnce();
     expect(triage.mock.calls[0]![0].rationale).not.toContain(fakeGitHubToken);
+    expect(triage.mock.calls[0]![4]).toMatchObject({ sourceIssueMarker: "source-issue:123", existingIssue: null });
     const triageRecord = (await auditLog.readAll()).find((record) => record.action === "triage")!;
     expect(triageRecord.detail).toMatchObject({
       severity: "sev2",
@@ -252,6 +286,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
       channel: { teamId: "team", channelId: "channel" },
       metricsSnapshot: () => "metrics",
       similarIncidents: { summarize: vi.fn(async () => "similar") },
+      findExistingIssue: vi.fn(async () => null),
       auditLog: new InMemoryAuditLog(),
       classify,
       triage: vi.fn(),
@@ -262,7 +297,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
       payload: {
         action: "opened",
         repository: { full_name: "acme/widget" },
-        issue: { title: "generated", body: "body", labels: [{ name: "auto-triaged" }] },
+        issue: { number: 123, title: "generated", body: "body", labels: [{ name: "auto-triaged" }] },
       },
     };
 
@@ -272,10 +307,20 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
         ...base,
         payload: {
           ...base.payload,
-          issue: { title: "generated", body: "<!-- aiops-agent:AGT-BLD -->", labels: [] },
+          issue: { number: 124, title: "generated", body: "<!-- aiops-agent:AGT-BLD -->", labels: [] },
         },
       },
       "trace-build-loop",
+    );
+    await handler(
+      {
+        ...base,
+        payload: {
+          ...base.payload,
+          issue: { number: 125, title: "ordinary feature request", body: "body", labels: [] },
+        },
+      },
+      "trace-non-alert",
     );
     await handler({ ...base, payload: { ...base.payload, action: "edited" } }, "trace-edited");
 
@@ -290,6 +335,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
       disabledReason: "Default Teams channel is not configured",
       metricsSnapshot: vi.fn(),
       similarIncidents: { summarize: vi.fn() },
+      findExistingIssue: vi.fn(),
       auditLog,
       classify,
       triage: vi.fn(),
@@ -302,7 +348,7 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
         payload: {
           action: "opened",
           repository: { full_name: "acme/widget" },
-          issue: { title: "alert", body: "body", labels: [] },
+          issue: { number: 123, title: "alert", body: "body", labels: [{ name: ALERT_LABEL }] },
         },
       },
       "trace-inc-disabled",
@@ -310,5 +356,21 @@ describe("AGT_INC runtime wiring [DevOps:SPEC-INT-030 / DevOps:REQ-015]", () => 
 
     expect(classify).not.toHaveBeenCalled();
     expect((await auditLog.readAll()).map((record) => record.action)).toContain("incident_triage_disabled");
+  });
+
+  it("既存marker Issueを再利用し、新規Issue本文にはdeterministic markerを追加する", async () => {
+    const existing = { number: 99, htmlUrl: "https://github.com/acme/widget/issues/99" };
+    const createIssue = vi.fn(async () => ({ number: 100, htmlUrl: "https://github.com/acme/widget/issues/100" }));
+    const input = { owner: "acme", repo: "widget", title: "incident", body: "details", labels: ["auto-triaged"] };
+
+    await expect(
+      createIncidentIssueClient({ createIssue }, "source-issue:123", existing).createIssue(input),
+    ).resolves.toEqual(existing);
+    expect(createIssue).not.toHaveBeenCalled();
+
+    await createIncidentIssueClient({ createIssue }, "source-issue:123", null).createIssue(input);
+    expect(createIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining("source-issue:123") }),
+    );
   });
 });

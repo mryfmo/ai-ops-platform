@@ -14,6 +14,7 @@
  *   codingTasksRepo・confirm/callbackルート・GitHubリポジトリ解決（projectChannelsRepo.findByProjectId）を追加。
  */
 import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 import { deriveCapabilityState, reportDegradation } from "./lib/degradedCapabilities.js";
 import { judgeAuditLogPrivilege } from "./lib/auditLogPrivilege.js";
 import {
@@ -83,9 +84,10 @@ import { decideStakeholderMaster } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import {
   createBuildEventHandler,
+  createIncidentIssueClient,
   createIncidentEventHandler,
   createRecencySimilarIncidentsProvider,
-} from "./lib/devopsEventHandlers.js";
+} from "./agents/devopsEventHandlers.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
 import type { Logger } from "./observability/logger.js";
@@ -127,7 +129,7 @@ export * from "./lib/githubEventRouter.js";
 export * from "./lib/stakeholderProfileResolver.js";
 export * from "./lib/stakeholderYamlLoader.js";
 export * from "./lib/graphLifecycleHandler.js";
-export * from "./lib/devopsEventHandlers.js";
+export * from "./agents/devopsEventHandlers.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
 export * from "./db/grantsRepo.js";
@@ -317,6 +319,8 @@ export async function main(
       ? { teamId: config.DEFAULT_TEAMS_TEAM_ID, channelId: config.DEFAULT_TEAMS_CHANNEL_ID }
       : undefined;
   const incidentTriageConfigured = buildTriageConfigured && defaultIncidentChannel !== undefined;
+  const configuredCheckoutRepository = process.env["GITHUB_REPOSITORY"]?.trim();
+  const configuredCheckoutPath = process.env["GITHUB_WORKSPACE"]?.trim();
   const devopsEventHandlers: Record<DevopsAgentId, (event: DevopsEventHandlerInput, traceId: string) => Promise<void>> =
     {
       AGT_BLD: createBuildEventHandler({
@@ -326,7 +330,12 @@ export async function main(
           : "ANTHROPIC_API_KEY is not configured",
         githubClient,
         auditLog: devopsAuditLog,
-        repoCheckoutPath: process.cwd(),
+        repoCheckoutPathFor: (repositoryFullName) =>
+          configuredCheckoutRepository === repositoryFullName &&
+          configuredCheckoutPath &&
+          isAbsolute(configuredCheckoutPath)
+            ? configuredCheckoutPath
+            : null,
         classify: (evidence, deps) => classifyBuildFailure(evidence, { ...deps, llmClient: llmClient! }),
         generate: (classification, repoCheckoutPath, deps) =>
           generateFixSuggestionIfApplicable(classification, repoCheckoutPath, {
@@ -354,6 +363,7 @@ export async function main(
         channel: defaultIncidentChannel,
         metricsSnapshot: () => metrics.renderPrometheus(),
         similarIncidents,
+        findExistingIssue: (owner, repo, marker) => githubClient.findIssueByBodyMarker(owner, repo, marker),
         auditLog: devopsAuditLog,
         classify: (alert, metricsSummary, similarSummary, deps) =>
           classifyIncident(alert, metricsSummary, similarSummary, {
@@ -367,7 +377,7 @@ export async function main(
             ...deps,
             llmClient: llmClient!,
             graphClient,
-            githubClient,
+            githubClient: createIncidentIssueClient(githubClient, deps.sourceIssueMarker, deps.existingIssue),
           }),
       }),
     };

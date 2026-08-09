@@ -1,5 +1,5 @@
 /**
- * packages/server/src/lib/devopsEventHandlers.ts
+ * packages/server/src/agents/devopsEventHandlers.ts
  *
  * 根拠: DevOps:REQ-001 / DevOps:REQ-002 / DevOps:REQ-015,
  * DevOps:SPEC-INT-011 / DevOps:SPEC-INT-030, ADR-0014。
@@ -22,7 +22,10 @@ import {
   type CreateIssueInput,
 } from "@aiops/shared";
 import type { ClassificationResult, IncidentClassification } from "@aiops/devops";
-import type { DevopsEventHandler } from "./githubEventRouter.js";
+import type { DevopsEventHandler } from "../lib/githubEventRouter.js";
+
+/** A045 ingress contract: only GitHub issues opened with this label are monitoring/external-contact alerts. */
+export const ALERT_LABEL = "alert";
 
 type BuildClassifier = (
   evidence: string,
@@ -45,7 +48,7 @@ export interface BuildHandlerDeps {
   auditLog: AuditLogWriter;
   classify: BuildClassifier;
   generate: BuildSuggestionGenerator;
-  repoCheckoutPath: string;
+  repoCheckoutPathFor(repositoryFullName: string): string | null;
 }
 
 type IncidentClassifier = (
@@ -59,8 +62,18 @@ type IncidentTriage = (
   owner: string,
   repo: string,
   channel: ChannelRef,
-  deps: { auditLog: AuditLogWriter; traceId: string },
+  deps: {
+    auditLog: AuditLogWriter;
+    traceId: string;
+    sourceIssueMarker: string;
+    existingIssue: ExistingIncidentIssue | null;
+  },
 ) => Promise<{ issueUrl: string; effectiveSeverity: string }>;
+
+export interface ExistingIncidentIssue {
+  number: number;
+  htmlUrl: string;
+}
 
 export interface SimilarIncidentRecord {
   at: string;
@@ -79,6 +92,7 @@ export interface IncidentHandlerDeps {
   channel?: ChannelRef;
   metricsSnapshot(): string;
   similarIncidents: SimilarIncidentsProvider;
+  findExistingIssue(owner: string, repo: string, marker: string): Promise<ExistingIncidentIssue | null>;
   auditLog: AuditLogWriter;
   classify: IncidentClassifier;
   triage: IncidentTriage;
@@ -186,7 +200,22 @@ export function createBuildEventHandler(deps: BuildHandlerDeps): DevopsEventHand
       return;
     }
 
-    const suggestion = await deps.generate(classification, deps.repoCheckoutPath, agentDeps);
+    const needsFixSuggestion =
+      classification.classification === "test_failure" || classification.classification === "compile_error";
+    const repoCheckoutPath = deps.repoCheckoutPathFor(repository.fullName);
+    let suggestion: string | null = null;
+    if (needsFixSuggestion && !repoCheckoutPath) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-BLD",
+        action: "build_fix_suggestion_disabled",
+        basis: "ADR-0014 / DevOps:REQ-002",
+        detail: { reason: "No explicit local checkout mapping exists for the event repository" },
+        at: new Date().toISOString(),
+      });
+    } else if (repoCheckoutPath) {
+      suggestion = await deps.generate(classification, repoCheckoutPath, agentDeps);
+    }
     const runUrl = typeof workflowRun["html_url"] === "string" ? workflowRun["html_url"] : "unavailable";
     const body = renderBuildResult(classification, suggestion, runUrl);
     if (canonicalPrNumbers.length === 1) {
@@ -235,16 +264,16 @@ export function createRecencySimilarIncidentsProvider(
   };
 }
 
-function labelsContainAutoTriaged(issue: Record<string, unknown>): boolean {
+function hasIssueLabel(issue: Record<string, unknown>, expected: string): boolean {
   if (!Array.isArray(issue["labels"])) return false;
   return issue["labels"].some((label) =>
-    typeof label === "string" ? label === "auto-triaged" : asRecord(label)?.["name"] === "auto-triaged",
+    typeof label === "string" ? label === expected : asRecord(label)?.["name"] === expected,
   );
 }
 
 function isAgentGeneratedIssue(issue: Record<string, unknown>): boolean {
   return (
-    labelsContainAutoTriaged(issue) ||
+    hasIssueLabel(issue, "auto-triaged") ||
     (typeof issue["body"] === "string" && issue["body"].includes("<!-- aiops-agent:AGT-BLD -->"))
   );
 }
@@ -253,6 +282,8 @@ function enrichTriageAuditLog(
   auditLog: AuditLogWriter,
   classification: IncidentClassification,
   alertText: string,
+  sourceIssueMarker: string,
+  deduplicated: boolean,
 ): AuditLogWriter {
   const safeProjects = classification.affected_projects.map((project) => sanitizeSecrets(project).sanitized);
   const alertDigest = createHash("sha256").update(sanitizeSecrets(alertText).sanitized).digest("hex");
@@ -268,10 +299,25 @@ function enrichTriageAuditLog(
                 alertDigest,
                 affected_projects: safeProjects,
                 severity: classification.severity_candidate,
+                sourceIssueMarker,
+                deduplicated,
               },
             }
           : record,
       ),
+  };
+}
+
+export function createIncidentIssueClient(
+  githubClient: { createIssue(input: CreateIssueInput): Promise<ExistingIncidentIssue> },
+  sourceIssueMarker: string,
+  existingIssue: ExistingIncidentIssue | null,
+): { createIssue(input: CreateIssueInput): Promise<ExistingIncidentIssue> } {
+  return {
+    createIssue: (input) =>
+      existingIssue
+        ? Promise.resolve(existingIssue)
+        : githubClient.createIssue({ ...input, body: `${input.body}\n\n<!-- ${sourceIssueMarker} -->` }),
   };
 }
 
@@ -285,6 +331,7 @@ export function createIncidentEventHandler(deps: IncidentHandlerDeps): DevopsEve
     const issue = asRecord(payload["issue"]);
     if (!issue) throw new Error("Malformed issues event: issue is required");
     if (isAgentGeneratedIssue(issue)) return;
+    if (!hasIssueLabel(issue, ALERT_LABEL)) return;
 
     if (!deps.configured) {
       await deps.auditLog.append({
@@ -300,11 +347,17 @@ export function createIncidentEventHandler(deps: IncidentHandlerDeps): DevopsEve
     if (!deps.channel) throw new Error("Incident triage is configured without a Teams channel");
 
     const repository = repositoryCoordinates(payload);
+    const issueNumber = issue["number"];
+    if (!Number.isSafeInteger(issueNumber) || Number(issueNumber) <= 0) {
+      throw new Error("Malformed issues event: issue.number is required for retry dedupe");
+    }
+    const sourceIssueMarker = `source-issue:${Number(issueNumber)}`;
     const title = issue["title"];
     const body = issue["body"];
     if (typeof title !== "string" || (typeof body !== "string" && body !== null && body !== undefined)) {
       throw new Error("Malformed issues event: issue title/body is invalid");
     }
+    const existingIssue = await deps.findExistingIssue(repository.owner, repository.repo, sourceIssueMarker);
     const alertText = `${title}\n${typeof body === "string" ? body : ""}`;
     const agentDeps = { auditLog: deps.auditLog, traceId };
     const classification = await deps.classify(
@@ -319,8 +372,16 @@ export function createIncidentEventHandler(deps: IncidentHandlerDeps): DevopsEve
       rationale: sanitizeSecrets(classification.rationale).sanitized,
     };
     await deps.triage(sanitizedClassification, repository.owner, repository.repo, deps.channel, {
-      auditLog: enrichTriageAuditLog(deps.auditLog, sanitizedClassification, alertText),
+      auditLog: enrichTriageAuditLog(
+        deps.auditLog,
+        sanitizedClassification,
+        alertText,
+        sourceIssueMarker,
+        existingIssue !== null,
+      ),
       traceId,
+      sourceIssueMarker,
+      existingIssue,
     });
   };
 }

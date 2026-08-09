@@ -250,4 +250,40 @@ describe("GitHubClient [DevOps:SPEC-INT-061, REQ-025/033]", () => {
 
     await expect(client.getWorkflowRunFailureLog("acme", "devops-system", 456)).rejects.toThrow(/incomplete/i);
   });
+
+  it("findIssueByBodyMarker はbounded searchで既存auto-triaged Issueを返す（DevOps:SPEC-INT-030）", async () => {
+    const { fetch: fetchImpl, calls } = makeFakeFetch([
+      {
+        status: 200,
+        body: {
+          total_count: 1,
+          incomplete_results: false,
+          items: [
+            {
+              number: 7,
+              html_url: "https://github.com/acme/widget/issues/7",
+              body: "details <!-- source-issue:123 -->",
+            },
+          ],
+        },
+      },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    await expect(client.findIssueByBodyMarker("acme", "widget", "source-issue:123")).resolves.toEqual({
+      number: 7,
+      htmlUrl: "https://github.com/acme/widget/issues/7",
+    });
+    expect(calls[0]!.url).toContain("/search/issues?");
+    expect(decodeURIComponent(calls[0]!.url)).toContain("label:auto-triaged");
+  });
+
+  it("findIssueByBodyMarker はincomplete/ambiguous searchを既存なしと誤認しない（DevOps:SPEC-INT-030）", async () => {
+    const { fetch: fetchImpl } = makeFakeFetch([
+      { status: 200, body: { total_count: 2, incomplete_results: true, items: [] } },
+    ]);
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    await expect(client.findIssueByBodyMarker("acme", "widget", "source-issue:123")).rejects.toThrow(/incomplete/i);
+  });
 });

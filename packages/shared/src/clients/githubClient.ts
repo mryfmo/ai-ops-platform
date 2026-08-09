@@ -203,6 +203,54 @@ export class GitHubClient {
     return { number: json.number, htmlUrl: json.html_url };
   }
 
+  /**
+   * DevOps:SPEC-INT-030 retry dedupe: auto-triaged Issue本文の決定的markerをbounded searchする。
+   * 2件以上・partial result・応答欠落は「既存なし」に倒さず、重複起票を防ぐため失敗させる。
+   */
+  async findIssueByBodyMarker(
+    owner: string,
+    repo: string,
+    marker: string,
+  ): Promise<{ number: number; htmlUrl: string } | null> {
+    if (!/^source-issue:[1-9]\d*$/.test(marker)) throw new Error("E-GEN05: invalid incident source marker");
+    const headers = await this.headers();
+    const params = new URLSearchParams({
+      q: `repo:${owner}/${repo} is:issue in:body "${marker}" label:auto-triaged`,
+      per_page: "2",
+      page: "1",
+    });
+    const res = await this.fetch(`${this.baseUrl}/search/issues?${params.toString()}`, { method: "GET", headers });
+    if (!res.ok) throw new Error(`E-GEN06: incident marker search failed with status ${res.status}`);
+    const body = (await res.json()) as {
+      total_count?: unknown;
+      incomplete_results?: unknown;
+      items?: unknown;
+    };
+    if (
+      typeof body.total_count !== "number" ||
+      typeof body.incomplete_results !== "boolean" ||
+      !Array.isArray(body.items)
+    ) {
+      throw new Error("E-GEN07: malformed incident marker search response");
+    }
+    if (body.incomplete_results || body.total_count > 1 || body.items.length < body.total_count) {
+      throw new Error("E-GEN08: incomplete or ambiguous incident marker search");
+    }
+    if (body.total_count === 0) return null;
+    const issue = body.items[0] as Record<string, unknown> | undefined;
+    if (
+      !issue ||
+      !Number.isSafeInteger(issue["number"]) ||
+      Number(issue["number"]) <= 0 ||
+      typeof issue["html_url"] !== "string" ||
+      typeof issue["body"] !== "string" ||
+      !issue["body"].includes(marker)
+    ) {
+      throw new Error("E-GEN09: malformed incident marker search item");
+    }
+    return { number: Number(issue["number"]), htmlUrl: issue["html_url"] };
+  }
+
   /** REQ-037 / PrjOps:SPEC-INT-063: ExcelインポートからMilestoneを作成する。 */
   async createMilestone(input: CreateMilestoneInput): Promise<{ number: number; htmlUrl: string; nodeId?: string }> {
     const headers = await this.headers();
