@@ -21,8 +21,10 @@ Independent review reported two findings. The apparent scope violation is covere
 ## Delivery
 
 - Branch: `agent/a048-monitoring-unification`
-- PR: pending creation
-- State: ready for review; no merge performed
+- Implementation commit: `02a8d3484fe7809432ec151e582b0695e764737d` (`feat(observability): unify monitoring on application insights`)
+- PR: https://github.com/mryfmo/ai-ops-platform/pull/148
+- State: ready for review, `ai-generated`; no merge performed
+- Initial GitHub checks: build-test pass (4m34s), gitleaks pass (9s), CodeRabbit pass; unresolved review threads: 0. The final evidence-only commit is rechecked before AGMSG-RESULT.
 
 ## Successor boundary
 

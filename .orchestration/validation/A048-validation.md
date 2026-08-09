@@ -36,4 +36,9 @@
 
 ## GitHub evidence
 
-Pending PR creation and remote checks.
+- PR: https://github.com/mryfmo/ai-ops-platform/pull/148
+- Implementation commit: `02a8d3484fe7809432ec151e582b0695e764737d`.
+- First `gh pr checks 148 --watch`: build-test pass (4m34s), gitleaks pass (9s), CodeRabbit pass.
+- GraphQL `reviewThreads(first:100)`: empty (`nodes: []`).
+- PR metadata: `isDraft=false`, `ai-generated` label present, full-scope body includes D-04 and local Turbopack sandbox boundaries.
+- The final evidence-only commit is pushed and all checks/thread gates are revalidated before AGMSG-RESULT.
