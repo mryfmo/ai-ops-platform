@@ -155,4 +155,40 @@ describe("POST /reports/ingest [PrjOps:REQ-042 SPEC-INT-069 SPEC-INT-083 PrjOps:
     expect(res.status).toBe(200);
     expect(delivered).toEqual([standardReportId(payload), standardReportId(payload)]);
   });
+
+  it("PrjOps:REQ-019: portfolio scope順だけが違う再送は同一report IDへ正規化する", async () => {
+    const { app, inserts, delivered } = makeApp();
+    const withProjects = (projectIds: string[]): StandardReportPayload => ({
+      ...payload,
+      metrics: {
+        completed: {
+          ...payload.metrics.completed!,
+          scope: { kind: "portfolio", projectIds },
+        },
+      },
+    });
+    const first = withProjects(["PJ-002", "PJ-001"]);
+    const retry = withProjects(["PJ-001", "PJ-002"]);
+    const firstRaw = JSON.stringify(first);
+    const retryRaw = JSON.stringify(retry);
+
+    const firstResponse = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(firstRaw) },
+      body: firstRaw,
+    });
+    const retryResponse = await app.request("/reports/ingest", {
+      method: "POST",
+      headers: { "x-aiops-signature-256": sign(retryRaw) },
+      body: retryRaw,
+    });
+
+    expect(firstResponse.status).toBe(201);
+    expect(retryResponse.status).toBe(200);
+    expect(inserts[0]!.metrics.completed!.scope).toEqual({
+      kind: "portfolio",
+      projectIds: ["PJ-001", "PJ-002"],
+    });
+    expect(delivered[0]).toBe(delivered[1]);
+  });
 });

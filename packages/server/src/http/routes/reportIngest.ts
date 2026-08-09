@@ -40,6 +40,20 @@ function verifyReportSignature(rawBody: string, signature: string | null, secret
   }
 }
 
+function normalizePortfolioMetricScopes(payload: StandardReportPayload): StandardReportPayload {
+  return {
+    ...payload,
+    metrics: Object.fromEntries(
+      Object.entries(payload.metrics).map(([key, metric]) => [
+        key,
+        metric.scope?.kind === "portfolio"
+          ? { ...metric, scope: { ...metric.scope, projectIds: [...metric.scope.projectIds].sort() } }
+          : metric,
+      ]),
+    ),
+  };
+}
+
 export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): void {
   app.post("/reports/ingest", async (c) => {
     const rawBody = await c.req.text();
@@ -90,7 +104,7 @@ export function registerReportIngestRoutes(app: Hono, deps?: ReportIngestDeps): 
       );
     }
 
-    const reportPayload = payload as StandardReportPayload;
+    const reportPayload = normalizePortfolioMetricScopes(payload as StandardReportPayload);
     const inserted = await deps.reportsRepo.insert(reportPayload, traceId);
     await deps.auditLog.append({
       trace_id: traceId,

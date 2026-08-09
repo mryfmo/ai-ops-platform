@@ -272,17 +272,30 @@ describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / P
     expect(result.stderr).toMatch(/E-RPT07:.*canonical project IDs/);
   });
 
-  it("DevOps:SPEC-INT-082: calculate CLIはDevOps project IDを受理しportfolio順序を正規化する", () => {
+  it("DevOps:SPEC-INT-082: calculate CLIは単一domainのDevOps portfolio順序を正規化する", () => {
     const metrics = JSON.parse(
       runReportingCli("calculateReportMetrics.ts", [], {
         REPORT_AS_OF: "2026-07-09T16:00:00Z",
-        REPORT_PROJECT_IDS: "PRJ-002,PJ-001,PRJ-001",
+        REPORT_PROJECT_IDS: "PRJ-002,PRJ-001",
       }),
     );
     expect(metrics.completed.scope).toEqual({
       kind: "portfolio",
-      projectIds: ["PJ-001", "PRJ-001", "PRJ-002"],
+      projectIds: ["PRJ-001", "PRJ-002"],
     });
+  });
+
+  it("PrjOps:SPEC-INT-067 / DevOps:SPEC-INT-082: calculate CLIはmixed-domain portfolioを拒否する", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["--import", tsxImport, resolve(process.cwd(), "src/reporting/calculateReportMetrics.ts")],
+      {
+        env: { ...process.env, REPORT_PROJECT_IDS: "PJ-001,PRJ-001" },
+        encoding: "utf8",
+      },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/E-RPT07:.*single project domain.*mixed PJ-.*PRJ-/i);
   });
 
   it("calculate→finalize CLIはunavailable evidenceを保持しLLM slotsからmetricsを受けない [DEC-SPEC-007]", () => {

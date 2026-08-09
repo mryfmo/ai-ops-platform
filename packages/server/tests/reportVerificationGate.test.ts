@@ -31,7 +31,7 @@ const baseInput = {
 };
 
 describe("reportVerificationGate [PrjOps:REQ-019 PrjOps:SPEC-INT-051 PrjOps:AC-019-1]", () => {
-  it("out-of-scope metricが1件でもあれば非数値narrativeもpure policyでfail-closeする", () => {
+  it("全metricが権限外でも数値を含まないclean narrative slotsは維持する", () => {
     const result = filterReportContentForRecipient(
       {
         ...payload,
@@ -55,7 +55,38 @@ describe("reportVerificationGate [PrjOps:REQ-019 PrjOps:SPEC-INT-051 PrjOps:AC-0
     );
 
     expect(result.visibleMetricEntries).toEqual([]);
-    expect(result.safeSlots).toEqual({ conclusion: "[masked]", riskSummary: "[masked]", nextActions: "[masked]" });
+    expect(result.safeSlots).toEqual({
+      conclusion: "Project Orion is delayed",
+      riskSummary: "none",
+      nextActions: "ship",
+    });
+  });
+
+  it("権限外metricの数値を含むslotだけをmaskしclean sibling slotsを維持する", () => {
+    const result = filterReportContentForRecipient(
+      {
+        ...payload,
+        metrics: {
+          completed: {
+            value: 7,
+            source: "code:test",
+            as_of: payload.period.generatedAt,
+            scope: { kind: "project", projectId: "PJ-002" },
+          },
+        },
+        slots: { conclusion: "Other project completed 7 items", riskSummary: "No new risk", nextActions: "Review" },
+      },
+      "PRF-02",
+      {
+        recipientStakeholderId: "ST-001",
+        projectIds: ["PJ-001"],
+        scopeMode: "project",
+        projectDomain: "prjops",
+      },
+    );
+
+    expect(result.visibleMetricEntries).toEqual([]);
+    expect(result.safeSlots).toEqual({ conclusion: "[masked]", riskSummary: "No new risk", nextActions: "Review" });
   });
 
   it("global recipientでもPrjOps/DevOps project名前空間を越えてmetricを公開しない", () => {

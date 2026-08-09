@@ -32,6 +32,11 @@ if (
 ) {
   throw new Error("E-RPT07: REPORT_PROJECT_IDS must contain unique canonical project IDs");
 }
+if (projectIds.some((id) => isValidId("project", id)) && projectIds.some((id) => isValidId("projectDevOps", id))) {
+  throw new Error(
+    "E-RPT07: REPORT_PROJECT_IDS must use a single project domain; mixed PJ-* and PRJ-* IDs are not allowed",
+  );
+}
 projectIds.sort();
 const scope = { kind: "portfolio", projectIds } as const;
 

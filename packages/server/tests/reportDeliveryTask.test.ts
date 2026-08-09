@@ -444,7 +444,7 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
     expect(html).toContain("[masked]");
   });
 
-  it("PrjOps:SPEC-INT-051: 可視・非可視metricが同値でも非可視metric由来のslotをfail-closeする", () => {
+  it("PrjOps:SPEC-INT-051: slot数値が可視metric値にgroundedなら同値の非可視metricがあっても維持する", () => {
     const html = renderStandardReportHtml(
       {
         ...payload,
@@ -462,8 +462,8 @@ describe("reportDeliveryTask [PrjOps:REQ-042 SPEC-INT-069 PrjOps:AC-042-1]", () 
       recipient({ profile: "PRF-04", projects: ["PJ-001"] }),
     );
     expect(html).toContain("MTR-COMPLETED");
-    expect(html).not.toContain("他案件のブロックは5件です");
-    expect(html).toContain("[masked]");
+    expect(html).toContain("他案件のブロックは5件です");
+    expect(html).not.toContain("[masked]");
   });
 
   const changingMetricValues = [1, 2];

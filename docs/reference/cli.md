@@ -47,6 +47,9 @@ REPORT_PROJECT_IDS=PJ-001,PJ-002 REPORT_COMPLETED=8 REPORT_BLOCKED=2 \
   pnpm exec tsx packages/shared/src/reporting/calculateReportMetrics.ts > standard-report.metrics.json
 ```
 
+`REPORT_PROJECT_IDS` must contain IDs from one project domain per report: all PrjOps `PJ-*` or all DevOps `PRJ-*`.
+Mixed-domain portfolios are rejected with `E-RPT07`.
+
 Finalize LLM-generated slots into the full report payload:
 
 ```bash

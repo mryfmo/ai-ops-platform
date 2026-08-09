@@ -63,15 +63,12 @@ export function filterReportContentForRecipient(
           })
           .map(([key, metric]) => [key, { ...metric }] as [string, typeof metric]);
 
-  const hasHiddenMetric = visibleMetricEntries.length !== Object.keys(payload.metrics).length;
   const visibleValues = Object.fromEntries(
     visibleMetricEntries.flatMap(([key, metric]) => (typeof metric.value === "number" ? [[key, metric.value]] : [])),
   );
-  const unsafeSlots = hasHiddenMetric
-    ? new Set(Object.keys(payload.slots))
-    : new Set(
-        findUngroundedSlotNumbers(payload.slots, visibleValues, [payload.period.label]).map((finding) => finding.slot),
-      );
+  const unsafeSlots = new Set<string>(
+    findUngroundedSlotNumbers(payload.slots, visibleValues, [payload.period.label]).map((finding) => finding.slot),
+  );
   const safeSlots = Object.fromEntries(
     Object.entries(payload.slots).map(([key, value]) => [key, unsafeSlots.has(key) ? "[masked]" : value]),
   ) as StandardReportPayload["slots"];

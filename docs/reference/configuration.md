@@ -88,16 +88,16 @@ The server and web tables above list every key in the two Zod schemas, and the r
 
 ## Report Generation Environment
 
-| Variable               | Required | Default                   | Used By                                                                                                                             |
-| ---------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `REPORT_PROJECT_IDS`   | Yes      | unset                     | `calculateReportMetrics.ts`; comma-separated canonical project IDs used as each generated metric's authorization scope.             |
-| `REPORT_COMPLETED`     | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                         |
-| `REPORT_BLOCKED`       | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                         |
-| `REPORT_EVIDENCE_IDS`  | No       | `REQ-040`                 | `finalizeReportJson.ts`                                                                                                             |
-| `PERIOD_LABEL`         | No       | `scheduled weekly period` | `finalizeReportJson.ts`                                                                                                             |
-| `REPORT_TYPE`          | No       | `weekly-summary`          | `finalizeReportJson.ts`; allowed values are `weekly-summary`, `manager-weekly`, `investor-quarterly`.                               |
-| `REPORT_INGEST_URL`    | No       | unset                     | GitHub Actions variable. If unset, `report-generation.yml` uploads `report.json` as an artifact and skips server ingest explicitly. |
-| `REPORT_INGEST_SECRET` | No       | unset                     | GitHub Actions secret. HMAC key for posting `report.json` to `/reports/ingest`; must match the server value.                        |
+| Variable               | Required | Default                   | Used By                                                                                                                                                 |
+| ---------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REPORT_PROJECT_IDS`   | Yes      | unset                     | `calculateReportMetrics.ts`; comma-separated canonical project IDs from one domain only (all `PJ-*` or all `PRJ-*`). Mixed domains fail with `E-RPT07`. |
+| `REPORT_COMPLETED`     | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                                             |
+| `REPORT_BLOCKED`       | No       | `0`                       | `calculateReportMetrics.ts`                                                                                                                             |
+| `REPORT_EVIDENCE_IDS`  | No       | `REQ-040`                 | `finalizeReportJson.ts`                                                                                                                                 |
+| `PERIOD_LABEL`         | No       | `scheduled weekly period` | `finalizeReportJson.ts`                                                                                                                                 |
+| `REPORT_TYPE`          | No       | `weekly-summary`          | `finalizeReportJson.ts`; allowed values are `weekly-summary`, `manager-weekly`, `investor-quarterly`.                                                   |
+| `REPORT_INGEST_URL`    | No       | unset                     | GitHub Actions variable. If unset, `report-generation.yml` uploads `report.json` as an artifact and skips server ingest explicitly.                     |
+| `REPORT_INGEST_SECRET` | No       | unset                     | GitHub Actions secret. HMAC key for posting `report.json` to `/reports/ingest`; must match the server value.                                            |
 
 ## Runtime Notes
 
