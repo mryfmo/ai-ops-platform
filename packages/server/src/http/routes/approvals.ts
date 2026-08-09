@@ -14,13 +14,13 @@ import {
   ApprovalNotFoundError,
   type ApprovalsRepo,
 } from "../../db/approvalsRepo.js";
-import type { RecipientsRepo } from "../../db/recipientsRepo.js";
+import type { DeliveryRecipient, RecipientsRepo } from "../../db/recipientsRepo.js";
 
 export const APPROVAL_DECISION_MAX_BYTES = 4_096;
 
 export interface ApprovalRoutesDeps {
   approvalsRepo: Pick<ApprovalsRepo, "listPending" | "getById" | "decide">;
-  recipientsRepo: Pick<RecipientsRepo, "findActiveByTrustedSubject">;
+  recipientsRepo: Pick<RecipientsRepo, "findActiveByTrustedSubject" | "canDecideChangeByTrustedSubject">;
   auditLog: AuditLogWriter;
   identitySecret?: string;
   nowUnix?: () => number;
@@ -57,7 +57,7 @@ async function authorizeChangeApprover(
   deps: ApprovalRoutesDeps,
   identity: AuthenticatedIdentity,
   traceId: string,
-): Promise<{ profile: string } | Response> {
+): Promise<DeliveryRecipient | Response> {
   const recipient = await deps.recipientsRepo.findActiveByTrustedSubject(identity.tenantId, identity.objectId);
   if (!recipient || !CHANGE_APPROVER_PROFILES.has(recipient.profile)) {
     return denyAuthorization(c, deps, identity, traceId, {
@@ -65,7 +65,32 @@ async function authorizeChangeApprover(
       profile: recipient?.profile ?? null,
     });
   }
-  return { profile: recipient.profile };
+  if (recipient.profile === "PRF-L" && recipient.scopeMode !== "project") {
+    return denyAuthorization(c, deps, identity, traceId, {
+      code: "E-APR-AUTHZ-SCOPE",
+      profile: recipient.profile,
+      scopeMode: recipient.scopeMode,
+    });
+  }
+  return recipient;
+}
+
+function changeDecisionAccess(
+  approval: { projectId: string | null },
+  recipient: DeliveryRecipient,
+): { canDecide: boolean; decisionDisabledReason: string | null } {
+  if (recipient.profile === "PRF-G") return { canDecide: true, decisionDisabledReason: null };
+  if (approval.projectId === null) {
+    return {
+      canDecide: false,
+      decisionDisabledReason: "プロジェクト未特定の承認は全体管理者のみ判断できます。",
+    };
+  }
+  const canDecide = recipient.projects.includes(approval.projectId);
+  return {
+    canDecide,
+    decisionDisabledReason: canDecide ? null : "担当プロジェクト外のため判断できません。",
+  };
 }
 
 function authenticate(c: Context, body: string, deps: ApprovalRoutesDeps): AuthenticatedIdentity | Response {
@@ -112,8 +137,13 @@ export function registerApprovalRoutes(app: Hono, deps: ApprovalRoutesDeps | und
     const traceId = deps.traceIdProvider();
     const authorization = await authorizeChangeApprover(c, deps, identity, traceId);
     if (authorization instanceof Response) return authorization;
-    // A051でproject_idとrecipient.projectsを使うfine-grained scope filterをこのDB queryへ追加する。
-    return c.json({ approvals: await deps.approvalsRepo.listPending(["change"]) });
+    const approvals = await deps.approvalsRepo.listPending(["change"]);
+    return c.json({
+      approvals: approvals.map((approval) => ({
+        ...approval,
+        ...changeDecisionAccess(approval, authorization),
+      })),
+    });
   });
 
   app.use(
@@ -149,6 +179,20 @@ export function registerApprovalRoutes(app: Hono, deps: ApprovalRoutesDeps | und
           code: "E-APR-AUTHZ-TYPE",
           approvalId,
           approvalType: existing.approvalType,
+        });
+      }
+      const canDecide = await deps.recipientsRepo.canDecideChangeByTrustedSubject(
+        identity.tenantId,
+        identity.objectId,
+        existing.projectId,
+      );
+      if (!canDecide) {
+        return denyAuthorization(c, deps, identity, traceId, {
+          code: "E-APR-AUTHZ-PROJECT",
+          approvalId,
+          projectId: existing.projectId,
+          profile: authorization.profile,
+          scopeMode: authorization.scopeMode,
         });
       }
       const approval = await deps.approvalsRepo.decide(approvalId, {

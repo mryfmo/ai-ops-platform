@@ -79,6 +79,36 @@ export class RecipientsRepo {
     return res.rows[0] ? toRecipient(res.rows[0]) : null;
   }
 
+  /** DevOps:REQ-010 / DEC-SPEC-002: change承認scopeをstable subjectからrequest-timeにDB判定する。 */
+  async canDecideChangeByTrustedSubject(
+    tenantId: string,
+    objectId: string,
+    projectId: string | null,
+  ): Promise<boolean> {
+    if (!canonicalUuid.test(tenantId) || !canonicalUuid.test(objectId)) return false;
+    const res = await this.db.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM recipients
+         WHERE entra_tenant_id = $1::uuid
+           AND entra_object_id = $2::uuid
+           AND active = true
+           AND backfill_state = 'applied'
+           AND (
+             profile = 'PRF-G'
+             OR (
+               profile = 'PRF-L'
+               AND scope_mode = 'project'
+               AND $3::text IS NOT NULL
+               AND $3::text = ANY(projects)
+             )
+           )
+       ) AS allowed`,
+      [tenantId, objectId, projectId],
+    );
+    return res.rows[0]?.allowed === true;
+  }
+
   async listForDelivery(): Promise<DeliveryRecipient[]> {
     const res = await this.db.query(
       `SELECT user_id, profile, persona, email, projects, scope_mode, language, active, teams_team_id, teams_channel_id

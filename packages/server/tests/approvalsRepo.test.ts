@@ -222,11 +222,18 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
   }
 
   beforeAll(async () => {
-    const migration = await readFile(
+    const schema = await readFile(new URL("../../devops/src/db/schema.sql", import.meta.url), "utf8");
+    const approvalsMigration = await readFile(
       new URL("../../devops/src/db/migrations/202608080000_approvals.sql", import.meta.url),
       "utf8",
     );
-    await realPool!.query(migration);
+    const deployMigration = await readFile(
+      new URL("../../devops/src/db/migrations/202608090001_agt_dep_runtime.sql", import.meta.url),
+      "utf8",
+    );
+    await realPool!.query(schema);
+    await realPool!.query(approvalsMigration);
+    await realPool!.query(deployMigration);
   });
 
   beforeEach(async () => {
