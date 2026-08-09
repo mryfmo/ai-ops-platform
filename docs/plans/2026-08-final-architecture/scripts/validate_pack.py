@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 根拠: ADR-0020 / docs/plans/2026-08-final-architecture（取込パックの自己検証ツール。PACK-IMPORT merge-gate 是正）
 from __future__ import annotations
 from pathlib import Path
 import csv

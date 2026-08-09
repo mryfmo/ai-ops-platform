@@ -45,6 +45,7 @@ tasks:
   allowed_paths:
   - BASELINE.md
   - docs/audit/**
+  - docs/plans/2026-08-final-architecture/baseline-delta.md
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
