@@ -23,6 +23,7 @@ const pending = {
   approvalId: APPROVAL_ID,
   approvalType: "change" as const,
   targetId: "release-42",
+  projectId: "PJ-001" as string | null,
   status: "pending" as const,
   requestedBy: "AGT-CHG",
   approverTenantId: null,
@@ -43,11 +44,22 @@ function identityHeaders(method: string, path: string, body = "", issuedAtUnix =
 }
 
 function setup(
-  options: { identitySecret?: string; profile?: string; approvalType?: "change" | "report" | "jit_grant" } = {
+  options: {
+    identitySecret?: string;
+    profile?: string;
+    approvalType?: "change" | "report" | "jit_grant";
+    projectId?: string | null;
+    projects?: string[];
+    scopeMode?: "project" | "global";
+  } = {
     identitySecret: SECRET,
   },
 ) {
-  const current = { ...pending, approvalType: options.approvalType ?? "change" };
+  const current = {
+    ...pending,
+    approvalType: options.approvalType ?? "change",
+    projectId: options.projectId === undefined ? pending.projectId : options.projectId,
+  };
   const repo = {
     listPending: vi.fn(async () => [current]),
     getById: vi.fn(async () => current),
@@ -65,12 +77,21 @@ function setup(
       profile: options.profile ?? "PRF-L",
       persona: "leader",
       email: "leader@example.com",
-      projects: ["PJ-001"],
+      projects: options.projects ?? ["PJ-001"],
+      scopeMode: options.scopeMode ?? "project",
       language: "ja" as const,
       active: true,
       teamsTeamId: null,
       teamsChannelId: null,
     })),
+    canDecideChangeByTrustedSubject: vi.fn(
+      async (_tenantId: string, _objectId: string, projectId: string | null) =>
+        (options.profile ?? "PRF-L") === "PRF-G" ||
+        ((options.profile ?? "PRF-L") === "PRF-L" &&
+          (options.scopeMode ?? "project") === "project" &&
+          projectId !== null &&
+          (options.projects ?? ["PJ-001"]).includes(projectId)),
+    ),
   };
   const auditLog = new InMemoryAuditLog();
   const app = new Hono();
@@ -116,8 +137,25 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
     const { app, repo } = setup();
     const response = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ approvals: [pending] });
+    expect(await response.json()).toEqual({
+      approvals: [{ ...pending, canDecide: true, decisionDisabledReason: null }],
+    });
     expect(repo.listPending).toHaveBeenCalledWith(["change"]);
+  });
+
+  it("DevOps:REQ-010 / DEC-SPEC-002: PRF-Lは域外行も一覧表示するがdecide不可理由を返す", async () => {
+    const { app } = setup({ identitySecret: SECRET, projects: ["PJ-002"] });
+    const response = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      approvals: [
+        {
+          ...pending,
+          canDecide: false,
+          decisionDisabledReason: "担当プロジェクト外のため判断できません。",
+        },
+      ],
+    });
   });
 
   it.each(["PRF-M", "PRF-05"])("change承認はactive PRF-L/PRF-G以外を403で監査する: %s", async (profile) => {
@@ -134,7 +172,7 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
   });
 
   it("署名済みbodyだけを受け、approverはbodyでなくenvelope subjectから渡す", async () => {
-    const { app, repo } = setup();
+    const { app, repo, recipientsRepo } = setup();
     const path = `/approvals/${APPROVAL_ID}/decision`;
     const body = JSON.stringify({
       decision: "approved",
@@ -155,6 +193,98 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
       approverObjectId: OBJECT_ID,
       traceId: "trace-route",
     });
+    expect(recipientsRepo.canDecideChangeByTrustedSubject).toHaveBeenCalledWith(TENANT_ID, OBJECT_ID, "PJ-001");
+  });
+
+  it.each([
+    ["域外project", { projects: ["PJ-002"] }],
+    ["NULL project", { projectId: null }],
+  ])("DevOps:REQ-010 / DEC-SPEC-003: PRF-Lの%sは403で監査する", async (_label, option) => {
+    const { app, repo, auditLog } = setup({ identitySecret: SECRET, ...option });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = JSON.stringify({ decision: "approved" });
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+    expect(response.status).toBe(403);
+    expect(repo.decide).not.toHaveBeenCalled();
+    expect(await auditLog.readAll()).toEqual([
+      expect.objectContaining({
+        action: "approval_authorization_denied",
+        detail: expect.objectContaining({
+          code: "E-APR-AUTHZ-PROJECT",
+          approvalId: APPROVAL_ID,
+          profile: "PRF-L",
+        }),
+      }),
+    ]);
+  });
+
+  it("DevOps:REQ-010 / DEC-SPEC-003: PRF-L global assignmentは一覧取得から403でfail closedにする", async () => {
+    const { app, repo, auditLog } = setup({
+      identitySecret: SECRET,
+      projects: [],
+      scopeMode: "global",
+    });
+    const response = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    expect(response.status).toBe(403);
+    expect(repo.listPending).not.toHaveBeenCalled();
+    expect(await auditLog.readAll()).toEqual([
+      expect.objectContaining({
+        action: "approval_authorization_denied",
+        detail: expect.objectContaining({ code: "E-APR-AUTHZ-SCOPE", profile: "PRF-L", scopeMode: "global" }),
+      }),
+    ]);
+  });
+
+  it("DevOps:REQ-010: PRF-GはNULL projectも承認できる", async () => {
+    const { app, repo } = setup({ identitySecret: SECRET, profile: "PRF-G", projectId: null });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = JSON.stringify({ decision: "approved" });
+    expect(
+      (
+        await app.request(path, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+          body,
+        })
+      ).status,
+    ).toBe(200);
+    expect(repo.decide).toHaveBeenCalledOnce();
+  });
+
+  it("DevOps:REQ-010 / DEC-SPEC-002: assignmentをリクエストごとに読み直す", async () => {
+    const { app, repo, recipientsRepo } = setup();
+    const first = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    expect(await first.json()).toEqual({
+      approvals: [{ ...pending, canDecide: true, decisionDisabledReason: null }],
+    });
+    recipientsRepo.findActiveByTrustedSubject.mockResolvedValueOnce({
+      userId: "ST-001",
+      profile: "PRF-L",
+      persona: "leader",
+      email: "leader@example.com",
+      projects: ["PJ-002"],
+      scopeMode: "project",
+      language: "ja",
+      active: true,
+      teamsTeamId: null,
+      teamsChannelId: null,
+    });
+    recipientsRepo.canDecideChangeByTrustedSubject.mockResolvedValueOnce(false);
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = JSON.stringify({ decision: "approved" });
+    const second = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+    expect(second.status).toBe(403);
+    expect(recipientsRepo.findActiveByTrustedSubject).toHaveBeenCalledTimes(2);
+    expect(recipientsRepo.canDecideChangeByTrustedSubject).toHaveBeenCalledWith(TENANT_ID, OBJECT_ID, "PJ-001");
+    expect(repo.decide).not.toHaveBeenCalled();
   });
 
   it("reject理由欠落は400、CAS競合は409にする", async () => {

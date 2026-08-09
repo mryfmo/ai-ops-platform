@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { RecipientsRepo } from "../src/db/recipientsRepo.js";
 
+const TENANT_ID = "11111111-1111-4111-8111-111111111111";
+const OBJECT_ID = "22222222-2222-4222-8222-222222222222";
+
 describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
   it("PrjOps:REQ-019: inactive/pending recipientをscope検証前にDB取得対象から除外する", async () => {
     let queryText = "";
@@ -134,6 +137,29 @@ describe("RecipientsRepo [PrjOps:REQ-042 SPEC-INT-069]", () => {
     expect(queries).toHaveLength(1);
     expect(queries[0]?.text).toContain("active = true");
     expect(queries[0]?.text).toContain("backfill_state = 'applied'");
+  });
+
+  it("DevOps:REQ-010 / DEC-SPEC-002: change decide可否をstable subject・active・profile・projectで毎回DB判定する", async () => {
+    const queries: Array<{ text: string; params?: unknown[] }> = [];
+    const allowed = [true, false];
+    const repo = new RecipientsRepo({
+      query: async (text, params) => {
+        queries.push({ text, params });
+        return { rows: [{ allowed: allowed.shift() }] };
+      },
+    });
+
+    await expect(repo.canDecideChangeByTrustedSubject(TENANT_ID, OBJECT_ID, "PJ-001")).resolves.toBe(true);
+    await expect(repo.canDecideChangeByTrustedSubject(TENANT_ID, OBJECT_ID, "PJ-001")).resolves.toBe(false);
+    expect(queries).toHaveLength(2);
+    expect(queries[0]?.text).toContain("entra_tenant_id = $1::uuid");
+    expect(queries[0]?.text).toContain("entra_object_id = $2::uuid");
+    expect(queries[0]?.text).toContain("active = true");
+    expect(queries[0]?.text).toContain("profile = 'PRF-G'");
+    expect(queries[0]?.text).toContain("profile = 'PRF-L'");
+    expect(queries[0]?.text).toContain("scope_mode = 'project'");
+    expect(queries[0]?.text).toContain("$3::text = ANY(projects)");
+    expect(queries[0]?.params).toEqual([TENANT_ID, OBJECT_ID, "PJ-001"]);
   });
 
   it("P010-F02-T03 / DEC-SPEC-002: tenant設定なしまたはmalformed objectはDB照会前に拒否する", async () => {

@@ -9,6 +9,8 @@ interface PendingApproval {
   targetId: string;
   status: "pending";
   requestedBy: string;
+  canDecide: boolean;
+  decisionDisabledReason: string | null;
   createdAt: string;
 }
 
@@ -65,26 +67,28 @@ export function ApprovalsPanel() {
             <h2 className="font-semibold">{approval.targetId}</h2>
             <p className="text-sm">種別: {approval.approvalType}</p>
             <p className="text-sm">依頼者: {approval.requestedBy}</p>
+            {!approval.canDecide ? <p className="text-sm">{approval.decisionDisabledReason}</p> : null}
             <label className="block text-sm" htmlFor={`reason-${approval.approvalId}`}>
               差し戻し理由
             </label>
             <textarea
               id={`reason-${approval.approvalId}`}
               className="w-full rounded border p-2"
+              disabled={!approval.canDecide}
               value={reason}
               onChange={(event) => setReasons((current) => ({ ...current, [approval.approvalId]: event.target.value }))}
             />
             <div className="flex gap-2">
               <button
                 type="button"
-                disabled={busy === approval.approvalId}
+                disabled={!approval.canDecide || busy === approval.approvalId}
                 onClick={() => decide(approval.approvalId, "approved")}
               >
                 承認
               </button>
               <button
                 type="button"
-                disabled={busy === approval.approvalId || reason.trim() === ""}
+                disabled={!approval.canDecide || busy === approval.approvalId || reason.trim() === ""}
                 onClick={() => decide(approval.approvalId, "rejected")}
               >
                 差し戻し

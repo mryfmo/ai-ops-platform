@@ -144,6 +144,8 @@ const pending = {
   approverObjectId: null,
   decidedAt: null,
   reason: null,
+  canDecide: true,
+  decisionDisabledReason: null,
   createdAt: "2026-08-08T00:00:00.000Z",
 };
 
@@ -188,6 +190,29 @@ describe("approvals screen [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
       reason.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(reject.disabled).toBe(false);
+    await act(async () => root.unmount());
+  });
+
+  it("DevOps:REQ-010: 域外行を表示したまま操作を無効化し理由を示す", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({
+        approvals: [
+          {
+            ...pending,
+            canDecide: false,
+            decisionDisabledReason: "担当プロジェクト外のため判断できません。",
+          },
+        ],
+      }),
+    );
+    const { container, root } = await renderPanel(fetchMock);
+    expect(container.textContent).toContain("release-42");
+    expect(container.textContent).toContain("担当プロジェクト外のため判断できません。");
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")!.disabled).toBe(true);
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+    await act(async () => buttons[0]!.click());
+    expect(fetchMock).toHaveBeenCalledOnce();
     await act(async () => root.unmount());
   });
 });
