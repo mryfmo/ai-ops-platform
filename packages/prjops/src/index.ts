@@ -28,6 +28,7 @@ export * from "./lib/investorMetrics.js";
 export * from "./lib/issueActionBurndown.js";
 export * from "./lib/prjopsDataSnapshotValidator.js";
 export * from "./data/yamlStakeholderMasterProvider.js";
+export * from "./data/yamlPrjopsJobDataProvider.js";
 export * from "./templates/index.js";
 export * from "./agents/AGT01_orchestrator.js";
 export * from "./agents/AGT02_collector.js";

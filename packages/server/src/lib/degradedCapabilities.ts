@@ -32,6 +32,9 @@ export const CAPABILITIES = [
   "approvals",
   "build_triage",
   "incident_triage",
+  "prjops_weekly_analysis",
+  "prjops_daily_tracking",
+  "prjops_job_escalation",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -54,6 +57,8 @@ export interface CapabilityInputs {
   telemetryConfigured: boolean;
   graphSubscriptionsPresent: boolean;
   approvalsConfigured: boolean;
+  prjopsDataConfigured: boolean;
+  pmoNotifyMailboxConfigured: boolean;
 }
 
 /** 各機能が有効かどうか。 */
@@ -82,6 +87,9 @@ export function deriveCapabilityState(input: CapabilityInputs): CapabilityState 
       input.githubConfigured &&
       input.defaultTeamsTeamConfigured &&
       input.defaultTeamsChannelConfigured,
+    prjops_weekly_analysis: input.prjopsDataConfigured,
+    prjops_daily_tracking: input.prjopsDataConfigured && input.fromMailboxConfigured,
+    prjops_job_escalation: input.fromMailboxConfigured && input.pmoNotifyMailboxConfigured,
   };
 }
 

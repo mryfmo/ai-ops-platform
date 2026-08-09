@@ -6,6 +6,8 @@
 
 2026-07-09 追記: ADR-0014 はアウトバウンド配信用途に限り、PrjOps を GitHub Actions cron のみで動かす決定を更新する。配信は recipients、冪等配信ログ、監査ログ、Graph token provider を同じランタイムで使う必要があるため、常駐 server scheduler で実行する。
 
+2026-08-09 追記（委任裁定 R-02-2）: PrjOpsのAGT-03週次分析とAGT-06日次追跡もresident server schedulerへ移す。pinned PrjOps masterはread-onlyのまま、reminder operational state、監査、Graph token、PMO通知を既存DB/runtimeで共有し、secrets・DB・監査の二重化を避ける。report生成は引き続きGitHub Actionsを正本とする。この追記は下記の当初判断を履歴として保持したまま更新する。
+
 ## コンテキスト
 
 - PrjOps ASM-006: 「本システムの実行基盤はGitHub Actions（スケジュール実行）＋Claude Agent SDKとし、

@@ -5,7 +5,8 @@
  *   エージェント処理が失敗した場合、AGT-01が同一ジョブを最大2回リトライ（間隔10分）し、
  *   3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知する。
  * PrjOps:SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を定義する。
- *   T20時点ではpackages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。
+ *   A046でAGT-03/06の失敗処理としてresident server schedulerへ結線済み。report生成・検証・配信の
+ *   正本境界はGitHub Actions ingest + A043 delivery taskのまま重複実装しない。
  *
  * 設計方針: 本モジュールはリトライ回数・状態遷移の決定ロジックのみを純粋関数として提供する
  * （テスト時に実時間を待たせないための設計判断）。

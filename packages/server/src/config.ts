@@ -90,6 +90,27 @@ const baseConfigSchema = z.object({
   ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
   /** PrjOps:REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
   STAKEHOLDERS_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
+  /** A046 / DEC-SPEC-001: owner-pinned immutable PrjOps job data snapshot identity。 */
+  PRJOPS_DATA_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
+  PRJOPS_DATA_COMMIT_SHA: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/)
+    .optional(),
+  PRJOPS_DATA_SOURCE_COMMIT_SHA: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/)
+    .optional(),
+  PRJOPS_DATA_CONTENT_SHA256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
+  /** A046 / PrjOps:REQ-006: 3回目job failureのPMO通知先。mailbox addressはsecretではない。 */
+  PMO_NOTIFY_MAILBOX: z
+    .string()
+    .trim()
+    .email()
+    .transform((mailbox) => mailbox.toLowerCase())
+    .optional(),
   /** DevOps:SPEC-INT-061: GitHub App認証。App系3変数はsuperRefineでall-or-noneを強制する。 */
   GITHUB_APP_ID: z.string().trim().min(1).optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().trim().min(1).optional(),
@@ -201,14 +222,32 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
       message: "GitHub App ID, private key, and installation ID must be configured together",
     });
   }
-  if (!config.REPORT_DELIVERY_ENABLED) return;
-  if (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX)) {
+  const prjopsSnapshotValues = [
+    config.PRJOPS_DATA_DIR,
+    config.PRJOPS_DATA_COMMIT_SHA,
+    config.PRJOPS_DATA_SOURCE_COMMIT_SHA,
+    config.PRJOPS_DATA_CONTENT_SHA256,
+  ];
+  const configuredPrjopsSnapshotValues = prjopsSnapshotValues.filter(Boolean).length;
+  if (configuredPrjopsSnapshotValues !== 0 && configuredPrjopsSnapshotValues !== prjopsSnapshotValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["PRJOPS_DATA_DIR"],
+      message: "PrjOps snapshot directory, accepted/source commits, and content checksum must be configured together",
+    });
+  }
+  const scheduledMailEnabled = config.REPORT_DELIVERY_ENABLED || Boolean(config.PMO_NOTIFY_MAILBOX);
+  if (
+    scheduledMailEnabled &&
+    (!config.FROM_MAILBOX || !config.GRAPH_ALLOWED_FROM_MAILBOXES.includes(config.FROM_MAILBOX))
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["FROM_MAILBOX"],
-      message: "must be in Graph mailbox allowlist",
+      message: "is required and must be in the Graph mailbox allowlist when scheduled mail is enabled",
     });
   }
+  if (!config.REPORT_DELIVERY_ENABLED) return;
   if (Boolean(config.DEFAULT_TEAMS_TEAM_ID) !== Boolean(config.DEFAULT_TEAMS_CHANNEL_ID)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
