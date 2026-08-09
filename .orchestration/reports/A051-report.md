@@ -2,7 +2,8 @@
 
 - Branch: `agent/a051-approval-scope`
 - Base: `a6f4b4b3fdcd17a554adce886c30b6d1f30dd221`
-- Pull request: pending publication
+- Pull request: https://github.com/mryfmo/ai-ops-platform/pull/151
+- Initial implementation commit: `86a686a80fd40f57b51bd6642307988804ab5dcd`
 
 - Added request-time, data-side change-approval authorization keyed by the validated Entra tenant/object subject. `PRF-L` may decide only approvals whose non-null `project_id` is in the active recipient assignment; `PRF-G` retains A051's explicitly required all-project behavior.
 - Kept list visibility separate from decision authority as required by A051: pending change rows remain visible, while the server returns `canDecide`/`decisionDisabledReason` and the Web UI disables both decision controls for unauthorized rows.
@@ -10,3 +11,4 @@
 - Confirmed AGT_CHG already requires and forwards `projectId`. Generic approvals may still contain `NULL`; those decisions fail closed to `PRF-G` only.
 - Advanced the real-PostgreSQL approval fixture through the already-existing current schema/migrations so clean-database coverage exercises the columns used by the current repository.
 - Independent review raised two P1 suggestions that conflict with A051's explicit acceptance text (hide unauthorized list rows; scope project-mode `PRF-G`). They were not applied and are dispositioned in `.orchestration/reviews/A051-codex-review.md`.
+- GitHub workflow run `31308273084` passed `build-test` (4m35s) and `gitleaks`; the PR carries `ai-generated` and remains unmerged.
