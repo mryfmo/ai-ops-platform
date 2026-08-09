@@ -11,4 +11,5 @@
 - Confirmed AGT_CHG already requires and forwards `projectId`. Generic approvals may still contain `NULL`; those decisions fail closed to `PRF-G` only.
 - Advanced the real-PostgreSQL approval fixture through the already-existing current schema/migrations so clean-database coverage exercises the columns used by the current repository.
 - Independent review raised two P1 suggestions that conflict with A051's explicit acceptance text (hide unauthorized list rows; scope project-mode `PRF-G`). They were not applied and are dispositioned in `.orchestration/reviews/A051-codex-review.md`.
-- GitHub workflow run `31308273084` passed `build-test` (4m35s) and `gitleaks`; the PR carries `ai-generated` and remains unmerged.
+- GitHub workflow run `31308497540` passed `build-test` (4m29s) and `gitleaks` on evidence head `11ca554c9dbdaab6ceaf1dd7ddbbbd30f9d08ed5`.
+- Ready-state CodeRabbit review completed with no review thread, the merge state was CLEAN, and the PR carries `ai-generated` and remains unmerged.

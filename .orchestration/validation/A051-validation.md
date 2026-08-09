@@ -25,4 +25,6 @@
 ## Environment boundary
 
 - The canonical local `mise run ci` reached the Web build and then failed because macOS Seatbelt denied Turbopack process creation/port binding, including on an approved escalated retry. The same production build passed with Next.js webpack, and all remaining canonical lint, format, typecheck, traceability, full coverage, and real-PostgreSQL gates passed independently.
-- GitHub Actions run `31308273084` on implementation head `86a686a80fd40f57b51bd6642307988804ab5dcd`: `build-test` SUCCESS (4m35s) and `gitleaks` SUCCESS. CodeRabbit reported draft-review skipped; final-head checks and review-thread gate are re-evaluated after this evidence-only revision.
+- GitHub Actions run `31308273084` on implementation head `86a686a80fd40f57b51bd6642307988804ab5dcd`: `build-test` SUCCESS (4m35s) and `gitleaks` SUCCESS.
+- GitHub Actions run `31308497540` on evidence head `11ca554c9dbdaab6ceaf1dd7ddbbbd30f9d08ed5`: `build-test` SUCCESS (4m29s) and `gitleaks` SUCCESS.
+- Ready-state CodeRabbit review completed successfully. Final review-thread query returned 0 unresolved threads; the PR was ready, merge state CLEAN, and remained unmerged.
