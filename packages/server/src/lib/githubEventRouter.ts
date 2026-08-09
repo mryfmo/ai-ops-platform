@@ -186,12 +186,19 @@ export function normalizePmWebhookEvent(
 
 export function selectDevopsAgentForGithubEvent(event: QueuedGithubWebhookEvent): DevopsAgentId | null {
   const workflowName = readString(event.payload, ["workflow_run", "name"])?.toLowerCase() ?? "";
+  const workflowPath = readString(event.payload, ["workflow_run", "path"])?.toLowerCase() ?? "";
   const conclusion = readString(event.payload, ["workflow_run", "conclusion"]);
 
   if (event.eventName === "issues") return "AGT_INC";
   if (event.eventName === "deployment" || event.eventName === "deployment_status") return "AGT_DEP";
   if (event.eventName === "workflow_run" && workflowName.includes("deploy")) return "AGT_DEP";
   if (event.eventName === "workflow_run" && conclusion === "failure") return "AGT_BLD";
+  if (
+    event.eventName === "workflow_run" &&
+    conclusion === "success" &&
+    (workflowName === "ci" || /(^|\/)ci\.ya?ml(?:@|$)/.test(workflowPath))
+  )
+    return "AGT_DEP";
   if (event.eventName === "push" || event.eventName === "pull_request") return "AGT_BLD";
   return null;
 }

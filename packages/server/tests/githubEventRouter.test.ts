@@ -33,6 +33,29 @@ describe("githubEventRouter (ADR-0005 / DevOps:SPEC-INT-010)", () => {
     expect(selectDevopsAgentForGithubEvent({ eventName: "deployment_status", payload: {} })).toBe("AGT_DEP");
   });
 
+  it("DevOps:REQ-003 / TH-001: canonical CI workflow成功だけをAGT_DEPへ振り分ける", () => {
+    expect(
+      selectDevopsAgentForGithubEvent({
+        eventName: "workflow_run",
+        payload: { workflow_run: { conclusion: "success", name: "ci" } },
+      }),
+    ).toBe("AGT_DEP");
+    expect(
+      selectDevopsAgentForGithubEvent({
+        eventName: "workflow_run",
+        payload: {
+          workflow_run: { conclusion: "success", name: "renamed", path: ".github/workflows/ci.yml@main" },
+        },
+      }),
+    ).toBe("AGT_DEP");
+    expect(
+      selectDevopsAgentForGithubEvent({
+        eventName: "workflow_run",
+        payload: { workflow_run: { conclusion: "success", name: "nightly" } },
+      }),
+    ).toBeNull();
+  });
+
   it("DevOps:SPEC-INT-010: issues eventはAGT_INCへ振り分ける", () => {
     expect(selectDevopsAgentForGithubEvent({ eventName: "issues", payload: { action: "opened" } })).toBe("AGT_INC");
   });

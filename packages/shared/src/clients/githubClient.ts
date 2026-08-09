@@ -18,6 +18,7 @@
  * タイミング攻撃対策済みの定数時間比較（crypto.timingSafeEqual）で検証する。
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { inflateRawSync } from "node:zlib";
 import { fetchWithBackoff, withTimeout, type RetryOptions } from "./fetchPolicy.js";
 
 export interface GitHubTokenProvider {
@@ -107,6 +108,128 @@ export interface WorkflowRunListing {
 }
 
 const MAX_WORKFLOW_LOG_BYTES = 1_000_000;
+
+async function readResponseBytes(response: Response, maxBytes: number): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error("E-DEP04: workflow artifact archive exceeds observation bound");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("E-DEP05: workflow artifact archive has no body");
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) throw new Error("E-DEP04: workflow artifact archive exceeds observation bound");
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total);
+}
+
+function readZipEntry(archive: Buffer, fileName: string, maxBytes: number): string {
+  if (archive.length < 22) throw new Error("E-DEP06: malformed workflow artifact ZIP");
+  const minimumEocdOffset = Math.max(0, archive.length - 65_557);
+  let eocdOffset = -1;
+  for (let offset = archive.length - 22; offset >= minimumEocdOffset; offset -= 1) {
+    if (archive.readUInt32LE(offset) === 0x06054b50) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset < 0) throw new Error("E-DEP06: malformed workflow artifact ZIP");
+  const disk = archive.readUInt16LE(eocdOffset + 4);
+  const centralDisk = archive.readUInt16LE(eocdOffset + 6);
+  const diskEntries = archive.readUInt16LE(eocdOffset + 8);
+  const entryCount = archive.readUInt16LE(eocdOffset + 10);
+  const centralSize = archive.readUInt32LE(eocdOffset + 12);
+  const centralOffset = archive.readUInt32LE(eocdOffset + 16);
+  const archiveCommentLength = archive.readUInt16LE(eocdOffset + 20);
+  if (
+    disk !== 0 ||
+    centralDisk !== 0 ||
+    diskEntries !== entryCount ||
+    entryCount !== 1 ||
+    eocdOffset + 22 + archiveCommentLength !== archive.length ||
+    centralOffset + centralSize !== eocdOffset
+  ) {
+    throw new Error("E-DEP06: malformed workflow artifact ZIP");
+  }
+  let offset = centralOffset;
+  let match: {
+    localOffset: number;
+    compressedSize: number;
+    uncompressedSize: number;
+    method: number;
+    flags: number;
+  } | null = null;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (offset + 46 > archive.length || archive.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error("E-DEP06: malformed workflow artifact ZIP");
+    }
+    const flags = archive.readUInt16LE(offset + 8);
+    const method = archive.readUInt16LE(offset + 10);
+    const compressedSize = archive.readUInt32LE(offset + 20);
+    const uncompressedSize = archive.readUInt32LE(offset + 24);
+    const nameLength = archive.readUInt16LE(offset + 28);
+    const extraLength = archive.readUInt16LE(offset + 30);
+    const commentLength = archive.readUInt16LE(offset + 32);
+    const startDisk = archive.readUInt16LE(offset + 34);
+    const externalAttributes = archive.readUInt32LE(offset + 38);
+    const localOffset = archive.readUInt32LE(offset + 42);
+    const nextOffset = offset + 46 + nameLength + extraLength + commentLength;
+    const unixType = (externalAttributes >>> 16) & 0o170000;
+    if (
+      nextOffset > eocdOffset ||
+      (flags & 1) !== 0 ||
+      startDisk !== 0 ||
+      (unixType !== 0 && unixType !== 0o100000) ||
+      (externalAttributes & 0x10) !== 0
+    ) {
+      throw new Error("E-DEP06: malformed workflow artifact ZIP");
+    }
+    const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
+    if (name === fileName) {
+      if (match) throw new Error("E-DEP07: ambiguous workflow artifact file");
+      match = { localOffset, compressedSize, uncompressedSize, method, flags };
+    }
+    offset = nextOffset;
+  }
+  if (offset !== eocdOffset) throw new Error("E-DEP06: malformed workflow artifact ZIP");
+  if (!match) throw new Error("E-DEP08: workflow artifact file is missing");
+  if ((match.method !== 0 && match.method !== 8) || match.uncompressedSize > maxBytes) {
+    throw new Error("E-DEP10: workflow artifact file exceeds observation bound");
+  }
+  const local = match.localOffset;
+  if (local + 30 > archive.length || archive.readUInt32LE(local) !== 0x04034b50) {
+    throw new Error("E-DEP06: malformed workflow artifact ZIP");
+  }
+  const localFlags = archive.readUInt16LE(local + 6);
+  const localMethod = archive.readUInt16LE(local + 8);
+  const localNameLength = archive.readUInt16LE(local + 26);
+  const localExtraLength = archive.readUInt16LE(local + 28);
+  const dataOffset = local + 30 + localNameLength + localExtraLength;
+  const dataEnd = dataOffset + match.compressedSize;
+  const localName = archive.subarray(local + 30, local + 30 + localNameLength).toString("utf8");
+  if (dataEnd > centralOffset || localName !== fileName || localMethod !== match.method || localFlags !== match.flags) {
+    throw new Error("E-DEP06: malformed workflow artifact ZIP");
+  }
+  const compressed = archive.subarray(dataOffset, dataEnd);
+  if (match.method === 0) {
+    if (match.compressedSize !== match.uncompressedSize) {
+      throw new Error("E-DEP06: malformed workflow artifact ZIP");
+    }
+    return compressed.toString("utf8");
+  }
+  try {
+    const contents = inflateRawSync(compressed, { maxOutputLength: maxBytes });
+    if (contents.length !== match.uncompressedSize) throw new Error("size mismatch");
+    return contents.toString("utf8");
+  } catch {
+    throw new Error("E-DEP09: workflow artifact deflate stream is invalid");
+  }
+}
 
 function truncateUtf8Tail(text: string, maxBytes: number): string {
   const bytes = Buffer.from(text, "utf8");
@@ -383,6 +506,80 @@ export class GitHubClient {
       { method: "POST", headers, body: JSON.stringify({ ref: input.ref, inputs: input.inputs }) },
     );
     if (!res.ok) throw new Error(`E-DEP01: workflow_dispatch failed with status ${res.status}`);
+  }
+
+  /** DevOps:REQ-010 / D-04: dispatch前に対象workflowの実在だけを確認する。404以外は観測失敗として伝播する。 */
+  async workflowExists(owner: string, repo: string, workflowIdOrFileName: string): Promise<boolean> {
+    const headers = await this.headers();
+    const res = await this.fetch(
+      `${this.baseUrl}/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowIdOrFileName)}`,
+      { method: "GET", headers },
+    );
+    if (res.status === 404) return false;
+    if (!res.ok) throw new Error(`E-DEP02: get workflow failed with status ${res.status}`);
+    return true;
+  }
+
+  /**
+   * TH-001: workflow run が発行したJSON evidence artifactをboundedかつ一意に読む。
+   * CI側のZIPは stored/deflateの両方をboundedに扱う（artifactは`compression-level: 0`で発行）。
+   */
+  async readWorkflowRunJsonArtifact(
+    owner: string,
+    repo: string,
+    runId: number,
+    input: { artifactName: string; fileName: string; maxArchiveBytes: number },
+  ): Promise<unknown> {
+    if (
+      !Number.isSafeInteger(runId) ||
+      runId <= 0 ||
+      !Number.isSafeInteger(input.maxArchiveBytes) ||
+      input.maxArchiveBytes <= 0
+    ) {
+      throw new Error("E-DEP03: invalid workflow artifact request");
+    }
+    const headers = await this.headers();
+    const list = await this.fetch(
+      `${this.baseUrl}/repos/${owner}/${repo}/actions/runs/${runId}/artifacts?per_page=100&page=1`,
+      { method: "GET", headers },
+    );
+    if (!list.ok) throw new Error(`E-DEP11: list workflow artifacts failed with status ${list.status}`);
+    const body = (await list.json()) as { total_count?: unknown; artifacts?: unknown };
+    if (typeof body.total_count !== "number" || !Array.isArray(body.artifacts) || body.total_count > 100) {
+      throw new Error("E-DEP12: incomplete workflow artifact listing");
+    }
+    const matches = body.artifacts.filter((candidate) => {
+      const artifact = candidate as Record<string, unknown>;
+      return artifact["name"] === input.artifactName && artifact["expired"] === false;
+    });
+    if (matches.length !== 1) throw new Error("E-DEP13: missing or ambiguous workflow artifact");
+    const artifact = matches[0] as Record<string, unknown>;
+    const artifactId = artifact["id"];
+    const declaredSize = artifact["size_in_bytes"];
+    if (
+      !Number.isSafeInteger(artifactId) ||
+      Number(artifactId) <= 0 ||
+      typeof declaredSize !== "number" ||
+      !Number.isSafeInteger(declaredSize) ||
+      declaredSize < 0 ||
+      declaredSize > input.maxArchiveBytes
+    ) {
+      throw new Error("E-DEP14: malformed or oversized workflow artifact metadata");
+    }
+    const archiveResponse = await this.fetch(
+      `${this.baseUrl}/repos/${owner}/${repo}/actions/artifacts/${Number(artifactId)}/zip`,
+      { method: "GET", headers },
+    );
+    if (!archiveResponse.ok) {
+      throw new Error(`E-DEP15: download workflow artifact failed with status ${archiveResponse.status}`);
+    }
+    const archive = await readResponseBytes(archiveResponse, input.maxArchiveBytes);
+    const json = readZipEntry(archive, input.fileName, input.maxArchiveBytes);
+    try {
+      return JSON.parse(json) as unknown;
+    } catch {
+      throw new Error("E-DEP16: workflow artifact is not valid JSON");
+    }
   }
 
   /**

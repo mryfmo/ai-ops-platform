@@ -21,7 +21,7 @@ import {
   type CreateIssueCommentInput,
   type CreateIssueInput,
 } from "@aiops/shared";
-import type { ClassificationResult, IncidentClassification } from "@aiops/devops";
+import type { ClassificationResult, IncidentClassification, Th001Input } from "@aiops/devops";
 import type { DevopsEventHandler } from "../lib/githubEventRouter.js";
 
 /** A045 ingress contract: only GitHub issues opened with this label are monitoring/external-contact alerts. */
@@ -98,6 +98,46 @@ export interface IncidentHandlerDeps {
   triage: IncidentTriage;
 }
 
+export interface CoverageEvidence {
+  commitSha: string;
+  unitTestCoveragePct: number;
+}
+
+export function parseCoverageEvidence(value: unknown): CoverageEvidence | null {
+  const record = asRecord(value);
+  if (
+    record?.["schemaVersion"] !== 1 ||
+    typeof record["commitSha"] !== "string" ||
+    !/^[0-9a-f]{40}$/.test(record["commitSha"]) ||
+    typeof record["unitTestCoveragePct"] !== "number" ||
+    !Number.isFinite(record["unitTestCoveragePct"]) ||
+    record["unitTestCoveragePct"] < 0 ||
+    record["unitTestCoveragePct"] > 100
+  ) {
+    return null;
+  }
+  return { commitSha: record["commitSha"], unitTestCoveragePct: record["unitTestCoveragePct"] };
+}
+
+export interface DeployHandlerDeps {
+  configured: boolean;
+  disabledReason?: string;
+  channel?: ChannelRef;
+  coverageEvidence: {
+    read(owner: string, repo: string, runId: number): Promise<CoverageEvidence | null>;
+  };
+  /** D-16 seam: unavailable is `null`, never an inferred zero. */
+  criticalCountEvidence: {
+    read(owner: string, repo: string, runId: number): Promise<number | null>;
+  };
+  deploymentState?: {
+    markMonitoring(owner: string, repo: string, commitSha: string): Promise<boolean>;
+    markWorkflowFailed(owner: string, repo: string, commitSha: string): Promise<boolean>;
+  };
+  auditLog: AuditLogWriter;
+  promote(input: Th001Input, channel: ChannelRef, commitShaShort: string, traceId: string): Promise<boolean>;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -117,7 +157,7 @@ function repositoryCoordinates(payload: Record<string, unknown>): { owner: strin
 
 async function appendReceipt(
   auditLog: AuditLogWriter,
-  actor: "AGT-BLD" | "AGT-INC",
+  actor: "AGT-BLD" | "AGT-DEP" | "AGT-INC",
   basis: string,
   eventName: string,
   traceId: string,
@@ -130,6 +170,108 @@ async function appendReceipt(
     detail: { eventName },
     at: new Date().toISOString(),
   });
+}
+
+/** DevOps:REQ-003 / TH-001: successful workflow_run evidence is complete-or-no-promotion. */
+export function createDeployEventHandler(deps: DeployHandlerDeps): DevopsEventHandler {
+  return async (event, traceId) => {
+    await appendReceipt(deps.auditLog, "AGT-DEP", "DevOps:REQ-003/TH-001", event.eventName, traceId);
+    if (event.eventName !== "workflow_run") return;
+    const payload = asRecord(event.payload);
+    const workflowRun = payload && asRecord(payload["workflow_run"]);
+    if (!payload || !workflowRun) throw new Error("Malformed workflow_run event payload");
+    if (payload["action"] !== "completed") return;
+    const repository = repositoryCoordinates(payload);
+    const runId = workflowRun["id"];
+    const headSha = workflowRun["head_sha"];
+    if (
+      !Number.isSafeInteger(runId) ||
+      Number(runId) <= 0 ||
+      typeof headSha !== "string" ||
+      !/^[0-9a-f]{40}$/.test(headSha)
+    ) {
+      throw new Error("Malformed workflow_run event: id and canonical head_sha are required");
+    }
+    const workflowPath = workflowRun["path"];
+    if (typeof workflowPath === "string" && /(^|\/)deploy-prod\.yml(?:@|$)/.test(workflowPath)) {
+      const succeeded = workflowRun["conclusion"] === "success";
+      const transitioned =
+        (await (succeeded
+          ? deps.deploymentState?.markMonitoring(repository.owner, repository.repo, headSha)
+          : deps.deploymentState?.markWorkflowFailed(repository.owner, repository.repo, headSha))) ?? false;
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-DEP",
+        action: transitioned
+          ? succeeded
+            ? "prod_deploy_monitoring"
+            : "prod_deploy_failed"
+          : "prod_deploy_state_unmatched",
+        basis: "DevOps:SPEC-INT-020 / DevOps:REQ-012",
+        detail: { commitSha: headSha },
+        at: new Date().toISOString(),
+      });
+      return;
+    }
+    if (workflowRun["conclusion"] !== "success") return;
+    if (!deps.configured || !deps.channel) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-DEP",
+        action: "staging_promotion_disabled",
+        basis: "ADR-0014 / DevOps:REQ-003 / TH-001",
+        detail: { reason: deps.disabledReason ?? "Default Teams channel is not configured" },
+        at: new Date().toISOString(),
+      });
+      return;
+    }
+    const [coverage, criticalCount] = await Promise.all([
+      deps.coverageEvidence.read(repository.owner, repository.repo, Number(runId)),
+      deps.criticalCountEvidence.read(repository.owner, repository.repo, Number(runId)),
+    ]);
+    const validCoverage =
+      coverage !== null &&
+      coverage.commitSha === headSha &&
+      Number.isFinite(coverage.unitTestCoveragePct) &&
+      coverage.unitTestCoveragePct >= 0 &&
+      coverage.unitTestCoveragePct <= 100;
+    const validCriticalCount = criticalCount !== null && Number.isSafeInteger(criticalCount) && criticalCount >= 0;
+    if (!validCoverage || !validCriticalCount) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-DEP",
+        action: "staging_promotion_input_missing",
+        basis: "DevOps:REQ-003 / TH-001 / D-16",
+        detail: {
+          coverageAvailable: validCoverage,
+          criticalCountAvailable: validCriticalCount,
+          coverageCommitMatches: coverage?.commitSha === headSha,
+        },
+        at: new Date().toISOString(),
+      });
+      return;
+    }
+    const promoted = await deps.promote(
+      {
+        ciAllJobsSuccess: true,
+        unitTestCoveragePct: coverage.unitTestCoveragePct,
+        staticAnalysisCriticalCount: criticalCount,
+      },
+      deps.channel,
+      headSha.slice(0, 7),
+      traceId,
+    );
+    if (!promoted) {
+      await deps.auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-DEP",
+        action: "staging_promotion_not_eligible",
+        basis: "DevOps:REQ-003 / TH-001",
+        detail: { commitSha: headSha },
+        at: new Date().toISOString(),
+      });
+    }
+  };
 }
 
 function renderBuildResult(classification: ClassificationResult, suggestion: string | null, runUrl: string): string {

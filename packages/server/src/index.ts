@@ -40,7 +40,10 @@ import {
 import {
   classifyBuildFailure,
   classifyIncident,
+  executeProdDeploy,
   generateFixSuggestionIfApplicable,
+  monitorAndRollbackIfNeeded,
+  promoteToStagingIfEligible,
   triageAndNotify,
 } from "@aiops/devops";
 import Anthropic from "@anthropic-ai/sdk";
@@ -61,6 +64,7 @@ import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { ReportDeliveryMetricsRepo } from "./db/reportDeliveryMetricsRepo.js";
 import { ApprovalsRepo } from "./db/approvalsRepo.js";
+import { DeploymentsRepo } from "./db/deploymentsRepo.js";
 import { ActionReminderStateRepo } from "./db/actionReminderStateRepo.js";
 import { buildApp } from "./http/app.js";
 import {
@@ -81,6 +85,8 @@ import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./s
 import { createReportDeliveryMetricsTask } from "./scheduler/tasks/reportDeliveryMetricsTask.js";
 import { createPrjopsWeeklyAnalyzeTask } from "./scheduler/tasks/prjopsWeeklyAnalyzeTask.js";
 import { createPrjopsDailyTrackerTask } from "./scheduler/tasks/prjopsDailyTrackerTask.js";
+import { createApprovedDeployTask } from "./scheduler/tasks/approvedDeployTask.js";
+import { createProdMonitorTask } from "./scheduler/tasks/prodMonitorTask.js";
 import { createMsalGraphTokenProvider } from "./auth/graphTokenProvider.js";
 import { createGitHubClientForConfig, type GitHubAuthMode } from "./auth/githubAppTokenProvider.js";
 import { TeamsConversationAgent } from "./agents/teamsConversationAgent.js";
@@ -93,9 +99,11 @@ import { decideStakeholderMaster } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import {
   createBuildEventHandler,
+  createDeployEventHandler,
   createIncidentIssueClient,
   createIncidentEventHandler,
   createRecencySimilarIncidentsProvider,
+  parseCoverageEvidence,
 } from "./agents/devopsEventHandlers.js";
 import { createLogger } from "./observability/logger.js";
 import { MetricsRegistry } from "./observability/metrics.js";
@@ -125,6 +133,8 @@ export * from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 export * from "./scheduler/tasks/reportDeliveryTask.js";
 export * from "./scheduler/tasks/prjopsWeeklyAnalyzeTask.js";
 export * from "./scheduler/tasks/prjopsDailyTrackerTask.js";
+export * from "./scheduler/tasks/approvedDeployTask.js";
+export * from "./scheduler/tasks/prodMonitorTask.js";
 export * from "./observability/logger.js";
 export * from "./observability/metrics.js";
 export * from "./observability/telemetry.js";
@@ -156,6 +166,7 @@ export * from "./db/recipientsRepo.js";
 export * from "./db/standardReportsRepo.js";
 export * from "./db/reportDeliveryLogRepo.js";
 export * from "./db/approvalsRepo.js";
+export * from "./db/deploymentsRepo.js";
 export * from "./db/actionReminderStateRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./auth/githubAppTokenProvider.js";
@@ -239,6 +250,7 @@ export async function main(
       client.release();
     }
   });
+  const deploymentsRepo = new DeploymentsRepo(pool);
   const actionReminderStateRepo = new ActionReminderStateRepo(pool);
   // audit_log の追記専用は「接続ロールが UPDATE/DELETE を持たないこと」で強制される。
   // schema.sql の REVOKE は app_role が存在する場合のみ走るため、ロール不在の運用では
@@ -364,16 +376,40 @@ export async function main(
             llmClient: llmClient!,
           }),
       }),
-      AGT_DEP: async (event, traceId) => {
-        await devopsAuditLog.append({
-          trace_id: traceId,
-          actor: "AGT-DEP",
-          action: "github_event_received",
-          basis: "DevOps:SPEC-INT-020",
-          detail: { eventName: event.eventName },
-          at: new Date().toISOString(),
-        });
-      },
+      AGT_DEP: createDeployEventHandler({
+        configured: githubPolicy.enabled && defaultIncidentChannel !== undefined,
+        disabledReason: !githubPolicy.enabled
+          ? "GitHub authentication is not configured"
+          : "Default Teams channel is not configured",
+        channel: defaultIncidentChannel,
+        coverageEvidence: {
+          read: async (owner, repo, runId) => {
+            try {
+              return parseCoverageEvidence(
+                await githubClient.readWorkflowRunJsonArtifact(owner, repo, runId, {
+                  artifactName: "agt-dep-th001-evidence",
+                  fileName: "agt-dep-evidence.json",
+                  maxArchiveBytes: 64_000,
+                }),
+              );
+            } catch {
+              return null;
+            }
+          },
+        },
+        // D-16: no runtime critical-count authority exists yet. Never infer zero.
+        criticalCountEvidence: { read: async () => null },
+        deploymentState: deploymentsRepo,
+        auditLog: devopsAuditLog,
+        promote: (input, channel, commitShaShort, traceId) =>
+          promoteToStagingIfEligible(input, channel, commitShaShort, {
+            githubClient,
+            graphClient,
+            auditLog: devopsAuditLog,
+            traceId,
+            cal: jpHolidayCalendar,
+          }),
+      }),
       AGT_INC: createIncidentEventHandler({
         configured: incidentTriageConfigured,
         disabledReason: !githubPolicy.enabled
@@ -479,6 +515,10 @@ export async function main(
       approvalsConfigured: Boolean(config.WEB_BFF_IDENTITY_SECRET),
       prjopsDataConfigured: Boolean(config.PRJOPS_DATA_DIR),
       pmoNotifyMailboxConfigured: Boolean(config.PMO_NOTIFY_MAILBOX),
+      // D-16 and D-04 remain loud until their authoritative runtime sources exist.
+      stagingPromotionConfigured: false,
+      prodDeployConfigured: false,
+      prodMonitorConfigured: false,
     });
   const publishCapabilities = (): string[] => {
     const state = capabilityState();
@@ -519,6 +559,54 @@ export async function main(
       }),
       // Read-only monitoring must continue during failsafe, so this task is intentionally not guardFailsafeTask-wrapped.
       observedTask(createReportDeliveryMetricsTask({ provider: reportDeliveryMetricsRepo, metrics })),
+      observedTask(
+        guardTask(
+          createApprovedDeployTask({
+            approvalsRepo,
+            deploymentsRepo,
+            workflowExists: (owner, repo) =>
+              githubPolicy.enabled
+                ? githubClient.workflowExists(owner, repo, "deploy-prod.yml")
+                : Promise.resolve(false),
+            execute: (owner, repo, commitSha, traceId) =>
+              executeProdDeploy("approved", owner, repo, commitSha, {
+                githubClient,
+                graphClient,
+                auditLog: devopsAuditLog,
+                traceId,
+                cal: jpHolidayCalendar,
+              }),
+            auditLog: devopsAuditLog,
+            traceIdProvider: () => randomUUID(),
+          }),
+          devopsAuditLog,
+        ),
+      ),
+      observedTask(
+        guardTask(
+          createProdMonitorTask({
+            deploymentsRepo,
+            // A048 exposes rolling aggregates but not the complete TH-003 windows/baseline contract yet (D-04).
+            metricsProvider: { read: async () => null },
+            stableVersionsProvider: { read: async () => null },
+            workflowExists: (owner, repo) =>
+              githubPolicy.enabled
+                ? githubClient.workflowExists(owner, repo, "deploy-prod.yml")
+                : Promise.resolve(false),
+            evaluate: (input, stableVersions, target, channel, traceId) =>
+              monitorAndRollbackIfNeeded(input, stableVersions, target.owner, target.repo, target.projectId, channel, {
+                githubClient,
+                graphClient,
+                auditLog: devopsAuditLog,
+                traceId,
+                cal: jpHolidayCalendar,
+              }),
+            auditLog: devopsAuditLog,
+            traceIdProvider: () => randomUUID(),
+          }),
+          devopsAuditLog,
+        ),
+      ),
       ...(githubPolicy.enabled
         ? [
             observedTask(

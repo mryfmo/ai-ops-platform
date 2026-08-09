@@ -84,16 +84,18 @@ CREATE TABLE IF NOT EXISTS seven_keys_snapshots (
 CREATE INDEX IF NOT EXISTS idx_seven_keys_snapshots_project_month ON seven_keys_snapshots (project_id, month);
 -- rollback: DROP TABLE seven_keys_snapshots;
 
--- DevOps:SPEC-INT-020 デプロイ状態機械の値のみ許可（lib/deployStateMachine.tsのDeployState型と一致させること）
+-- DevOps:SPEC-INT-020 デプロイ状態。dispatch_failedはworkflow dispatch境界の運用上の終端状態。
 CREATE TABLE IF NOT EXISTS deployments (
   deploy_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id   TEXT NOT NULL,
+  github_owner TEXT,
+  github_repo  TEXT,
   commit_sha   TEXT NOT NULL,
   env          TEXT NOT NULL CHECK (env IN ('dev', 'staging', 'prod')),
   state        TEXT NOT NULL CHECK (state IN (
                   'pending', 'staging_deployed', 'approval_requested', 'approved',
                   'rejected', 'expired', 'prod_deploying', 'monitoring', 'stable',
-                  'rolling_back', 'rolled_back'
+                  'rolling_back', 'rolled_back', 'dispatch_failed'
                 )),
   risk_score   INT CHECK (risk_score BETWEEN 0 AND 100),
   approved_by  TEXT,
@@ -487,6 +489,7 @@ CREATE TABLE IF NOT EXISTS approvals (
   approval_type       TEXT NOT NULL CHECK (approval_type IN ('change', 'report', 'jit_grant')),
   target_id           TEXT NOT NULL,
   project_id          TEXT,
+  target_sha          TEXT CHECK (target_sha IS NULL OR target_sha ~ '^[0-9a-f]{40}$'),
   status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   requested_by        TEXT NOT NULL,
   approver_tenant_id  UUID,
@@ -494,6 +497,7 @@ CREATE TABLE IF NOT EXISTS approvals (
   decided_at          TIMESTAMPTZ,
   reason              TEXT,
   delivered_at        TIMESTAMPTZ,
+  dispatched_at       TIMESTAMPTZ,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (
     (status = 'pending' AND approver_tenant_id IS NULL AND approver_object_id IS NULL AND decided_at IS NULL AND reason IS NULL)
@@ -505,6 +509,9 @@ CREATE TABLE IF NOT EXISTS approvals (
 CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals (created_at, approval_id) WHERE status = 'pending';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_approvals_pending_target
   ON approvals (approval_type, target_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_approvals_approved_undispatched
+  ON approvals (decided_at, approval_id)
+  WHERE approval_type = 'change' AND status = 'approved' AND dispatched_at IS NULL;
 -- rollback: DROP TABLE approvals;
 
 -- ADR-0008 / REQ-037 / DevOps:SPEC-INT-063: Excelインポート台帳。

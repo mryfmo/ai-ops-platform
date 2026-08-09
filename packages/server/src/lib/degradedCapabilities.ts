@@ -32,6 +32,9 @@ export const CAPABILITIES = [
   "approvals",
   "build_triage",
   "incident_triage",
+  "staging_promotion",
+  "prod_deploy",
+  "prod_monitor",
   "prjops_weekly_analysis",
   "prjops_daily_tracking",
   "prjops_job_escalation",
@@ -59,6 +62,9 @@ export interface CapabilityInputs {
   approvalsConfigured: boolean;
   prjopsDataConfigured: boolean;
   pmoNotifyMailboxConfigured: boolean;
+  stagingPromotionConfigured: boolean;
+  prodDeployConfigured: boolean;
+  prodMonitorConfigured: boolean;
 }
 
 /** 各機能が有効かどうか。 */
@@ -87,6 +93,9 @@ export function deriveCapabilityState(input: CapabilityInputs): CapabilityState 
       input.githubConfigured &&
       input.defaultTeamsTeamConfigured &&
       input.defaultTeamsChannelConfigured,
+    staging_promotion: input.stagingPromotionConfigured,
+    prod_deploy: input.prodDeployConfigured,
+    prod_monitor: input.prodMonitorConfigured,
     prjops_weekly_analysis: input.prjopsDataConfigured,
     prjops_daily_tracking: input.prjopsDataConfigured && input.fromMailboxConfigured,
     prjops_job_escalation: input.fromMailboxConfigured && input.pmoNotifyMailboxConfigured,

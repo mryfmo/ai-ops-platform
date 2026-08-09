@@ -1,6 +1,40 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
+import { deflateRawSync } from "node:zlib";
 import { verifyGithubWebhookSignature, GitHubClient, type GhFetchLike } from "../src/clients/githubClient.js";
+
+function artifactZip(fileName: string, contents: string, method: 0 | 8 = 0): Uint8Array {
+  const name = Buffer.from(fileName);
+  const data = Buffer.from(contents);
+  const compressed = method === 8 ? deflateRawSync(data, { level: 0 }) : data;
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(0, 6);
+  local.writeUInt16LE(method, 8);
+  local.writeUInt32LE(0, 14);
+  local.writeUInt32LE(compressed.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt16LE(0, 8);
+  central.writeUInt16LE(method, 10);
+  central.writeUInt32LE(0, 16);
+  central.writeUInt32LE(compressed.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(0, 42);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + name.length, 12);
+  end.writeUInt32LE(local.length + name.length + compressed.length, 16);
+  return Buffer.concat([local, name, compressed, central, name, end]);
+}
 
 describe("verifyGithubWebhookSignature [DevOps:SPEC-INT-061 セキュリティ対策]", () => {
   const secret = "test-webhook-secret";
@@ -52,6 +86,68 @@ describe("GitHubClient [DevOps:SPEC-INT-061, REQ-025/033]", () => {
   }
 
   const tokenProvider = { getInstallationToken: async () => "fake-installation-token" };
+
+  it("TH-001: workflow run の一意なcoverage JSON artifactをboundedに読む", async () => {
+    const calls: string[] = [];
+    const archive = artifactZip(
+      "agt-dep-evidence.json",
+      JSON.stringify({ schemaVersion: 1, commitSha: "a".repeat(40), unitTestCoveragePct: 84.25 }),
+      8,
+    );
+    const fetchImpl: GhFetchLike = async (url) => {
+      calls.push(url);
+      if (calls.length === 1) {
+        return new Response(
+          JSON.stringify({
+            total_count: 1,
+            artifacts: [{ id: 99, name: "agt-dep-th001-evidence", expired: false, size_in_bytes: archive.length }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(archive, { status: 200, headers: { "content-length": String(archive.length) } });
+    };
+    const client = new GitHubClient(tokenProvider, fetchImpl);
+
+    await expect(
+      client.readWorkflowRunJsonArtifact("acme", "widget", 123, {
+        artifactName: "agt-dep-th001-evidence",
+        fileName: "agt-dep-evidence.json",
+        maxArchiveBytes: 64_000,
+      }),
+    ).resolves.toEqual({ schemaVersion: 1, commitSha: "a".repeat(40), unitTestCoveragePct: 84.25 });
+    expect(calls[0]).toContain("/actions/runs/123/artifacts?per_page=100&page=1");
+    expect(calls[1]).toContain("/actions/artifacts/99/zip");
+  });
+
+  it("TH-001: artifactの曖昧さと観測上限超過をfail closedにする", async () => {
+    const duplicateFetch: GhFetchLike = async () =>
+      new Response(
+        JSON.stringify({
+          total_count: 2,
+          artifacts: [
+            { id: 1, name: "agt-dep-th001-evidence", expired: false, size_in_bytes: 10 },
+            { id: 2, name: "agt-dep-th001-evidence", expired: false, size_in_bytes: 10 },
+          ],
+        }),
+        { status: 200 },
+      );
+    const client = new GitHubClient(tokenProvider, duplicateFetch);
+    await expect(
+      client.readWorkflowRunJsonArtifact("acme", "widget", 123, {
+        artifactName: "agt-dep-th001-evidence",
+        fileName: "agt-dep-evidence.json",
+        maxArchiveBytes: 64_000,
+      }),
+    ).rejects.toThrow(/ambiguous/i);
+  });
+
+  it("DevOps:REQ-010: workflow定義の404だけを不在として返す", async () => {
+    const absent = new GitHubClient(tokenProvider, async () => new Response(null, { status: 404 }));
+    const present = new GitHubClient(tokenProvider, async () => new Response("{}", { status: 200 }));
+    await expect(absent.workflowExists("acme", "widget", "deploy-prod.yml")).resolves.toBe(false);
+    await expect(present.workflowExists("acme", "widget", "deploy-prod.yml")).resolves.toBe(true);
+  });
 
   it("createIssueComment はPRコメントAPIをPOSTで呼ぶ（DevOps:SPEC-EXT-001）", async () => {
     const { fetch: fetchImpl, calls } = makeFakeFetch([{ status: 201 }]);

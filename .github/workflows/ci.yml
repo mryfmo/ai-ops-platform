@@ -59,6 +59,35 @@ jobs:
       - run: pnpm -r --if-present run build
       - run: pnpm -r --if-present run typecheck
       - run: pnpm -r --if-present run test:coverage
+      - name: TH-001 coverage evidenceを決定的JSONへ集約
+        env:
+          EVIDENCE_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          node --input-type=module -e '
+          import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+          const packages = ["devops", "prjops", "server", "shared", "web"];
+          const summaries = packages.map((name) => {
+            const path = `packages/${name}/coverage/coverage-summary.json`;
+            if (!existsSync(path)) throw new Error(`missing coverage summary: ${path}`);
+            const lines = JSON.parse(readFileSync(path, "utf8")).total?.lines;
+            if (!lines || !Number.isInteger(lines.covered) || !Number.isInteger(lines.total)) throw new Error(`invalid coverage summary: ${path}`);
+            return { name, covered: lines.covered, total: lines.total };
+          });
+          const covered = summaries.reduce((sum, item) => sum + item.covered, 0);
+          const total = summaries.reduce((sum, item) => sum + item.total, 0);
+          if (summaries.length === 0 || total === 0 || !/^[0-9a-f]{40}$/.test(process.env.EVIDENCE_COMMIT_SHA ?? "")) throw new Error("coverage evidence is incomplete");
+          const evidence = { schemaVersion: 1, commitSha: process.env.EVIDENCE_COMMIT_SHA, unitTestCoveragePct: Number((covered * 100 / total).toFixed(2)), packages: summaries };
+          mkdirSync(".ci", { recursive: true });
+          writeFileSync(".ci/agt-dep-evidence.json", `${JSON.stringify(evidence, null, 2)}\n`);
+          '
+      - name: TH-001 coverage evidence artifactを発行
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agt-dep-th001-evidence
+          path: .ci/agt-dep-evidence.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
       - name: トレーサビリティ検証（全SPEC-ID⇔実装⇔テストの対応チェック）
         run: pnpm exec tsx packages/traceability/src/verifyTraceability.ts
       - name: PostgreSQL統合検証（追記専用・パーティション・migration冪等性）
