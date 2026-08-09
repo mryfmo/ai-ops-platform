@@ -1,0 +1,36 @@
+schemaVersion: '1.0'
+taskId: P?-T??
+title: replace with WBS title
+repository: mryfmo/ai-ops-platform
+baseSha: 49e2e3c0a3a9d30be46b2a3ae0727009d9eec324
+branch: agent/P?-T??-slug
+writer: claude-code-fable5-xhigh
+reviewer: codex-gpt56-sol-high
+intent: Why the task exists; copy from WBS and related requirement.
+authority:
+- AGENTS.md
+- relevant ADR/spec/AC
+- 06_implementation/02_wbs.yaml
+dependsOn: []
+allowedPaths:
+- replace/**
+forbiddenPaths:
+- main direct push
+- production direct mutation
+deliverables:
+- replace
+acceptanceGateIds:
+- replace
+verificationCommands:
+- mise run ci
+featureFlag:
+  name: replace
+  initialState: disabled
+migration:
+  mode: shadow|limited|primary|none
+  rollback: replace
+limits:
+  timeoutMinutes: 30
+  maxCostUsd: null
+  maxToolCalls: null
+ownerDecisionsRequired: []

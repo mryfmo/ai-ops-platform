@@ -1,0 +1,32 @@
+flowchart LR
+  subgraph UserBoundary[User Devices]
+    Teams
+    Browser
+    DevCLI
+  end
+  subgraph AzureBoundary[Azure Platform]
+    Control
+    Workers
+    PG
+    OPA
+    AGW
+    LiteLLM
+    OTel
+  end
+  subgraph MicrosoftBoundary[Microsoft 365]
+    WorkIQ
+    Graph
+    SharePoint
+    TeamsSvc[Teams Service]
+  end
+  subgraph ExternalBoundary[External SaaS/Cloud]
+    Bedrock
+    Anthropic
+    Plane
+    GitHub
+    Confluence
+    Wispr
+  end
+  UserBoundary --> AzureBoundary
+  AzureBoundary --> MicrosoftBoundary
+  AzureBoundary --> ExternalBoundary

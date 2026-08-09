@@ -1,0 +1,65 @@
+schema_version: '1.0'
+principles:
+- logical aliases only
+- bedrock default
+- anthropic explicit/controlled
+- workflow binding is immutable
+aliases:
+  claude-governed:
+    default_provider: bedrock
+    fallback: null
+    allowed_classifications:
+    - public
+    - internal
+    - confidential
+    - customer-confidential
+    model_id_env: BEDROCK_CLAUDE_GOVERNED_MODEL_ID
+  claude-standard:
+    default_provider: bedrock
+    fallback: anthropic
+    allowed_classifications:
+    - public
+    - internal
+    model_id_env: BEDROCK_CLAUDE_STANDARD_MODEL_ID
+    fallback_model_id_env: ANTHROPIC_CLAUDE_STANDARD_MODEL_ID
+  claude-native:
+    default_provider: anthropic
+    fallback: null
+    allowed_classifications:
+    - public
+    - internal
+    model_id_env: ANTHROPIC_CLAUDE_NATIVE_MODEL_ID
+  claude-code:
+    default_provider: bedrock
+    fallback: anthropic
+    allowed_classifications:
+    - public
+    - internal
+    - confidential
+    model_id_env: BEDROCK_CLAUDE_CODE_MODEL_ID
+    fallback_model_id_env: ANTHROPIC_CLAUDE_CODE_MODEL_ID
+  claude-fast:
+    default_provider: bedrock
+    fallback: anthropic
+    allowed_classifications:
+    - public
+    - internal
+    model_id_env: BEDROCK_CLAUDE_FAST_MODEL_ID
+    fallback_model_id_env: ANTHROPIC_CLAUDE_FAST_MODEL_ID
+fallback_allowed_errors:
+- timeout
+- rate_limited
+- provider_5xx
+- regional_unavailable
+- model_temporarily_unavailable
+fallback_forbidden_errors:
+- safety_refusal
+- policy_denied
+- classification_denied
+- prompt_injection
+- invalid_request
+- context_limit
+disabled_litellm_features:
+- mcp_gateway
+- a2a_gateway
+- arbitrary_provider_passthrough

@@ -1,0 +1,51 @@
+schema_version: '1.0'
+gateway_role: mcp-a2a-only
+llm_routing_enabled: false
+servers:
+- id: wispr
+  protocol: mcp
+  transport: streamable-http
+  mode: read-only
+  owner: ai-coe
+  auth: oauth
+  risk_ceiling: L1
+  endpoint_env: WISPR_MCP_URL
+- id: github
+  protocol: mcp
+  transport: streamable-http
+  mode: read-only-lockdown
+  owner: devops
+  auth: github-app-or-oauth
+  risk_ceiling: L1
+  endpoint_env: GITHUB_MCP_URL
+- id: plane
+  protocol: mcp
+  transport: streamable-http
+  mode: read-draft
+  owner: prjops
+  auth: oauth-or-dedicated-integration
+  risk_ceiling: L2
+  endpoint_env: PLANE_MCP_URL
+- id: confluence
+  protocol: mcp
+  transport: streamable-http
+  mode: read-draft
+  owner: knowledge
+  auth: oauth
+  risk_ceiling: L2
+  endpoint_env: CONFLUENCE_MCP_URL
+- id: work-iq
+  protocol: mcp
+  transport: streamable-http
+  mode: read-ask
+  owner: m365
+  auth: delegated-obo
+  risk_ceiling: L1
+  endpoint_env: WORK_IQ_MCP_URL
+  condition: OBO conformance gate passed
+production_rules:
+  allow_local_stdio: false
+  require_pinned_version: true
+  require_schema_hash: true
+  require_owner: true
+  require_otel: true

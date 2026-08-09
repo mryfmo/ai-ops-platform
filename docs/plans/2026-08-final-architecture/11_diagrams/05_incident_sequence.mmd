@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant O as OTel/Monitor
+  participant T as Temporal Incident Workflow
+  participant D as Deterministic Classifier
+  participant L as LiteLLM/Claude
+  participant R as Runner
+  participant G as GitHub
+  participant H as Human
+  O->>T: alert + trace/deployment refs
+  T->>D: severity/correlation
+  D-->>T: deterministic result
+  T->>L: RCA evidence analysis
+  L-->>T: hypothesis/remediation plan
+  T->>R: optional repair task
+  R->>G: repair PR
+  G->>H: review/deploy approval
+  H->>G: approve deployment
+  T->>O: observe SLO recovery

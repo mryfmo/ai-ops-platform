@@ -1,0 +1,46 @@
+schema_version: '1.0'
+principles:
+- one-writer-per-task
+- independent-reviewer
+- no-shared-branch-editing
+default_assignment:
+  cross_cutting_architecture_and_workflows:
+    writer: claude-code-fable5-xhigh
+    reviewer: codex-gpt56-sol-high
+  contracts_tests_security_migrations:
+    writer: codex-gpt56-sol-high
+    reviewer: claude-code-fable5-xhigh
+  owner_decisions:
+    writer: human
+    reviewer: human
+routing_rules:
+- match:
+  - Temporal workflow design
+  - cross-component migration
+  - Teams/Web UX orchestration
+  - ADR/spec synthesis
+  writer: claude-code-fable5-xhigh
+- match:
+  - OpenAPI/AsyncAPI/JSON Schema
+  - OPA tests
+  - security negative tests
+  - load/chaos/compatibility
+  - migration verification
+  writer: codex-gpt56-sol-high
+- match:
+  - same task/branch already owned
+  action: do not write; review or wait
+- match:
+  - architecture ambiguity
+  - legal/tenant/data decision
+  action: block and request owner decision
+production_agent_routing:
+- task_type: requirements/architecture/0-to-1 complex implementation
+  writer: claude-code
+  reviewer: human or droid
+- task_type: 1-to-10 repetitive implementation/test repair/migration
+  writer: droid
+  reviewer: claude-code or human
+- task_type: high-risk change
+  writer: one AI only
+  reviewer: other AI + human

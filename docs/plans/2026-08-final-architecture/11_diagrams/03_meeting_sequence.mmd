@@ -1,0 +1,22 @@
+sequenceDiagram
+  participant O as Outlook/Teams
+  participant W as Wispr
+  participant C as Control API/Temporal
+  participant A as agentgateway
+  participant L as LiteLLM/Claude
+  participant T as Teams reviewer
+  participant S as SoR targets
+  O->>C: meeting ended/event
+  C->>A: find permitted Wispr note
+  A->>W: read meeting note
+  W-->>A: transcript/summary refs
+  A-->>C: sanitized source
+  C->>L: structured extraction
+  L-->>C: decisions/actions/risks
+  C->>T: review card (versioned)
+  T->>C: approve/reject signal
+  alt approved
+    C->>S: publish to Plane/GitHub/Confluence/SharePoint by policy
+  else rejected
+    C->>C: revise or close without write
+  end

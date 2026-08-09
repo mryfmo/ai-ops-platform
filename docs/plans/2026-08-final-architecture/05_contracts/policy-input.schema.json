@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OPA policy input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actor",
+    "agent",
+    "action",
+    "resource",
+    "context"
+  ],
+  "properties": {
+    "actor": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "tenantId"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "human",
+            "service",
+            "agent"
+          ]
+        },
+        "tenantId": {
+          "type": "string"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "projectIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "control-api",
+            "claude-code",
+            "droid",
+            "web-workbench",
+            "teams-adapter",
+            "temporal-worker"
+          ]
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "name",
+        "riskLevel"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "riskLevel": {
+          "enum": [
+            "L0",
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6"
+          ]
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "protocol": {
+          "enum": [
+            "api",
+            "mcp",
+            "a2a",
+            "llm",
+            "ui"
+          ]
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "required": [
+        "system",
+        "id",
+        "classification"
+      ],
+      "properties": {
+        "system": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "customer-confidential",
+            "restricted"
+          ]
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": [
+        "purpose",
+        "environment"
+      ],
+      "properties": {
+        "purpose": {
+          "type": "string"
+        },
+        "environment": {
+          "enum": [
+            "dev",
+            "staging",
+            "prod"
+          ]
+        },
+        "providerCandidate": {
+          "enum": [
+            "bedrock",
+            "anthropic",
+            "none"
+          ]
+        },
+        "approvalId": {
+          "type": "string"
+        },
+        "sourceTrust": {
+          "enum": [
+            "trusted-platform",
+            "reviewed",
+            "untrusted-content"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,244 @@
+openapi: 3.1.0
+info:
+  title: AI Ops Control API
+  version: 1.0.0-draft
+  description: Versioned contract between Teams/Web/automation clients and the Temporal-backed AI Control Plane.
+servers:
+  - url: https://{host}/api/control/v1
+    variables:
+      host:
+        default: api.example.invalid
+security:
+  - bearerAuth: []
+paths:
+  /workflows:
+    post:
+      operationId: startWorkflow
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartWorkflowRequest'
+      responses:
+        '202':
+          description: Workflow accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowReference'
+        '409':
+          description: Idempotency conflict or stale version
+  /workflows/{workflowId}:
+    get:
+      operationId: getWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Workflow read model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatus'
+  /workflows/{workflowId}/signals/{signalName}:
+    post:
+      operationId: signalWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+        - name: signalName
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [approve, reject, cancel, resume, retry]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSignal'
+      responses:
+        '202': { description: Signal accepted }
+        '409': { description: Stale approval or invalid state }
+  /agent-runs:
+    post:
+      operationId: requestAgentRun
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRunRequest'
+      responses:
+        '202':
+          description: Agent task accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowReference'
+  /m365/query:
+    post:
+      operationId: queryMicrosoft365
+      description: User-delegated Work IQ path. Application-only callers are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M365QueryRequest'
+      responses:
+        '200':
+          description: Permission-trimmed result with source references
+        '403':
+          description: OBO or policy denied
+  /meetings/{meetingId}/process:
+    post:
+      operationId: processMeeting
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 512 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectId: { type: string, pattern: '^PJ-[0-9]{3,}$' }
+                wisprMeetingId: { type: string }
+      responses:
+        '202':
+          description: Meeting workflow accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowReference'
+  # NOTE (PACK-07 correction): the existing runtime exposes /healthz and /readyz
+  # (with a degraded[] array). Implementation must unify on ONE convention;
+  # if these paths are adopted, /healthz//readyz become aliases until removal.
+  /health/live:
+    get:
+      security: []
+      responses:
+        '200': { description: Process live }
+  /health/ready:
+    get:
+      security: []
+      responses:
+        '200': { description: Required dependencies ready }
+        '503': { description: Not ready }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    WorkflowId:
+      name: workflowId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 512 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 200 }
+  schemas:
+    CorrelationContext:
+      type: object
+      additionalProperties: false
+      required: [traceId, correlationId]
+      properties:
+        traceId: { type: string, format: uuid }
+        correlationId: { type: string, format: uuid }
+        projectId: { type: string }
+        sourceSystem: { type: string }
+        sourceObjectId: { type: string }
+    StartWorkflowRequest:
+      type: object
+      additionalProperties: false
+      required: [workflowType, input, correlation]
+      properties:
+        workflowType:
+          type: string
+          enum: [meeting, coding-task, incident, report, plane-sync, graph-subscription, knowledge-publication]
+        input: { type: object }
+        expectedVersion: { type: integer, minimum: 0 }
+        correlation: { $ref: '#/components/schemas/CorrelationContext' }
+    WorkflowReference:
+      type: object
+      additionalProperties: false
+      required: [workflowId, runId, status]
+      properties:
+        workflowId: { type: string }
+        runId: { type: string }
+        status: { type: string, enum: [accepted, running, waiting, completed, failed, cancelled] }
+    WorkflowStatus:
+      allOf:
+        - $ref: '#/components/schemas/WorkflowReference'
+        - type: object
+          properties:
+            currentStep: { type: string }
+            waitingReason: { type: string }
+            approvalId: { type: string, format: uuid }
+            sourceReferences:
+              type: array
+              items: { $ref: '#/components/schemas/SourceReference' }
+            updatedAt: { type: string, format: date-time }
+    WorkflowSignal:
+      type: object
+      additionalProperties: false
+      description: >-
+        actor identity is derived server-side from the authenticated principal
+        (Entra subject via bearer JWT or the BFF identity envelope). Clients must
+        not supply actor identity in the body (PACK-01 correction, 2026-08-10).
+      required: [reason, expectedVersion]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 4000 }
+        expectedVersion: { type: integer, minimum: 0 }
+        payload: { type: object }
+    SourceReference:
+      type: object
+      additionalProperties: false
+      required: [system, objectId]
+      properties:
+        system: { type: string, enum: [plane, github, sharepoint, confluence, wispr, teams, outlook, work-iq] }
+        objectId: { type: string }
+        url: { type: string, format: uri }
+        version: { type: string }
+        approvalStatus: { type: string }
+    AgentRunRequest:
+      type: object
+      additionalProperties: false
+      required: [taskId, projectId, writer, reviewer, instruction, baseRef, allowedPaths, forbiddenPaths, acceptanceGateIds]
+      properties:
+        taskId: { type: string }
+        projectId: { type: string }
+        writer: { type: string, enum: [claude-code-fable5-xhigh, codex-gpt56-sol-high, droid] }
+        reviewer: { type: string, enum: [claude-code-fable5-xhigh, codex-gpt56-sol-high, human] }
+        instruction: { type: string, maxLength: 20000 }
+        baseRef: { type: string }
+        allowedPaths: { type: array, minItems: 1, items: { type: string } }
+        forbiddenPaths: { type: array, items: { type: string } }
+        acceptanceGateIds: { type: array, minItems: 1, items: { type: string } }
+        modelAlias: { type: string, default: claude-code }
+    M365QueryRequest:
+      type: object
+      additionalProperties: false
+      required: [question, purpose, classification, projectId]
+      properties:
+        question: { type: string, maxLength: 10000 }
+        purpose: { type: string }
+        classification: { type: string, enum: [public, internal, confidential, customer-confidential, restricted] }
+        projectId: { type: string }
+        allowedSourceTypes:
+          type: array
+          items: { type: string, enum: [mail, calendar, teams, sharepoint, onedrive, people, planner] }

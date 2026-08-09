@@ -1,0 +1,18 @@
+flowchart TB
+  Plane[Plane: daily operational state]
+  GitHub[GitHub: code/PR/CI/release + versioned specs]
+  Confluence[Confluence: working technical knowledge]
+  SharePoint[SharePoint: formal records/evidence]
+  Wispr[Wispr: meeting intelligence]
+  Teams[Teams: conversation/notification]
+  Control[Control Plane: workflow/ledger/derived state]
+  Wispr --> Control
+  Teams --> Control
+  Control --> Plane
+  Control --> GitHub
+  Control --> Confluence
+  Control --> SharePoint
+  Plane -. projections/refs .-> Control
+  GitHub -. events/refs .-> Control
+  Confluence -. sources .-> Control
+  SharePoint -. approved sources .-> Control
