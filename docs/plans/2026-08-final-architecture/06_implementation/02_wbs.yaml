@@ -1,0 +1,3204 @@
+schema_version: '1.0'
+baseline_commit: 49e2e3c0a3a9d30be46b2a3ae0727009d9eec324
+one_writer_per_task: true
+phases:
+- id: P0
+  name: Baseline and governance
+  exit_intent: No code migration starts until branch protection, baseline evidence, ADRs and environment decisions are approved.
+- id: P1
+  name: Contracts and scaffolding
+  exit_intent: Create versioned contracts, packages, ledgers and CI fitness gates without changing production traffic.
+- id: P2
+  name: LiteLLM inference plane
+  exit_intent: Introduce Bedrock/Anthropic routing behind logical aliases and migrate all LLM consumers.
+- id: P3
+  name: Temporal control plane
+  exit_intent: Move scheduling, retries, approvals and long-running state into durable workflows.
+- id: P4
+  name: agentgateway and OPA
+  exit_intent: Centralize MCP/A2A access and cross-system policy enforcement.
+- id: P5
+  name: Work IQ and Graph
+  exit_intent: Add delegated M365 intelligence while retaining Graph deterministic/system paths.
+- id: P6
+  name: Meeting and knowledge
+  exit_intent: Implement Wispr-to-review-to-Plane/GitHub/Confluence/SharePoint flows.
+- id: P7
+  name: Teams and Web Workbench
+  exit_intent: Add OpenTag-derived Teams UX and capability-scoped workspace UI.
+- id: P8
+  name: AI coding agents
+  exit_intent: Enable Claude Code, Droid and independent Codex review through isolated PR-only runners.
+- id: P9
+  name: AIOps and observability
+  exit_intent: Correlate telemetry, incident workflows, RCA and repair PRs.
+- id: P10
+  name: Infrastructure and release
+  exit_intent: Implement Azure deployment, security, DR, load and go-live gates.
+tasks:
+- id: P0-T01
+  title: Revalidate repository baseline
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on: []
+  risk: medium
+  allowed_paths:
+  - BASELINE.md
+  - docs/audit/**
+  - docs/plans/2026-08-final-architecture/baseline-delta.md
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - baseline-delta.md
+  - current HEAD/tree/dependency/test evidence
+  acceptance:
+  - HEAD and tree recorded
+  - all deviations classified
+  - no architecture change hidden in delta
+  verification:
+  - git status --short
+  - mise run ci (with required disposable PostgreSQL)
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-001
+  requirement_refs: &id001
+  - PRD-010
+  adr_refs: &id002
+  - ADR-0020
+  - ADR-0021
+  - ADR-0022
+  - ADR-0023
+  - ADR-0024
+  - ADR-0025
+  - ADR-0026
+  - ADR-0027
+  - ADR-0028
+- id: P0-T02
+  title: Enable and prove main branch protection
+  # PACK-06 correction (2026-08-10): recorded reality — the current GitHub plan returned
+  # 403 for branch-protection APIs (audit T-P0-08 / owner decision D-06) and merge tokens
+  # lacked workflow scope (#133). ENV-DEC-011 (GitHub plan upgrade) is a hard prerequisite.
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T01
+  risk: critical
+  allowed_paths:
+  - .github/**
+  - runbooks/production-gates.md
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - GitHub settings evidence
+  - negative merge/push probe
+  acceptance:
+  - required CI and CODEOWNERS enabled
+  - AI token cannot bypass human review
+  verification:
+  - gh api repos/$REPO/branches/main/protection
+  - negative PR merge test
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-002
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T03
+  title: Add final architecture ADR set and spec IDs
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T01
+  risk: medium
+  allowed_paths:
+  - docs/adr/**
+  - docs/spec/**
+  - packages/traceability/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - ADR-0020..0028
+  - new requirement/spec/AC catalog entries
+  - traceability basis-ID grammar/catalog extension design covering pack ID families (PRD-/FR-/NFR-/INV-/gate IDs) — the current guard accepts only REQ|SPEC-EXT|SPEC-INT|TH|AC|ADR (PACK-04 correction)
+  acceptance:
+  - traceability green
+  - supersession is explicit
+  - existing requirements not silently deleted
+  verification:
+  - mise run traceability
+  - mise run format
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-003
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T04
+  title: Implement architecture fitness checks
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P0-T03
+  risk: medium
+  allowed_paths:
+  - scripts/**
+  - tests/**
+  - package.json
+  - .mise.toml
+  - .github/workflows/ci.yml
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - checks for forbidden direct egress, gateway overlap, Cloudflare Artifacts, high-risk MCP tools
+  acceptance:
+  - all invariants have automated check or documented manual gate
+  - 'DELTA-06 correction: ci.yml changes preserve the agt-dep-th001-evidence artifact contract (.ci/agt-dep-evidence.json, PR #149)'
+  verification:
+  - mise run governance
+  - mise run ci
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-004
+  - GOV-005
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T05
+  title: Capture performance and reliability baseline
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P0-T01
+  risk: medium
+  allowed_paths:
+  - verification/**
+  - docs/audit/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - baseline metrics report
+  acceptance:
+  - existing 100-project/2,000-recipient tests recorded
+  - current API/LLM/DB latency recorded or marked ENV-blocked
+  verification:
+  - pnpm --filter @aiops/server run test -- loadBaseline
+  - mise run ci
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-001
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T06
+  title: Inventory licenses and external terms
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P0-T01
+  risk: medium
+  allowed_paths:
+  - docs/research/**
+  - docs/security/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - license and service review register
+  acceptance:
+  - Temporal/LiteLLM/agentgateway/OPA/OpenTag/CopilotKit/Work IQ/Wispr/Confluence/Plane obligations recorded
+  verification:
+  - manual legal/security review checklist
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-003
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T07
+  title: Decide Temporal production profile
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T03
+  risk: high
+  allowed_paths:
+  - docs/decisions/**
+  - docs/adr/**
+  - deploy/temporal/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - ENV-DEC-001 Temporal Cloud default or approved self-host profile
+  acceptance:
+  - Owner decision signed
+  - no implementer-selected deployment ambiguity
+  verification:
+  - decision record validation
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-003
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T08
+  title: Define feature-flag and kill-switch contract
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T03
+  risk: medium
+  allowed_paths:
+  - packages/shared/**
+  - packages/server/**
+  - contracts/**
+  - docs/contracts/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - typed flags and ownership
+  acceptance:
+  - every migration path has old/new/shadow/kill states
+  - fail closed on invalid config
+  verification:
+  - unit tests
+  - config parsing tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-004
+  - GOV-005
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T09
+  title: Define secret and identity migration plan
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P0-T03
+  risk: high
+  allowed_paths:
+  - docs/security/**
+  - runbooks/**
+  - .env.example
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - credential matrix and rotation order
+  acceptance:
+  - no master/provider key on clients/runners
+  - break-glass documented
+  verification:
+  - secret scan
+  - configuration review
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-003
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P0-T10
+  title: Owner baseline gate
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T02
+  - P0-T03
+  - P0-T04
+  - P0-T05
+  - P0-T06
+  - P0-T07
+  - P0-T08
+  - P0-T09
+  risk: critical
+  allowed_paths:
+  - docs/decisions/**
+  - verification/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - signed Phase-0 gate
+  acceptance:
+  - all STOP items resolved or explicitly deferred with owner
+  verification:
+  - release gate checklist
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - GOV-001
+  - GOV-002
+  - GOV-003
+  - GOV-004
+  - GOV-005
+  requirement_refs: *id001
+  adr_refs: *id002
+- id: P1-T01
+  title: Create control-plane package scaffold
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T10
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/**
+  - pnpm-workspace.yaml
+  - tsconfig.json
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - package build/test/typecheck scaffold
+  acceptance:
+  - no production route change
+  - Temporal workflow code separated from activities
+  verification:
+  - pnpm --filter @aiops/control-plane run build
+  - pnpm --filter @aiops/control-plane test
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-001
+  requirement_refs: &id003
+  - PRD-003
+  - PRD-005
+  - FR-CP-001
+  - FR-OBS-001
+  adr_refs: &id004
+  - ADR-0020
+- id: P1-T02
+  title: Create integrations package scaffold
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T10
+  risk: medium
+  allowed_paths:
+  - packages/integrations/**
+  - pnpm-workspace.yaml
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - adapter interfaces for Work IQ, MCP gateway, Wispr, Plane, Confluence
+  acceptance:
+  - vendor SDK does not leak into domain packages
+  - FetchLike/token injection pattern retained
+  verification:
+  - package tests/typecheck
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-001
+  - CON-002
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P1-T03
+  title: Create policy package and OPA bundle scaffold
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P0-T10
+  risk: medium
+  allowed_paths:
+  - packages/policy/**
+  - deploy/opa/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - policy input/decision types, Rego bundle, unit harness
+  acceptance:
+  - default deny
+  - risk levels L0-L6 represented
+  verification:
+  - opa test packages/policy/policies
+  - pnpm package tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-004
+  - CON-005
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P1-T04
+  title: Add versioned Control API and event contracts
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T01
+  risk: medium
+  allowed_paths:
+  - contracts/**
+  - docs/contracts/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - OpenAPI/AsyncAPI/JSON schemas
+  acceptance:
+  - contract lint green
+  - backward-compatibility baseline stored
+  verification:
+  - contract lint
+  - schema validation tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-001
+  - CON-002
+  - CON-004
+  - CON-005
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P1-T05
+  title: Add ledger migrations and repositories
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P1-T04
+  risk: high
+  allowed_paths:
+  - packages/devops/src/db/schema.sql
+  - packages/devops/src/db/migrations/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - workflow/action/policy/model/tool/mapping/meeting/agent tables
+  - 'DELTA-03 correction: authority mapping against the EXISTING approvals and deployments tables (PR #144/#149/#151) — evolve them via expand migrations; do not create approval_requests/action_ledger as parallel authorities for the same concerns'
+  acceptance:
+  - migration idempotent
+  - audit append-only unchanged
+  - unique constraints prevent duplicates
+  verification:
+  - mise run verify:db
+  - repository unit tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-003
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P1-T06
+  title: Implement shared correlation context
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T04
+  risk: medium
+  allowed_paths:
+  - packages/shared/src/**
+  - packages/*/tests/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - typed context and propagation helpers
+  acceptance:
+  - all new interfaces accept/emit trace and correlation IDs
+  - no unbounded content fields
+  verification:
+  - unit tests
+  - typecheck
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-001
+  - CON-002
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P1-T07
+  title: Extend OpenTelemetry conventions
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T06
+  risk: medium
+  allowed_paths:
+  - packages/shared/src/**
+  - packages/server/src/**
+  - deploy/otel/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - semantic attributes and redaction policy
+  acceptance:
+  - prompt/document bodies absent by default
+  - service names/version recorded
+  verification:
+  - OTel exporter tests
+  - snapshot tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-002
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P1-T08
+  title: Add contract and architecture gates to CI
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T03
+  - P1-T04
+  - P1-T05
+  risk: medium
+  allowed_paths:
+  - .github/workflows/ci.yml
+  - .mise.toml
+  - package.json
+  - scripts/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - OPA/contract/migration/fitness CI steps
+  acceptance:
+  - same checks runnable locally
+  - CI pinned actions
+  verification:
+  - mise run ci
+  - actionlint
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - CON-001
+  - CON-002
+  - CON-003
+  - CON-004
+  - CON-005
+  requirement_refs: *id003
+  adr_refs: *id004
+- id: P2-T01
+  title: Create platform-owned model alias manifest
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T04
+  risk: medium
+  allowed_paths:
+  - deploy/litellm/**
+  - contracts/model-routing/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - logical aliases and provider bindings
+  acceptance:
+  - no application-facing provider model IDs
+  - fallback classification explicit
+  verification:
+  - schema validation
+  - configuration unit tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-002
+  requirement_refs: &id005
+  - PRD-003
+  - FR-LLM-001
+  - FR-LLM-002
+  - FR-LLM-003
+  - FR-LLM-004
+  - FR-LLM-005
+  - FR-LLM-006
+  - FR-LLM-007
+  adr_refs: &id006
+  - ADR-0022
+- id: P2-T02
+  title: Deploy LiteLLM private service configuration
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T01
+  - P0-T09
+  risk: medium
+  allowed_paths:
+  - deploy/litellm/**
+  - deploy/azure/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - inference-only proxy config, health, DB, metrics
+  acceptance:
+  - MCP/A2A disabled
+  - private ingress
+  - immutable image digest
+  verification:
+  - config validation
+  - container smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-001
+  - LLM-003
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T03
+  title: Implement Bedrock short-lived identity path
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T02
+  risk: high
+  allowed_paths:
+  - deploy/azure/**
+  - docs/security/**
+  - packages/integrations/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - STS/federation adapter and runbook
+  acceptance:
+  - no long-lived AWS key in app env
+  - role policy model-scoped
+  verification:
+  - STS negative/expiry test
+  - Bedrock smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-002
+  - LLM-003
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T04
+  title: Implement Anthropic controlled credential path
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P2-T02
+  risk: high
+  allowed_paths:
+  - deploy/azure/**
+  - docs/security/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - Key Vault secret and rotation runbook
+  acceptance:
+  - only LiteLLM can read secret
+  - rotation tested
+  verification:
+  - identity access negative test
+  - Anthropic smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-002
+  - LLM-003
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T05
+  title: Refactor shared Anthropic client to gateway transport
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T02
+  risk: medium
+  allowed_paths:
+  - packages/shared/src/clients/anthropicClient.ts
+  - packages/shared/tests/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - baseURL/token provider injection and error normalization
+  acceptance:
+  - existing structured output tests preserved
+  - direct mode only behind migration flag
+  verification:
+  - shared tests
+  - contract tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-001
+  - LLM-004
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T06
+  title: Migrate server LLM consumers
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T05
+  risk: medium
+  allowed_paths:
+  - packages/server/src/**
+  - packages/prjops/src/agents/**
+  - packages/devops/src/agents/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - LiteLLM logical aliases in all runtime calls
+  - 'DELTA-05 note: current LLM consumers are AGT03 escalation text, AGT_BLD classify/suggest, AGT_INC classify (packages/server/src/agents/devopsEventHandlers.ts), teamsConversationAgent, and CI report generation; AGT04/AGT02 orchestration was removed in #147'
+  acceptance:
+  - no provider key in runtime
+  - cost/route metadata recorded
+  verification:
+  - grep/fitness test
+  - package tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-001
+  - LLM-004
+  - LLM-006
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T07
+  title: Migrate Web AI SDK provider
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P2-T05
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - packages/web/tests/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - LiteLLM-compatible provider factory
+  acceptance:
+  - streaming/reasoning/tool UI preserved
+  - persona/data rules unchanged
+  verification:
+  - web tests
+  - real gateway smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-001
+  - LLM-004
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T08
+  title: Migrate Claude Code action credentials
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P2-T02
+  risk: high
+  allowed_paths:
+  - .github/actions/run-coding-agent/action.yml
+  - .github/workflows/coding-task.yml
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - ANTHROPIC_BASE_URL + scoped virtual key
+  acceptance:
+  - no ANTHROPIC_API_KEY on runner
+  - key model/budget/expiry scoped
+  verification:
+  - actionlint
+  - staging agent dry run
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-001
+  - LLM-003
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T09
+  title: Run synthetic dual-path conformance
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P2-T06
+  - P2-T07
+  - P2-T08
+  risk: medium
+  allowed_paths:
+  - verification/model-gateway/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - Bedrock vs Anthropic compatibility report
+  acceptance:
+  - tool use/streaming/thinking/cache/error mapping covered
+  - no sensitive production data
+  verification:
+  - compatibility test suite
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-002
+  - LLM-004
+  - LLM-005
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P2-T10
+  title: Cut over and deny direct provider egress
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T09
+  risk: critical
+  allowed_paths:
+  - deploy/azure/**
+  - packages/server/src/config.ts
+  - .env.example
+  - runbooks/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - production gateway-only mode and rollback
+  acceptance:
+  - direct api.anthropic.com call fails outside LiteLLM
+  - rollback key/path documented
+  verification:
+  - network negative test
+  - full CI/E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - LLM-001
+  - LLM-002
+  - LLM-003
+  - LLM-005
+  - LLM-006
+  requirement_refs: *id005
+  adr_refs: *id006
+- id: P3-T01
+  title: Provision Temporal namespace and worker connectivity
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P1-T01
+  - P0-T07
+  risk: medium
+  allowed_paths:
+  - deploy/temporal/**
+  - deploy/azure/**
+  - packages/control-plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - namespace, task queues, TLS/auth, worker bootstrap
+  acceptance:
+  - dev/staging/prod separation
+  - worker identity scoped
+  verification:
+  - Temporal connection smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-001
+  requirement_refs: &id007
+  - PRD-001
+  - PRD-002
+  - PRD-010
+  - FR-CP-001
+  - FR-CP-002
+  - FR-CP-003
+  - FR-CP-004
+  - FR-CP-005
+  - FR-CP-006
+  - FR-CP-007
+  - FR-CP-008
+  adr_refs: &id008
+  - ADR-0021
+- id: P3-T02
+  title: Implement workflow/activity base contracts
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T01
+  - P1-T04
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - retry classes, idempotency, versioning, cancellation helpers
+  acceptance:
+  - workflow code deterministic
+  - non-idempotent writes single-attempt/reconcile
+  verification:
+  - Temporal unit/replay tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-001
+  - TMP-003
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T03
+  title: Implement approval child workflow
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  - P1-T05
+  risk: high
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/server/src/http/routes/approvals.ts
+  - packages/web/src/app/approvals/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - durable approval signal/CAS/expiry
+  acceptance:
+  - restart-safe
+  - stale approval rejected
+  - no auto-approval
+  verification:
+  - unit/integration/restart tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-002
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T04
+  title: Implement CodingTaskWorkflow
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  - P3-T03
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/control-plane/src/activities/**
+  - packages/server/src/http/routes/codingTasks.ts
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - workflow-managed dispatch/callback/review state
+  acceptance:
+  - duplicate dispatch prevented
+  - callback replay safe
+  verification:
+  - workflow tests
+  - GitHub staging E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  - TMP-004
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T05
+  title: Implement Graph subscription workflow
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P3-T02
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/server/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - renewal/delta/reconcile schedules
+  acceptance:
+  - old scheduler and new workflow can shadow without duplicate writes
+  verification:
+  - time-skipping tests
+  - Graph sandbox
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T06
+  title: Implement JIT expiry and health workflows
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P3-T02
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/devops/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - durable schedules and activities
+  acceptance:
+  - expiry SLA preserved
+  - health evaluation deterministic
+  verification:
+  - time-skipping/unit tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T07
+  title: Implement report delivery workflow
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  - P3-T03
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/prjops/**
+  - packages/server/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - generation/validation/approval/delivery workflow
+  acceptance:
+  - recipient idempotency
+  - approval profiles preserved
+  verification:
+  - workflow integration tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T08
+  title: Implement Plane reconcile/promotion workflows
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/integrations/src/plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - projection/event/promotion child workflows
+  acceptance:
+  - authority boundary and stale checks preserved
+  verification:
+  - contract/integration tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T09
+  title: Shadow existing scheduler against Temporal
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P3-T05
+  - P3-T06
+  - P3-T07
+  risk: medium
+  allowed_paths:
+  - packages/server/src/index.ts
+  - verification/temporal-shadow/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - comparison report with side effects suppressed
+  - 'DELTA-01 note: the shadow inventory must cover ALL 15 currently registered scheduler tasks (see index.ts), including report-delivery-metrics, approved-deploy, prod-monitor, prjops-weekly-analyze, prjops-daily-tracker added after the pack baseline'
+  acceptance:
+  - same planned actions/times
+  - no duplicate external writes
+  verification:
+  - shadow run evidence
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T10
+  title: Cut over scheduler functions incrementally
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T09
+  risk: high
+  allowed_paths:
+  - packages/server/src/index.ts
+  - packages/server/src/config.ts
+  - runbooks/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - feature-flagged per-workflow cutover
+  acceptance:
+  - kill switch tested
+  - old path available during soak
+  verification:
+  - staging soak
+  - failure injection
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-005
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T11
+  title: Run durable execution chaos suite
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P3-T10
+  risk: medium
+  allowed_paths:
+  - verification/chaos/**
+  - packages/control-plane/tests/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - restart/timeout/duplicate/approval chaos evidence
+  acceptance:
+  - zero duplicate side effects
+  - all workflows recover or explicit fail
+  verification:
+  - chaos suite
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-001
+  - TMP-004
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T12
+  title: Retire migrated in-process loops
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T11
+  risk: high
+  allowed_paths:
+  - packages/server/src/index.ts
+  - docs/adr/**
+  - runbooks/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - dead code removal and updated ADR
+  acceptance:
+  - no migrated loop remains
+  - rollback window closed by owner
+  verification:
+  - fitness test
+  - full CI
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-001
+  - TMP-002
+  - TMP-003
+  - TMP-004
+  - TMP-005
+  - TMP-006
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P3-T13
+  title: Migrate approved-deploy and prod-monitor loops to Temporal workflows
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  - P3-T03
+  risk: high
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/server/src/scheduler/tasks/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - 'DeployDispatchWorkflow and ProdMonitorWorkflow preserving the live deployments 12-state machine and dispatched_at CAS semantics (added post-baseline by PR #149/#151)'
+  acceptance:
+  - no duplicate dispatch across cutover
+  - deployments table remains the state authority
+  - fail-closed D-04/D-16 boundaries preserved
+  verification:
+  - workflow tests
+  - shadow comparison with live tasks
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - TMP-003
+  - TMP-005
+  requirement_refs: *id007
+  adr_refs: *id008
+- id: P4-T01
+  title: Deploy agentgateway in MCP/A2A-only mode
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P1-T03
+  - P1-T08
+  risk: medium
+  allowed_paths:
+  - deploy/agentgateway/**
+  - deploy/azure/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - private gateway, auth, OTel, health
+  acceptance:
+  - LLM routes disabled
+  - production stdio disabled
+  verification:
+  - config/container smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-001
+  requirement_refs: &id009
+  - PRD-003
+  - PRD-005
+  - FR-MCP-001
+  - FR-MCP-002
+  - FR-MCP-003
+  - FR-MCP-004
+  - FR-MCP-005
+  - FR-MCP-006
+  - FR-MCP-007
+  adr_refs: &id010
+  - ADR-0023
+- id: P4-T02
+  title: Implement registry generator and schema hash gate
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P4-T01
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/mcp/**
+  - deploy/agentgateway/**
+  - contracts/tools/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - platform manifest to pinned vendor config generator
+  acceptance:
+  - unapproved schema drift blocks deploy
+  verification:
+  - generator unit tests
+  - golden files
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-001
+  - MCP-004
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T03
+  title: Implement OPA decision client and bundle
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T03
+  risk: medium
+  allowed_paths:
+  - packages/policy/**
+  - packages/shared/src/**
+  - deploy/opa/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - allow/deny/approval obligations
+  acceptance:
+  - default deny
+  - bundle version in receipts
+  verification:
+  - opa tests
+  - client tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-002
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T04
+  title: Integrate gateway with OPA and action ledger
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P4-T02
+  - P4-T03
+  - P1-T05
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/**
+  - packages/integrations/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - tool preauthorization and invocation receipts
+  acceptance:
+  - every tool call has policy decision
+  - L2/L3 linked approval
+  verification:
+  - integration tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-001
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T05
+  title: Onboard GitHub read-only MCP
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P4-T04
+  risk: medium
+  allowed_paths:
+  - deploy/agentgateway/**
+  - packages/integrations/src/github/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - repo-scoped lockdown profile
+  acceptance:
+  - no write tools
+  - private repo scope negative test
+  verification:
+  - MCP conformance
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-004
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T06
+  title: Onboard Plane read/draft MCP
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P4-T04
+  risk: medium
+  allowed_paths:
+  - deploy/agentgateway/**
+  - packages/integrations/src/plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - workspace/project-scoped profile
+  acceptance:
+  - delete/permission/critical state absent
+  - cross-workspace negative probe
+  verification:
+  - MCP conformance/security
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-001
+  - MCP-006
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T07
+  title: Onboard Confluence read/draft MCP
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P4-T04
+  risk: medium
+  allowed_paths:
+  - deploy/agentgateway/**
+  - packages/integrations/src/confluence/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - site/space/page scoped profile
+  acceptance:
+  - delete/space permission/formal publish absent
+  verification:
+  - MCP conformance
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-002
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T08
+  title: Onboard Wispr read-only MCP
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P4-T04
+  risk: medium
+  allowed_paths:
+  - deploy/agentgateway/**
+  - packages/integrations/src/wispr/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - meeting search/read profile
+  acceptance:
+  - write tools absent
+  - user/tenant isolation
+  verification:
+  - MCP conformance
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-003
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T09
+  title: Implement prompt-injection/tool-confusion defenses
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P4-T05
+  - P4-T06
+  - P4-T07
+  - P4-T08
+  risk: critical
+  allowed_paths:
+  - packages/policy/**
+  - verification/security/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - malicious corpus and taint labels
+  acceptance:
+  - content cannot grant tools/change policy/exfiltrate secrets
+  verification:
+  - security test suite
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-005
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T10
+  title: Implement tool result size/time/depth limits
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P4-T04
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/mcp/**
+  - packages/policy/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - bounded invocation profile
+  acceptance:
+  - oversized/slow/recursive calls fail safely
+  verification:
+  - load/timeout tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-006
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T11
+  title: Create MCP operations dashboard and audit queries
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P4-T04
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - packages/server/src/**
+  - docs/guide/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - tool usage/deny/error/schema drift views
+  acceptance:
+  - no content leakage
+  - role-scoped
+  verification:
+  - web/API tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-001
+  - MCP-003
+  - MCP-004
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P4-T12
+  title: Complete MCP production gate
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P4-T05
+  - P4-T06
+  - P4-T07
+  - P4-T08
+  - P4-T09
+  - P4-T10
+  - P4-T11
+  risk: critical
+  allowed_paths:
+  - verification/**
+  - docs/decisions/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - signed server-by-server allowlist
+  acceptance:
+  - all conformance/security gates green
+  verification:
+  - release checklist
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MCP-001
+  - MCP-002
+  - MCP-003
+  - MCP-004
+  - MCP-005
+  - MCP-006
+  requirement_refs: *id009
+  adr_refs: *id010
+- id: P5-T01
+  title: Define Work IQ Entra/OBO application contract
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T09
+  - P1-T04
+  risk: high
+  allowed_paths:
+  - docs/contracts/**
+  - deploy/azure/**
+  - packages/integrations/src/workiq/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - scopes, audiences, token flow, admin consent plan
+  acceptance:
+  - app-only rejected
+  - least scopes documented
+  verification:
+  - token-flow tests/design review
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-001
+  - WIQ-005
+  requirement_refs: &id011
+  - PRD-007
+  - FR-M365-001
+  - FR-M365-002
+  - FR-M365-003
+  - FR-M365-004
+  - FR-M365-005
+  - FR-M365-006
+  adr_refs: &id012
+  - ADR-0024
+- id: P5-T02
+  title: Implement Work IQ REST read/ask client
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P5-T01
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/workiq/**
+  - packages/integrations/tests/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - fetch/ask/source-ref adapter
+  acceptance:
+  - user identity preserved
+  - timeouts/error mapping
+  verification:
+  - unit/contract tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-001
+  - WIQ-005
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T03
+  title: Implement Control API delegated M365 endpoint
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P5-T02
+  - P4-T03
+  risk: medium
+  allowed_paths:
+  - packages/server/src/http/routes/**
+  - packages/server/src/auth/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - OBO validation and policy boundary
+  acceptance:
+  - wrong tenant/audience/subject denied
+  verification:
+  - route/auth tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-002
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T04
+  title: Validate Work IQ MCP through agentgateway
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P5-T01
+  - P4-T12
+  risk: high
+  allowed_paths:
+  - verification/work-iq/**
+  - deploy/agentgateway/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - OBO/token exchange conformance report
+  acceptance:
+  - identity and permission preserved end-to-end
+  verification:
+  - real tenant conformance
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-002
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T05
+  title: Choose direct or gateway Work IQ production path
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P5-T04
+  risk: high
+  allowed_paths:
+  - docs/decisions/**
+  - docs/adr/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - signed path decision
+  acceptance:
+  - gateway used only if conformance passes
+  - no silent fallback
+  verification:
+  - decision gate
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-003
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T06
+  title: Separate Graph system integration interfaces
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P5-T03
+  risk: medium
+  allowed_paths:
+  - packages/shared/src/clients/graphClient.ts
+  - packages/integrations/src/graph/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - explicit delegated vs app-only types
+  acceptance:
+  - compile-time misuse prevented
+  verification:
+  - type/unit tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-003
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T07
+  title: Implement M365 data routing policy
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P5-T03
+  - P4-T03
+  risk: critical
+  allowed_paths:
+  - packages/policy/**
+  - packages/control-plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - classification/purpose/provider obligations
+  acceptance:
+  - restricted never leaves Work IQ/M365
+  - customer route tested
+  verification:
+  - OPA/data-flow tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-004
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T08
+  title: Implement source reference and permission-trim evidence
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P5-T02
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/workiq/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - source refs, query receipt, permission negative probes
+  acceptance:
+  - results cite accessible sources only
+  verification:
+  - real tenant tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-001
+  - WIQ-002
+  - WIQ-005
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T09
+  title: Enable read/ask feature flags for pilot users
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P5-T05
+  - P5-T07
+  - P5-T08
+  risk: medium
+  allowed_paths:
+  - packages/server/src/config.ts
+  - packages/web/src/**
+  - packages/channel-teams/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - pilot routing
+  acceptance:
+  - CRUD disabled
+  - kill switch tested
+  verification:
+  - pilot E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-003
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P5-T10
+  title: Document CRUD/A2A deferred gate
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P5-T09
+  risk: medium
+  allowed_paths:
+  - docs/decisions/**
+  - docs/guide/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - explicit non-goal and future criteria
+  acceptance:
+  - no CRUD/A2A production route exists
+  verification:
+  - fitness test
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - WIQ-001
+  - WIQ-002
+  - WIQ-003
+  - WIQ-004
+  - WIQ-005
+  requirement_refs: *id011
+  adr_refs: *id012
+- id: P6-T01
+  title: Implement Wispr meeting adapter
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P4-T08
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/wispr/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - search/read/normalize adapter
+  acceptance:
+  - read-only
+  - source version/captured time retained
+  verification:
+  - unit/real account smoke
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-001
+  requirement_refs: &id013
+  - PRD-006
+  - FR-MTG-001
+  - FR-MTG-002
+  - FR-MTG-003
+  - FR-MTG-004
+  - FR-MTG-005
+  - FR-MTG-006
+  adr_refs: &id014
+  - ADR-0026
+- id: P6-T02
+  title: Implement meeting correlation engine
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P6-T01
+  - P5-T06
+  risk: medium
+  allowed_paths:
+  - packages/prjops/src/lib/**
+  - packages/control-plane/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - deterministic candidate scoring and thresholds
+  acceptance:
+  - low confidence requires human selection
+  - no LLM-only correlation
+  verification:
+  - boundary tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-001
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T03
+  title: Implement structured meeting extraction
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T10
+  - P6-T02
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/activities/**
+  - packages/shared/src/reporting/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - schema-forced summary/decision/action/risk/question
+  acceptance:
+  - source span required
+  - schema validation
+  - no invented owner/due
+  verification:
+  - model contract tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-002
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T04
+  title: Implement meeting review UI
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P6-T03
+  - P3-T03
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - packages/channel-teams/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - review/edit/approve/reject surface
+  acceptance:
+  - version/CAS
+  - classification and target shown
+  verification:
+  - UI/API tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-003
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T05
+  title: Implement Plane publication activity
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P6-T04
+  - P4-T06
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/plane/**
+  - packages/control-plane/src/activities/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - idempotent action/risk publication
+  acceptance:
+  - canonical mapping
+  - unknown-result reconcile
+  verification:
+  - integration tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-003
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T06
+  title: Implement GitHub publication activity
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P6-T04
+  - P4-T05
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/github/**
+  - packages/control-plane/src/activities/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - engineering issue/draft PR proposal
+  acceptance:
+  - no main write/merge
+  - issue dedupe
+  verification:
+  - GitHub staging E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-004
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T07
+  title: Implement Confluence publication activity
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P6-T04
+  - P4-T07
+  risk: medium
+  allowed_paths:
+  - packages/integrations/src/confluence/**
+  - packages/control-plane/src/activities/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - draft/reviewed working knowledge publication
+  acceptance:
+  - page version/CAS
+  - no duplicate page
+  verification:
+  - Confluence sandbox E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-003
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T08
+  title: Implement SharePoint formal publication activity
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P6-T04
+  - P5-T06
+  risk: high
+  allowed_paths:
+  - packages/integrations/src/sharepoint/**
+  - packages/control-plane/src/activities/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - formal minutes/evidence
+  acceptance:
+  - selected permission
+  - version/label/retention captured
+  verification:
+  - M365 sandbox E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-002
+  - MTG-004
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T09
+  title: Implement MeetingWorkflow and partial-failure handling
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P6-T05
+  - P6-T06
+  - P6-T07
+  - P6-T08
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - durable publication orchestration
+  acceptance:
+  - per-target status
+  - retry/reconcile without duplicate
+  verification:
+  - workflow chaos E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-005
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T10
+  title: Plan and execute Notion meeting-note retirement
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P6-T09
+  risk: medium
+  allowed_paths:
+  - docs/guide/**
+  - runbooks/**
+  - docs/decisions/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - inventory, selective migration, read-only/decommission plan
+  acceptance:
+  - no blanket copy
+  - canonical links validated
+  verification:
+  - migration sample review
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - MTG-001
+  - MTG-002
+  - MTG-003
+  - MTG-004
+  - MTG-005
+  requirement_refs: *id013
+  adr_refs: *id014
+- id: P6-T11
+  title: Implement PrjOps status ingest pipeline (A054, REQ-004/005, PrjOps:SPEC-INT-030)
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  - P5-T06
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/**
+  - packages/integrations/src/graph/**
+  - packages/shared/src/reporting/**
+  - packages/prjops/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - three-channel (email/Teams/GitHub) status ingest orchestration built on the preserved statusIngestContract (six-field completeness, clarification loop max 3, escalate_incomplete)
+  - canonical persistence and acceptance notification
+  acceptance:
+  - completeness/clarification parity with the preserved pure contract
+  - no duplicate ingestion for the same source message
+  - E-ING audit codes recorded
+  verification:
+  - integration tests with channel fixtures
+  - real-PostgreSQL persistence tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - ING-001
+  requirement_refs:
+  - PRD-001
+  - PRD-010
+  adr_refs:
+  - ADR-0020
+- id: P7-T01
+  title: Scaffold channel-teams package
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P1-T04
+  - P3-T02
+  risk: medium
+  allowed_paths:
+  - packages/channel-teams/**
+  - pnpm-workspace.yaml
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - adapter runtime and AG-UI contract
+  acceptance:
+  - no business state stored
+  - replaceable adapter
+  verification:
+  - package tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-001
+  requirement_refs: &id015
+  - PRD-001
+  - FR-UI-001
+  - FR-UI-002
+  - FR-UI-003
+  - FR-UI-004
+  - FR-UI-005
+  - FR-UI-006
+  adr_refs: &id016
+  - ADR-0025
+- id: P7-T02
+  title: Implement identity/thread/workflow mapping
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P7-T01
+  risk: medium
+  allowed_paths:
+  - packages/channel-teams/src/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - stable mapping and dedupe
+  acceptance:
+  - wrong user/thread cannot access workflow
+  verification:
+  - security/unit tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-001
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T03
+  title: Implement mention and subscribed-thread flow
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P7-T02
+  risk: medium
+  allowed_paths:
+  - packages/channel-teams/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - mention/start/follow-up/error behavior
+  acceptance:
+  - bot/app loops ignored
+  - fresh unmentioned thread silent
+  verification:
+  - Teams sandbox E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-001
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T04
+  title: Implement rich result components
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P7-T03
+  risk: medium
+  allowed_paths:
+  - packages/channel-teams/src/components/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - status/table/chart/incident/PR/source cards
+  acceptance:
+  - data comes from typed result, not LLM markup
+  verification:
+  - render snapshot/live E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-002
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T05
+  title: Implement approval cards and Temporal signal
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P7-T03
+  - P3-T03
+  risk: high
+  allowed_paths:
+  - packages/channel-teams/src/**
+  - packages/server/src/http/routes/approvals.ts
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - approve/reject/version flow
+  acceptance:
+  - only authorized reviewer
+  - stale card rejected
+  verification:
+  - Teams approval E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-003
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T06
+  title: Complete CopilotKit Intelligence security gate
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P7-T05
+  risk: critical
+  allowed_paths:
+  - docs/security/**
+  - docs/decisions/**
+  - verification/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - DPA/data flow/tenant/attachment/retention assessment
+  acceptance:
+  - approved or Microsoft-native fallback selected
+  verification:
+  - security gate
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-003
+  - UX-005
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T07
+  title: Add Workbench workspace data model
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P1-T05
+  - P3-T02
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - workspace/source/run/action model
+  acceptance:
+  - no workflow/SoR duplication
+  verification:
+  - DB/API/UI tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-003
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T08
+  title: Add capability grants to Workbench
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P7-T07
+  - P4-T03
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - packages/policy/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - default-none project/repo/space grants
+  acceptance:
+  - cross-project negative tests
+  verification:
+  - security E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-004
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T09
+  title: Add Teams-to-Workbench handoff
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P7-T05
+  - P7-T07
+  risk: medium
+  allowed_paths:
+  - packages/channel-teams/**
+  - packages/web/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - signed short-lived deep link
+  acceptance:
+  - identity/workflow preserved
+  - link replay/expiry protected
+  verification:
+  - E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-005
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P7-T10
+  title: Implement typed Gadget/ViewSpec phase
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P7-T08
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - docs/adr/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - approved typed mini-app components
+  acceptance:
+  - no arbitrary code/network
+  - Cloudflare Artifacts absent
+  verification:
+  - UI/security tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - UX-001
+  - UX-002
+  - UX-003
+  - UX-004
+  - UX-005
+  requirement_refs: *id015
+  adr_refs: *id016
+- id: P8-T01
+  title: Define machine-readable agent task manifest
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T04
+  - P3-T04
+  risk: medium
+  allowed_paths:
+  - contracts/agent-task/**
+  - .github/**
+  - packages/server/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - writer/reviewer/path/gates/budget schema
+  acceptance:
+  - invalid/overlapping assignments rejected
+  verification:
+  - schema/unit tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-003
+  requirement_refs: &id017
+  - PRD-008
+  - FR-AGT-001
+  - FR-AGT-002
+  - FR-AGT-003
+  - FR-AGT-004
+  - FR-AGT-005
+  - FR-AGT-006
+  adr_refs: &id018
+  - ADR-0027
+- id: P8-T02
+  title: Implement pre/post path boundary guard
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P8-T01
+  risk: critical
+  allowed_paths:
+  - .github/actions/run-coding-agent/**
+  - scripts/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - allowed/forbidden path enforcement
+  acceptance:
+  - agent cannot alter .git/credentials/forbidden governance paths
+  verification:
+  - malicious fixture tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-001
+  - COD-004
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T03
+  title: Issue scoped LiteLLM runner credentials
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P2-T08
+  - P8-T01
+  risk: high
+  allowed_paths:
+  - packages/control-plane/src/activities/**
+  - deploy/litellm/**
+  - .github/workflows/coding-task.yml
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - job-scoped key lifecycle
+  acceptance:
+  - model/budget/expiry enforced
+  - revoked after run
+  verification:
+  - key negative/expiry tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-002
+  - COD-004
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T04
+  title: Harden Claude Code execution profile
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P8-T02
+  - P8-T03
+  risk: medium
+  allowed_paths:
+  - .github/actions/run-coding-agent/action.yml
+  - docs/plans/2026-08-final-architecture/07_agent_execution/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - pinned CLI, xhigh profile label, permissions/tool policy
+  acceptance:
+  - PR-only
+  - evidence callback
+  - no direct provider key
+  verification:
+  - staging E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-003
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T05
+  title: Enable Droid execution profile
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P8-T02
+  - P8-T03
+  risk: medium
+  allowed_paths:
+  - .github/actions/run-coding-agent/action.yml
+  - .factory/**
+  - docs/adr/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - pinned Droid CLI/exec path
+  acceptance:
+  - same branch/PR/security controls as Claude
+  verification:
+  - staging E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-005
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T06
+  title: Implement Codex independent review job
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P8-T01
+  risk: medium
+  allowed_paths:
+  - .github/workflows/**
+  - scripts/**
+  - docs/plans/2026-08-final-architecture/07_agent_execution/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - read-only diff/spec/security review artifact
+  acceptance:
+  - reviewer cannot push to writer branch
+  - findings structured
+  verification:
+  - workflow security tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-006
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T07
+  title: Implement writer-reviewer handoff state
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P8-T04
+  - P8-T05
+  - P8-T06
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/server/src/db/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - handoff/rework/approval transitions
+  acceptance:
+  - role change explicit
+  - commit range pinned
+  verification:
+  - workflow tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-001
+  - COD-002
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T08
+  title: Add agent execution evidence callback
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P8-T07
+  risk: medium
+  allowed_paths:
+  - .github/workflows/coding-task.yml
+  - packages/server/src/http/routes/codingTasks.ts
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - commands/tests/skips/diff/deps/security evidence
+  acceptance:
+  - callback signed/idempotent/sanitized
+  verification:
+  - route/workflow tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-004
+  - COD-005
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T09
+  title: Add budget/concurrency/kill switch
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P8-T03
+  - P8-T07
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/**
+  - packages/server/src/config.ts
+  - deploy/litellm/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - project/agent budgets and queue limits
+  acceptance:
+  - budget exceed stops before new call
+  - active jobs cancellable
+  verification:
+  - load/policy tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-001
+  - COD-002
+  - COD-003
+  - COD-004
+  - COD-005
+  - COD-006
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P8-T10
+  title: Run full two-model PR lifecycle
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P8-T04
+  - P8-T05
+  - P8-T06
+  - P8-T08
+  - P8-T09
+  risk: critical
+  allowed_paths:
+  - verification/agent-e2e/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - Claude writer+Codex reviewer and Droid writer+Claude reviewer evidence
+  acceptance:
+  - branch protection/human merge/CI all proven
+  verification:
+  - real repository E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - COD-001
+  - COD-002
+  - COD-003
+  - COD-004
+  - COD-005
+  - COD-006
+  requirement_refs: *id017
+  adr_refs: *id018
+- id: P9-T01
+  title: Propagate OTel across new components
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P1-T07
+  - P2-T10
+  - P4-T12
+  - P3-T10
+  risk: medium
+  allowed_paths:
+  - packages/**
+  - deploy/otel/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - common traces/metrics/logs
+  acceptance:
+  - correlation joins work across API/workflow/model/tool/runner
+  verification:
+  - trace integration test
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-001
+  requirement_refs: &id019
+  - PRD-009
+  - FR-OBS-001
+  - FR-OBS-002
+  - FR-OBS-003
+  - FR-OBS-004
+  - FR-OBS-005
+  adr_refs: &id020
+  - ADR-0020
+  - ADR-0021
+  - ADR-0022
+  - ADR-0023
+- id: P9-T02
+  title: Implement policy/model/tool decision receipts
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P9-T01
+  - P1-T05
+  risk: medium
+  allowed_paths:
+  - packages/server/src/db/**
+  - packages/control-plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - append-only receipts/read models
+  acceptance:
+  - no sensitive bodies
+  - policy/version complete
+  verification:
+  - DB/query tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-002
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T03
+  title: Implement IncidentWorkflow
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P3-T02
+  - P9-T01
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/src/workflows/**
+  - packages/devops/src/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - alert/context/RCA/repair/deploy/recovery flow
+  acceptance:
+  - no automatic prod change
+  - severity deterministic
+  verification:
+  - workflow tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-003
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T04
+  title: Implement incident context collectors
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P9-T03
+  - P4-T12
+  - P5-T09
+  risk: medium
+  allowed_paths:
+  - packages/integrations/**
+  - packages/control-plane/src/activities/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - deployment/PR/log/trace/Runbook context
+  acceptance:
+  - resource scopes enforced
+  - prompt injection labels
+  verification:
+  - integration/security tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-004
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T05
+  title: Implement RCA and repair PR generation
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P9-T04
+  - P8-T10
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/**
+  - .github/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - RCA candidate and repair task
+  acceptance:
+  - evidence cited
+  - writer route and PR-only
+  verification:
+  - incident E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-005
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T06
+  title: Implement SLO recovery gate
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P9-T03
+  risk: medium
+  allowed_paths:
+  - packages/devops/src/lib/**
+  - packages/control-plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - deterministic recovery criteria
+  acceptance:
+  - LLM cannot declare recovery
+  - monitor source version recorded
+  verification:
+  - boundary tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-001
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T07
+  title: Publish Runbook and postmortem outputs
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P9-T05
+  - P9-T06
+  - P6-T07
+  - P6-T08
+  risk: medium
+  allowed_paths:
+  - packages/control-plane/**
+  - packages/integrations/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - Confluence Runbook update, SharePoint postmortem, Plane actions
+  acceptance:
+  - human approval and idempotency
+  verification:
+  - E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-003
+  - AIO-004
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T08
+  title: Create operations dashboards and alerts
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P9-T01
+  - P9-T02
+  risk: medium
+  allowed_paths:
+  - packages/web/src/**
+  - deploy/azure/**
+  - docs/guide/**
+  - ops/azure-monitor-alerts/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - workflow/gateway/model/tool/incident SLO dashboards
+  - 'DELTA-04 correction: extend the EXISTING monitoring assets — ops/azure-monitor-alerts/ (6 KQL rules), packages/server/src/observability/httpMetrics.ts and the 7d/3d rolling delivery gauges (PR #148) — do not recreate retired Prometheus rules'
+  acceptance:
+  - alert owners/runbook links/thresholds defined
+  verification:
+  - alert simulation
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-001
+  - AIO-002
+  - AIO-003
+  - AIO-004
+  - AIO-005
+  requirement_refs: *id019
+  adr_refs: *id020
+- id: P9-T09
+  title: Implement incident similarity datastore (A053, DevOps:SPEC-INT-030)
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P9-T04
+  risk: medium
+  allowed_paths:
+  - packages/server/src/db/**
+  - packages/devops/src/db/**
+  - packages/control-plane/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - 'incident feature store fed by the enriched triage audit details accumulated since PR #145'
+  - deterministic 90-day top-5 similarity provider replacing the recency proxy behind the existing SimilarIncidentsProvider seam
+  acceptance:
+  - provider swap requires no rewiring (seam preserved)
+  - similarity scoring deterministic and boundary-tested
+  verification:
+  - real-PostgreSQL tests
+  - similarity fixture suite
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - AIO-006
+  requirement_refs:
+  - PRD-009
+  adr_refs:
+  - ADR-0020
+- id: P10-T01
+  title: Implement Azure Bicep module structure
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P0-T07
+  - P1-T08
+  risk: medium
+  allowed_paths:
+  - deploy/azure/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - Front Door/WAF/ACA/ACR/PG/Key Vault/identity/network modules
+  acceptance:
+  - what-if clean
+  - no portal-only required resource
+  verification:
+  - bicep build/lint/what-if
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-001
+  requirement_refs: &id021
+  - PRD-010
+  - FR-CP-008
+  - FR-OBS-005
+  adr_refs: &id022
+  - ADR-0016
+  - ADR-0028
+- id: P10-T02
+  title: Implement private networking and egress policy
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P10-T01
+  - P2-T10
+  - P4-T01
+  risk: critical
+  allowed_paths:
+  - deploy/azure/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - private endpoints/DNS/allowlisted egress
+  acceptance:
+  - direct provider/MCP bypass denied
+  verification:
+  - network negative tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-001
+  - REL-002
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T03
+  title: Implement identity and secret provisioning
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P10-T01
+  - P0-T09
+  risk: critical
+  allowed_paths:
+  - deploy/azure/**
+  - runbooks/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - managed identities/federation/Key Vault RBAC
+  acceptance:
+  - environment separation
+  - rotation/break-glass
+  verification:
+  - identity negative tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-001
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T04
+  title: Implement database roles/schemas/backups
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P10-T01
+  - P1-T05
+  risk: medium
+  allowed_paths:
+  - deploy/azure/**
+  - packages/devops/src/db/**
+  - runbooks/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - separate roles/schemas/PITR/LTR
+  acceptance:
+  - audit mutation prohibited
+  - restore tested
+  verification:
+  - DB integration/restore test
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-001
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T05
+  title: Implement deployment pipelines and provenance
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P10-T01
+  risk: medium
+  allowed_paths:
+  - .github/workflows/**
+  - deploy/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - build/sign/SBOM/provenance/staged rollout
+  acceptance:
+  - digest deploy
+  - environment approvals
+  - rollback
+  verification:
+  - actionlint/pipeline staging test
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-003
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T06
+  title: Execute end-to-end security verification
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P10-T02
+  - P10-T03
+  - P8-T10
+  - P9-T07
+  risk: critical
+  allowed_paths:
+  - verification/security/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - threat-model test evidence
+  acceptance:
+  - no critical/high unresolved
+  - all negative probes
+  verification:
+  - security suite/pentest
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-004
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T07
+  title: Execute performance and load verification
+  writer: codex-gpt56-sol-high
+  reviewer: claude-code-fable5-xhigh
+  depends_on:
+  - P10-T05
+  - P9-T08
+  risk: medium
+  allowed_paths:
+  - verification/performance/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - baseline comparison and SLO report
+  acceptance:
+  - no accepted regression
+  - gateway overhead within target or owner exception
+  verification:
+  - load tests
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-005
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T08
+  title: Execute backup/restore/DR rehearsal
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P10-T04
+  - P10-T05
+  risk: critical
+  allowed_paths:
+  - verification/dr/**
+  - runbooks/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - same-region restore and regional procedure evidence
+  acceptance:
+  - RPO/RTO target met or explicit owner exception
+  verification:
+  - restore/DR rehearsal
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-006
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T09
+  title: Run staged pilot and rollback drill
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P10-T06
+  - P10-T07
+  - P10-T08
+  risk: critical
+  allowed_paths:
+  - verification/pilot/**
+  - docs/decisions/**
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - pilot cohort/canary/kill-switch/rollback evidence
+  acceptance:
+  - old path recoverable during window
+  - user acceptance
+  verification:
+  - pilot E2E
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-007
+  requirement_refs: *id021
+  adr_refs: *id022
+- id: P10-T10
+  title: Go-live and close migration paths
+  writer: claude-code-fable5-xhigh
+  reviewer: codex-gpt56-sol-high
+  depends_on:
+  - P10-T09
+  risk: critical
+  allowed_paths:
+  - docs/decisions/**
+  - runbooks/**
+  - packages/**
+  - .env.example
+  forbidden_paths:
+  - main direct push
+  - production configuration without approved environment gate
+  deliverables:
+  - signed release, deprecation/removal PR plan
+  acceptance:
+  - all release gates green
+  - no unsupported completion claims
+  verification:
+  - mise run ci + production evidence
+  rollback: Revert the task PR and leave the previous path enabled.
+  acceptance_gate_ids:
+  - REL-001
+  - REL-002
+  - REL-003
+  - REL-004
+  - REL-005
+  - REL-006
+  - REL-007
+  - REL-008
+  requirement_refs: *id021
+  adr_refs: *id022

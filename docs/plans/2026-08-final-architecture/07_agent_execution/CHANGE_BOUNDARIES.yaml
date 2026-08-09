@@ -1,0 +1,100 @@
+schema_version: '1.0'
+global_forbidden_actions:
+- push to main
+- force push
+- automatic merge
+- direct production mutation
+- disable branch protection
+- weaken CODEOWNERS
+- store provider/master secrets in repo/client/runner logs
+- register MCP merge/deploy/delete/permission/retention tools
+- enable Cloudflare Artifacts
+- make Notion a baseline system of record
+global_invariants:
+- preserve deterministic lib logic
+- preserve append-only audit
+- sanitize at storage/LLM/output
+- permission filter at retrieval
+- all external clients injectable
+- evidence-based completion
+components:
+  temporal:
+    allowed:
+    - packages/control-plane/**
+    - packages/server/**
+    - docs/adr/**
+    - tests/**
+    - deploy/temporal/**
+    forbidden:
+    - network calls in workflow code
+    - nondeterministic clock/random in workflow
+    - unversioned breaking workflow changes
+  litellm:
+    allowed:
+    - packages/integrations/src/litellm/**
+    - deploy/litellm/**
+    - packages/shared/src/clients/**
+    forbidden:
+    - LiteLLM MCP/A2A enablement
+    - client provider keys
+    - silent provider fallback
+  agentgateway:
+    allowed:
+    - packages/integrations/src/mcp/**
+    - deploy/agentgateway/**
+    - contracts/**
+    forbidden:
+    - LLM routing
+    - high-risk tools
+    - token passthrough
+  opa:
+    allowed:
+    - packages/policy/**
+    - policies/rego/**
+    forbidden:
+    - fail-open production
+    - replacement of native SoR authorization
+  workiq:
+    allowed:
+    - packages/integrations/src/workiq/**
+    - packages/integrations/src/graph/**
+    - packages/server/**
+    forbidden:
+    - application-only Work IQ
+    - loss of user/tenant/audience
+    - restricted output to external LLM
+  teams:
+    allowed:
+    - packages/channel-teams/**
+    - packages/server/**
+    - docs/teams-app/**
+    forbidden:
+    - workflow state in adapter
+    - tenant-wide ambient permission
+    - formal record without publication
+  web:
+    allowed:
+    - packages/web/**
+    forbidden:
+    - raw unrestricted MCP access from browser
+    - client secrets
+    - UI-only authorization
+  coding_agents:
+    allowed:
+    - .github/**
+    - packages/control-plane/**
+    - runbooks/**
+    forbidden:
+    - same branch concurrent writers
+    - main push
+    - auto merge
+    - production network
+  database:
+    allowed:
+    - packages/devops/src/db/migrations/**
+    - packages/devops/src/db/schema.sql
+    - packages/server/src/db/**
+    forbidden:
+    - inline ALTER in fresh schema
+    - audit UPDATE/DELETE permission
+    - destructive migration without expand/contract

@@ -1,0 +1,30 @@
+schemaVersion: '1.0'
+taskId: P?-T??
+writer: replace
+baseSha: replace
+headSha: replace
+branch: replace
+pullRequestUrl: replace
+changedFiles: []
+requirementsImplemented: []
+designDecisionsWithinScope: []
+commandsRun:
+- command: replace
+  result: pass|fail
+  evidence: replace
+commandsNotRun:
+- command: replace
+  reason: replace
+  blocking: true
+acceptanceGates:
+- id: replace
+  result: pass|fail|blocked
+  evidence: replace
+migrationAndRollback:
+  featureFlag: replace
+  rollbackTested: false
+  notes: replace
+securityAndDataImpact: []
+dependencyChanges: []
+residualRisks: []
+ownerDecisionsNeeded: []

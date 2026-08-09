@@ -1,0 +1,14 @@
+stateDiagram-v2
+  [*] --> Proposed
+  Proposed --> WaitingApproval
+  WaitingApproval --> Approved: valid actor + expectedVersion
+  WaitingApproval --> Rejected: reason required
+  WaitingApproval --> Expired: deadline
+  WaitingApproval --> Cancelled
+  Approved --> Applying
+  Applying --> Applied
+  Applying --> Failed
+  Failed --> WaitingApproval: revised proposal/new version
+  Rejected --> [*]
+  Expired --> [*]
+  Applied --> [*]

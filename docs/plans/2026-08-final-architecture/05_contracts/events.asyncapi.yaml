@@ -1,0 +1,61 @@
+asyncapi: 3.0.0
+info:
+  title: AI Ops Platform Event Contracts
+  version: 1.0.0-draft
+channels:
+  workflowEvents:
+    address: aiops.workflow.events.v1
+    messages:
+      workflowEvent:
+        $ref: '#/components/messages/WorkflowEvent'
+  integrationEvents:
+    address: aiops.integration.events.v1
+    messages:
+      integrationEvent:
+        $ref: '#/components/messages/IntegrationEvent'
+operations:
+  publishWorkflowEvent:
+    action: send
+    channel: { $ref: '#/channels/workflowEvents' }
+  receiveIntegrationEvent:
+    action: receive
+    channel: { $ref: '#/channels/integrationEvents' }
+components:
+  messages:
+    WorkflowEvent:
+      name: WorkflowEvent
+      payload:
+        $ref: '#/components/schemas/EventEnvelope'
+    IntegrationEvent:
+      name: IntegrationEvent
+      payload:
+        $ref: '#/components/schemas/EventEnvelope'
+  schemas:
+    EventEnvelope:
+      type: object
+      additionalProperties: false
+      required: [eventId, eventType, schemaVersion, source, occurredAt, receivedAt, traceId, correlationId, dedupeKey, payload]
+      properties:
+        eventId: { type: string, format: uuid }
+        eventType: { type: string, maxLength: 200 }
+        schemaVersion: { type: string, pattern: '^v[0-9]+$' }
+        source: { type: string }
+        subject: { type: string }
+        actorId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+        traceId: { type: string, format: uuid }
+        correlationId: { type: string, format: uuid }
+        workflowId: { type: string }
+        projectId: { type: string }
+        classification: { type: string }
+        dedupeKey: { type: string, minLength: 1, maxLength: 512 }
+        sourceReference:
+          type: object
+          properties:
+            objectId: { type: string }
+            version: { type: string }
+            url: { type: string, format: uri }
+        payload:
+          type: object
+          description: Allowlisted normalized fields only. Raw external payload must not be persisted here.

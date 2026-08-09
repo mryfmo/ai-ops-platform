@@ -1,0 +1,19 @@
+sequenceDiagram
+  participant U as User
+  participant C as Control/Temporal
+  participant P as OPA
+  participant R as GitHub Runner
+  participant A as Claude Code or Droid
+  participant G as GitHub
+  participant V as Codex/Human Reviewer
+  U->>C: request coding task
+  C->>P: authorize task/resources
+  P-->>C: allow + limits + approval
+  U->>C: explicit approval
+  C->>R: dispatch one-writer manifest
+  R->>A: scoped LiteLLM/MCP credentials
+  A->>R: code/tests in task branch
+  R->>G: push branch + PR
+  G->>V: independent review/CI
+  V-->>G: approve or request changes
+  Note over G: human-only merge

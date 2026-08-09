@@ -1,0 +1,64 @@
+schema_version: '1.0'
+pack_id: ai-ops-platform-final-implementation-pack-2026-08-09
+title: ai-ops-platform 最終構成 実装・検証パック
+language: ja-JP
+created_at: '2026-08-09T09:00:00+09:00'
+target_repository: mryfmo/ai-ops-platform
+baseline:
+  branch: main
+  commit: 49e2e3c0a3a9d30be46b2a3ae0727009d9eec324
+  tree: b72564bb012729869616cb27615070a71c5e8df2
+# IMPORTED COPY (2026-08-10): corrections applied per approved baseline-delta —
+# see IMPORT_NOTES.md. The original immutable pack is references/ai-ops-platform-final-implementation-pack_2026-08-09.zip.
+purpose: Claude Code Fable-5 xhigh と Codex GPT-5.6 Sol high が、既存要件・監査・決定性を維持しながら最終構成を段階実装・独立検証するための実装正本。
+execution_profiles:
+  primary_implementation: claude-code-fable5-xhigh
+  independent_implementation_and_review: codex-gpt56-sol-high
+  production_worker_target:
+  - claude-code
+  - droid
+accepted_architecture:
+  cloud_baseline: Azure managed platform
+  control_plane: Temporal + thin Control API + PostgreSQL ledgers
+  inference_plane: LiteLLM; Amazon Bedrock default, Anthropic API controlled alternative
+  access_plane: agentgateway for MCP/A2A only
+  policy: OPA
+  m365_intelligence: Microsoft Work IQ delegated/OBO
+  m365_system_integration: Microsoft Graph app-only/events/formal deterministic operations
+  user_surfaces:
+  - OpenTag-derived Teams channel surface
+  - existing Next.js Web Workbench with selected Cloudflare OS design patterns
+  systems_of_record:
+  - Plane
+  - GitHub
+  - Confluence
+  - SharePoint
+  meeting_intelligence: Wispr Flow
+  observability: OpenTelemetry
+explicit_exclusions:
+- Cloudflare Artifacts
+- Cloudflare OS runtime as production control plane
+- Notion as baseline knowledge system
+- LLM routing in agentgateway
+- MCP/A2A routing in LiteLLM
+- MCP merge/deploy/delete/permission/retention tools
+- AI direct push to main, automatic merge, or direct production mutation
+reading_order:
+- START_HERE.md
+- 00_governance/01_product_intent_and_invariants.md
+- BASELINE.md
+- 03_architecture/01_target_architecture.md
+- 06_implementation/01_master_plan.md
+- 06_implementation/02_wbs.yaml
+- 07_agent_execution/AGENTS_ADDENDUM.md
+- 08_verification/01_test_strategy.md
+validation:
+  command: uv run --with pyyaml --with jsonschema python scripts/validate_pack.py
+  summary_command: uv run --with pyyaml python scripts/render_task_summary.py
+  checksum_file: SHA256SUMS
+statistics:
+  content_files_excluding_checksums: 99
+  wbs_tasks: 113
+  acceptance_gates: 64
+  mermaid_diagrams: 10
+  candidate_adrs: 9

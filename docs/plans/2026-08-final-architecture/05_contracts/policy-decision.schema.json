@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OPA policy decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "reasons",
+    "obligations",
+    "policyBundleVersion"
+  ],
+  "properties": {
+    "decision": {
+      "enum": [
+        "allow",
+        "deny",
+        "require_approval"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "obligations": {
+      "type": "object",
+      "properties": {
+        "redactFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedProvider": {
+          "enum": [
+            "bedrock",
+            "anthropic",
+            "none"
+          ]
+        },
+        "requireHumanApproval": {
+          "type": "boolean"
+        },
+        "maxResultBytes": {
+          "type": "integer"
+        },
+        "allowedResourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "policyBundleVersion": {
+      "type": "string"
+    },
+    "decisionId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}

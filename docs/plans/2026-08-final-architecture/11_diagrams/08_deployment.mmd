@@ -1,0 +1,17 @@
+flowchart TB
+  AFD[Azure Front Door + WAF] --> ACA[Azure Container Apps]
+  subgraph ACA
+    Server[Control API + Web]
+    Workers[Temporal Workers]
+    LiteLLM
+    AGW[agentgateway]
+    OPA
+    OTel[OTel Collector]
+  end
+  ACA --> PG[(Azure PostgreSQL)]
+  ACA --> KV[Key Vault]
+  ACA --> ACR[Container Registry]
+  Workers --> TemporalCloud[Temporal Cloud or approved AKS profile]
+  LiteLLM --> Bedrock[AWS Bedrock]
+  LiteLLM --> Anthropic[Anthropic API]
+  AGW --> SaaS[MCP/A2A services]

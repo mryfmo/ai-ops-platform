@@ -1,0 +1,19 @@
+flowchart TB
+  Teams --> Channel[Teams Channel Adapter]
+  Web[Next.js Workbench] --> Control[Hono Control API]
+  Channel --> Control
+  Control --> Temporal[Temporal]
+  Temporal --> Workers[Workflow/Activity Workers]
+  Workers --> LiteLLM[LiteLLM]
+  Workers --> AGW[agentgateway]
+  Workers --> OPA[OPA]
+  Workers --> Graph[Graph]
+  AGW --> WorkIQ[Work IQ]
+  AGW --> Ext[Wispr/Plane/GitHub/Confluence]
+  LiteLLM --> Bedrock[Bedrock]
+  LiteLLM --> Anthropic[Anthropic API]
+  Workers --> PG[(PostgreSQL)]
+  Control --> OTel[OpenTelemetry]
+  Workers --> OTel
+  LiteLLM --> OTel
+  AGW --> OTel

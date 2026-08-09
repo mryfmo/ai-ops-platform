@@ -1,0 +1,119 @@
+schema_version: '1.0'
+defaults:
+  environment: all
+  fail_closed: true
+flags:
+- name: inference.litellm.enabled
+  default: false
+  owner: ai-platform
+  stages:
+  - shadow
+  - limited
+  - primary
+  kill_switch: true
+- name: inference.anthropic_direct_fallback.enabled
+  default: false
+  owner: security+ai-platform
+  requires:
+  - classification<=internal
+  - explicit-provider-allow
+  kill_switch: true
+- name: control.temporal.enabled
+  default: false
+  owner: control-plane
+  stages:
+  - shadow
+  - limited
+  - primary
+  kill_switch: true
+- name: control.legacy_scheduler.enabled
+  default: true
+  owner: operations
+  mutually_exclusive_primary_with: control.temporal.enabled
+- name: access.agentgateway.enabled
+  default: false
+  owner: security
+  stages:
+  - read-only
+  - draft
+  - limited-write
+  kill_switch: true
+- name: policy.opa.enforce
+  default: false
+  owner: security
+  modes:
+  - log-only
+  - enforce
+  kill_switch: true
+- name: m365.workiq.read.enabled
+  default: false
+  owner: m365
+  requires:
+  - delegated-user
+  - obo-conformance
+  kill_switch: true
+- name: m365.workiq.write.enabled
+  default: false
+  owner: m365+security
+  note: Phase 2; not initial production
+- name: teams.opentag_surface.enabled
+  default: false
+  owner: product+m365
+  scope: allowlisted teams/channels
+- name: web.workbench.capabilities.enabled
+  default: false
+  owner: product+security
+- name: meetings.wispr.enabled
+  default: false
+  owner: data-owner
+  scope: approved meeting classes only
+- name: knowledge.confluence_publish.enabled
+  default: false
+  owner: knowledge-owner
+  requires:
+  - human-review
+- name: knowledge.sharepoint_formal_publish.enabled
+  default: false
+  owner: records-owner
+  requires:
+  - formal-approval
+- name: coding.claude.enabled
+  default: false
+  # PACK-05 correction (2026-08-10): the現行 coding-task path (direct ANTHROPIC_API_KEY)
+  # is GRANDFATHERED and stays operational until P2-T08 + P0-T02 complete the cutover.
+  # This flag governs the NEW gateway-based path only; it does not disable the legacy path.
+  owner: github-owner
+  requires:
+  - branch-protection
+  - runner-e2e
+- name: coding.droid.enabled
+  default: false
+  owner: github-owner
+  requires:
+  - pinned-cli
+  - runner-e2e
+  - branch-protection
+- name: coding.codex_review.enabled
+  default: false
+  owner: github-owner
+  requires:
+  - read-only-review-contract
+- name: aiops.incident_rca.enabled
+  default: false
+  owner: operations
+  stages:
+  - shadow
+  - suggestion
+  - repair-pr
+- name: aiops.auto_production_remediation.enabled
+  default: false
+  owner: security
+  immutable_false: true
+- name: cloudflare.artifacts.enabled
+  default: false
+  owner: architecture
+  immutable_false: true
+- name: notion.baseline.enabled
+  default: false
+  owner: architecture
+  immutable_false: true

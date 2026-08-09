@@ -1,0 +1,75 @@
+schema_version: '1.0'
+levels:
+  L0:
+    description: public read
+    default: allow
+  L1:
+    description: internal scoped read
+    default: allow_audit
+  L2:
+    description: draft/staged side effect
+    default: require_batch_approval
+  L3:
+    description: limited business write
+    default: require_explicit_approval
+  L4:
+    description: branch/PR creation
+    default: runner_only
+  L5:
+    description: merge/deploy/delete/permission
+    default: not_registered
+  L6:
+    description: production direct/db/retention
+    default: not_registered
+initial_tools:
+- server: wispr
+  tool_group: meeting-read
+  risk: L1
+  operations:
+  - search
+  - read
+- server: github
+  tool_group: repo-investigation
+  risk: L1
+  operations:
+  - read
+  - search
+  - inspect_checks
+- server: plane
+  tool_group: work-items
+  risk: L1
+  operations:
+  - read
+  - search
+- server: plane
+  tool_group: draft-work-item
+  risk: L2
+  operations:
+  - draft
+- server: confluence
+  tool_group: knowledge-read
+  risk: L1
+  operations:
+  - read
+  - search
+- server: confluence
+  tool_group: draft-page
+  risk: L2
+  operations:
+  - draft
+- server: work-iq
+  tool_group: m365-intelligence
+  risk: L1
+  operations:
+  - fetch
+  - ask
+  - get_schema
+globally_forbidden:
+- merge_pull_request
+- deploy_production
+- delete_project
+- delete_space
+- modify_permissions
+- modify_retention
+- execute_production_sql
+- send_email_without_approval

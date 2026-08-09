@@ -1,0 +1,10 @@
+stateDiagram-v2
+  [*] --> Disabled
+  Disabled --> Shadow
+  Shadow --> Limited: evidence green
+  Limited --> Primary: owner approval
+  Primary --> OldPathRemoved: rollback window complete
+  Shadow --> Disabled: failure
+  Limited --> Disabled: rollback
+  Primary --> Limited: degrade scope
+  Primary --> Disabled: emergency kill

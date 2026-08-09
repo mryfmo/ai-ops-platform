@@ -1,0 +1,553 @@
+schema_version: '1.0'
+baseline_commit: 49e2e3c0a3a9d30be46b2a3ae0727009d9eec324
+gates:
+- id: GOV-001
+  phase: P0
+  title: Baseline and delta approved
+  required_evidence:
+  - HEAD/tree
+  - mise run ci result
+  - baseline-delta owner approval
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: GOV-002
+  phase: P0
+  title: Main branch protection effective
+  required_evidence:
+  - API output
+  - negative direct push/merge bypass
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: GOV-003
+  phase: P0
+  title: Architecture ADRs and supersession complete
+  required_evidence:
+  - ADR-0020..0028
+  - traceability green
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: GOV-004
+  phase: P0
+  title: Cloudflare Artifacts and Notion excluded by fitness check
+  required_evidence:
+  - CI check output
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: GOV-005
+  phase: P0
+  title: One-writer contract machine-validated
+  required_evidence:
+  - WBS validation
+  - duplicate owner negative fixture
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: CON-001
+  phase: P1
+  title: Control API OpenAPI valid
+  required_evidence:
+  - schema validation
+  - generated client smoke
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: CON-002
+  phase: P1
+  title: Async events versioned and compatible
+  required_evidence:
+  - AsyncAPI validation
+  - N/N-1 consumer test
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: CON-003
+  phase: P1
+  title: Ledger migration idempotent
+  required_evidence:
+  - fresh DB
+  - upgrade DB
+  - second apply no-op
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: CON-004
+  phase: P1
+  title: Policy schemas reject unknown fields
+  required_evidence:
+  - JSON schema tests
+  - malformed/oversized input
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: CON-005
+  phase: P1
+  title: MCP registry and risk catalog consistent
+  required_evidence:
+  - manifest validation
+  - high-risk tool fixture rejected
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: LLM-001
+  phase: P2
+  title: All application inference uses LiteLLM logical aliases
+  required_evidence:
+  - egress scan
+  - runtime trace
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: LLM-002
+  phase: P2
+  title: Bedrock default and controlled Anthropic path
+  required_evidence:
+  - routing tests
+  - classification matrix
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: LLM-003
+  phase: P2
+  title: No provider/master secret on clients/runners
+  required_evidence:
+  - secret scan
+  - process/env negative test
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: LLM-004
+  phase: P2
+  title: Structured outputs preserve schemas
+  required_evidence:
+  - golden fixtures
+  - invalid response rejection
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: LLM-005
+  phase: P2
+  title: Fallback only for permitted transport/service failures
+  required_evidence:
+  - 429/5xx tests
+  - no fallback for policy/safety/4xx
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: LLM-006
+  phase: P2
+  title: Cost/usage attribution complete
+  required_evidence:
+  - virtual key/user/project records
+  - OTel spans
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: TMP-001
+  phase: P3
+  title: Workflow replay succeeds
+  required_evidence:
+  - recorded histories
+  - replay command
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: TMP-002
+  phase: P3
+  title: Approval is versioned and stale signal rejected
+  required_evidence:
+  - signal tests
+  - stale version negative
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: TMP-003
+  phase: P3
+  title: External side effects are idempotent
+  required_evidence:
+  - lost-response retry test
+  - no duplicate object
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: TMP-004
+  phase: P3
+  title: Worker crash resumes workflow
+  required_evidence:
+  - kill/restart test
+  - state preserved
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: TMP-005
+  phase: P3
+  title: Legacy scheduler shadow equivalence
+  required_evidence:
+  - due-set comparison
+  - duplicate/missed 0
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: TMP-006
+  phase: P3
+  title: Cancellation and compensation audited
+  required_evidence:
+  - cancel test
+  - compensation event
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MCP-001
+  phase: P4
+  title: Default deny tool policy
+  required_evidence:
+  - OPA/gateway tests
+  - unknown tool denied
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MCP-002
+  phase: P4
+  title: No token passthrough/audience confusion
+  required_evidence:
+  - OAuth conformance
+  - wrong audience rejected
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MCP-003
+  phase: P4
+  title: Prompt injection cannot expand capability
+  required_evidence:
+  - malicious source suite
+  - tool access unchanged
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MCP-004
+  phase: P4
+  title: High-risk tools absent
+  required_evidence:
+  - registry diff
+  - merge/deploy/delete/permission search
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MCP-005
+  phase: P4
+  title: Gateway failure is fail-closed
+  required_evidence:
+  - outage test
+  - no direct bypass
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MCP-006
+  phase: P4
+  title: All calls correlated and audited
+  required_evidence:
+  - trace/actor/tool/resource/result
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: WIQ-001
+  phase: P5
+  title: Work IQ requires delegated user/OBO
+  required_evidence:
+  - real tenant E2E
+  - app-only rejected
+  negative_test: null
+  environment: sandbox-m365
+  blocking: true
+- id: WIQ-002
+  phase: P5
+  title: Permission trimming and source refs preserved
+  required_evidence:
+  - two-user differential test
+  negative_test: null
+  environment: sandbox-m365
+  blocking: true
+- id: WIQ-003
+  phase: P5
+  title: Graph remains system/background path
+  required_evidence:
+  - event/app-only E2E
+  negative_test: null
+  environment: sandbox-m365
+  blocking: true
+- id: WIQ-004
+  phase: P5
+  title: Restricted data does not leave M365 boundary
+  required_evidence:
+  - classification egress negative
+  negative_test: null
+  environment: sandbox-m365
+  blocking: true
+- id: WIQ-005
+  phase: P5
+  title: Issuer/tenant/audience validation
+  required_evidence:
+  - multi-tenant negative
+  negative_test: null
+  environment: sandbox-m365
+  blocking: true
+- id: MTG-001
+  phase: P6
+  title: Meeting note matched to correct event/project
+  required_evidence:
+  - time/title/participants matcher fixtures
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MTG-002
+  phase: P6
+  title: Human review required before publication
+  required_evidence:
+  - approval workflow
+  - bypass negative
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MTG-003
+  phase: P6
+  title: Confluence/SharePoint roles not duplicated
+  required_evidence:
+  - publication target tests
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MTG-004
+  phase: P6
+  title: Formal SharePoint record has provenance
+  required_evidence:
+  - source refs
+  - approver
+  - version
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: MTG-005
+  phase: P6
+  title: Wispr retention/consent policy enforced
+  required_evidence:
+  - tenant settings evidence
+  negative_test: null
+  environment: sandbox-wispr
+  blocking: true
+- id: ING-001
+  phase: P6
+  title: Status ingest pipeline parity with preserved contract
+  required_evidence:
+  - channel fixture E2E
+  - completeness/clarification tests
+  - E-ING audit records
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: UX-001
+  phase: P7
+  title: Teams thread continuity and idempotent delivery
+  required_evidence:
+  - real mention/follow-up test
+  negative_test: null
+  environment: sandbox-teams
+  blocking: true
+- id: UX-002
+  phase: P7
+  title: HITL card resumes correct workflow/version
+  required_evidence:
+  - approve/reject/stale tests
+  negative_test: null
+  environment: sandbox-teams
+  blocking: true
+- id: UX-003
+  phase: P7
+  title: Workbench capabilities are resource-scoped
+  required_evidence:
+  - cross-project negative
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: UX-004
+  phase: P7
+  title: Japanese/table/chart/mobile rendering acceptable
+  required_evidence:
+  - E2E screenshots and checklist
+  negative_test: null
+  environment: sandbox-teams
+  blocking: true
+- id: UX-005
+  phase: P7
+  title: UI does not enforce authorization alone
+  required_evidence:
+  - direct API negative
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: COD-001
+  phase: P8
+  title: Claude runner creates branch/PR only
+  required_evidence:
+  - real test repo PR
+  negative_test: null
+  environment: sandbox-github
+  blocking: true
+- id: COD-002
+  phase: P8
+  title: Droid runner pinned and creates branch/PR only
+  required_evidence:
+  - real test repo PR
+  negative_test: null
+  environment: sandbox-github
+  blocking: true
+- id: COD-003
+  phase: P8
+  title: One writer lock rejects concurrent claim
+  required_evidence:
+  - concurrency test
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: COD-004
+  phase: P8
+  title: AI token cannot merge or push main
+  required_evidence:
+  - negative permissions
+  negative_test: null
+  environment: sandbox-github
+  blocking: true
+- id: COD-005
+  phase: P8
+  title: Runner secrets isolated from install/agent hooks
+  required_evidence:
+  - malicious repo fixture
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: COD-006
+  phase: P8
+  title: Codex review is read-only and independent
+  required_evidence:
+  - review artifact
+  - no branch mutation
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: AIO-001
+  phase: P9
+  title: Trace links requirement→workflow→tool→LLM→PR→deployment
+  required_evidence:
+  - end-to-end trace
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: AIO-002
+  phase: P9
+  title: Incident severity remains deterministic/human governed
+  required_evidence:
+  - classification tests
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: AIO-003
+  phase: P9
+  title: RCA cites source evidence
+  required_evidence:
+  - logs/traces/deploy refs
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: AIO-004
+  phase: P9
+  title: Repair creates PR, never direct production change
+  required_evidence:
+  - negative deployment test
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: AIO-005
+  phase: P9
+  title: SLO recovery verified before close
+  required_evidence:
+  - post-deploy observation window
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: AIO-006
+  phase: P9
+  title: Incident similarity search meets DevOps:SPEC-INT-030
+  required_evidence:
+  - feature store tests
+  - top-5/90-day similarity fixtures
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: REL-001
+  phase: P10
+  title: Azure IaC creates private managed baseline
+  required_evidence:
+  - Bicep validation
+  - staging apply
+  negative_test: null
+  environment: azure-staging
+  blocking: true
+- id: REL-002
+  phase: P10
+  title: Immutable image/digest/SBOM/provenance
+  required_evidence:
+  - registry evidence
+  negative_test: null
+  environment: azure-staging
+  blocking: true
+- id: REL-003
+  phase: P10
+  title: Canary 0/10/50/100 and rollback tested
+  required_evidence:
+  - traffic evidence
+  negative_test: null
+  environment: azure-staging
+  blocking: true
+- id: REL-004
+  phase: P10
+  title: Backup/restore and regional DR meet targets
+  required_evidence:
+  - restore/DR drill
+  negative_test: null
+  environment: azure-dr
+  blocking: true
+- id: REL-005
+  phase: P10
+  title: 100PJ/2000 recipient and gateway load meets SLO
+  required_evidence:
+  - load report
+  negative_test: null
+  environment: azure-staging
+  blocking: true
+- id: REL-006
+  phase: P10
+  title: Security/penetration/negative suite green
+  required_evidence:
+  - signed report
+  negative_test: null
+  environment: azure-staging
+  blocking: true
+- id: REL-007
+  phase: P10
+  title: Runbooks/on-call/budget/ownership accepted
+  required_evidence:
+  - operational acceptance
+  negative_test: null
+  environment: ci
+  blocking: true
+- id: REL-008
+  phase: P10
+  title: Old paths removed only after rollback window
+  required_evidence:
+  - removal checklist
+  - egress scan
+  negative_test: null
+  environment: ci
+  blocking: true

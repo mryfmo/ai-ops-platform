@@ -1,0 +1,11 @@
+﻿Product Requirement,Functional Requirements,Component,Primary Paths,Acceptance Gates
+PRD-001,FR-CP-001..008; FR-UI-001..006,Temporal/Control API/Surfaces,packages/control-plane; packages/server; packages/channel-teams; packages/web,TMP-001..006; UX-001..005
+PRD-002,FR-AGT-001..006,Coding agent runner,.github/actions; .github/workflows; packages/control-plane,COD-001..006
+PRD-003,FR-LLM-001..007; FR-MCP-001..007,LiteLLM/agentgateway/OPA,packages/integrations; packages/policy; deploy,LLM-001..006; MCP-001..006
+PRD-004,FR-OBS-001; FR-M365-006,Correlation/provenance,packages/shared; packages/traceability; packages/control-plane,AIO-001; WIQ-002
+PRD-005,FR-OBS-003..004; FR-MCP-006,Audit/decision receipts,packages/devops/src/db; packages/server/src/db; packages/integrations,MCP-006; AIO-001
+PRD-006,FR-MTG-001..006,Meeting workflow,packages/control-plane; packages/integrations; packages/prjops,MTG-001..005
+PRD-007,FR-M365-001..006,Work IQ/Graph dual path,packages/integrations; packages/shared/src/clients/graphClient.ts,WIQ-001..005
+PRD-008,FR-AGT-001..006,Claude/Droid/Codex,.github/actions; .github/workflows; packages/control-plane,COD-001..006
+PRD-009,FR-OBS-001..005,Incident/AIOps workflow,packages/control-plane; packages/devops; deploy/otel,AIO-001..005
+PRD-010,FR-CP-008,Feature flags/rollout/release,packages/server/src/config.ts; deploy; verification,GOV-001..005; REL-001..008
