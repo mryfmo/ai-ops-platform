@@ -24,13 +24,13 @@
 
 ## Implementation / Agent execution
 
-- `06_implementation/02_wbs.yaml`: 110タスクの機械可読正本。
+- `06_implementation/02_wbs.yaml`: 113タスク（是正適用後）の機械可読正本。
 - `06_implementation/10_wbs_task_summary.md`: 人間向け一覧。
 - `07_agent_execution/`: Claude/Codex規約、routing、handoff、prompt、change boundary、task/evidence template。
 
 ## Verification / Operations / Decisions
 
-- `08_verification/`: 62 blocking acceptance gates、security、chaos、compatibility、release gate。
+- `08_verification/`: 64 blocking acceptance gates（是正適用後）、security、chaos、compatibility、release gate。
 - `09_operations/`: runbook、SLO、incident、backup/restore、upgrade/rollback。
 - `10_adrs/`: ADR-0020〜0028候補。
 - `11_diagrams/`: Mermaid source。

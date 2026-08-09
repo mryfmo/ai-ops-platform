@@ -181,4 +181,14 @@ for line in (ROOT/'SOURCE_REGISTER.md').read_text(encoding='utf-8').splitlines()
                 if parsed_url.scheme != 'https' or not parsed_url.netloc:
                     fail(f'invalid source URL: {url}')
 
+# PACK-IMPORT-003: unquoted list scalars containing ' #' are silently truncated by YAML comments.
+_wbs_raw = (ROOT / '06_implementation/02_wbs.yaml').read_text(encoding='utf-8')
+_bad = []
+for _i, _line in enumerate(_wbs_raw.splitlines(), 1):
+    _s = _line.lstrip()
+    if _s.startswith('- ') and not _s.startswith(("- '", '- "')) and ' #' in _s:
+        _bad.append(f'02_wbs.yaml:{_i}')
+if _bad:
+    fail('unquoted # would truncate scalars: ' + ', '.join(_bad))
+
 print(f'OK: {len(tasks)} WBS tasks, {len(gates)} acceptance gates, {len(files)} files')

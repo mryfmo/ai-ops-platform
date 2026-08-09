@@ -41,6 +41,6 @@
 基準 49e2e3c → main `ff66698`（PR #146〜#151）の差分は分類・審査済みで、Owner が
 2026-08-10 に承認した。正本: リポジトリ内
 `.orchestration/plan/2026-08-10-pack-adversarial-review/02-baseline-delta.md`。
-本取込コピーは同 delta の是正（PACK-01..08 / DELTA-01..08）を適用済みであり、
+本取込コピーは同 delta の是正（PACK-01..08 / DELTA-01..07（全項適用。詳細は IMPORT_NOTES.md））を適用済みであり、
 原本 zip（references/ 配下、SHA256 記録あり）とは意図的に差分がある。差分一覧は
 `IMPORT_NOTES.md` を参照。

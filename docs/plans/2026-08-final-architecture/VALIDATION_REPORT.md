@@ -1,6 +1,11 @@
 # Validation Report
 
-Validation date: 2026-08-09 JST
+Validation date: 2026-08-09 JST（原本）
+
+> **Import revalidation (2026-08-10 JST)**: 是正適用後の本コピーに対し
+> `uv run --with pyyaml --with jsonschema python scripts/validate_pack.py` を再実行し
+> **OK: 113 WBS tasks, 64 acceptance gates, 99 files** を確認した。以下の原本記述のうち
+> タスク/ゲート数（110/62）は原本 zip に対するものである。
 
 ## Pack-level checks completed
 

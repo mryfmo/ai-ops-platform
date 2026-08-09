@@ -62,7 +62,7 @@ P0-T02が完了するまでAI coding runnerをproduction repositoryで有効に�
 ## 6. Verify pack and imported copy
 
 ```bash
-python docs/plans/2026-08-final-architecture/scripts/validate_pack.py
+uv run --with pyyaml --with jsonschema python docs/plans/2026-08-final-architecture/scripts/validate_pack.py
 mise run ci
 ```
 

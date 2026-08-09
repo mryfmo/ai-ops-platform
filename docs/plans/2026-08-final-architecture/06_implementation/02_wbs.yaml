@@ -153,6 +153,7 @@ tasks:
   - checks for forbidden direct egress, gateway overlap, Cloudflare Artifacts, high-risk MCP tools
   acceptance:
   - all invariants have automated check or documented manual gate
+  - 'DELTA-06 correction: ci.yml changes preserve the agt-dep-th001-evidence artifact contract (.ci/agt-dep-evidence.json, PR #149)'
   verification:
   - mise run governance
   - mise run ci
@@ -459,6 +460,7 @@ tasks:
   - production configuration without approved environment gate
   deliverables:
   - workflow/action/policy/model/tool/mapping/meeting/agent tables
+  - 'DELTA-03 correction: authority mapping against the EXISTING approvals and deployments tables (PR #144/#149/#151) — evolve them via expand migrations; do not create approval_requests/action_ledger as parallel authorities for the same concerns'
   acceptance:
   - migration idempotent
   - audit append-only unchanged
@@ -1201,7 +1203,7 @@ tasks:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - DeployDispatchWorkflow and ProdMonitorWorkflow preserving the live deployments 12-state machine and dispatched_at CAS semantics (added post-baseline by PR #149/#151)
+  - 'DeployDispatchWorkflow and ProdMonitorWorkflow preserving the live deployments 12-state machine and dispatched_at CAS semantics (added post-baseline by PR #149/#151)'
   acceptance:
   - no duplicate dispatch across cutover
   - deployments table remains the state authority
@@ -2876,11 +2878,13 @@ tasks:
   - packages/web/src/**
   - deploy/azure/**
   - docs/guide/**
+  - ops/azure-monitor-alerts/**
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
   - workflow/gateway/model/tool/incident SLO dashboards
+  - 'DELTA-04 correction: extend the EXISTING monitoring assets — ops/azure-monitor-alerts/ (6 KQL rules), packages/server/src/observability/httpMetrics.ts and the 7d/3d rolling delivery gauges (PR #148) — do not recreate retired Prometheus rules'
   acceptance:
   - alert owners/runbook links/thresholds defined
   verification:
@@ -2909,7 +2913,7 @@ tasks:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - incident feature store fed by the enriched triage audit details accumulated since PR #145
+  - 'incident feature store fed by the enriched triage audit details accumulated since PR #145'
   - deterministic 90-day top-5 similarity provider replacing the recency proxy behind the existing SimilarIncidentsProvider seam
   acceptance:
   - provider swap requires no rewiring (seam preserved)

@@ -53,8 +53,8 @@ reading_order:
 - 07_agent_execution/AGENTS_ADDENDUM.md
 - 08_verification/01_test_strategy.md
 validation:
-  command: python scripts/validate_pack.py
-  summary_command: python scripts/render_task_summary.py
+  command: uv run --with pyyaml --with jsonschema python scripts/validate_pack.py
+  summary_command: uv run --with pyyaml python scripts/render_task_summary.py
   checksum_file: SHA256SUMS
 statistics:
   content_files_excluding_checksums: 99
