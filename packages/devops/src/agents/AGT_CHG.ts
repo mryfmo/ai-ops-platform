@@ -37,6 +37,7 @@ export interface ChgDependencies {
       approvalType: "change";
       targetId: string;
       projectId: string;
+      targetSha: string;
       requestedBy: "AGT-CHG";
       traceId: string;
     }): Promise<{ approvalId: string }>;
@@ -64,6 +65,7 @@ export async function summarizeChangeDiff(diffText: string, deps: ChgDependencie
 export interface ApprovalPackage {
   projectId: string;
   targetId: string;
+  targetSha: string;
   projectName: string;
   diffSummaryLines: string[];
   testSummary: { successCount: number; failureCount: number; coveragePct: number };
@@ -101,6 +103,7 @@ export async function sendApprovalCard(
     approvalType: "change",
     targetId: pkg.targetId,
     projectId: pkg.projectId,
+    targetSha: pkg.targetSha,
     requestedBy: "AGT-CHG",
     traceId: deps.traceId,
   });

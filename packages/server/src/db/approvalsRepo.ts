@@ -15,6 +15,7 @@ export interface ApprovalRecord {
   approvalType: ApprovalType;
   targetId: string;
   projectId: string | null;
+  targetSha: string | null;
   status: ApprovalStatus;
   requestedBy: string;
   approverTenantId: string | null;
@@ -22,6 +23,7 @@ export interface ApprovalRecord {
   decidedAt: string | null;
   reason: string | null;
   deliveredAt: string | null;
+  dispatchedAt: string | null;
   createdAt: string;
 }
 
@@ -29,8 +31,16 @@ export interface CreateApprovalInput {
   approvalType: ApprovalType;
   targetId: string;
   projectId?: string;
+  targetSha?: string;
   requestedBy: string;
   traceId: string;
+}
+
+export interface ApprovedDeployClaim {
+  approvalId: string;
+  projectId: string | null;
+  commitSha: string | null;
+  repositories: Array<{ owner: string; repo: string }>;
 }
 
 export interface DecideApprovalInput {
@@ -86,6 +96,7 @@ function toApprovalRecord(row: Record<string, unknown>): ApprovalRecord {
     approvalType: row.approval_type as ApprovalType,
     targetId: String(row.target_id),
     projectId: row.project_id == null ? null : String(row.project_id),
+    targetSha: row.target_sha == null ? null : String(row.target_sha),
     status: row.status as ApprovalStatus,
     requestedBy: String(row.requested_by),
     approverTenantId: row.approver_tenant_id == null ? null : String(row.approver_tenant_id),
@@ -93,12 +104,13 @@ function toApprovalRecord(row: Record<string, unknown>): ApprovalRecord {
     decidedAt: row.decided_at == null ? null : new Date(String(row.decided_at)).toISOString(),
     reason: row.reason == null ? null : String(row.reason),
     deliveredAt: row.delivered_at == null ? null : new Date(String(row.delivered_at)).toISOString(),
+    dispatchedAt: row.dispatched_at == null ? null : new Date(String(row.dispatched_at)).toISOString(),
     createdAt: new Date(String(row.created_at)).toISOString(),
   };
 }
 
-const COLUMNS = `approval_id, approval_type, target_id, project_id, status, requested_by,
-  approver_tenant_id, approver_object_id, decided_at, reason, delivered_at, created_at`;
+const COLUMNS = `approval_id, approval_type, target_id, project_id, target_sha, status, requested_by,
+  approver_tenant_id, approver_object_id, decided_at, reason, delivered_at, dispatched_at, created_at`;
 
 export class ApprovalsRepo {
   constructor(
@@ -110,14 +122,16 @@ export class ApprovalsRepo {
     if (!APPROVAL_TYPES.has(input.approvalType)) throw new Error("Invalid approval type");
     const targetId = requiredText(input.targetId, "target_id");
     const projectId = input.projectId === undefined ? null : requiredText(input.projectId, "project_id");
+    const targetSha = input.targetSha === undefined ? null : requiredText(input.targetSha, "target_sha");
+    if (targetSha !== null && !/^[0-9a-f]{40}$/.test(targetSha)) throw new Error("Invalid approval target_sha");
     const requestedBy = requiredText(input.requestedBy, "requested_by");
     return this.runTransaction(async ({ db, auditLog }) => {
       const result = await db.query(
-        `INSERT INTO approvals (approval_type, target_id, project_id, requested_by)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO approvals (approval_type, target_id, project_id, target_sha, requested_by)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (approval_type, target_id) WHERE status = 'pending' DO NOTHING
          RETURNING ${COLUMNS}`,
-        [input.approvalType, targetId, projectId, requestedBy],
+        [input.approvalType, targetId, projectId, targetSha, requestedBy],
       );
       if (!result.rows[0]) {
         const existing = await db.query(
@@ -128,7 +142,9 @@ export class ApprovalsRepo {
         );
         if (!existing.rows[0]) throw new Error("Pending approval conflict could not be resolved");
         const approval = toApprovalRecord(existing.rows[0]);
-        if (approval.projectId !== projectId) throw new Error("Pending approval project mismatch");
+        if (approval.projectId !== projectId || approval.targetSha !== targetSha) {
+          throw new Error("Pending approval target mismatch");
+        }
         return approval;
       }
       const approval = toApprovalRecord(result.rows[0]);
@@ -142,11 +158,80 @@ export class ApprovalsRepo {
           approvalType: approval.approvalType,
           targetId: approval.targetId,
           projectId: approval.projectId,
+          targetSha: approval.targetSha,
           status: approval.status,
         },
         at: new Date().toISOString(),
       });
       return approval;
+    });
+  }
+
+  /** AC-010a: approved changeだけをCASで一度消費し、repo mappingは全候補を返して呼出側で一意性を強制する。 */
+  async claimNextApprovedChange(traceId: string): Promise<ApprovedDeployClaim | null> {
+    requiredUuid(traceId, "dispatch trace_id");
+    return this.runTransaction(async ({ db, auditLog }) => {
+      const result = await db.query(
+        `WITH candidate AS (
+         SELECT approval_id
+         FROM approvals
+         WHERE approval_type = 'change'
+           AND status = 'approved'
+           AND dispatched_at IS NULL
+         ORDER BY decided_at, approval_id
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+       ), mappings AS (
+         SELECT candidate.approval_id,
+                COALESCE(
+                  jsonb_agg(jsonb_build_object('owner', pc.github_owner, 'repo', pc.github_repo))
+                    FILTER (WHERE pc.github_owner IS NOT NULL AND pc.github_repo IS NOT NULL),
+                  '[]'::jsonb
+                ) AS repo_mappings
+         FROM candidate
+         LEFT JOIN project_channels pc
+           ON pc.project_id = (SELECT project_id FROM approvals WHERE approval_id = candidate.approval_id)
+          AND pc.ingestion = 'active'
+          AND pc.closed_at IS NULL
+         GROUP BY candidate.approval_id
+       ), claimed AS (
+         UPDATE approvals
+         SET dispatched_at = now()
+         FROM candidate
+         WHERE approvals.approval_id = candidate.approval_id
+           AND approvals.dispatched_at IS NULL
+         RETURNING approvals.*
+       )
+       SELECT claimed.*, mappings.repo_mappings
+       FROM claimed
+       JOIN mappings USING (approval_id)`,
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      const mappings = Array.isArray(row.repo_mappings) ? row.repo_mappings : [];
+      const claim = {
+        approvalId: String(row.approval_id),
+        projectId: row.project_id == null ? null : String(row.project_id),
+        commitSha: row.target_sha == null ? null : String(row.target_sha),
+        repositories: mappings.map((mapping) => {
+          const record = mapping as Record<string, unknown>;
+          return { owner: String(record["owner"] ?? ""), repo: String(record["repo"] ?? "") };
+        }),
+      } satisfies ApprovedDeployClaim;
+      await auditLog.append({
+        trace_id: traceId,
+        actor: "AGT-DEP",
+        action: "approval_dispatch_claim",
+        basis: "DevOps:REQ-010 / AC-010a",
+        detail: {
+          approvalId: claim.approvalId,
+          projectId: claim.projectId,
+          targetShaAvailable: claim.commitSha !== null,
+          repositoryMappingCount: claim.repositories.length,
+        },
+        at: new Date().toISOString(),
+      });
+      return claim;
     });
   }
 

@@ -10,6 +10,7 @@ import { InMemoryAuditLog, sanitizeSecrets } from "@aiops/shared";
 import {
   ALERT_LABEL,
   createBuildEventHandler,
+  createDeployEventHandler,
   createIncidentEventHandler,
   createIncidentIssueClient,
   createRecencySimilarIncidentsProvider,
@@ -31,6 +32,104 @@ const workflowFailure = {
     },
   },
 };
+
+const workflowSuccess = {
+  targetAgent: "AGT_DEP" as const,
+  eventName: "workflow_run",
+  payload: {
+    action: "completed",
+    repository: { full_name: "acme/widget" },
+    workflow_run: { id: 789, conclusion: "success", head_sha: "a".repeat(40) },
+  },
+};
+
+describe("AGT_DEP staging runtime wiring [DevOps:REQ-003 / TH-001]", () => {
+  it("CI successと同一commitのcoverageとcritical=0をTH-001へ渡す", async () => {
+    const promote = vi.fn(async () => true);
+    const handler = createDeployEventHandler({
+      configured: true,
+      channel: { teamId: "team", channelId: "channel" },
+      coverageEvidence: {
+        read: vi.fn(async () => ({ commitSha: "a".repeat(40), unitTestCoveragePct: 80 })),
+      },
+      criticalCountEvidence: { read: vi.fn(async () => 0) },
+      auditLog: new InMemoryAuditLog(),
+      promote,
+    });
+
+    await handler(workflowSuccess, "trace-deploy");
+
+    expect(promote).toHaveBeenCalledWith(
+      { ciAllJobsSuccess: true, unitTestCoveragePct: 80, staticAnalysisCriticalCount: 0 },
+      { teamId: "team", channelId: "channel" },
+      "aaaaaaa",
+      "trace-deploy",
+    );
+  });
+
+  it("D-16 critical正本が無ければcoverageを0扱いせず昇格を止めて監査する", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const promote = vi.fn();
+    const handler = createDeployEventHandler({
+      configured: true,
+      channel: { teamId: "team", channelId: "channel" },
+      coverageEvidence: { read: vi.fn(async () => ({ commitSha: "a".repeat(40), unitTestCoveragePct: 99 })) },
+      criticalCountEvidence: { read: vi.fn(async () => null) },
+      auditLog,
+      promote,
+    });
+
+    await handler(workflowSuccess, "trace-missing-critical");
+
+    expect(promote).not.toHaveBeenCalled();
+    expect((await auditLog.readAll()).map((record) => record.action)).toContain("staging_promotion_input_missing");
+  });
+
+  it("coverage commitがworkflow headと一致しなければfail closedにする", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const promote = vi.fn();
+    const handler = createDeployEventHandler({
+      configured: true,
+      channel: { teamId: "team", channelId: "channel" },
+      coverageEvidence: { read: vi.fn(async () => ({ commitSha: "b".repeat(40), unitTestCoveragePct: 99 })) },
+      criticalCountEvidence: { read: vi.fn(async () => 0) },
+      auditLog,
+      promote,
+    });
+
+    await handler(workflowSuccess, "trace-mismatch");
+
+    expect(promote).not.toHaveBeenCalled();
+    expect((await auditLog.readAll()).map((record) => record.action)).toContain("staging_promotion_input_missing");
+  });
+
+  it("deploy-prod workflow成功は対応するprod_deploying rowだけをmonitoringへ進める", async () => {
+    const markMonitoring = vi.fn(async () => true);
+    const promote = vi.fn();
+    const handler = createDeployEventHandler({
+      configured: false,
+      coverageEvidence: { read: vi.fn() },
+      criticalCountEvidence: { read: vi.fn() },
+      deploymentState: { markMonitoring },
+      auditLog: new InMemoryAuditLog(),
+      promote,
+    });
+
+    await handler(
+      {
+        ...workflowSuccess,
+        payload: {
+          ...workflowSuccess.payload,
+          workflow_run: { ...workflowSuccess.payload.workflow_run, path: ".github/workflows/deploy-prod.yml" },
+        },
+      },
+      "trace-prod-complete",
+    );
+
+    expect(markMonitoring).toHaveBeenCalledWith("acme", "widget", "a".repeat(40));
+    expect(promote).not.toHaveBeenCalled();
+  });
+});
 
 describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:REQ-002]", () => {
   it("失敗ログを分類して単一のcanonical PRへサニタイズ済み提案を投稿する", async () => {

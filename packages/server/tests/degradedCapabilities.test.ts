@@ -34,6 +34,9 @@ const allConfigured: CapabilityInputs = {
   approvalsConfigured: true,
   prjopsDataConfigured: true,
   pmoNotifyMailboxConfigured: true,
+  stagingPromotionConfigured: true,
+  prodDeployConfigured: true,
+  prodMonitorConfigured: true,
 };
 
 describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
@@ -91,6 +94,18 @@ describe("deriveCapabilityState [ADR-0014 / DevOps:SPEC-INT-040]", () => {
     });
     expect(deriveCapabilityState({ ...allConfigured, pmoNotifyMailboxConfigured: false })).toMatchObject({
       prjops_job_escalation: false,
+    });
+  });
+
+  it("A052: AGT_DEPの3経路をD-04/D-16境界ごとに縮退公開する [DevOps:REQ-003/010/012]", () => {
+    expect(deriveCapabilityState({ ...allConfigured, stagingPromotionConfigured: false })).toMatchObject({
+      staging_promotion: false,
+    });
+    expect(deriveCapabilityState({ ...allConfigured, prodDeployConfigured: false })).toMatchObject({
+      prod_deploy: false,
+    });
+    expect(deriveCapabilityState({ ...allConfigured, prodMonitorConfigured: false })).toMatchObject({
+      prod_monitor: false,
     });
   });
 });

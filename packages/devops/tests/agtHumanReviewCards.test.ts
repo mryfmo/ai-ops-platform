@@ -17,6 +17,7 @@ function approvalPackage() {
   return {
     projectId: "PJ-001",
     targetId: "release-42",
+    targetSha: "a".repeat(40),
     projectName: "Sample",
     diffSummaryLines: ["one change"],
     testSummary: { successCount: 1, failureCount: 0, coveragePct: 90 },
@@ -50,6 +51,7 @@ describe("sendApprovalCard [DevOps:SPEC-EXT-010]", () => {
     expect(create).toHaveBeenCalledWith({
       approvalType: "change",
       targetId: "release-42",
+      targetSha: "a".repeat(40),
       projectId: "PJ-001",
       requestedBy: "AGT-CHG",
       traceId: "trace-1",
