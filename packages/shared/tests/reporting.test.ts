@@ -386,6 +386,16 @@ describe("standard report schema validation [PrjOps:REQ-040 / DevOps:REQ-032 / P
     );
   });
 
+  it.each([
+    ["full-width", "９９"],
+    ["Arabic-Indic", "٩"],
+    ["circled", "⑨"],
+    ["CJK", "三"],
+  ])("Unicode数値を未根拠claimとして拒否する: %s [PrjOps:SPEC-INT-031 / DEC-SPEC-007]", (_name, value) => {
+    const findings = findUngroundedSlotNumbers({ ...validSlots, conclusion: `未根拠の${value}件です。` }, {});
+    expect(findings).toEqual([{ slot: "conclusion", value }]);
+  });
+
   it("桁区切り数値はmetricsと同じ値として扱う [C-1/T26-R2]", () => {
     const slots = {
       ...validSlots,
