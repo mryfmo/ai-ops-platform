@@ -45,11 +45,13 @@
 
 - `make require-crit-review`: unavailable (`No rule to make target`).
 - Review-profile investigation finding: production success had no state writer into `monitoring`; fixed with tests.
-- GitHub review findings: four actionable threads; fixes are covered by the final targeted/full/real-PostgreSQL evidence above and will be resolved only after the pushed diff is verified.
+- GitHub review findings: four actionable threads; fixes are covered by the final targeted/full/real-PostgreSQL evidence above and all four threads are resolved.
 - Ponytail impact: reused existing AGT_DEP decision/orchestration functions, scheduler, audit, PostgreSQL, Node zlib, and GitHub client patterns; no dependency was added.
 
 ## GitHub evidence
 
 - PR: https://github.com/mryfmo/ai-ops-platform/pull/149
 - Implementation commit: `b94b266`.
-- Final check/thread evidence is verified on the evidence-update head before AGMSG-RESULT.
+- Review-fix commit: `248d029`.
+- Code-head run https://github.com/mryfmo/ai-ops-platform/actions/runs/31297578783: build-test success (4m46s), gitleaks success (9s), CodeRabbit success.
+- GraphQL final gate on the code head: `MERGEABLE`, `CLEAN`, `ai-generated`, status rollup `SUCCESS`, four of four threads resolved, `hasNextPage=false`.

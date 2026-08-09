@@ -25,8 +25,9 @@ Ready for review. AGT_DEP now has runtime entry points for commit-bound staging 
 
 - Branch: `agent/a052-agt-dep-wiring`
 - Implementation commit: `b94b266` (`feat(devops): wire AGT_DEP runtime paths`)
+- Review-fix commit: `248d029` (`fix(devops): harden deployment recovery`)
 - PR: https://github.com/mryfmo/ai-ops-platform/pull/149
-- State: review findings fixed locally; final GitHub checks and zero-thread gate are required before AGMSG-RESULT
+- State: code head checks green; PR CLEAN/MERGEABLE; all four review threads resolved
 - No merge performed
 
 ## Successor boundaries
