@@ -35,7 +35,7 @@ const canonicalPath = join(
 const canonical = (parse(readFileSync(canonicalPath, "utf8")) as { flags: CanonicalFlag[] }).flags;
 
 describe("FinalArch:FR-CP-008 registry mirrors the canonical YAML", () => {
-  it("matches every canonical record field-for-field (independent YAML parse)", () => {
+  it("FinalArch:FR-CP-008: matches every canonical record field-for-field (independent YAML parse)", () => {
     const runtime = MIGRATION_FLAGS.map((f) => ({
       name: f.name,
       default: f.default === "true",
@@ -52,13 +52,13 @@ describe("FinalArch:FR-CP-008 registry mirrors the canonical YAML", () => {
     expect(runtime).toEqual(canonical);
   });
 
-  it("derives env names from dotted names", () => {
+  it("FinalArch:FR-CP-008: derives env names from dotted names", () => {
     expect(migrationFlagEnvName("control.temporal.enabled")).toBe("AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED");
   });
 });
 
 describe("FinalArch:GOV-005 fail-closed resolution", () => {
-  it("with no env, every flag sits at its canonical default (legacy scheduler stays true)", () => {
+  it("FinalArch:GOV-005: with no env, every flag sits at its canonical default (legacy scheduler stays true)", () => {
     const { states, errors } = resolveMigrationFlags({});
     expect(errors).toEqual([]);
     for (const flag of canonical) {
@@ -67,7 +67,7 @@ describe("FinalArch:GOV-005 fail-closed resolution", () => {
     expect(states.get("control.legacy_scheduler.enabled")).toBe("true");
   });
 
-  it("accepts each flag's own canonical vocabulary (read-only / log-only / suggestion)", () => {
+  it("FinalArch:FR-CP-008: accepts each flag's own canonical vocabulary (read-only / log-only / suggestion)", () => {
     const { states, errors } = resolveMigrationFlags({
       AIOPS_FLAG_ACCESS_AGENTGATEWAY_ENABLED: "read-only",
       AIOPS_FLAG_POLICY_OPA_ENFORCE: "log-only",
@@ -81,7 +81,7 @@ describe("FinalArch:GOV-005 fail-closed resolution", () => {
     expect(states.get("control.temporal.enabled")).toBe("shadow");
   });
 
-  it("E-FLAG01 rejects another flag's vocabulary and invented values", () => {
+  it("FinalArch:GOV-005: E-FLAG01 rejects another flag's vocabulary and invented values", () => {
     for (const [envName, value] of [
       ["AIOPS_FLAG_ACCESS_AGENTGATEWAY_ENABLED", "shadow"],
       ["AIOPS_FLAG_POLICY_OPA_ENFORCE", "primary"],
@@ -97,7 +97,7 @@ describe("FinalArch:GOV-005 fail-closed resolution", () => {
     }
   });
 
-  it("boolean flags accept only false/true", () => {
+  it("FinalArch:FR-CP-008: boolean flags accept only false/true", () => {
     const ok = resolveMigrationFlags({ AIOPS_FLAG_MEETINGS_WISPR_ENABLED: "true" });
     expect(ok.errors).toEqual([]);
     expect(ok.states.get("meetings.wispr.enabled")).toBe("true");
@@ -117,25 +117,25 @@ describe("FinalArch:GOV-005 fail-closed resolution", () => {
     expect(states.get("cloudflare.artifacts.enabled")).toBe("false");
   });
 
-  it("treats empty-string env values as unset (canonical default applies)", () => {
+  it("FinalArch:GOV-005: treats empty-string env values as unset (canonical default applies)", () => {
     const { states, errors } = resolveMigrationFlags({ AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "" });
     expect(errors).toEqual([]);
     expect(states.get("control.temporal.enabled")).toBe("false");
   });
 
-  it("E-FLAG04 rejects unknown AIOPS_FLAG_* variables (typos are not silently inert)", () => {
+  it("FinalArch:GOV-005: E-FLAG04 rejects unknown AIOPS_FLAG_* variables (typos are not silently inert)", () => {
     const { errors } = resolveMigrationFlags({ AIOPS_FLAG_CONTROL_TEMPORAL_ENABLE: "primary" });
     expect(errors.some((e) => e.startsWith("E-FLAG04"))).toBe(true);
   });
 
-  it("rejects a kill-switch variable on a flag without killSwitch as unknown", () => {
+  it("FinalArch:GOV-005: rejects a kill-switch variable on a flag without killSwitch as unknown", () => {
     const { errors } = resolveMigrationFlags({ AIOPS_FLAG_MEETINGS_WISPR_ENABLED_KILL: "1" });
     expect(errors.some((e) => e.startsWith("E-FLAG04"))).toBe(true);
   });
 });
 
 describe("FinalArch:GOV-004 kill-switch grammar", () => {
-  it("KILL=1 overrides an enabled stage to false", () => {
+  it("FinalArch:GOV-004: KILL=1 overrides an enabled stage to false", () => {
     const { states, errors } = resolveMigrationFlags({
       AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary",
       AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL: "1",
@@ -145,7 +145,7 @@ describe("FinalArch:GOV-004 kill-switch grammar", () => {
     expect(states.get("control.temporal.enabled")).toBe("false");
   });
 
-  it("KILL=0 and empty are inactive", () => {
+  it("FinalArch:GOV-004: KILL=0 and empty are inactive", () => {
     const { states, errors } = resolveMigrationFlags({
       AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "shadow",
       AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL: "0",
@@ -154,7 +154,7 @@ describe("FinalArch:GOV-004 kill-switch grammar", () => {
     expect(states.get("control.temporal.enabled")).toBe("shadow");
   });
 
-  it("E-FLAG05: malformed kill values (true, typo) are configuration errors, not silent no-ops", () => {
+  it("FinalArch:GOV-004: E-FLAG05: malformed kill values (true, typo) are configuration errors, not silent no-ops", () => {
     for (const bad of ["true", "yes", "kill", "01"]) {
       const { errors } = resolveMigrationFlags({
         AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary",
@@ -170,12 +170,12 @@ describe("FinalArch:GOV-004 kill-switch grammar", () => {
 });
 
 describe("FinalArch:FR-CP-008 one-writer mutual exclusion (canonical direction)", () => {
-  it("E-FLAG03: temporal primary with the default-on legacy scheduler is rejected", () => {
+  it("FinalArch:FR-CP-008: E-FLAG03: temporal primary with the default-on legacy scheduler is rejected", () => {
     const { errors } = resolveMigrationFlags({ AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary" });
     expect(errors.some((e) => e.startsWith("E-FLAG03"))).toBe(true);
   });
 
-  it("E-FLAG03: explicitly enabling both writers is rejected", () => {
+  it("FinalArch:FR-CP-008: E-FLAG03: explicitly enabling both writers is rejected", () => {
     const { errors } = resolveMigrationFlags({
       AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary",
       AIOPS_FLAG_CONTROL_LEGACY_SCHEDULER_ENABLED: "true",
@@ -183,7 +183,7 @@ describe("FinalArch:FR-CP-008 one-writer mutual exclusion (canonical direction)"
     expect(errors.some((e) => e.startsWith("E-FLAG03"))).toBe(true);
   });
 
-  it("temporal primary requires the legacy scheduler to be explicitly false", () => {
+  it("FinalArch:FR-CP-008: temporal primary requires the legacy scheduler to be explicitly false", () => {
     const { states, errors } = resolveMigrationFlags({
       AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary",
       AIOPS_FLAG_CONTROL_LEGACY_SCHEDULER_ENABLED: "false",
@@ -193,14 +193,14 @@ describe("FinalArch:FR-CP-008 one-writer mutual exclusion (canonical direction)"
     expect(states.get("control.legacy_scheduler.enabled")).toBe("false");
   });
 
-  it("non-primary temporal stages coexist with the running legacy scheduler (shadow migration)", () => {
+  it("FinalArch:FR-CP-008: non-primary temporal stages coexist with the running legacy scheduler (shadow migration)", () => {
     const { errors } = resolveMigrationFlags({ AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "shadow" });
     expect(errors).toEqual([]);
   });
 });
 
-describe("allowed-value derivation", () => {
-  it("immutable-off flags admit only false; staged/moded flags admit false + their own ladder", () => {
+describe("FinalArch:FR-CP-008 allowed-value derivation", () => {
+  it("FinalArch:INV-013: immutable-off flags admit only false; staged/moded flags admit false + their own ladder", () => {
     const byName = new Map(MIGRATION_FLAGS.map((f) => [f.name, f]));
     expect(migrationFlagAllowedValues(byName.get("cloudflare.artifacts.enabled")!)).toEqual(["false"]);
     expect(migrationFlagAllowedValues(byName.get("access.agentgateway.enabled")!)).toEqual([
