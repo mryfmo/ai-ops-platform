@@ -1,0 +1,7 @@
+{
+  "name": "architecture-fitness-negative-fixture",
+  "private": true,
+  "dependencies": {
+    "@cloudflare/artifacts": "1.0.0"
+  }
+}

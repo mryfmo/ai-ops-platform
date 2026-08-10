@@ -44,7 +44,7 @@ description = "仕様ID⇔実装⇔テストのトレーサビリティ検証"
 run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts"
 
 [tasks.governance]
-description = "本番ゲートの軽量チェック（CODEOWNERSプレースホルダ警告など）"
+description = "CODEOWNERS・正本・architecture fitness・Plane mappingのガバナンス検証"
 run = "pnpm run governance:check"
 
 [tasks."db:require"]

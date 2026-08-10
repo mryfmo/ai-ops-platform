@@ -1,0 +1,2 @@
+# 根拠: FinalArch:INV-013 — allowlist 外 MCP tool の反例。
+tool_name: merge_pull_request

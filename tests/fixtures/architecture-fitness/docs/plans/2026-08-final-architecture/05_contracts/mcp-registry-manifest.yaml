@@ -1,0 +1,4 @@
+# 根拠: FinalArch:INV-006 — architecture fitness check の gateway registry fixture。
+gateway_role: mcp-a2a-only
+servers:
+  - id: github

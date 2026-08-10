@@ -1,0 +1,10 @@
+# 根拠: FinalArch:GOV-005 — architecture fitness check の flag 正本 fixture。
+flags:
+  - name: control.temporal.enabled
+    default: false
+    owner: control-plane
+    stages:
+      - shadow
+      - limited
+      - primary
+    kill_switch: true
