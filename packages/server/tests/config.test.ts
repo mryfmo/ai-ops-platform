@@ -375,4 +375,15 @@ describe("loadConfig (ADR-0005)", () => {
   ])("ADR-0005 AUD-OPM-009: credential付きHEARTBEAT_URLはE-CFG01", (heartbeatUrl) => {
     expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: heartbeatUrl })).toThrow("E-CFG01");
   });
+
+  it("FinalArch:FR-CP-008: 移行flagはfail closedで解決されconfigへ載る", () => {
+    const config = loadConfig({ ...validEnv, AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "shadow" });
+    expect(config.MIGRATION_FLAGS.get("control.temporal.enabled")).toBe("shadow");
+    expect(config.MIGRATION_FLAGS.get("policy.opa.enforce")).toBe("disabled");
+  });
+
+  it("FinalArch:GOV-005: 不正な移行flag値はE-CFG01で起動失敗させる", () => {
+    expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "on" })).toThrow("E-FLAG01");
+    expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_TYPO_ENABLED: "primary" })).toThrow("E-FLAG04");
+  });
 });
