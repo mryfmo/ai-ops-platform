@@ -19,6 +19,7 @@
 ## CI and tests
 
 - GitHub main run `31341703185`: success, 2026-08-09T23:21:49Z–23:26:23Z (4m34s).
+- GitHub PR run `31344141574` on evidence commit `ad7a5bc`: `build-test` success (4m43s) and `gitleaks` success.
 - `build-test`: success on PostgreSQL 16 service; build, typecheck, coverage, traceability, and P001 integration passed.
 - Coverage totals: 182 test files; 2,270 passed; 4 skipped; 2,274 total.
 - Governance Node tests: 20 passed.
