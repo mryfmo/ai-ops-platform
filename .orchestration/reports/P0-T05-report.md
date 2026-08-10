@@ -3,6 +3,7 @@
 - Branch: `agent/P0-T05-perf-baseline`
 - Base: `e41e6e67cf5f42b70b8aa0b15c2b2266fcdd3862`
 - Base tree: `7321c5a2b40078921496ec145e2526fbd7b87562`
+- Pull request: https://github.com/mryfmo/ai-ops-platform/pull/155
 - Acceptance dependency: `GOV-001`
 - Deliverable: `verification/2026-08-10-performance-reliability-baseline.md`
 
