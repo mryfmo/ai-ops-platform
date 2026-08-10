@@ -4,9 +4,15 @@
 
 ## Purpose and safety boundary
 
-This runbook inventories every secret-bearing setting defined by the server and web configuration schemas,
-repository workflows, and the server composition root. It specifies proposed rotation cadence and the
+This runbook records the detailed current-state rotation procedures for the credential set listed below. It
+specifies proposed rotation cadence and the
 prepare, activate, verify, revoke, rollback, evidence, and incident steps without performing a rotation.
+
+The complete current-to-target inventory, including credentials added after this runbook's original baseline,
+is [the P0-T09 secret and identity migration plan](../docs/security/2026-08-10-secret-identity-migration-plan.md).
+Inference/access-plane emergency routing uses the separate
+[break-glass runbook](inference-access-break-glass.md). This runbook remains in force for each listed legacy
+credential until its migration gate revokes that credential.
 
 - Never paste a secret into a ticket, pull request, command history, log, audit detail, or this repository.
 - Record only the configuration name, owner role, credential version or provider record ID, timestamps,
@@ -32,10 +38,9 @@ and `REPORT_INGEST_URL`. `PUBLIC_BASE_URL` is stored in the GitHub secrets names
 but its value is a public endpoint. The job-scoped GitHub Actions `GITHUB_TOKEN` is provider-generated and is
 not the server's separately configured `GITHUB_TOKEN`; only the latter is inventoried below.
 
-> **Concurrent integration note:** task T-P1-07 is expected to introduce `METRICS_TOKEN` on another branch.
-> `METRICS_TOKEN` does not exist in this branch's canonical schemas or workflows, so it is not counted as a
-> current inventory item. At integration, re-run the source-to-runbook comparison and add its full lifecycle
-> before accepting the merged inventory; do not infer its consumers or platform mechanics from this note.
+> **Inventory note:** the schema now also contains `METRICS_TOKEN`, `WEB_BFF_IDENTITY_SECRET`,
+> `GITHUB_APP_PRIVATE_KEY`, and a potentially credential-bearing `HEARTBEAT_URL`. Their migration and target
+> lifecycle are covered by the P0-T09 matrix. Do not treat this older detailed table as the completeness source.
 
 | Secret name                      | Consumers and source                                                                                         | Owner role                        | Proposed normal cadence                                           |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------- | ----------------------------------------------------------------- |
