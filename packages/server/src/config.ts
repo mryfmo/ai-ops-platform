@@ -11,7 +11,13 @@
  */
 import { isAbsolute } from "node:path";
 import { z } from "zod";
-import { MAX_MODEL_ID_LENGTH, parseModelPricingUsdPerMtokJson, type ModelPricingUsdPerMtok } from "@aiops/shared";
+import {
+  MAX_MODEL_ID_LENGTH,
+  parseModelPricingUsdPerMtokJson,
+  resolveMigrationFlags,
+  type MigrationFlagStates,
+  type ModelPricingUsdPerMtok,
+} from "@aiops/shared";
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const DEFAULT_ANTHROPIC_ESCALATION_MODEL = "claude-opus-4-8";
@@ -274,6 +280,8 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
 type ParsedServerConfig = z.infer<typeof configSchema>;
 export type ServerConfig = Omit<ParsedServerConfig, "ANTHROPIC_PRICING_USD_PER_MTOK"> & {
   ANTHROPIC_PRICING_USD_PER_MTOK: ModelPricingUsdPerMtok;
+  /** 根拠: FinalArch:FR-CP-008 / FinalArch:GOV-005。移行 flag 状態（fail closed で解決済み） */
+  MIGRATION_FLAGS: MigrationFlagStates;
 };
 
 /**
@@ -292,10 +300,15 @@ export function loadConfig(
   if (!parsed.data.METRICS_TOKEN) {
     warn("METRICS_TOKEN is not configured; GET /metrics is disabled and returns 503");
   }
+  const migrationFlags = resolveMigrationFlags(env);
+  if (migrationFlags.errors.length > 0) {
+    throw new Error(`E-CFG01: invalid server configuration: ${migrationFlags.errors.join("; ")}`);
+  }
   try {
     return {
       ...parsed.data,
       ANTHROPIC_PRICING_USD_PER_MTOK: parseModelPricingUsdPerMtokJson(parsed.data.ANTHROPIC_PRICING_USD_PER_MTOK),
+      MIGRATION_FLAGS: migrationFlags.states,
     };
   } catch (error) {
     throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`);

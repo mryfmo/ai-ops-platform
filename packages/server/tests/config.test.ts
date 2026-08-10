@@ -375,4 +375,36 @@ describe("loadConfig (ADR-0005)", () => {
   ])("ADR-0005 AUD-OPM-009: credential付きHEARTBEAT_URLはE-CFG01", (heartbeatUrl) => {
     expect(() => loadConfig({ ...validEnv, HEARTBEAT_URL: heartbeatUrl })).toThrow("E-CFG01");
   });
+
+  it("FinalArch:FR-CP-008: 移行flagは正本語彙・正本defaultで解決されconfigへ載る", () => {
+    const config = loadConfig({ ...validEnv, AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "shadow" });
+    expect(config.MIGRATION_FLAGS.get("control.temporal.enabled")).toBe("shadow");
+    expect(config.MIGRATION_FLAGS.get("policy.opa.enforce")).toBe("false");
+    expect(config.MIGRATION_FLAGS.get("control.legacy_scheduler.enabled")).toBe("true");
+  });
+
+  it("FinalArch:GOV-005: 不正な移行flag値はE-CFG01で起動失敗させる", () => {
+    expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "on" })).toThrow("E-FLAG01");
+    expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_TYPO_ENABLED: "primary" })).toThrow("E-FLAG04");
+  });
+
+  it("FinalArch:FR-CP-008: 二重writer（temporal primary + 既定onのlegacy scheduler）は起動を拒否する", () => {
+    expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary" })).toThrow("E-FLAG03");
+    const cutover = loadConfig({
+      ...validEnv,
+      AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "primary",
+      AIOPS_FLAG_CONTROL_LEGACY_SCHEDULER_ENABLED: "false",
+    });
+    expect(cutover.MIGRATION_FLAGS.get("control.legacy_scheduler.enabled")).toBe("false");
+  });
+
+  it("FinalArch:GOV-004: kill switchの不正値はE-CFG01で起動失敗させる（fail open禁止）", () => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "shadow",
+        AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL: "true",
+      }),
+    ).toThrow("E-FLAG05");
+  });
 });
