@@ -1,42 +1,34 @@
-# Production Gates Runbook
+<!-- 根拠: FinalArch:INV-012 / FinalArch:GOV-001 / ADR-0027 / ADR-0006 -->
 
-## CODEOWNERS
+# 本番ゲート: main branch protection の適用と証明（P0-T02）
 
-`.github/CODEOWNERS` must use real GitHub users or teams. For this repository, `@mryfmo` was verified with `gh repo view` and `gh api users/mryfmo`.
+- 状態: **ENV-DEC-011 待ち**。現 GitHub Free + private リポジトリでは branch protection /
+  rulesets API が 403 を返す（2026-08-10 実測。「Upgrade to GitHub Pro or make this
+  repository public」）。本 runbook は裁定成立後に即時適用できる形で手順と負証明を固定する。
+- 適用物: `.github/rulesets/main-protection.json`（bypass_actors 空 = AI トークンを含む
+  全 actor が人間レビューを迂回不可）
 
-Before go-live:
+## 適用手順（ENV-DEC-011 成立後）
 
-1. Confirm each CODEOWNERS user/team is still the intended reviewer.
-2. Enable branch protection for `main`.
-3. Enable "Require review from Code Owners".
+1. `gh api repos/{owner}/{repo}/rulesets --input .github/rulesets/main-protection.json`
+2. `gh api repos/{owner}/{repo}/rulesets --jq '.[].name'` で `main-protection` の存在を確認
+3. CODEOWNERS の有効化確認: `gh api repos/{owner}/{repo}/codeowners/errors` が空であること
 
-CI fails while `@OWNER`, common CODEOWNERS placeholder tokens, unverified `@user/team` owners, or email-style owners such as `nobody@example.com` remain.
-The verified owner allowlist lives in `scripts/check-codeowners.mjs`; update it only after confirming the account/team with `gh`.
-This does not prove branch protection is enabled; repository settings must still require CODEOWNERS review before go-live.
+## 負証明（negative probe。すべて「失敗すること」が合格）
 
-## AI PR Token
+| #   | Probe                                         | 期待結果                    |
+| --- | --------------------------------------------- | --------------------------- |
+| 1   | AI トークンで main へ直接 push（空 commit）   | 403 / protected branch 拒否 |
+| 2   | AI トークンで自己 PR を承認なしに merge       | 405 / review required 拒否  |
+| 3   | force push（--force-with-lease）              | non_fast_forward 拒否       |
+| 4   | required check red のまま merge               | 405 / status check 拒否     |
+| 5   | CODEOWNERS レビューなしで merge（別トークン） | review required 拒否        |
 
-`coding-task.yml` requires `AIOPS_PR_TOKEN`.
+各 probe は実行コマンド・HTTP 応答・タイムスタンプを取得し、本 runbook 末尾の
+Evidence 節へ追記する。probe 用の一時ブランチ/commit は実施後に削除する。
 
-Configure it as a GitHub App installation token or a dedicated PAT with:
+## Evidence（適用後に記入）
 
-- `contents:write`
-- `pull-requests:write`
-- `issues:write`
-
-The workflow fails before checkout when the secret is missing. This is intentional: PRs created with the default `GITHUB_TOKEN` do not reliably trigger `ci.yml`.
-
-## Secret Scanning
-
-`ci.yml` runs gitleaks CLI directly. The workflow pins:
-
-- gitleaks version: `8.30.1`
-- linux x64 tarball SHA-256: `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb`
-
-Update both values together after checking the upstream release checksum.
-
-## Upstream Rate Limiting
-
-Before go-live, the deployment owner must configure rate limiting for every public route at the upstream load balancer or WAF. Application-level rate limiting is intentionally not implemented while the deployment platform is undecided.
-
-Record the selected platform, policy/rule identifier, covered routes, limits, test date, test result, and approving owner here before production traffic is enabled. The limits and platform are `TBD(HUMAN)`; this gate remains open until that evidence is present.
+- 適用日時 / 実施者: PENDING(ENV-DEC-011)
+- ruleset ID / URL: PENDING(ENV-DEC-011)
+- 負証明ログ: PENDING(ENV-DEC-011)

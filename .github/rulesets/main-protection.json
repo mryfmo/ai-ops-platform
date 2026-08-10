@@ -1,0 +1,29 @@
+{
+  "$comment": "根拠: FinalArch:INV-012 / FinalArch:GOV-001 / ADR-0027 / ADR-0006。P0-T02 の適用対象。ENV-DEC-011（GitHub Pro 化 or public 化）成立後に gh api repos/{owner}/{repo}/rulesets へ POST する。適用と負証明の手順は runbooks/production-gates.md。",
+  "name": "main-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "require_code_owner_review": true,
+        "dismiss_stale_reviews_on_push": true,
+        "require_last_push_approval": true,
+        "required_review_thread_resolution": true
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [{ "context": "build-test" }, { "context": "gitleaks" }]
+      }
+    }
+  ],
+  "bypass_actors": []
+}
