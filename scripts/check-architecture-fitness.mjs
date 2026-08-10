@@ -46,6 +46,16 @@ function isRuntimeConfig(relativePath) {
   return /^(?:\.github|config|deploy|ops)\//u.test(relativePath) || /^packages\/[^/]+\/config\//u.test(relativePath);
 }
 
+function isForbiddenPlatformConfig(relativePath) {
+  return (
+    isRuntimeConfig(relativePath) ||
+    /(?:^|\/)\.env(?:\.[^/]*)?$/u.test(relativePath) ||
+    /(?:^|\/)(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$/u.test(relativePath) ||
+    /(?:^|\/)wrangler(?:\.[^/]*)?\.toml$/u.test(relativePath) ||
+    /^(?:infra(?:structure)?|terraform)(?:\/|[^/]*\.(?:json|toml|ya?ml|tf|tfvars)$)/u.test(relativePath)
+  );
+}
+
 function read(root, relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
@@ -56,9 +66,12 @@ function push(violations, code, relativePath, message) {
 
 function checkDirectEgress(root, files, violations) {
   const sourceFiles = files.filter((file) => /^packages\/[^/]+\/src\/.*\.[cm]?[jt]sx?$/u.test(file));
-  const directFetch = /\b(?:globalThis\.)?fetch\s*\(\s*(["'`])(https?:\/\/[^"'`\s)]+)\1/gu;
+  const directFetch = /(?<![\w.])(?:globalThis\.)?fetch\s*\(\s*([^,\n)]+)/gu;
   for (const file of sourceFiles) {
     const source = read(root, file);
+    const pathConstants = new Set(
+      [...source.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*["']\/[^"']*["']/gu)].map((item) => item[1]),
+    );
     if (
       EXTERNAL_SDK_IMPORT.test(source) &&
       !file.startsWith("packages/shared/src/clients/") &&
@@ -68,11 +81,27 @@ function checkDirectEgress(root, files, violations) {
     }
     EXTERNAL_SDK_IMPORT.lastIndex = 0;
     for (const match of source.matchAll(directFetch)) {
+      const prefix = source.slice(Math.max(0, match.index - 24), match.index);
+      if (/(?:private|protected|public|function|async)\s+$/u.test(prefix)) continue;
+      const target = match[1].trim();
+      const literal = /^(["'`])(.*?)\1$/u.exec(target);
+      const pathConstant = /^`\$\{([A-Z][A-Z0-9_]*)\}/u.exec(target)?.[1];
+      const sameOrigin = literal?.[2].startsWith("/") || pathConstants.has(pathConstant);
+      if (sameOrigin) continue;
+      if (!literal || !/^https?:\/\//u.test(literal[2])) {
+        push(
+          violations,
+          "EGRESS",
+          file,
+          `direct fetch target must be a static approved URL or same-origin path: ${target}`,
+        );
+        continue;
+      }
       let hostname;
       try {
-        hostname = new URL(match[2]).hostname.toLowerCase();
+        hostname = new URL(literal[2]).hostname.toLowerCase();
       } catch {
-        push(violations, "EGRESS", file, `direct fetch has a non-static or invalid URL: ${match[2]}`);
+        push(violations, "EGRESS", file, `direct fetch has a non-static or invalid URL: ${literal[2]}`);
         continue;
       }
       const internal =
@@ -108,6 +137,16 @@ function checkGatewayOverlap(root, files, violations) {
       push(violations, "GATEWAY_OVERLAP", file, "MCP/A2A runtime paths must be registered under deploy/agentgateway");
       continue;
     }
+    const llmRouting = source.split(/\r?\n/u).find((line) => {
+      const field =
+        /^[ \t]*(llm_routing_enabled|llm_routes?|model_routes?|models?|providers?|backend_model|upstream_model)[ \t]*:[ \t]*([^#]*?)[ \t]*(?:#.*)?$/iu.exec(
+          line,
+        );
+      return field && (field[1].toLowerCase() !== "llm_routing_enabled" || field[2] !== "false");
+    });
+    if (llmRouting) {
+      push(violations, "GATEWAY_OVERLAP", file, "agentgateway must not configure LLM routing");
+    }
     const servers = [...source.matchAll(/^\s*server(?:_id)?\s*:\s*([a-z0-9_-]+)\s*$/gimu)].map((match) => match[1]);
     if (servers.length === 0 || servers.some((server) => !registered.has(server))) {
       push(violations, "GATEWAY_OVERLAP", file, "agentgateway runtime paths require a registered canonical server");
@@ -133,7 +172,7 @@ function checkForbiddenPlatforms(root, files, violations) {
       continue;
     }
 
-    const sourceOrConfig = /^packages\/[^/]+\/src\//u.test(file) || isRuntimeConfig(file);
+    const sourceOrConfig = /^packages\/[^/]+\/src\//u.test(file) || isForbiddenPlatformConfig(file);
     if (!sourceOrConfig) continue;
     const source = read(root, file);
     if (/artifacts\.cloudflare\.com|cloudflare[_-]artifacts/iu.test(source)) {
@@ -147,15 +186,24 @@ function checkForbiddenPlatforms(root, files, violations) {
 
 function parseToolCatalog(source) {
   const allowed = new Set();
+  const allowedByServer = new Map();
   const forbidden = new Set();
   const lines = source.split(/\r?\n/u);
+  let server;
   for (let index = 0; index < lines.length; index += 1) {
     const key = lines[index].trim().replace(/^-\s*/u, "");
+    const serverMatch = /^server:\s*([a-z0-9_-]+)$/iu.exec(key);
+    if (serverMatch) server = serverMatch[1];
     if (key === "operations:") {
       for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
         const match = /^\s*-\s*([a-z0-9_-]+)\s*$/iu.exec(lines[cursor]);
         if (!match) break;
         allowed.add(match[1]);
+        if (server) {
+          const serverAllowed = allowedByServer.get(server) ?? new Set();
+          serverAllowed.add(match[1]);
+          allowedByServer.set(server, serverAllowed);
+        }
       }
     }
     if (key === "globally_forbidden:") {
@@ -166,24 +214,32 @@ function parseToolCatalog(source) {
       }
     }
   }
-  return { allowed, forbidden };
+  return { allowed, allowedByServer, forbidden };
 }
 
 function configuredTools(source) {
   const tools = [];
-  for (const match of source.matchAll(/^\s*(?:tool|tool_name|operation)\s*:\s*(["']?[a-z0-9._-]+["']?)/gimu)) {
-    tools.push(unquote(match[1]));
-  }
-  for (const match of source.matchAll(/^\s*tools\s*:\s*\[([^\]]*)\]/gimu)) {
-    tools.push(...match[1].split(",").map(unquote).filter(Boolean));
-  }
   const lines = source.split(/\r?\n/u);
+  let server;
   for (let index = 0; index < lines.length; index += 1) {
+    const serverMatch = /^\s*(?:-\s*)?server(?:_id)?\s*:\s*([a-z0-9_-]+)\s*$/iu.exec(lines[index]);
+    if (serverMatch) server = serverMatch[1];
+    const single = /^\s*(?:tool|tool_name|operation)\s*:\s*(["']?[a-z0-9._-]+["']?)/iu.exec(lines[index]);
+    if (single) tools.push({ server, tool: unquote(single[1]) });
+    const inline = /^\s*tools\s*:\s*\[([^\]]*)\]/iu.exec(lines[index]);
+    if (inline)
+      tools.push(
+        ...inline[1]
+          .split(",")
+          .map(unquote)
+          .filter(Boolean)
+          .map((tool) => ({ server, tool })),
+      );
     if (!/^\s*tools\s*:\s*$/iu.test(lines[index])) continue;
     for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
       const match = /^\s*-\s*(["']?[a-z0-9._-]+["']?)\s*$/iu.exec(lines[cursor]);
       if (!match) break;
-      tools.push(unquote(match[1]));
+      tools.push({ server, tool: unquote(match[1]) });
     }
   }
   return tools;
@@ -195,15 +251,16 @@ function checkMcpTools(root, files, violations) {
     push(violations, "MCP_TOOL", TOOL_CATALOG, "tool risk catalog is missing");
     return;
   }
-  const { allowed, forbidden } = parseToolCatalog(fs.readFileSync(catalogPath, "utf8"));
+  const { allowed, allowedByServer, forbidden } = parseToolCatalog(fs.readFileSync(catalogPath, "utf8"));
   if (allowed.size === 0 || forbidden.size === 0) {
     push(violations, "MCP_TOOL", TOOL_CATALOG, "tool risk catalog must define allowed and forbidden operations");
   }
   for (const file of files.filter(isRuntimeConfig)) {
     if (file === TOOL_CATALOG) continue;
-    for (const tool of configuredTools(read(root, file))) {
-      if (forbidden.has(tool) || !allowed.has(tool)) {
-        push(violations, "MCP_TOOL", file, `MCP tool is not allowlisted: ${tool}`);
+    for (const { server, tool } of configuredTools(read(root, file))) {
+      const serverAllowed = server ? allowedByServer.get(server) : undefined;
+      if (forbidden.has(tool) || !allowed.has(tool) || (server && !serverAllowed?.has(tool))) {
+        push(violations, "MCP_TOOL", file, `MCP tool is not allowlisted${server ? ` for ${server}` : ""}: ${tool}`);
       }
     }
   }

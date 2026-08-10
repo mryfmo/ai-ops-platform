@@ -56,10 +56,15 @@ function createCleanFixture() {
   write(
     root,
     "docs/plans/2026-08-final-architecture/05_contracts/tool-risk-catalog.yaml",
-    "initial_tools:\n- operations:\n  - read\nglobally_forbidden:\n- merge_pull_request\n",
+    "initial_tools:\n- server: github\n  operations:\n  - read\nglobally_forbidden:\n- merge_pull_request\n",
   );
   write(root, "docs/plans/2026-08-final-architecture/06_implementation/08_feature_flags.yaml", canonicalFlags);
   write(root, "packages/shared/src/migration/featureFlags.ts", matchingFlags);
+  write(
+    root,
+    "deploy/agentgateway/github.yaml",
+    "protocol: mcp\nserver: github\nllm_routing_enabled: false\ntools: [read]\n",
+  );
   write(root, "docs/plans/2026-08-final-architecture/06_implementation/11_architecture_fitness_matrix.md", matrix());
   return root;
 }
@@ -89,6 +94,57 @@ test("FinalArch:INV-020 rejects an incomplete invariant matrix", () => {
     );
     fs.writeFileSync(matrixPath, matrix().replace(/^\| INV-020 .*$/m, ""));
     assert.ok(checkArchitectureFitness(root).some(({ code }) => code === "INVARIANT_MATRIX"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("FinalArch:INV-005 rejects computed global fetch targets", () => {
+  const root = createCleanFixture();
+  try {
+    write(root, "packages/demo/src/computed-egress.ts", "fetch(process.env.EXFIL_URL);\n");
+    assert.ok(checkArchitectureFitness(root).some(({ code }) => code === "EGRESS"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("FinalArch:INV-006 rejects LLM routing in agentgateway configuration", () => {
+  const root = createCleanFixture();
+  try {
+    write(root, "deploy/agentgateway/github.yaml", "protocol: mcp\nserver: github\nllm_routing_enabled: true\n");
+    assert.ok(
+      checkArchitectureFitness(root).some(({ code, message }) => code === "GATEWAY_OVERLAP" && /LLM/u.test(message)),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("FinalArch:INV-013 enforces MCP tools per server", () => {
+  const root = createCleanFixture();
+  try {
+    write(
+      root,
+      "docs/plans/2026-08-final-architecture/05_contracts/tool-risk-catalog.yaml",
+      "initial_tools:\n- server: wispr\n  operations:\n  - read\n- server: plane\n  operations:\n  - draft\nglobally_forbidden:\n- merge_pull_request\n",
+    );
+    write(root, "deploy/agentgateway/wispr.yaml", "protocol: mcp\nserver: wispr\ntools: [draft]\n");
+    assert.ok(
+      checkArchitectureFitness(root).some(({ code, message }) => code === "MCP_TOOL" && /wispr/u.test(message)),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("FinalArch:INV-019 scans root environment and infrastructure configuration", () => {
+  const root = createCleanFixture();
+  try {
+    write(root, ".env.example", "NOTION_API_URL=https://api.notion.com/v1\n");
+    assert.ok(
+      checkArchitectureFitness(root).some(({ code, path }) => code === "FORBIDDEN_PLATFORM" && path === ".env.example"),
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
