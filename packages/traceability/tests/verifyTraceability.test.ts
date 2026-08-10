@@ -1484,6 +1484,41 @@ describe("FinalArch 根拠ID [FinalArch:PRD-010]", () => {
     expect(result.stderr).toContain("basis header missing: packages/shared/src/basis.ts");
   });
 
+  it("FinalArch index の重複IDを index 整合ガードが検出する [FinalArch:PRD-010]", async () => {
+    const root = fixture({ finalArchPrds: ["PRD-001"] });
+    const indexPath = join(root, "packages/traceability/spec-ids/final-architecture.json");
+    writeFileSync(indexPath, JSON.stringify({ system: "FinalArch", PRD: ["PRD-001", "PRD-001"], INV: [] }));
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("duplicate spec index ID: FinalArch:PRD-001");
+  });
+
+  it("FinalArch 専用 category を PrjOps index へ持ち込むと落ちる [FinalArch:PRD-010]", async () => {
+    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    const indexPath = join(root, "packages/traceability/spec-ids/prjops.json");
+    const index = JSON.parse(readFileSync(indexPath, "utf8"));
+    index.PRD = ["PRD-777"];
+    writeFileSync(indexPath, JSON.stringify(index));
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("invalid spec index category: PrjOps:PRD");
+  });
+
+  it("DevOps 専用 category (TH) は FinalArch index で拒否される [FinalArch:PRD-010]", async () => {
+    const root = fixture({});
+    const indexPath = join(root, "packages/traceability/spec-ids/final-architecture.json");
+    writeFileSync(indexPath, JSON.stringify({ system: "FinalArch", PRD: [], INV: [], TH: ["TH-001"] }));
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("invalid spec index category: FinalArch:TH");
+  });
+
   it("カタログの FinalArch 節に未登録 ID があると落ちる [FinalArch:PRD-010]", async () => {
     const root = fixture({ finalArchPrds: ["PRD-001"] });
     const catalog =

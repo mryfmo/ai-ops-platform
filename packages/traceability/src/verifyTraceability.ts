@@ -128,11 +128,20 @@ function indexedIds(index: SpecIndex): Set<string> {
   );
 }
 
+// P0-T03-002: category は system ごとの許可集合で検証する。グローバル許可リストだと、
+// FinalArch 専用 category（PRD/FR/NFR/INV）を PrjOps/DevOps の index へ黙って持ち込めてしまう。
+const CATEGORIES_BY_SYSTEM: Record<string, readonly SpecCategory[]> = {
+  PrjOps: ["REQ", "SPEC-EXT", "SPEC-INT", "ISS", "TOBE", "ASM", "AC"],
+  DevOps: ["REQ", "SPEC-EXT", "SPEC-INT", "TH", "ISS", "AC"],
+  FinalArch: ["PRD", "FR", "NFR", "INV"],
+};
+
 function specIndexFailures(indexes: SpecIndex[]): string[] {
   const failures = new Set<string>();
   const seenSystems = new Set<string>();
   for (const index of indexes) {
-    if (!(["PrjOps", "DevOps"] as const).includes(index.system as "PrjOps" | "DevOps")) {
+    const allowedCategories = CATEGORIES_BY_SYSTEM[index.system];
+    if (!allowedCategories) {
       failures.add(`invalid spec index system: ${index.system}`);
     }
     if (seenSystems.has(index.system)) failures.add(`duplicate spec index system: ${index.system}`);
@@ -141,7 +150,7 @@ function specIndexFailures(indexes: SpecIndex[]): string[] {
     const seenIds = new Map<string, string>();
     for (const [key, value] of Object.entries(index)) {
       if (key === "system" || key === "dispositions") continue;
-      if (!SPEC_CATEGORIES.includes(key as SpecCategory) || !Array.isArray(value)) {
+      if (!(allowedCategories ?? []).includes(key as SpecCategory) || !Array.isArray(value)) {
         failures.add(`invalid spec index category: ${index.system}:${key}`);
         continue;
       }
@@ -997,7 +1006,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     collidingIds,
     new Set([join(traceabilityDir, "tests", "verifyTraceability.test.ts")]),
   );
-  const indexGuardFailures = specIndexFailures([prjopsIndex, devopsIndex]);
+  const indexGuardFailures = specIndexFailures([prjopsIndex, devopsIndex, finalArchIndex]);
   const catalogGuardFailures = catalogFailures(repoRoot, [prjopsIndex, devopsIndex, finalArchIndex]);
   // 報告と失敗収集で同じ結果を使う。片方だけに現れると、失敗した実行の成果物が
   // 全ガード clean に見えてしまう。
