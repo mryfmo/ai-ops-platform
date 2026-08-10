@@ -1,3 +1,5 @@
+<!-- 根拠: PrjOps:REQ-030 / PrjOps:REQ-041 / PrjOps:REQ-042 -->
+
 # P0-T05 Report
 
 - Branch: `agent/P0-T05-perf-baseline`
