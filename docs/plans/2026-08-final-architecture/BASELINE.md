@@ -44,3 +44,17 @@
 本取込コピーは同 delta の是正（PACK-01..08 / DELTA-01..07（全項適用。詳細は IMPORT_NOTES.md））を適用済みであり、
 原本 zip（references/ 配下、SHA256 記録あり）とは意図的に差分がある。差分一覧は
 `IMPORT_NOTES.md` を参照。
+
+## P0-T01 再検証（2026-08-10）
+
+- Current main HEAD: `1f8e12c97cca8604cabaa9f35d5bcb0bfda2c91c`
+- Current tree: `59cb4af42ef4d99be5289304fcfefe43cfbaef58`
+- 追補差分: PR #152（`ff66698..1f8e12c`）を
+  [`baseline-delta.md`](baseline-delta.md) で全件分類。runtime・DB・workflow・依存変更および
+  architecture invariant との衝突なし
+- CI: [main run 31341703185](https://github.com/mryfmo/ai-ops-platform/actions/runs/31341703185)
+  の `build-test` / `gitleaks` が success（PostgreSQL 16、182 test files、2,270 passed、
+  4 skipped、`P001 PostgreSQL integration passed`）
+
+GOV-001 の現行証跡は上記追補を正本とし、元のパック基準 commit は比較起点として保持する。
+<!-- 根拠: PRD-010 / GOV-001 / P0-T01 -->
