@@ -52,3 +52,8 @@ GitHub Actionsのスケジュールされたワークフローの最小間隔は
 - 本リポジトリのDevOpsエージェント実装（`packages/devops/src/agents/*.ts`）は、常駐プロセスの
   メインループからも、GitHub Actionsの単発実行からも呼び出せるよう、副作用のない関数として
   設計している（`AGT_ORCH.evaluateFailsafe`等はいずれも呼び出し側が任意の頻度で呼べる純粋関数）。
+
+## Amendment（2026-08-10、P0-T03）
+
+ADR-0021（Proposed）が in-process scheduler の実行正本を Temporal へ段階移行する。常駐 ingress と 30秒/毎分要件の存在自体は維持（2026-08-09 の PrjOps 常駐結線 amendment に続く第2段）。
+最終アーキテクチャ計画: docs/plans/2026-08-final-architecture/（PR #152、Owner 承認済み baseline-delta 適用）。

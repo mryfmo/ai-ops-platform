@@ -58,3 +58,8 @@
   coding-task.yml内にプレースホルダとして手順を記載）。
 - コスト: コーディングタスク1件あたりのLLM使用はGitHub Actions側のANTHROPIC_API_KEYで
   発生し、PgCostGuardの管轄外。必要になれば使用量APIでの取り込みを検討する（残課題）。
+
+## Amendment（2026-08-10、P0-T03）
+
+ADR-0027（Proposed）が Droid 有効化・one-writer lock・gateway credential・独立 Codex review を追加する（拡張）。branch/PR/human merge の原則は維持。
+最終アーキテクチャ計画: docs/plans/2026-08-final-architecture/（PR #152、Owner 承認済み baseline-delta 適用）。

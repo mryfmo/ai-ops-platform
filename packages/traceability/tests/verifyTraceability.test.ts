@@ -4,7 +4,7 @@
  * 根拠: ADR-0004。T-P2-05是正証跡: AUD-VER-007 / AUD-TRC-001 / AUD-TRC-002。
  * 一時repo fixtureで必須仕様欠落とguard違反がCLI failureになることを検証する。
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -25,6 +25,8 @@ const missingAdr = (number: number): string => `ADR-${number}`;
 
 interface FixtureOptions {
   prjopsReqs?: string[];
+  finalArchPrds?: string[];
+  finalArchInvs?: string[];
   prjopsSpecInts?: string[];
   prjopsSpecExts?: string[];
   prjopsAcs?: string[];
@@ -107,7 +109,38 @@ function fixtureCatalog(prjopsReqs: string[], devopsReqs: string[]): string {
         (id) => `| \`${system}:${id}\` | Fixture definition for ${id}. | [ADR-0004](../adr/0004-toolchain.md) | — |`,
       ),
     ].join("\n");
-  return ["# Spec ID Catalog", "", section("PrjOps", prjopsReqs), "", section("DevOps", devopsReqs), ""].join("\n");
+  return [
+    "# Spec ID Catalog",
+    "",
+    section("PrjOps", prjopsReqs),
+    "",
+    section("DevOps", devopsReqs),
+    "",
+    finalArchSection([]),
+    "",
+  ].join("\n");
+}
+
+// FinalArch は第3のカタログ節。fixture では既定で空（節見出しは system count 検証のため必須）。
+function finalArchSection(rows: Array<{ id: string; category: string }>): string {
+  const byCategory = new Map<string, string[]>();
+  for (const row of rows) {
+    byCategory.set(row.category, [...(byCategory.get(row.category) ?? []), row.id]);
+  }
+  const lines = ["## FinalArch", ""];
+  for (const [category, ids] of byCategory) {
+    lines.push(
+      `### ${category}`,
+      "",
+      "| ID | Definition | Canonical source | Representative implementation/tests |",
+      "| --- | --- | --- | --- |",
+      ...ids.map(
+        (id) => `| \`FinalArch:${id}\` | Fixture definition for ${id}. | [plan.md](../plans/plan.md#L1) | — |`,
+      ),
+      "",
+    );
+  }
+  return lines.join("\n");
 }
 
 function fixture(options: FixtureOptions | string[] = {}): string {
@@ -128,6 +161,7 @@ function fixture(options: FixtureOptions | string[] = {}): string {
     "docs/adr",
     "docs/spec",
     "docs/reference",
+    "docs/plans",
   ]) {
     mkdirSync(join(root, dir), { recursive: true });
   }
@@ -180,8 +214,27 @@ function fixture(options: FixtureOptions | string[] = {}): string {
   }
   writeFileSync(join(root, "docs/adr/0004-toolchain.md"), "# ADR-0004\n");
   writeFileSync(
+    join(root, "packages/traceability/spec-ids/final-architecture.json"),
+    JSON.stringify({
+      system: "FinalArch",
+      PRD: normalized.finalArchPrds ?? [],
+      INV: normalized.finalArchInvs ?? [],
+    }),
+  );
+  writeFileSync(join(root, "docs/plans/plan.md"), "# Plan fixture\n");
+  writeFileSync(
     join(root, "docs/spec/spec-id-catalog.md"),
-    normalized.catalogText ?? fixtureCatalog(normalized.prjopsReqs ?? [], normalized.devopsReqs ?? []),
+    normalized.catalogText ??
+      (normalized.finalArchPrds?.length || normalized.finalArchInvs?.length
+        ? [
+            fixtureCatalog(normalized.prjopsReqs ?? [], normalized.devopsReqs ?? []).replace(finalArchSection([]), ""),
+            finalArchSection([
+              ...(normalized.finalArchPrds ?? []).map((id) => ({ id, category: "PRD" })),
+              ...(normalized.finalArchInvs ?? []).map((id) => ({ id, category: "INV" })),
+            ]),
+            "",
+          ].join("\n")
+        : fixtureCatalog(normalized.prjopsReqs ?? [], normalized.devopsReqs ?? [])),
   );
   return root;
 }
@@ -1388,6 +1441,97 @@ describe("設定変数の計算プロパティ [PrjOps:SPEC-INT-070 / DevOps:SPE
 
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("uses a computed property key");
+  });
+});
+
+describe("FinalArch 根拠ID [FinalArch:PRD-010]", () => {
+  // P0-T03（PACK-04 是正）: 最終アーキテクチャ計画の ID 族（PRD/FR/NFR/INV）を
+  // 根拠ヘッダ文法へ追加する。文法拡張は登録済み ID の実在検証と不可分——
+  // 形だけ合う未登録 ID（例: PRD-999）は既存の実在チェックで落ちること。
+  it("登録済み PRD/INV を根拠ヘッダとして受理する [FinalArch:PRD-010]", async () => {
+    const root = fixture({ finalArchPrds: ["PRD-001"], finalArchInvs: ["INV-016"] });
+    mkdirSync(join(root, "packages/shared/src"), { recursive: true });
+    writeFileSync(join(root, "packages/shared/src/basis.ts"), "/** 根拠: PRD-001 / INV-016 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.stderr).not.toContain("basis header missing: packages/shared/src/basis.ts");
+    expect(result.stderr).not.toContain("basis id not found: packages/shared/src/basis.ts");
+  });
+
+  it("未登録の FinalArch ID は実在チェックで落ちる [FinalArch:PRD-010]", async () => {
+    const root = fixture({ finalArchPrds: ["PRD-001"] });
+    mkdirSync(join(root, "packages/shared/src"), { recursive: true });
+    writeFileSync(join(root, "packages/shared/src/basis.ts"), "/** 根拠: PRD-999 */\nexport const x = 1;\n");
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("packages/shared/src/basis.ts");
+  });
+
+  it("語中一致（XPRD-001 / NFR-XXX-001）は根拠と認めない [FinalArch:PRD-010]", async () => {
+    const root = fixture({ finalArchPrds: ["PRD-001"] });
+    mkdirSync(join(root, "packages/shared/src"), { recursive: true });
+    writeFileSync(
+      join(root, "packages/shared/src/basis.ts"),
+      "/** 根拠: XPRD-001 と NFR-XXX-001 */\nexport const x = 1;\n",
+    );
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("basis header missing: packages/shared/src/basis.ts");
+  });
+
+  it("FinalArch index の重複IDを index 整合ガードが検出する [FinalArch:PRD-010]", async () => {
+    const root = fixture({ finalArchPrds: ["PRD-001"] });
+    const indexPath = join(root, "packages/traceability/spec-ids/final-architecture.json");
+    writeFileSync(indexPath, JSON.stringify({ system: "FinalArch", PRD: ["PRD-001", "PRD-001"], INV: [] }));
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("duplicate spec index ID: FinalArch:PRD-001");
+  });
+
+  it("FinalArch 専用 category を PrjOps index へ持ち込むと落ちる [FinalArch:PRD-010]", async () => {
+    const root = fixture({ prjopsReqs: ["REQ-001"] });
+    const indexPath = join(root, "packages/traceability/spec-ids/prjops.json");
+    const index = JSON.parse(readFileSync(indexPath, "utf8"));
+    index.PRD = ["PRD-777"];
+    writeFileSync(indexPath, JSON.stringify(index));
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("invalid spec index category: PrjOps:PRD");
+  });
+
+  it("DevOps 専用 category (TH) は FinalArch index で拒否される [FinalArch:PRD-010]", async () => {
+    const root = fixture({});
+    const indexPath = join(root, "packages/traceability/spec-ids/final-architecture.json");
+    writeFileSync(indexPath, JSON.stringify({ system: "FinalArch", PRD: [], INV: [], TH: ["TH-001"] }));
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("invalid spec index category: FinalArch:TH");
+  });
+
+  it("カタログの FinalArch 節に未登録 ID があると落ちる [FinalArch:PRD-010]", async () => {
+    const root = fixture({ finalArchPrds: ["PRD-001"] });
+    const catalog =
+      readFileSync(join(root, "docs/spec/spec-id-catalog.md"), "utf8").replace(
+        "| `FinalArch:PRD-001` |",
+        "| `FinalArch:PRD-001` |",
+      ) + "\n| `FinalArch:PRD-777` | Fixture. | [plan.md](../plans/plan.md#L1) | — |\n";
+    writeFileSync(join(root, "docs/spec/spec-id-catalog.md"), catalog);
+
+    const result = await runFailure(root);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("unknown catalog ID: FinalArch:PRD-777");
   });
 });
 

@@ -52,3 +52,8 @@
 - Agent SDKのオプション名（`allowedTools`/`disallowedTools`/`canUseTool`等）はSDKのバージョンにより
   変更される可能性があるため、`claudeAgentClient.ts`冒頭に「導入時に最新リファレンスで再確認する」
   旨を明記している。
+
+## Amendment（2026-08-10、P0-T03）
+
+ADR-0022（Proposed）が provider 接続経路（direct Anthropic credential / provider selection）を段階的に置換する。構造化出力・決定的ロジック分離の原則は維持。
+最終アーキテクチャ計画: docs/plans/2026-08-final-architecture/（PR #152、Owner 承認済み baseline-delta 適用）。

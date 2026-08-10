@@ -77,3 +77,8 @@
 - prjopsの重複Profile型定義を正本（reportJobStateMachine.ts）への再エクスポートに統一した
   （tsc project referencesの実ビルドで発覚した既存の潜在バグ修正）。
 - packages/sharedのtsconfigにcomposite: trueを追加（同上）。
+
+## Amendment（2026-08-10、P0-T03）
+
+ADR-0025（Proposed）が Teams の rich conversational surface を追加する（部分 supersession）。Graph ingestion / RSC の決定は維持。
+最終アーキテクチャ計画: docs/plans/2026-08-final-architecture/（PR #152、Owner 承認済み baseline-delta 適用）。
