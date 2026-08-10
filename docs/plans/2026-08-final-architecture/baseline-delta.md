@@ -78,17 +78,20 @@ DB を作成して検証した。
 ローカルでも PostgreSQL 16.14 の隔離 cluster と 3 DB（`aiops_test`、
 `aiops_load_test`、`aiops_p001`）を用い、次を独立に再実行した。
 
+- `mise run ci`: pass（69.61秒、182 files、2,274 passed、0 skipped）
 - `mise run typecheck`: pass（4.84秒）
 - `mise run test:coverage`: 182 files、2,270 passed、4 skipped、pass（20.85秒）
 - `mise run verify:db`: `P001 PostgreSQL integration passed`（2.60秒）
 
-ローカルの一括 `mise run ci` は audit まで外部接続を許可して進めたが、Codex runner の
-port-bind 制限により Turbopack が `Operation not permitted` で停止した。この失敗を green
-とは扱わない。上記 main CI が clean checkout・通常 Turbopack・PostgreSQL 16 で同一 HEAD
-を完走した証跡であり、ローカルでは失敗地点の前後を分離して再検証した。
+未変更のローカル command は Codex runner の port-bind 制限により Turbopack が
+`Operation not permitted` で停止したため、この試行は green と扱わなかった。最終実行は
+repo 外の一時 `NODE_OPTIONS` shim で Next の公式 `--webpack` option だけを付与し、clean に
+作り直した上記 3 DB に対して `mise run ci` の全 task を exit 0 まで完走した。shim は repo
+差分・依存・設定に含まれない。通常 Turbopack は main CI と PR #153 CI が同じ HEAD/content
+で green のため、bundler 固有経路も別途成立している。
 
 ## GOV-001
 
 HEAD/tree、承認済み `49e2e3c→ff66698` delta、PR #152 の全差分分類、依存 snapshot、
-実 PostgreSQL を含む CI 証跡が揃った。P0-T01 PR の Owner approval をもって、この追補を
-GOV-001 の現行 baseline として確定する。
+実 PostgreSQL を含む `mise run ci` 証跡が揃った。P0-T01 PR の Reviewer/Owner approval を
+もって、この追補を GOV-001 の現行 baseline として確定する。

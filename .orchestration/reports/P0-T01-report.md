@@ -13,5 +13,5 @@
 - Recorded lockfile/toolchain hashes and versions. No dependency or implementation change was made.
 - Verified main CI run `31341703185` at the current base: `build-test` and `gitleaks` succeeded with PostgreSQL 16, 182 test files, 2,270 passing tests, 4 skipped tests, and `P001 PostgreSQL integration passed`.
 - Verified PR CI run `31344141574` on the evidence commit: `build-test` passed in 4m43s, `gitleaks` passed, and CodeRabbit completed without a blocking result.
-- Re-ran typecheck, full coverage, and P001 integration locally against a dedicated PostgreSQL 16.14 cluster. The local monolithic CI command hit the documented Codex runner Turbopack port-bind restriction and is not represented as green.
+- Re-ran the complete `mise run ci` locally against clean dedicated PostgreSQL 16.14 databases: exit 0 in 69.61s, 182 test files, 2,274 passed, 0 skipped, and `P001 PostgreSQL integration passed`. A repo-external test shim selected Next's official webpack option because the Codex runner denies Turbopack port binding; the normal Turbopack path remained green in PR CI.
 - GOV-001 becomes current when the Owner approves this task PR; the original pack commit remains the comparison origin.
