@@ -85,8 +85,21 @@ interface ParsedReferences {
 }
 
 const SPEC_ID_PATTERN =
-  "(?:REQ|SPEC-(?:EXT|INT)|TH)-\\d{3}|AC-\\d{3}(?:-\\d+|[a-z])?|ISS-\\d{2,3}|TOBE-\\d{2}|ASM-\\d{3}";
-const SPEC_CATEGORIES = ["REQ", "SPEC-EXT", "SPEC-INT", "TH", "ISS", "TOBE", "ASM", "AC"] as const;
+  "(?:REQ|SPEC-(?:EXT|INT)|TH)-\\d{3}|AC-\\d{3}(?:-\\d+|[a-z])?|ISS-\\d{2,3}|TOBE-\\d{2}|ASM-\\d{3}|PRD-\\d{3}|FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\\d{3}|NFR-(?:REL|SEC|PERF)-\\d{3}|INV-\\d{3}";
+const SPEC_CATEGORIES = [
+  "REQ",
+  "SPEC-EXT",
+  "SPEC-INT",
+  "TH",
+  "ISS",
+  "TOBE",
+  "ASM",
+  "AC",
+  "PRD",
+  "FR",
+  "NFR",
+  "INV",
+] as const;
 type SpecCategory = (typeof SPEC_CATEGORIES)[number];
 
 const ID_PATTERN_BY_CATEGORY: Record<SpecCategory, RegExp> = {
@@ -98,6 +111,10 @@ const ID_PATTERN_BY_CATEGORY: Record<SpecCategory, RegExp> = {
   TOBE: /^TOBE-\d{2}$/,
   ASM: /^ASM-\d{3}$/,
   AC: /^AC-\d{3}(?:-\d+|[a-z])?$/,
+  PRD: /^PRD-\d{3}$/,
+  FR: /^FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\d{3}$/,
+  NFR: /^NFR-(?:REL|SEC|PERF)-\d{3}$/,
+  INV: /^INV-\d{3}$/,
 };
 
 function indexedIds(index: SpecIndex): Set<string> {
@@ -459,9 +476,9 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
   const failures = new Set<string>();
   const expectedBySystem = new Map(indexes.map((index) => [index.system, indexedIds(index)]));
   const seen = new Map<string, number>();
-  const sectionPattern = /^## (PrjOps|DevOps)\s*$/gm;
+  const sectionPattern = /^## (PrjOps|DevOps|FinalArch)\s*$/gm;
   const sections = [...text.matchAll(sectionPattern)];
-  const canonicalPattern = new RegExp(`^(PrjOps|DevOps):(${SPEC_ID_PATTERN})$`);
+  const canonicalPattern = new RegExp(`^(PrjOps|DevOps|FinalArch):(${SPEC_ID_PATTERN})$`);
   const resolvedRepoRoot = resolve(repoRoot);
   const expectedMirrorSource: Record<string, Partial<Record<SpecCategory, string>>> = {
     PrjOps: {
@@ -546,7 +563,7 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
     return false;
   };
 
-  for (const system of ["PrjOps", "DevOps"]) {
+  for (const system of ["PrjOps", "DevOps", "FinalArch"]) {
     const count = sections.filter((section) => section[1] === system).length;
     if (count !== 1) failures.add(`catalog system section count: ${system}=${count}`);
   }
@@ -558,7 +575,7 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
     let category = "";
     for (const line of text.slice(start, end).split("\n")) {
       if (line.startsWith("### ")) {
-        const categoryHeading = /^### (REQ|SPEC-EXT|SPEC-INT|TH|ISS|TOBE|ASM|AC)\s*$/.exec(line);
+        const categoryHeading = /^### (REQ|SPEC-EXT|SPEC-INT|TH|ISS|TOBE|ASM|AC|PRD|FR|NFR|INV)\s*$/.exec(line);
         category = categoryHeading?.[1] ?? "";
         continue;
       }
@@ -569,7 +586,7 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
         .map((cell) => cell.trim());
       const token = cells[0]?.replace(/^`|`$/g, "") ?? "";
       if (token === "ID" || /^-+$/.test(token)) continue;
-      if (!token.match(/(?:REQ|SPEC-|TH-|AC-|ISS-|TOBE-|ASM-)/)) continue;
+      if (!token.match(/(?:REQ|SPEC-|TH-|AC-|ISS-|TOBE-|ASM-|PRD-|FR-|NFR-|INV-)/)) continue;
       if (cells.length !== 4) {
         failures.add(`malformed catalog row: ${token}`);
         continue;
@@ -805,7 +822,7 @@ function formatDispositions(indexes: SpecIndex[]): string {
  * 後方境界が無いと `REQ-00000` の先頭 4 桁が `REQ-0000` に一致してしまい、**実在しない ID を
  * 書いたヘッダがガードを通る**。桁数だけを緩く見る書き方は、ここでは穴になる。
  */
-const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}`;
+const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}|PRD-\d{3}|FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\d{3}|NFR-(?:REL|SEC|PERF)-\d{3}|INV-\d{3}`;
 const BASIS_ID_BOUNDED = String.raw`(?<![A-Za-z0-9_-])(${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`;
 const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9_-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`);
 
@@ -940,11 +957,16 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
   const specIdsDir = join(repoRoot, "packages", "traceability", "spec-ids");
   const prjopsIndex = loadSpecIndex(join(specIdsDir, "prjops.json"));
   const devopsIndex = loadSpecIndex(join(specIdsDir, "devops.json"));
+  // FinalArch: 最終アーキテクチャ計画（docs/plans/2026-08-final-architecture）の要求・不変条件 ID。
+  // PACK-04 是正: 文法拡張は登録済み ID の実在検証（knownBySystem 経由）と不可分に導入する。
+  const finalArchIndex = loadSpecIndex(join(specIdsDir, "final-architecture.json"));
   const prjopsIds = indexedIds(prjopsIndex);
   const devopsIds = indexedIds(devopsIndex);
+  const finalArchIds = indexedIds(finalArchIndex);
   const knownBySystem = new Map<string, ReadonlySet<string>>([
     [prjopsIndex.system, prjopsIds],
     [devopsIndex.system, devopsIds],
+    [finalArchIndex.system, finalArchIds],
   ]);
   const collidingIds = new Set([...prjopsIds].filter((id) => devopsIds.has(id)));
 
@@ -976,12 +998,12 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     new Set([join(traceabilityDir, "tests", "verifyTraceability.test.ts")]),
   );
   const indexGuardFailures = specIndexFailures([prjopsIndex, devopsIndex]);
-  const catalogGuardFailures = catalogFailures(repoRoot, [prjopsIndex, devopsIndex]);
+  const catalogGuardFailures = catalogFailures(repoRoot, [prjopsIndex, devopsIndex, finalArchIndex]);
   // 報告と失敗収集で同じ結果を使う。片方だけに現れると、失敗した実行の成果物が
   // 全ガード clean に見えてしまう。
   const configGuardFailures = configInventoryFailures(repoRoot);
   // 根拠ヘッダの ID 実在チェックに使う。報告と失敗収集で同じ結果を使うため一度だけ計算する。
-  const allKnownIds = new Set([...prjopsIds, ...devopsIds]);
+  const allKnownIds = new Set([...prjopsIds, ...devopsIds, ...finalArchIds]);
   const basisGuardFailures = basisHeaderFailures(repoRoot, allKnownIds);
 
   const prjopsResults: CategoryResult[] = [
