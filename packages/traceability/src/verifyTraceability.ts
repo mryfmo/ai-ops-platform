@@ -136,6 +136,14 @@ const CATEGORIES_BY_SYSTEM: Record<string, readonly SpecCategory[]> = {
   FinalArch: ["PRD", "FR", "NFR", "INV"],
 };
 
+for (const [system, categories] of Object.entries(CATEGORIES_BY_SYSTEM)) {
+  for (const category of categories) {
+    if (!SPEC_CATEGORIES.includes(category)) {
+      throw new Error(`CATEGORIES_BY_SYSTEM invariant broken: ${system}:${category}`);
+    }
+  }
+}
+
 function specIndexFailures(indexes: SpecIndex[]): string[] {
   const failures = new Set<string>();
   const seenSystems = new Set<string>();
