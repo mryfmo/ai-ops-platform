@@ -85,7 +85,7 @@ interface ParsedReferences {
 }
 
 const SPEC_ID_PATTERN =
-  "(?:REQ|SPEC-(?:EXT|INT)|TH)-\\d{3}|AC-\\d{3}(?:-\\d+|[a-z])?|ISS-\\d{2,3}|TOBE-\\d{2}|ASM-\\d{3}|PRD-\\d{3}|FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\\d{3}|NFR-(?:REL|SEC|PERF)-\\d{3}|INV-\\d{3}";
+  "(?:REQ|SPEC-(?:EXT|INT)|TH)-\\d{3}|AC-\\d{3}(?:-\\d+|[a-z])?|ISS-\\d{2,3}|TOBE-\\d{2}|ASM-\\d{3}|PRD-\\d{3}|FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\\d{3}|NFR-(?:REL|SEC|PERF)-\\d{3}|INV-\\d{3}|(?:GOV|CON|LLM|TMP|MCP|WIQ|MTG|UX|COD|AIO|REL|ING)-\\d{3}";
 const SPEC_CATEGORIES = [
   "REQ",
   "SPEC-EXT",
@@ -99,6 +99,7 @@ const SPEC_CATEGORIES = [
   "FR",
   "NFR",
   "INV",
+  "GATE",
 ] as const;
 type SpecCategory = (typeof SPEC_CATEGORIES)[number];
 
@@ -115,6 +116,7 @@ const ID_PATTERN_BY_CATEGORY: Record<SpecCategory, RegExp> = {
   FR: /^FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\d{3}$/,
   NFR: /^NFR-(?:REL|SEC|PERF)-\d{3}$/,
   INV: /^INV-\d{3}$/,
+  GATE: /^(?:GOV|CON|LLM|TMP|MCP|WIQ|MTG|UX|COD|AIO|REL|ING)-\d{3}$/,
 };
 
 function indexedIds(index: SpecIndex): Set<string> {
@@ -133,7 +135,7 @@ function indexedIds(index: SpecIndex): Set<string> {
 const CATEGORIES_BY_SYSTEM: Record<string, readonly SpecCategory[]> = {
   PrjOps: ["REQ", "SPEC-EXT", "SPEC-INT", "ISS", "TOBE", "ASM", "AC"],
   DevOps: ["REQ", "SPEC-EXT", "SPEC-INT", "TH", "ISS", "AC"],
-  FinalArch: ["PRD", "FR", "NFR", "INV"],
+  FinalArch: ["PRD", "FR", "NFR", "INV", "GATE"],
 };
 
 for (const [system, categories] of Object.entries(CATEGORIES_BY_SYSTEM)) {
@@ -520,6 +522,7 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
   const categoryForId = (id: string): string => {
     if (id.startsWith("SPEC-EXT-")) return "SPEC-EXT";
     if (id.startsWith("SPEC-INT-")) return "SPEC-INT";
+    if (/^(?:GOV|CON|LLM|TMP|MCP|WIQ|MTG|UX|COD|AIO|REL|ING)-/.test(id)) return "GATE";
     return id.split("-")[0]!;
   };
 
@@ -592,7 +595,7 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
     let category = "";
     for (const line of text.slice(start, end).split("\n")) {
       if (line.startsWith("### ")) {
-        const categoryHeading = /^### (REQ|SPEC-EXT|SPEC-INT|TH|ISS|TOBE|ASM|AC|PRD|FR|NFR|INV)\s*$/.exec(line);
+        const categoryHeading = /^### (REQ|SPEC-EXT|SPEC-INT|TH|ISS|TOBE|ASM|AC|PRD|FR|NFR|INV|GATE)\s*$/.exec(line);
         category = categoryHeading?.[1] ?? "";
         continue;
       }
@@ -603,7 +606,12 @@ function catalogFailures(repoRoot: string, indexes: SpecIndex[]): string[] {
         .map((cell) => cell.trim());
       const token = cells[0]?.replace(/^`|`$/g, "") ?? "";
       if (token === "ID" || /^-+$/.test(token)) continue;
-      if (!token.match(/(?:REQ|SPEC-|TH-|AC-|ISS-|TOBE-|ASM-|PRD-|FR-|NFR-|INV-)/)) continue;
+      if (
+        !token.match(
+          /(?:REQ|SPEC-|TH-|AC-|ISS-|TOBE-|ASM-|PRD-|FR-|NFR-|INV-|GOV-|CON-|LLM-|TMP-|MCP-|WIQ-|MTG-|UX-|COD-|AIO-|REL-|ING-)/,
+        )
+      )
+        continue;
       if (cells.length !== 4) {
         failures.add(`malformed catalog row: ${token}`);
         continue;
@@ -839,7 +847,7 @@ function formatDispositions(indexes: SpecIndex[]): string {
  * 後方境界が無いと `REQ-00000` の先頭 4 桁が `REQ-0000` に一致してしまい、**実在しない ID を
  * 書いたヘッダがガードを通る**。桁数だけを緩く見る書き方は、ここでは穴になる。
  */
-const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}|PRD-\d{3}|FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\d{3}|NFR-(?:REL|SEC|PERF)-\d{3}|INV-\d{3}`;
+const BASIS_ID_PATTERN = String.raw`(?:REQ|SPEC-EXT|SPEC-INT|TH)-\d{3}|AC-\d{3}(?:-\d+|[a-z])?|ADR-\d{4}|PRD-\d{3}|FR-(?:CP|LLM|MCP|M365|UI|MTG|AGT|OBS)-\d{3}|NFR-(?:REL|SEC|PERF)-\d{3}|INV-\d{3}|(?:GOV|CON|LLM|TMP|MCP|WIQ|MTG|UX|COD|AIO|REL|ING)-\d{3}`;
 const BASIS_ID_BOUNDED = String.raw`(?<![A-Za-z0-9_-])(${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`;
 const BASIS_HEADER_ID = new RegExp(String.raw`根拠:[\s\S]*(?<![A-Za-z0-9_-])(?:${BASIS_ID_PATTERN})(?![0-9A-Za-z_-])`);
 
