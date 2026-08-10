@@ -39,7 +39,8 @@ export async function closeHttpServer(server: CloseableServer): Promise<void> {
 
 export async function gracefulShutdown(deps: {
   server: CloseableServer;
-  scheduler: SchedulerHandle;
+  /** FinalArch:FR-CP-008: legacy scheduler が flag で無効化された構成では null（stop をスキップ） */
+  scheduler: SchedulerHandle | null;
   pool: Pick<Pool, "end">;
   telemetry?: TelemetryHandle;
   setShuttingDown(value: boolean): void;
@@ -49,7 +50,7 @@ export async function gracefulShutdown(deps: {
   deps.setShuttingDown(true);
   const shutdown = async (): Promise<void> => {
     await closeHttpServer(deps.server);
-    await deps.scheduler.stop();
+    await deps.scheduler?.stop();
     await deps.pool.end();
     await deps.telemetry?.shutdown();
   };

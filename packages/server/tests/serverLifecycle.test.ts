@@ -51,6 +51,18 @@ describe("gracefulShutdown (A-4)", () => {
     expect(calls).toEqual(["shuttingDown:true", "server.close", "scheduler.stop", "pool.end", "telemetry.shutdown"]);
   });
 
+  it("FinalArch:FR-CP-008: scheduler=null（legacy無効化構成）ではstopをスキップして完了する", async () => {
+    const calls: string[] = [];
+    await gracefulShutdown({
+      server: { close: (cb: (err?: Error) => void) => void (calls.push("server.close"), cb()) },
+      scheduler: null,
+      pool: { end: async () => void calls.push("pool.end") },
+      setShuttingDown: () => {},
+      logger: createLogger("silent"),
+    });
+    expect(calls).toEqual(["server.close", "pool.end"]);
+  });
+
   it("正常終了後はtimeout timerを残さない", async () => {
     vi.useFakeTimers();
     await gracefulShutdown({
