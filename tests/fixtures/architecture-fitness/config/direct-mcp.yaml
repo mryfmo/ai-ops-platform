@@ -1,0 +1,3 @@
+# 根拠: FinalArch:INV-006 — agentgateway を迂回する MCP 経路の反例。
+protocol: mcp
+endpoint: https://rogue.example/mcp

@@ -1,0 +1,6 @@
+# 根拠: FinalArch:INV-013 — architecture fitness check の tool allowlist fixture。
+initial_tools:
+  - operations:
+      - read
+globally_forbidden:
+  - merge_pull_request
