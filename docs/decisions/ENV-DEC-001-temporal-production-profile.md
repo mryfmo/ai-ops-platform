@@ -4,8 +4,7 @@
 
 - 決定 ID: ENV-DEC-001 / WBS: P0-T07（risk: high、acceptance gate: GOV-003）
 - Writer: claude-code-fable5-xhigh / Reviewer: codex-gpt56-sol-high
-- 状態: **Owner 裁定待ち**（本書の判定欄が空欄の間、Temporal への実装着手・契約・
-  本番設定は一切行わない）
+- 状態: **裁定済み（案 B' 承認、2026-08-10）**
 
 ## 決定事項
 
@@ -70,6 +69,6 @@ Temporal OSS（MIT・契約不要）を既存インフラ上の単一ノード�
 
 ## 判定
 
-- 判定（Owner 記入欄）: ＿＿＿＿（案 B' 承認 / 差戻し / その他指示）
-- 日付: ＿＿＿＿
-- 備考: ＿＿＿＿
+- 判定（Owner 記入欄）: **案 B' 承認**（セルフホスト OSS 最小形: 単一ノード compose + 既存 PostgreSQL 永続化。有償契約なし・Kubernetes なし）
+- 日付: 2026-08-10
+- 備考: Owner 発言（セッション記録）「有償契約は意図していない」「Kubernetes まで大掛かりなことをする必要がない」「案B' 承認」に基づく。パック既定案（Cloud + Azure workers）は不採用と確定。後続追補: (1) P3-T01 を compose 構成 + 起動 runbook へ差し替える WBS 追補、(2) P0-T09 マトリクス Temporal 行の self-host 改訂。いずれも P0-T10 前の chore タスクで処理する
