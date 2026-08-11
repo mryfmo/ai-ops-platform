@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.aiops.example.invalid/contracts/domain/v1",
+  "$comment": "根拠: FinalArch:CON-001 / FinalArch:CON-002 / FinalArch:PRD-003 / FinalArch:FR-CP-001 / ADR-0020; 出所: docs/plans/2026-08-final-architecture/05_contracts/domain-schemas.json sha256=73257bc4d41233f87fe5cd3ee53bb4510870af57439f7dd1e4dbc210298cf666",
+  "title": "AI Ops Domain Contracts",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "correlationContext": {
+      "$ref": "#/$defs/correlationContext"
+    },
+    "sourceReference": {
+      "$ref": "#/$defs/sourceReference"
+    },
+    "meetingExtraction": {
+      "$ref": "#/$defs/meetingExtraction"
+    },
+    "agentTaskManifest": {
+      "$ref": "#/$defs/agentTaskManifest"
+    },
+    "workflowKind": {
+      "$ref": "#/$defs/workflowKind"
+    },
+    "versionedPayload": {
+      "$ref": "#/$defs/versionedPayload"
+    }
+  },
+  "$defs": {
+    "workflowKind": {
+      "type": "string",
+      "enum": [
+        "meeting",
+        "coding-task",
+        "incident",
+        "report",
+        "plane-sync",
+        "graph-subscription",
+        "knowledge-publication"
+      ]
+    },
+    "versionedPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "payload"],
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "payload": {}
+      }
+    },
+    "correlationContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["traceId", "correlationId"],
+      "properties": {
+        "traceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workflowId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "agentTaskId": {
+          "type": "string"
+        },
+        "meetingId": {
+          "type": "string"
+        },
+        "pullRequestNumber": {
+          "type": "integer"
+        }
+      }
+    },
+    "sourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "objectId"],
+      "properties": {
+        "system": {
+          "enum": ["plane", "github", "sharepoint", "confluence", "wispr", "teams", "outlook", "work-iq"]
+        },
+        "objectId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "version": {
+          "type": "string"
+        },
+        "approvalStatus": {
+          "type": "string"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "meetingExtraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "decisions", "actions", "risks", "questions", "sources"],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceItem"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text", "sourceSpan"],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "ownerCandidate": {
+                "type": "string"
+              },
+              "dueDateCandidate": {
+                "type": "string"
+              },
+              "targetSystemCandidate": {
+                "type": "string"
+              },
+              "sourceSpan": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceItem"
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceItem"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceReference"
+          }
+        }
+      }
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "sourceSpan", "confidence"],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "sourceSpan": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "agentTaskManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taskId",
+        "writer",
+        "reviewer",
+        "allowedPaths",
+        "forbiddenPaths",
+        "acceptanceGateIds",
+        "instruction"
+      ],
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "writer": {
+          "enum": ["claude-code-fable5-xhigh", "codex-gpt56-sol-high", "droid"]
+        },
+        "reviewer": {
+          "enum": ["claude-code-fable5-xhigh", "codex-gpt56-sol-high", "human"]
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "allowedPaths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptanceGateIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "baseRef": {
+          "type": "string"
+        },
+        "maxCostUsd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

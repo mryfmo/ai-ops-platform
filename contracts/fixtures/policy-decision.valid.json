@@ -1,0 +1,6 @@
+{
+  "decision": "allow",
+  "reasons": ["policy matched"],
+  "obligations": { "requireHumanApproval": false },
+  "policyBundleVersion": "v1"
+}

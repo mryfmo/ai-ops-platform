@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.aiops.example.invalid/contracts/policy-decision/v1",
+  "$comment": "根拠: FinalArch:CON-004 / FinalArch:CON-005 / FinalArch:PRD-005 / ADR-0020 / ADR-0023; 出所: docs/plans/2026-08-final-architecture/05_contracts/policy-decision.schema.json sha256=7844bd61dab6d01c96afdc07aeee451701724f0db280f6b9dc2ed4223818f400; nested unknown fields are rejected for CON-004",
+  "title": "OPA policy decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "reasons", "obligations", "policyBundleVersion"],
+  "properties": {
+    "decision": {
+      "enum": ["allow", "deny", "require_approval"]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "obligations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redactFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedProvider": {
+          "enum": ["bedrock", "anthropic", "none"]
+        },
+        "requireHumanApproval": {
+          "type": "boolean"
+        },
+        "maxResultBytes": {
+          "type": "integer"
+        },
+        "allowedResourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "policyBundleVersion": {
+      "type": "string"
+    },
+    "decisionId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}
