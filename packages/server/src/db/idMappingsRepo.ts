@@ -1,7 +1,7 @@
 /**
  * packages/server/src/db/idMappingsRepo.ts
  *
- * 根拠: FinalArch:CON-002 / DevOps:SPEC-INT-091 / ADR-0020。
+ * 根拠: FinalArch:CON-002 / ADR-0020。
  * SoR 間 ID 対応の versioned mapping。現行値の正本は id_mapping_heads
  * （論理キー PK の単一行）で、単調 version CAS は 1 文の
  * ON CONFLICT DO UPDATE ... WHERE old.version < new.version による。
