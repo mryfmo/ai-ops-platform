@@ -1,0 +1,96 @@
+T31 VALIDATION EVIDENCE
+=======================
+
+Repository: /Users/mryfmo/Workspace/ai-ops-platform
+Planned commit: 21306d8
+Date: 2026-07-10
+
+1. Coverage and schema
+- TASK headings: 50
+- Coverage mappings: 50
+- Required field counts (each): 50
+  対応所見 / 観点 / 現状 / 欠陥 / 改善 / 許可scope / 禁止 / 前提STOP /
+  DoD / 検証 / 証跡 / blocked-by / 仕様trace / status
+- Current-state entries with literal file:line evidence: 50/50
+- DoD checkboxes: 150 (3 per task)
+- verified-integration entries: 50
+- requires-real-env entries: 50
+- anti-faking entries: 50
+
+2. Forbidden/empty wording
+Command:
+  rg -n 'T[B]D|workerが適切に判[D]断|ワーカーが適切に判[D]断' .orchestration/plan/remediation_workplan.md
+Result: no matches.
+Manual read confirmed no empty task field; multiline DoD/verification headings are populated immediately below.
+
+3. Phase membership
+Machine-expanded groups:
+  G0 = 001,003,023-025
+  G1 = 002,004,043
+  G2 = 009-012,016-018,026,030,034,036,044-045,048-050
+  G3 = 005-008,013-015,035,039-042,046-047
+  G4 = 019-022,027,032-033,037-038
+  G5 = 028-029,031
+Result: count=50, unique=50, missing=[], duplicates=[].
+
+4. Gate semantics
+- GATE-0 contains self-contained CRITICAL PRG-001/003 plus PRG-023/024/025 and the
+  PRG-031 accountable-owner appointment obligation.
+- CRITICAL PRG-002/004 are in GATE-1 and cannot start until their six cited IDs have
+  owner-approved definitions; current implementation cannot substitute for definitions.
+- Every phase has start prerequisites and checked repository gate criteria.
+- Every phase separates verified-integration from requires-real-env.
+- Real-env rows cannot be replaced by mocks and remain open until PRG-031.
+- Final gate requires CRITICAL open=0, HIGH open=0, MED closure or approved expiring exception,
+  and accountable human sign-off.
+
+5. Plan quality workflow entry points
+Target-repository checks:
+  scripts/validate_plan_quality.py: unavailable
+  plans/TEMPLATE.md: unavailable
+  .claude/agents/plan-quality-reviewer.md: unavailable
+  .claude/hooks/plan-quality-gate.sh: unavailable
+  local plan-quality CI/Make target: unavailable
+The available external plan-quality-reviewer definition was read and used as a manual checklist.
+Subagent review was not used because T31 did not authorize delegation and the session forbids unsolicited subagents.
+
+Manual checklist result:
+- Required custom T31 sections/fields: PASS
+- Current state with measured file:line: PASS 50/50
+- Concrete positive/adversarial verification: PASS
+- Specific STOP conditions: PASS
+- Scope and safety invariants: PASS
+- Done checkboxes and self-audit: PASS
+- Superficial line-count-only completion: rejected; content counts and phase union were checked.
+
+6. Workspace integrity
+- Both plan files are non-empty.
+- Product/audit tracked diff: none.
+- T31 deliverable writes are limited to .orchestration/; mandatory session worklog records are
+  under .agents/worklog/codex/.
+- Product source, specification source, accepted audit, dependencies, and branch state remain unchanged.
+
+7. Acceptance revise round 1
+- MUST 1 PASS: PRG-001/003 remain GATE-0. PRG-002/004 depend on T32 accepted +
+  TASK-PRG023, contain an explicit no-definition/no-start BLOCKED rule, and are in GATE-1.
+- MUST 2 PASS: PRG-023/024/025 name both accepted T32 output paths as direct inputs and
+  depend on T32 acceptance. PRG-023 permits external-original or reverse-reconstruction +
+  Specification Owner approval, and forbids implementation ratification.
+- MUST 3 PASS (T32-corrected): PRG-023/024 pin 295 IDs (PrjOps 156 / DevOps 139),
+  catalog definition lines 32, indexed definitions 31, 264 undefined (89.5%), and 14 ADRs
+  (0001-0014). PRG-023 also pins PrjOps REQ gaps 8 (022-029), DevOps REQ gaps 17
+  (004-009, 013, 014, 032-040), total REQ gaps 25, orphan DevOps REQ-032, and the
+  AGENTS.md ADR-0014 omission.
+- MUST 4 PASS (T33-regenerated): coverage is PRG-001..050 + SPC-001..026 = 76 findings,
+  mapped one-to-one to 76 tasks; all SPC tasks are placed in GATE-0 or GATE-1.
+- SHOULD PASS: all tasks requesting new specification IDs are centralized under one
+  allocation owner/rule section; workers cannot self-allocate IDs.
+
+8. T33 integration addendum
+- Current task headings: 76 (PRG 50 + SPC 26).
+- Current coverage mappings: 76; missing=0; duplicates=0.
+- Current required field counts: 76 each; DoD checkboxes: 228 (3 per task).
+- Current phase membership: count=76, unique=76, missing=[], duplicates=[].
+- Root-spec prerequisites: SPC-022->PRG-041, SPC-023->PRG-042, SPC-024->PRG-044,
+  SPC-025->PRG-047, SPC-026->PRG-048; reverse prerequisites absent.
+- Authoritative command output for this addendum is `.orchestration/validation/T33-validation.txt`.

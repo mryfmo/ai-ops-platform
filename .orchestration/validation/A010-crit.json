@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_58f4a3",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A010 self-review approval: reviewed both commits against origin/main. The receipt matches the orchestrator-authored byte content and SHA256, the manifest adds only the specified P010-F01-T11 record with the two required SHA substitutions, and the through-T11 validator, format, and full CI pass. No P0, P1, or P2 findings.",
+    "author": "Codex",
+    "created_at": "2026-07-18T01:15:06Z",
+    "updated_at": "2026-07-18T01:15:17Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_4dd91a",
+        "body": "Approved; no changes requested after byte/hash, validator, format, and full CI verification.",
+        "author": "Codex",
+        "created_at": "2026-07-18T01:15:17Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

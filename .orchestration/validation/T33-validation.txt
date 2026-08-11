@@ -1,0 +1,134 @@
+T33 VALIDATION EVIDENCE
+=======================
+
+Repository: /Users/mryfmo/Workspace/ai-ops-platform
+Revision inspected: 21306d8
+Date: 2026-07-10
+
+1. T33 aggregate validator
+Command:
+  node .orchestration/validation/T33-validate.mjs
+Result (exit 0):
+  T33 VALIDATOR PASS
+  checks=1415
+  task headings=76, coverage rows=76, phase members=76; missing=0, duplicates=0
+  schema labels=14 x 76, DoD=228, verified/real-env/anti-faking=76 each
+  legacy values=0 in four target files; corrected facts=present in four target files
+  forbidden placeholders=0; allowed bare 未定 lines=1
+  SPC tasks=26 in GATE-0/1; root dependencies=5 forward, 0 reverse
+  dependency graph=DAG, dangling=0, cycles=0, phase violations=0
+  GATE-0 topological order: TASK-PRG001 -> TASK-PRG003 -> TASK-SPC001 -> TASK-SPC002 -> TASK-SPC003 -> TASK-SPC005 -> TASK-SPC006 -> TASK-SPC007 -> TASK-PRG023 -> TASK-SPC008 -> TASK-PRG024 -> TASK-SPC013 -> TASK-SPC014 -> TASK-SPC015 -> TASK-SPC016 -> TASK-SPC017 -> TASK-SPC018 -> TASK-SPC019 -> TASK-SPC020 -> TASK-SPC021 -> TASK-PRG025 -> TASK-SPC022 -> TASK-SPC023 -> TASK-SPC024 -> TASK-SPC025 -> TASK-SPC026
+  GATE-1 topological order: TASK-PRG002 -> TASK-PRG004 -> TASK-PRG043 -> TASK-SPC004 -> TASK-SPC009 -> TASK-SPC010 -> TASK-SPC011 -> TASK-SPC012
+  GATE-2 topological order: TASK-PRG009 -> TASK-PRG010 -> TASK-PRG016 -> TASK-PRG017 -> TASK-PRG011 -> TASK-PRG018 -> TASK-PRG012 -> TASK-PRG026 -> TASK-PRG030 -> TASK-PRG034 -> TASK-PRG036 -> TASK-PRG045 -> TASK-PRG048 -> TASK-PRG005 -> TASK-PRG044 -> TASK-PRG050
+  GATE-3 topological order: TASK-PRG006 -> TASK-PRG007 -> TASK-PRG008 -> TASK-PRG013 -> TASK-PRG014 -> TASK-PRG015 -> TASK-PRG039 -> TASK-PRG040 -> TASK-PRG035 -> TASK-PRG041 -> TASK-PRG042 -> TASK-PRG046 -> TASK-PRG047
+  GATE-4 topological order: TASK-PRG019 -> TASK-PRG020 -> TASK-PRG021 -> TASK-PRG027 -> TASK-PRG032 -> TASK-PRG033 -> TASK-PRG037 -> TASK-PRG038 -> TASK-PRG022 -> TASK-PRG049
+  GATE-5 topological order: TASK-PRG028 -> TASK-PRG029 -> TASK-PRG031
+  allowed 未定 line 491: current defect, not an executor placeholder
+  canonical-loss tasks=integrated through TASK-PRG023
+  immutable audit/acceptance artifacts=5 hash matches
+
+The 14 counted labels are the task contract requested by T33: finding, surface/lens,
+current state, defect, to-be, allowed scope, prohibited work, prerequisite/STOP, DoD,
+validation, evidence, dependencies, specification trace, and status. DoD has exactly
+three checkboxes per task. Each validation section has verified-integration,
+requires-real-env, and anti-faking rows.
+
+2. Legacy-value grep
+Command:
+  rg -n '263|32 defined|32 definitions|定義32|未定義263|\(89%\)|（89%）|SPC[^\n]{0,20}未反映|未反映[^\n]{0,20}SPC' \
+    .orchestration/plan/remediation_workplan.md \
+    .orchestration/plan/remediation_phases.md \
+    .orchestration/reports/T31-report.md \
+    .orchestration/validation/T31-validation.txt
+Result:
+  PASS stale-value grep: zero matches
+
+Corrected facts present in every target file:
+  indexed IDs=295; catalog definition lines=32; indexed definitions=31;
+  undefined indexed IDs=264 (89.5%); DevOps REQ gaps=17; total REQ gaps=25;
+  orphan definition=DevOps REQ-032.
+
+3. Accepted T32 regression validator
+Command:
+  node .orchestration/validation/T32-validate.mjs
+Result (exit 0):
+  PASS official ID totals/cardinality, aggregation rules, reconstruction 264/264,
+  SPC-001..026, gaps, orphan/dead/testless/collision findings, and retrospectives.
+  PASS T31 stale-value follow-up disposition T33 integrated.
+  { "status": "PASS", "findings": 26, "reconstructionRows": 264 }
+
+T32-validate.mjs previously required the old T31 values to remain as an outstanding
+follow-up. Its transition check now accepts either the historical pending state or the
+complete T33 integration; accepted audit and acceptance content remains hash-identical.
+
+4. Dependency and phase checks
+- TASK-PRG041 blocked by TASK-SPC022; reverse absent.
+- TASK-PRG042 blocked by TASK-SPC023; reverse absent.
+- TASK-PRG044 blocked by TASK-SPC024; reverse absent.
+- TASK-PRG047 blocked by TASK-SPC025; reverse absent.
+- TASK-PRG048 blocked by TASK-SPC026; reverse absent.
+- Canonical-loss SPC-001/002/003/006/007 are governed through TASK-PRG023.
+- Resolved PRG005 <-> PRG048 by retaining PRG005 blocked-by PRG048 and removing the
+  reverse edge. PRG048 uses the already-received raw.authorAadId and does not need PRG005.
+- Resolved PRG027 <-> PRG049 by retaining PRG049 blocked-by PRG027 and removing the
+  reverse edge. PRG049 needs PRG027's Docker CI path; PRG027 can test the current image.
+- GATE-0 has 26 tasks; GATE-1 has 8; GATE-2/3/4/5 have 16/13/10/3.
+- Union is 76 unique tasks. All 26 SPC tasks occur exactly once in GATE-0/1.
+- TASK-PRG031 now requires evidence for PRG 50 + SPC 26.
+- Graph result: 76 nodes, dangling=0, cycles=0, phase-order violations=0.
+- The deterministic topological order printed above is also recorded verbatim at the end
+  of remediation_phases.md and checked against regeneration on every validator run.
+
+5. Adversarial graph validation
+Cycle fixture command:
+  T33_WORKPLAN_PATH=/private/tmp/T33-cycle-workplan.md \
+    node .orchestration/validation/T33-validate.mjs
+Result (exit 1, expected):
+  Error: FAIL dependency DAG: cycles=TASK-PRG005 -> TASK-PRG048 -> TASK-PRG005
+
+Dangling fixture command:
+  T33_WORKPLAN_PATH=/private/tmp/T33-dangling-workplan.md \
+    node .orchestration/validation/T33-validate.mjs
+Result (exit 1, expected):
+  Error: FAIL dependency dangling: count=1, edges=["TASK-PRG005->TASK-PRG999"]
+
+The fixtures differ from the workplan by one dependency edge each and are stored outside
+the repository. T33_WORKPLAN_PATH exists only to exercise the validator against such
+adversarial copies.
+
+6. Plan quality workflow
+Target-repository entry points:
+  scripts/validate_plan_quality.py: unavailable
+  plans/TEMPLATE.md and plans/AGENTS.md: unavailable
+  .claude/agents/plan-quality-reviewer.md: unavailable
+  .claude/hooks/plan-quality-gate.sh: unavailable
+  docs/workflows/plan-quality-gate.md: unavailable
+  Make/CI plan-quality entry point: unavailable
+
+The available external plan-quality-gate workflow and reviewer checklist were read and
+applied manually. Delegated review was not used because T33 does not authorize delegation
+and the session forbids unsolicited subagents. Manual result: PASS for concrete current
+state, bounded scope, explicit prohibited work, task-specific STOP conditions, positive
+and adversarial validation, evidence paths, dependencies, trace, checkable DoD, gate
+criteria, and self-audit. The executable replacement gate is:
+  node .orchestration/validation/T33-validate.mjs
+
+7. Workspace integrity
+Command:
+  git diff --quiet -- . ':!.agents' ':!.orchestration'
+Result:
+  exit 0; tracked product/docs/spec/schema diff is empty.
+  git status --short shows only the pre-existing untracked .agents/ directory.
+  Crit review is not required because there is no tracked git diff.
+
+Protected SHA-256 values verified by T33-validate.mjs:
+  production_readiness_gap_audit.md 38dd23a7cbb3081a75fac784e41954ed12f74a0099d604f6da6de27be058640a
+  specification_content_audit.md    27f7d84566d9db0cbfdfc8bbd173f553aa79e63f391d4a94b0da4edfa2b2872d
+  spec_reconstruction.md             78d629d6aaee88009fb63ba81cbd1c268bd39849ff27e87bed30864580298def
+  T31.acceptance.md                  33a44401e086877de3e79272a1b6cb6d1a38e4b8598f212fed521da27cadc035
+  T32.acceptance.md                  2f05d8ffd8bc5eb804ac4679c0b7c752b4b61d11058138410c33238e51af11b8
+
+8. Real-environment status
+No product implementation or real-environment test was run. This task edits execution
+plans and validation artifacts only. Every task retains an OPEN requires-real-env row,
+and mock/dev evidence cannot close TASK-PRG031.

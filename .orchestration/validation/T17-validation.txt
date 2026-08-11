@@ -1,0 +1,47 @@
+T17 validation evidence
+
+Commands:
+
+1. pnpm --filter @aiops/shared test
+   Result: passed
+   Summary: 13 files, 117 tests passed.
+
+2. pnpm --filter @aiops/server test
+   Result: passed
+   Summary: 30 files, 166 tests passed.
+
+3. pnpm --filter @aiops/shared build
+   Result: passed
+
+4. pnpm --filter @aiops/devops build
+   Result: passed
+
+5. pnpm --filter @aiops/prjops build
+   Result: passed after shared build refreshed the GraphClient type.
+
+6. pnpm --filter @aiops/server build
+   Result: passed
+
+7. mise run traceability
+   Result: passed
+   Summary: all REQ/SPEC-INT/TH IDs have at least one implementation reference.
+
+8. pnpm run format
+   Result: passed
+   Summary: all matched files use Prettier code style.
+
+9. git diff --check
+   Result: passed
+
+10. mise run ci
+    Result: passed
+    Summary: lint -> traceability -> format -> build -> typecheck -> test:coverage all completed successfully.
+
+11. mise run ci (post-acceptance ignore fix)
+    Result: passed
+    Summary: `.orchestration/` is ignored by both Git and Prettier; lint -> traceability -> format -> build -> typecheck -> test:coverage all completed successfully.
+
+Notes:
+
+- Initial `pnpm --filter @aiops/server test -- --runInBand` failed because Vitest 2 does not support `--runInBand`; rerun without the option passed.
+- An intermediate workflow diff placed artifact/ingest before Droid generation; this was found during diff review and fixed before final CI.

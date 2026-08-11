@@ -1,0 +1,36 @@
+T09 validation
+==============
+
+Branch: agent/T09
+PR: https://github.com/mryfmo/ai-ops-platform/pull/6
+Final head: 8662ee4 ci: build workspaces before typecheck
+
+Local targeted validation:
+
+- PASS: mise exec -- pnpm --filter @aiops/prjops run test -- executiveSevenKeys.test.ts investorMetrics.test.ts permissionAndDelivery.test.ts
+  Observed: Vitest ran all prjops tests, 19 files / 192 tests passed.
+- PASS: mise exec -- pnpm --filter @aiops/devops run test -- deployStateMachineAndDora.test.ts reportTemplates.test.ts agtRpt.test.ts
+  Observed: Vitest ran all devops tests, 15 files / 154 tests passed.
+- PASS: mise exec -- pnpm --filter @aiops/shared run test -- reporting.test.ts
+  Observed: Vitest ran all shared tests, 11 files / 99 tests passed.
+- PASS: mise exec -- pnpm --filter @aiops/web run test -- reportData/prjopsReportData.test.ts reportData/executiveSummaryHandler.test.ts reportData/investorSummaryHandler.test.ts reportData/devopsReportData.test.ts reportData/projectsHandler.test.ts chat/tools.test.ts chat/systemPrompt.test.ts views.test.tsx DashboardClient.test.tsx
+  Observed: Vitest ran all web tests, 18 files / 116 tests passed.
+
+Local full validation:
+
+- PASS: mise run traceability
+  Observed: OK: all REQ / SPEC-INT / TH IDs have implementation references.
+- PASS: mise run -j 1 ci
+  Observed: lint, format, typecheck, build, coverage tests, and traceability completed successfully.
+
+GitHub checks after push:
+
+- PASS: build-test
+- PASS: gitleaks
+- PASS: CodeRabbit
+
+Review gate:
+
+- Attempted: make require-crit-review
+- Result: unavailable in this repository (`make: *** No rule to make target 'require-crit-review'. Stop.`)
+

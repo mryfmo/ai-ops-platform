@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_be1afc",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A020 self-review approved: the DEV-DEFAULT fixture maps every canonical PJ-* identifier found under the existing fixture directories (PJ-001, PJ-002, PJ-404) exactly once; every node ID uses the DEV-NODE- prefix, every authorized URL is the required development placeholder, provenance records mryfmo and the 2026-07-18 dev-phase instruction, and the unsigned/development/go-live replacement limits are explicit. The companion schema rejects extra fields and constrains the required provenance and mapping values. Format, semantic mapping validation, and full repository CI are green.",
+    "author": "Codex",
+    "created_at": "2026-07-19T04:37:08Z",
+    "updated_at": "2026-07-19T04:37:26Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_914c22",
+        "body": "Self-review complete; no actionable findings remain.",
+        "author": "Codex",
+        "created_at": "2026-07-19T04:37:26Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

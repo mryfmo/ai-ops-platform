@@ -1,0 +1,373 @@
+{
+  "count": 46,
+  "comments": [
+    {
+      "pr": 10,
+      "path": "verification/VERIFICATION_REPORT.md",
+      "line": 46,
+      "original_line": 46,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Correct the server test evidence**\n\nThe recorded command only runs `app.test.ts`: the [Vitest CLI guide](https://vitest.dev/guide/cli) states that an additional argument is a test-file filter, and this repo has 9 `it(...)` blocks in `packages/server/tests/app.test.ts` versus 136 across `packages/server/tests`. In this verification report context, leaving the result as “server package tests 136 件成功” overstates the coverage of the recorded run; either record the full-package command or change the result to the app-specific count.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/10#discussion_r3550518761"
+    },
+    {
+      "pr": 10,
+      "path": "runbooks/e2e-real-environment.md",
+      "line": 118,
+      "original_line": 118,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Mark PrjOps E2E checks blocked until providers exist**\n\nThis checklist says PrjOps stakeholder master data can be made available to Web, but the current Web runtime has no such wiring: `dashboard/page.tsx` and the PRF-04/investor data routes instantiate `new InMemoryStakeholderMasterProvider([])` with empty report providers and no env/DB path. In a real Entra session, PRF-04/PRF-03/investor personas will remain unresolved or empty after following this runbook, so the E2E validation is impossible unless the provider implementation is added or these PrjOps cases are explicitly marked blocked with a concrete seeding mechanism.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/10#discussion_r3550518773"
+    },
+    {
+      "pr": 10,
+      "path": "runbooks/e2e-real-environment.md",
+      "line": 1,
+      "original_line": 1,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Add a traceability basis to this runbook**\n\nAGENTS.md design principle 3 requires each new file to start with a basis ID (`REQ-*`, `SPEC-*`, `TH-*`, `AC-*`, or `ADR-*`); the other runbooks include a `根拠:` line, but this new runbook starts without any traceability ID. Because README and the verification report now link this file as the authoritative real-environment checklist, add the relevant ADR/SPEC/REQ header so reviewers can tie the procedure back to its governing requirement.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/10#discussion_r3550518777"
+    },
+    {
+      "pr": 11,
+      "path": "packages/server/src/http/routes/xlsxImport.ts",
+      "line": 49,
+      "original_line": 49,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Require authorization before executing XLSX imports**\n\nAny caller who can reach this Hono app can set the static `x-confirm-import: yes` header and trigger `executeXlsxImport` against the `owner`/`repo` query params with the server's GitHub credentials; unlike the webhook and coding-task routes, there is no signature, bearer token, session, or persona check before the write path. This turns the new endpoint into an unauthenticated GitHub write primitive, so add a real authorization boundary before accepting the confirmation header.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/11#discussion_r3550798112"
+    },
+    {
+      "pr": 11,
+      "path": "packages/shared/src/clients/githubClient.ts",
+      "line": 193,
+      "original_line": 193,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Drop the unsupported Milestone fragment from project item query**\n\nWhen `GITHUB_PROJECT_NODE_ID` is configured, the snapshot reconcile task uses this query and `graphql()` throws on any returned GraphQL errors. GitHub's GraphQL Projects docs list `ProjectV2ItemContent` possible types as draft issues, issues, and pull requests, so the `... on Milestone` spread is invalid for this union and will make every reconcile page fail before snapshots are stored.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/11#discussion_r3550798116"
+    },
+    {
+      "pr": 11,
+      "path": "packages/shared/src/clients/githubClient.ts",
+      "line": 244,
+      "original_line": 244,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Encode project field values according to field_type**\n\nWhen an import row targets a non-text Project v2 field such as Status/single-select, number, date, or iteration, this mutation still sends `value: { text: $value }` and never uses `input.fieldType`. GitHub's `ProjectV2FieldValue` input uses distinct keys such as `singleSelectOptionId`, `number`, `date`, `iterationId`, or `text`, so those valid spreadsheet rows fail during execute and are counted as failed instead of being imported.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/11#discussion_r3550798119"
+    },
+    {
+      "pr": 12,
+      "path": "docs/README.md",
+      "line": 1,
+      "original_line": 1,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Add required spec-ID headers to new docs**\n\nThe repo guide in `/workspace/ai-ops-platform/AGENTS.md` marks this as a rejectable rule: “根拠IDヘッダ必須: 新規ファイルの先頭コメントに根拠となる仕様ID...を記載する.” This new doc, like the other new docs in this commit, starts directly with a heading instead of an evidence/spec-ID header, so the added documentation violates the project’s documented traceability convention; add an HTML/Markdown comment with the relevant REQ/SPEC/ADR IDs before the heading.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/12#discussion_r3550990055"
+    },
+    {
+      "pr": 12,
+      "path": "README.md",
+      "line": 92,
+      "original_line": 92,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Align the README test total with the verification report**\n\nThis changed claim says 740 unit tests were run, but the linked `verification/VERIFICATION_REPORT.md` still states that the exact total in `offline-run-results.json` is 359 and repeatedly describes 359 passing tests. Because readers are explicitly told to rely on that report for validation details, this line now overstates or contradicts the recorded verification unless the report/results are updated to the same 740-run evidence.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/12#discussion_r3550990063"
+    },
+    {
+      "pr": 13,
+      "path": "packages/server/src/index.ts",
+      "line": null,
+      "original_line": 275,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Populate the monthly snapshot provider**\n\nIn the production composition root, the new monthly task is wired with a provider that always returns an empty project list. `createSevenKeysMonthlySnapshotTask` only calls `insert` inside the loop over `await deps.provider.listExecutiveProjects()`, so on every first-business-day run the server will persist zero `seven_keys_snapshots` rows and the dashboard will never get the promised month-over-month data outside of tests.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/13#discussion_r3551011973"
+    },
+    {
+      "pr": 14,
+      "path": "packages/server/src/http/routes/reportIngest.ts",
+      "line": 90,
+      "original_line": 90,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Retry delivery for duplicate ingests**\n\nWhen `deliverReport` throws after `reportsRepo.insert` has committed (for example a transient Graph failure during mail/card sending), the GitHub workflow will retry the same signed `report.json` and `inserted.created` will be false, so this branch suppresses delivery completely on the retry. `runDistributionCycle` is already idempotent per recipient, so duplicate ingests should still invoke/enqueue delivery; otherwise failed or unsent recipients are left waiting for the next scheduler window, or never delivered if the scheduler is disabled.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/14#discussion_r3551243651"
+    },
+    {
+      "pr": 14,
+      "path": "packages/server/src/scheduler/tasks/reportDeliveryTask.ts",
+      "line": 59,
+      "original_line": 59,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Handle PRF-G as a global audience**\n\nFor existing DevOps recipients with `profile = 'PRF-G'` and the schema-default empty `projects` array, this fallback maps them to PrjOps `PRF-03`; `visibleSlots()` then calls `filterIssuesForProfile`, where PRF-03 only sees projects listed in `recipientManagedProjectIds`, so every slot becomes `[masked]`. Since the pre-existing recipients table only allowed PRF-M/L/G and PRF-G is the global manager audience, integrated reports will be blank for those global recipients unless operators add an artificial project scope.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/14#discussion_r3551243656"
+    },
+    {
+      "pr": 14,
+      "path": "packages/server/src/tools/createGraphSubscription.ts",
+      "line": 43,
+      "original_line": 43,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Persist created subscriptions for renewal**\n\nWhen an operator follows the new CLI/runbook, this function only creates the Microsoft Graph subscription and prints the returned id; it never records the subscription in `graph_subscriptions`. The resident renewal and polling paths only inspect that table via `graphSubscriptionsRepo.listByMode('notification')`, so subscriptions created by this CLI are invisible to the server and will expire without renewal or polling fallback.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/14#discussion_r3551243660"
+    },
+    {
+      "pr": 15,
+      "path": "packages/shared/src/xlsxImport/engine.ts",
+      "line": 151,
+      "original_line": 151,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Make recoverable ledger states retryable**\n\nBecause the preflight check skips any `findBySourceKey` hit, inserting a `pending` row before the GitHub write makes a row permanently skipped if the process exits after this insert but before `markImported` (and rows later marked `failed` have the same problem). A retry of the same spreadsheet then returns `skipped` without creating the issue/milestone/project item, so only completed imports should satisfy the idempotency check or pending/failed rows should have a recovery path.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/15#discussion_r3551468297"
+    },
+    {
+      "pr": 15,
+      "path": "packages/server/src/db/standardReportsRepo.ts",
+      "line": 36,
+      "original_line": 36,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include evidence fields in report hashes**\n\nThis hash now drops `evidenceIds` and `schemaVersion` along with `generatedAt`. If a report is regenerated to correct or add evidence IDs while keeping the same metrics and text, `insert()` produces the same `report_id` and `ON CONFLICT DO NOTHING` classifies the corrected report as a duplicate, so the stored/audited evidence remains stale. If the goal is only to ignore clock jitter, keep all payload fields except `period.generatedAt` in the stable input.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/15#discussion_r3551468301"
+    },
+    {
+      "pr": 15,
+      "path": "packages/traceability/src/verifyTraceability.ts",
+      "line": 171,
+      "original_line": 171,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Keep traceability IDs in their namespace**\n\nWith `serverDir` added wholesale to `devopsCorpus`, server files/tests that cite PrjOps IDs now satisfy DevOps IDs by plain string match. Checked example: `packages/server/src/http/routes/xlsxImport.ts` and `packages/server/tests/xlsxImportRoutes.test.ts` cite `SPEC-INT-063` for Excel import, while `packages/traceability/spec-ids/devops.json` and ADR-0002 define DevOps `SPEC-INT-063` as the Claude Code code-fix requirement; the matrix can now go green for the wrong spec. Please namespace or filter server references instead of sharing the whole corpus.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/15#discussion_r3551468304"
+    },
+    {
+      "pr": 16,
+      "path": "packages/server/src/lib/githubEventRouter.ts",
+      "line": 134,
+      "original_line": 134,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Count only terminal deployment statuses**\n\nWhen both `deployment` and `deployment_status` webhooks are enabled, or when a deployment emits multiple status updates such as queued/in_progress/success, this normalization makes every status row look like a deploy and the timeseries path later counts every `deployment` kind event. Because the status state is not checked or deduped by the deployment id, the dashboard Deploy total can be inflated by intermediate/failed statuses for the same deployment.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/16#discussion_r3551596180"
+    },
+    {
+      "pr": 16,
+      "path": "packages/shared/src/xlsxImport/parser.ts",
+      "line": 75,
+      "original_line": 75,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Use UTC date parts for Excel date cells**\n\nFor ExcelJS date-only cells represented as a `Date` at UTC midnight, these local-time getters make `due_on` depend on the server timezone. In a negative-offset runtime, a cell for `2026-07-09` represented as `2026-07-09T00:00:00.000Z` is imported as `2026-07-08`, so milestones can be created with the previous due date; use UTC getters or the ISO date slice to keep the workbook date stable.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/16#discussion_r3551596186"
+    },
+    {
+      "pr": 17,
+      "path": ".github/workflows/coding-task.yml",
+      "line": 22,
+      "original_line": 22,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Generate the GitHub App token at runtime**\n\nWhen operators follow the documented GitHub App option for `AIOPS_PR_TOKEN`, a repository secret can only contain a static installation access token; those tokens are short-lived, so later workflow_dispatch runs will pass the non-empty check but fail checkout/push/`gh pr create` after the token expires. To support the GitHub App path, mint the installation token inside the job from app credentials, or document/enforce that this secret must be a long-lived PAT.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/17#discussion_r3555335886"
+    },
+    {
+      "pr": 17,
+      "path": ".github/dependabot.yml",
+      "line": 1,
+      "original_line": 1,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Add the required basis header to new files**\n\nThe root `AGENTS.md` guideline says new files must start with a comment containing a basis spec ID (`REQ-*`, `SPEC-*`, `AC-*`, or `ADR-*`), but this new Dependabot config starts directly with `version: 2`; I also checked `runbooks/production-gates.md`, which has the same missing header. These files should get a top-level basis comment so the PR complies with the documented merge rules.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/17#discussion_r3555335887"
+    },
+    {
+      "pr": 18,
+      "path": "packages/server/src/http/routes/graphNotifications.ts",
+      "line": 81,
+      "original_line": 81,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Acknowledge Graph before lifecycle work**\n\nWhen a lifecycle notification arrives, this awaits the handler before returning 202; for `reauthorizationRequired` it performs a Graph PATCH and for `missed` it can run a delta backfill, both of which can block or throw, so Microsoft Graph sees a slow/500 webhook response and may retry or pause delivery instead of getting the required acknowledgement first (see Microsoft Graph lifecycle guidance: https://learn.microsoft.com/en-us/graph/change-notifications-lifecycle-events#responding-to-reauthorizationrequired-notifications). Queue or background the lifecycle work after acknowledging the POST.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/18#discussion_r3555564340"
+    },
+    {
+      "pr": 18,
+      "path": "packages/server/src/db/eventsRepo.ts",
+      "line": 210,
+      "original_line": 115,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Guard failure updates by the active lease**\n\nWith the new stale-lease reclaim path, two workers can process the same event after the first lease expires; if the newer worker already marks the event `done`, the older worker's later failure still runs this unconditional update and can move the completed event back to `queued`/`dead`. Include the claimed lease token/current `claimed_at` or `status='dispatched'` ownership check in the `WHERE` so stale workers cannot overwrite a newer outcome.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/18#discussion_r3555564345"
+    },
+    {
+      "pr": 19,
+      "path": "packages/devops/src/db/migrate.ts",
+      "line": 9,
+      "original_line": 9,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Use default pg import in the migration CLI**\n\nWhen `pnpm --filter @aiops/devops db:migrate` executes this ESM file, `pg` is a CommonJS package and does not expose a runtime named `Pool` export; the added local declaration only makes TypeScript accept it. The CLI will abort at module load before reading `DATABASE_URL`, so no migrations can run. Use the same default import pattern as the server package, e.g. `import pg from \"pg\"; const { Pool } = pg;`.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/19#discussion_r3555763802"
+    },
+    {
+      "pr": 19,
+      "path": "packages/devops/src/db/migrate.ts",
+      "line": null,
+      "original_line": 50,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Pin migrations to one pg client**\n\nThe CLI calls `applyMigrations(pool, ...)`, so this transaction is issued through `Pool.query`; that API does not reserve one connection across the `BEGIN`, migration SQL, version insert, and `COMMIT`. If a later statement is run on a different client or fails after DDL has executed, the database can be left with partially applied schema changes but no matching `schema_migrations` row, contrary to the runbook's transactional guarantee. Check out a single `PoolClient` with `pool.connect()` for the migration loop and release it afterward.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/19#discussion_r3555763807"
+    },
+    {
+      "pr": 20,
+      "path": "packages/server/src/observability/metrics.ts",
+      "line": 81,
+      "original_line": 76,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Reset queue gauges when statuses disappear**\n\nWhen the last event for a status is processed, `EventsRepo.getQueueMetrics()` returns no row for that status because it groups only rows that still exist, and this loop only updates statuses present in that result. After a scrape has seen `aiops_events_queue_depth{status=\"queued\"} 10`, draining the queue leaves that gauge at 10 indefinitely, so the documented queue-depth/oldest-age SLO alerts can fire on stale data until another event with the same status appears.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/20#discussion_r3555880291"
+    },
+    {
+      "pr": 20,
+      "path": "packages/server/src/index.ts",
+      "line": 146,
+      "original_line": 146,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Bootstrap telemetry before loading instrumented modules**\n\nThis starts the OpenTelemetry SDK inside `main()`, but `index.ts` has already statically imported modules such as `createPool` (which imports `pg`) and `@hono/node-server` before `main()` can run. For auto-instrumentations that patch libraries as they are loaded, enabling the SDK this late means configuring `OTEL_EXPORTER_OTLP_*` can still miss traces from those preloaded server/DB modules; move the telemetry bootstrap to a preload/entry module before importing the application graph, or dynamically import the rest of the server after `startTelemetry()`.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/20#discussion_r3555880300"
+    },
+    {
+      "pr": 21,
+      "path": "packages/shared/src/reporting/reportValidation.ts",
+      "line": null,
+      "original_line": 93,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Allow prompt-provided non-metric numerals**\n\nWhen a report slot legitimately repeats a prompted non-metric value such as the period label `2026-W28` or an evidence ID like `REQ-040`, this scan extracts those digits and rejects them unless the exact values also appear in `metrics`. Because `buildWeeklySummaryPrompt` supplies `periodLabel` and `evidenceIds` separately from `metrics`, valid reports can now fail both retries/finalization even though the model did not invent a metric; include prompt-provided numerals in the allowlist or restrict this check to actual metric claims.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/21#discussion_r3556002567"
+    },
+    {
+      "pr": 22,
+      "path": "packages/web/src/server/reportData/devopsReportData.ts",
+      "line": null,
+      "original_line": 157,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Aggregate DORA rates from raw records**\n\nFor the PRF-G all-project report, taking the median of per-project percentages gives each project equal weight regardless of deployment volume. For example, one service with 1 failed deploy and another with 99 successful deploys reports a 50% change-failure rate here instead of the portfolio rate of 1%, so the manager DORA summary can be materially wrong whenever project deployment counts differ.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/22#discussion_r3556271577"
+    },
+    {
+      "pr": 22,
+      "path": "packages/web/src/server/reportData/devopsReportData.ts",
+      "line": 123,
+      "original_line": 120,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve issue/PR events without project IDs**\n\nIn the production normalization path, ordinary GitHub `issues` and `pull_request` webhooks do not populate `project_id` because `normalizePmWebhookEvent` only derives project IDs from project/project_v2 fields, so this guard drops the very events now used for throughput. In that scenario closed issues and PRs stored with only `repository`/`subject_id` will never contribute to the manager Throughput card.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/22#discussion_r3556271579"
+    },
+    {
+      "pr": 22,
+      "path": "packages/web/src/server/reportData/devopsReportData.ts",
+      "line": null,
+      "original_line": 132,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Read merged status from stored payload**\n\nThis check looks for `merged` or `state` inside `pm_events.normalized`, but `normalizePmWebhookEvent` currently writes only action/projectId/repository/subjectType/subjectId/fromStatus/toStatus there; the GitHub PR `merged` flag remains in `raw_payload`. Even when a PR event is otherwise in scope, real merged PRs will be excluded from `prThroughput` unless they were inserted with the synthetic shape used by the new test.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/22#discussion_r3556271582"
+    },
+    {
+      "pr": 22,
+      "path": "packages/web/src/server/reportData/devopsReportData.ts",
+      "line": null,
+      "original_line": 193,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Avoid reporting unknown rework as zero**\n\nThe DB-backed DORA mapping sets `unplannedRework` to `false` for every deployment, so any project with deployments will report a 0.0% deployment rework rate regardless of what actually happened. If the deployments schema does not contain an unplanned-rework signal yet, this should surface as unavailable or be derived from a real source; otherwise the manager report masks rework as a clean zero.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/22#discussion_r3556271584"
+    },
+    {
+      "pr": 5,
+      "path": "packages/server/src/http/routes/xlsxImport.ts",
+      "line": 49,
+      "original_line": 49,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Require real authorization before executing imports**\n\nBecause this route is registered directly in `buildApp` and `main` serves `app.fetch` without an auth middleware, any caller who can reach the resident server can set `x-confirm-import: yes` and pass arbitrary `owner`/`repo` query values to run GitHub writes with the server token. The header is not a secret or tied to a user/profile, so this bypasses the existing token/secret pattern used by callback/confirm routes; require an authenticated and authorized actor before calling `executeXlsxImport`.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/5#discussion_r3549808278"
+    },
+    {
+      "pr": 5,
+      "path": "packages/shared/src/xlsxImport/engine.ts",
+      "line": 100,
+      "original_line": 100,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Resolve milestone titles before creating issues**\n\nWhen an issue row includes a milestone name from the template, such as `v1`, this passes that string directly to GitHub's create-issue payload. GitHub associates issues by milestone number, and the importer neither resolves the title nor uses the number returned by `createMilestone`, so imports that include milestone titles fail to associate or can return 422; resolve names to numbers before issue creation or make the column explicitly numeric.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/5#discussion_r3549808283"
+    },
+    {
+      "pr": 5,
+      "path": "packages/shared/src/clients/githubClient.ts",
+      "line": 176,
+      "original_line": 176,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Use field_type when setting Project v2 values**\n\nRows carry `field_type`, but this mutation always sends `value: { text: $value }` and the `fieldType` variable is never referenced. In contexts importing date, number, single-select, or iteration Project v2 fields, GitHub expects the corresponding value member, so those rows fail even though the parser/template accept `field_type`; either restrict validation to text fields or branch on `fieldType` when building the mutation value.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/5#discussion_r3549808287"
+    },
+    {
+      "pr": 6,
+      "path": "packages/web/src/server/reportData/devopsReportData.ts",
+      "line": 66,
+      "original_line": 66,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Restrict DORA deployments to the requested period**\n\nIn the `buildDevOpsManagerSummary` path I inspected, this query loads every prod deployment and later divides that all-time numerator by the requested `periodDays`. When the user switches between 7/14/28-day manager views, deployments outside that window still contribute to deployment frequency, failure rate, and rework rate, so the displayed DORA values can be arbitrarily inflated. The deployment fetch/filter needs to be bounded by the report period before `calculateDoraSummary` runs.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/6#discussion_r3549975584"
+    },
+    {
+      "pr": 6,
+      "path": "packages/web/src/server/reportData/devopsReportData.ts",
+      "line": 119,
+      "original_line": 119,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Avoid counting open incidents as zero-hour restores**\n\nFor unresolved incidents this substitutes `resolvedAt` with `detectedAt`, so `calcMeanTimeToRestoreHours` treats an open outage as restored in 0 hours. In any period with unresolved scoped incidents, the manager DORA MTTR is understated instead of either excluding unresolved incidents from MTTR or measuring them to a report as-of time.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/6#discussion_r3549975588"
+    },
+    {
+      "pr": 6,
+      "path": "packages/prjops/src/lib/executiveSevenKeys.ts",
+      "line": 70,
+      "original_line": 70,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Treat grey RAG as unknown in monthly diffs**\n\nRanking `grey` between `yellow` and `green` makes missing questionnaire/data changes look like real performance changes. For example, if last month K1 was yellow and this month the questionnaire is missing, the current grey value is added to `improvedKeys`, even though the signal disappeared rather than improved; handle grey as unknown and skip it in improvement/worsening comparisons.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/6#discussion_r3549975591"
+    },
+    {
+      "pr": 6,
+      "path": "packages/web/src/server/reportData/prjopsReportData.ts",
+      "line": 191,
+      "original_line": 191,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Compute actual milestone delay days**\n\nEvery overdue portfolio project contributes exactly `1` to `milestone_delay_days`, so a project 30 days past its `endDate` and one that became overdue yesterday are reported identically. This corrupts both the investor KPI total and the per-company milestone table; use an actual day difference from the milestone/end date to the report as-of date, or carry a real delay-days field from the provider.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/6#discussion_r3549975594"
+    },
+    {
+      "pr": 6,
+      "path": "packages/shared/src/reporting/reportGenerator.ts",
+      "line": 77,
+      "original_line": 77,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Revalidate truncated report slots before returning**\n\nIf the retry fails validation for anything other than length, such as an extra slot key, this returns `truncateReportSlots` output without removing the invalid field or revalidating. A structured client can therefore receive `slots.extra is not allowed`, hit this fallback, and still get a non-schema-compliant slot object back; the fallback should only handle length errors or sanitize and validate the final payload before returning.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/6#discussion_r3549975598"
+    },
+    {
+      "pr": 7,
+      "path": "packages/shared/src/secretSanitizer.ts",
+      "line": 36,
+      "original_line": 36,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Preserve sanitized JSON for JSONB inserts**\n\nWhen `PmTimeseriesRepo` sanitizes `JSON.stringify(rawPayload)` before inserting into `raw_payload JSONB`, these key/value regexes can match inside JSON object keys (for example `{\"client_secret\":\"abcdefghijklmnop\"}`) and replace `client_secret\":\"...\"` with an unquoted redaction marker, producing invalid JSON. Any webhook payload containing a long `client_secret` or `api_key` field will make `recordEvent`/`recordSnapshot` fail at the JSONB insert instead of being queued into the timeseries tables.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/7#discussion_r3550143649"
+    },
+    {
+      "pr": 7,
+      "path": "packages/web/src/server/reportData/timeseriesHandler.ts",
+      "line": 82,
+      "original_line": 82,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Exclude PM events without a scoped project**\n\nIn the GitHub webhook path, normal `issues`/`pull_request` rows usually have `project_id = null` because `normalizePmWebhookEvent` only derives it from project/projects-v2 fields; this branch then treats those rows as visible to every persona. A manager or investor querying `/api/data/timeseries` will therefore get opened/closed counts from repositories outside their permitted project scope, so unknown projects should be mapped to an internal project or excluded rather than allowed.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/7#discussion_r3550143653"
+    },
+    {
+      "pr": 7,
+      "path": "packages/shared/src/periodBuckets.ts",
+      "line": 183,
+      "original_line": 183,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Count only non-null status transitions**\n\nRows loaded by `timeseriesHandler` always set `fromStatus` and `toStatus` to the database values, which are `null` for ordinary issue/PR events. Since `null !== undefined`, every scoped event is counted as a status transition, so `totals.statusTransitions` is inflated by all opened/closed events unless the row omitted these properties entirely; check for a non-null status value or an actual status change instead.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/7#discussion_r3550143659"
+    },
+    {
+      "pr": 7,
+      "path": "packages/shared/src/periodBuckets.ts",
+      "line": 188,
+      "original_line": 188,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Deduplicate snapshots before computing burndown**\n\nThe reconcile task stores a new snapshot on every run (default every 6 hours), but this aggregation counts every open snapshot row in the bucket. With one open item, the daily bucket reports up to 4 remaining items and a monthly bucket can report roughly 120, so burndown is driven by polling frequency rather than current remaining work; aggregate the latest snapshot per `sourceType/sourceId` within the bucket instead.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/7#discussion_r3550143661"
+    },
+    {
+      "pr": 7,
+      "path": "packages/server/src/agents/teamsConversationAgent.ts",
+      "line": 229,
+      "original_line": 229,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Defer Teams profile rejection until a command is found**\n\nThis lookup and null-profile rejection runs before checking `trimmed.startsWith(\"/\")` or recognizing a free-text executable intent. In a registered project channel, any normal conversation from an unmapped or aad-less user now gets a “cannot execute command” reply instead of just being stored, which will spam discussion channels; only reject after a slash command or recognized executable free-text intent actually needs authorization.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/7#discussion_r3550143663"
+    },
+    {
+      "pr": 7,
+      "path": "packages/web/src/components/DashboardClient.tsx",
+      "line": 112,
+      "original_line": 112,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Honor chat-requested manager summary periods**\n\nWhen the chat tool sends `showManagerSummary({ periodDays: 7 | 14 | 28 })`, `loadView` always passes the current `PeriodSelection` (initially the calendar month), so this branch runs and the documented `periodDays` parameter is ignored. Chat-triggered manager summaries now fetch the selected calendar period instead of the requested 7/14/28-day window; only pass `selection` for period-control updates or otherwise merge it without discarding `periodDays`.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/7#discussion_r3550143669"
+    },
+    {
+      "pr": 8,
+      "path": "packages/traceability/src/verifyTraceability.ts",
+      "line": 142,
+      "original_line": 142,
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Scan TSX files when adding web to traceability**\n\nAdding `packages/web` here does not actually put most of the dashboard implementation under traceability: `buildCorpus` only reads `src` files ending in `.ts/.sql/.yml/.yaml` and test files ending in `.ts`, while these new web views/charts are `.tsx` and the design tokens are `.css`. In this AC-010-3/Recharts change, the verifier ignores `RechartsPanels.tsx` and the updated view components, so `mise run traceability` can pass based on an incomplete corpus instead of validating the dashboard code it is meant to cover.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/8#discussion_r3550271093"
+    },
+    {
+      "pr": 9,
+      "path": "packages/web/src/server/chat/chatHandler.ts",
+      "line": 129,
+      "original_line": 129,
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Drop temperature before enabling thinking**\n\nWhen this Anthropic `thinking` option is enabled, the same `streamText` call still sends `temperature: 0` a few lines above. Anthropic's extended-thinking docs state that thinking is incompatible with temperature modifications (https://platform.claude.com/docs/en/build-with-claude/extended-thinking), so real `/api/chat` requests will be rejected instead of streaming the page agent response.\n\nUseful? React with 👍 / 👎.",
+      "html_url": "https://github.com/mryfmo/ai-ops-platform/pull/9#discussion_r3550372779"
+    }
+  ]
+}

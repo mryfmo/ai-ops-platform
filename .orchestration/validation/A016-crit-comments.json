@@ -1,0 +1,247 @@
+[
+  {
+    "scope": "review",
+    "id": "r_42cace",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "APPROVAL: A016 scope reviewed. Auth.js remains the OIDC signature/issuer/audience/expiry verifier; the local boundary canonicalizes only validated tid/oid and opaque roles, rejects malformed or foreign claims, and reconstructs JWT/session without PII. No unresolved correctness or security finding.",
+    "author": "Codex",
+    "created_at": "2026-07-19T00:25:30Z",
+    "updated_at": "2026-07-19T00:25:53Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_5d24a9",
+        "body": "Verified by focused 11-case claim/session matrix, web 245-test suite, web lint/typecheck, and final MISE_LOCKED=1 mise run ci. Review approval resolved.",
+        "author": "Codex",
+        "created_at": "2026-07-19T00:25:53Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_f33c95",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "--help",
+    "author": "mryfmo",
+    "created_at": "2026-07-19T01:26:00Z",
+    "updated_at": "2026-07-19T01:26:25Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_09ff05",
+        "body": "Accidental CLI help probe; no review finding was intended. Resolved as tooling noise.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:26:25Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_8740a3",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "APPROVAL: A016 expanded T05+T06 scope reviewed after fixes. Stable tid/oid subject lookup is request-time and fail-closed; multi-persona selection is deterministic and mandatory; project/global permission filters enforce assignment scope; email/PII is absent from session authorization. No unresolved correctness or security finding.",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:51Z",
+    "updated_at": "2026-07-19T01:51:04Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_03b67c",
+        "body": "Verified by focused stable-subject, selector, permission-filter, YAML-provider, and chat-tool matrices; DevOps/PrjOps/Web package suites; package typechecks; and final MISE_LOCKED=1 mise run ci. Expanded review approval resolved.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:51:04Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/devops/src/lib/reportPermissionFilter.ts",
+    "id": "c_1b5c75",
+    "start_line": 22,
+    "end_line": 22,
+    "body": "P1: project-scoped PRF-M and PRF-G must not inherit profile-wide access; require the assignment project allowlist and fail closed for explicit invalid scope.",
+    "anchor": "  if (ctx.scopeMode === \"project\") return ctx.recipientAssignedProjectIds.includes(projectId);",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:27Z",
+    "updated_at": "2026-07-19T01:50:43Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_abfd72",
+        "body": "Fixed: explicit project scope now requires recipientAssignedProjectIds for every DevOps profile; global is PRF-G-only and explicit invalid scope fails closed. Covered by 10 filter tests and full CI.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:50:43Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/prjops/src/data/yamlStakeholderMasterProvider.ts",
+    "id": "c_8704eb",
+    "start_line": 175,
+    "end_line": 175,
+    "body": "P2: normalize investor and PRF-05 aliases before duplicate detection so equivalent simultaneous assignments fail closed.",
+    "anchor": "      const assignments = new Set<string>();",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:27Z",
+    "updated_at": "2026-07-19T01:50:44Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_14f0c3",
+        "body": "Fixed: duplicate keys canonicalize investor to PRF-05 before comparison, so alias-equivalent simultaneous assignments are rejected. Covered by provider tests.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:50:44Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/prjops/src/data/yamlStakeholderMasterProvider.ts",
+    "id": "c_600219",
+    "start_line": 227,
+    "end_line": 227,
+    "body": "P1: investor personas must be derived from the canonical invested_project_ids intersection, not assignment labels alone.",
+    "anchor": "        if (",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:27Z",
+    "updated_at": "2026-07-19T01:50:44Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_4f687a",
+        "body": "Fixed: the provider validates invested_project_ids and emits investor records only for its intersection with active project assignments. Covered by provider intersection tests.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:50:44Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/prjops/src/data/yamlStakeholderMasterProvider.ts",
+    "id": "c_c54096",
+    "start_line": 254,
+    "end_line": 254,
+    "body": "P2: Teams lookup must fail closed when the same active project has multiple profile assignments instead of choosing the first profile.",
+    "anchor": "  async findProfileByTeamsUserId(teamsUserId: string | null, projectId: string): Promise<Profile | null> {",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:27Z",
+    "updated_at": "2026-07-19T01:50:44Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_63b9a3",
+        "body": "Fixed: Teams lookup filters active exact-project assignments and returns a profile only when exactly one remains; ambiguous rows return null. Covered by provider tests.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:50:44Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/prjops/src/lib/reportPermissionFilter.ts",
+    "id": "c_94f9be",
+    "start_line": 36,
+    "end_line": 36,
+    "body": "P1: project-scoped PRF-04 must not keep portfolio-wide access; scopeMode=project must use the assignment project allowlist and explicit invalid scope must fail closed.",
+    "anchor": "  if (ctx.scopeMode === \"global\") return profile === \"PRF-04\";",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:27Z",
+    "updated_at": "2026-07-19T01:50:43Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_df6a19",
+        "body": "Fixed: project-scoped PRF-04 now uses recipientManagedProjectIds; global is PRF-04-only and explicit invalid scope fails closed. Covered by permission tests and full CI.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:50:43Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/web/src/server/authGuard.ts",
+    "id": "c_bfe166",
+    "start_line": 94,
+    "end_line": 94,
+    "body": "P2: detect multi-persona ambiguity before domain filtering so a caller cannot silently default by selecting an endpoint domain.",
+    "anchor": "  const personas = await resolver.resolveBySubject(subject);",
+    "author": "Codex",
+    "created_at": "2026-07-19T01:50:27Z",
+    "updated_at": "2026-07-19T01:50:44Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_f41479",
+        "body": "Fixed: requirePersona checks total subject personas for ambiguity before optional domain filtering, returning 409 unless an exact selector is supplied. Covered by authGuard tests.",
+        "author": "Codex",
+        "created_at": "2026-07-19T01:50:44Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/prjops/src/data/yamlStakeholderMasterProvider.ts",
+    "id": "c_a2b44c",
+    "start_line": 262,
+    "end_line": 262,
+    "body": "P2: Teams authorization must honor an active global PRF-04 assignment for every PrjOps project while still failing closed if another exact project assignment makes the profile ambiguous.",
+    "anchor": "        candidate.profile !== \"investor\" &&",
+    "author": "Codex",
+    "created_at": "2026-07-19T02:10:32Z",
+    "updated_at": "2026-07-19T02:10:43Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_7ab218",
+        "body": "Fixed: Teams lookup accepts active global PRF-04 for any requested project and keeps exact-one ambiguity handling; a concurrent project assignment returns null. Covered by the new global/mixed provider test and full CI.",
+        "author": "Codex",
+        "created_at": "2026-07-19T02:10:43Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_fdc3d5",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "APPROVAL: A016 final post-review diff approved. The global PRF-04 Teams path is now consistent with the persona scope matrix, ambiguity remains fail-closed, and the full repository CI is green. No unresolved correctness or security finding.",
+    "author": "Codex",
+    "created_at": "2026-07-19T02:10:43Z",
+    "updated_at": "2026-07-19T02:10:55Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_760186",
+        "body": "Verified by 31 provider tests, PrjOps typecheck, and a fresh MISE_LOCKED=1 mise run ci after the fix. Final approval resolved.",
+        "author": "Codex",
+        "created_at": "2026-07-19T02:10:55Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

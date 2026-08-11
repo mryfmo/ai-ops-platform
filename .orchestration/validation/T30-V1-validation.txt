@@ -1,0 +1,135 @@
+T30-V1 VALIDATION EVIDENCE
+==========================
+
+Repository: /Users/mryfmo/Workspace/ai-ops-platform
+Commit audited: 21306d8
+Date: 2026-07-10
+
+1. Original-finding coverage
+Result: PASS
+- PRG-001 through PRG-040 each have exactly one verdict in the canonical verification.
+- Verdicts: 39 CONFIRMED; 1 CONFIRMED-WITH-CORRECTION; 0 REFUTED; 0 UNVERIFIABLE.
+- Correction: PRG-005 CRITICAL -> HIGH.
+
+2. PostgreSQL availability / PRG-001 and PRG-026
+Command: pg_isready
+Exit: 2
+Output: /tmp:5432 - no response
+Conclusion: local schema execution was unavailable. PRG-001 was confirmed from DDL plus PostgreSQL's partitioned-key constraint; no execution success was claimed.
+
+3. Executable negative checks
+Command: pnpm run verify:all
+Exit: 1
+Key output: bash: verification/run_verification.sh: No such file or directory
+Supports: PRG-038.
+
+Command: node packages/devops/scripts/jobs/on-build-failure.mjs
+Exit: 1
+Key output: MODULE_NOT_FOUND packages/devops/scripts/jobs/on-build-failure.mjs
+Supports: PRG-039.
+
+4. Dependency audit
+Command: pnpm audit --prod
+Exit: 1 (advisories present)
+Result: 4 vulnerabilities; 3 moderate, 1 low, 0 high, 0 critical.
+- next-auth email misdelivery: moderate
+- postcss stringify XSS: moderate
+- uuid buffer bounds: moderate
+- @ai-sdk/provider-utils resource consumption: low
+Supports: PRG-037 and the rechecked no-high/critical claim.
+
+5. Focused security/reliability tests
+Command: pnpm --filter @aiops/server exec vitest run tests/githubEventRouter.test.ts tests/xlsxImportRoutes.test.ts tests/reportIngestRoutes.test.ts tests/graphNotificationValidator.test.ts tests/serverLifecycle.test.ts tests/eventsRepo.test.ts tests/metrics.test.ts tests/reportDeliveryTask.test.ts
+Exit: 0
+Result: 8 files passed; 60 tests passed.
+Coverage purpose: HMAC/clientState, fail-closed routes, queue leasing, metrics behavior, HTML/delivery behavior, and shutdown.
+
+6. Concurrency reproduction / PRG-041
+Command: start two startScheduler() handles around the same 10 ms task, wait 35 ms, stop both
+Exit: 0
+Output: { twoSchedulersRunCount: 6 }
+Conclusion: scheduler overlap prevention is process-local; independent replicas duplicate the same scheduled side effect stream.
+
+7. Calendar reproduction / PRG-042
+Command: load production jp_holidays.yaml and evaluate isBusinessDay for 2028-01-10
+Exit: 0
+Output:
+  entries: 35
+  first: 2026-01-01
+  last: 2027-11-23
+  businessDay2028Jan10: true
+Conclusion: the missing calendar horizon silently misclassifies a known Japanese public holiday.
+
+8. Cross-project report reproduction / PRG-044
+Command: render an unscoped standard report containing PROJECT-A SECRET for a PRF-02 recipient whose only project is PROJECT-B
+Exit: 0
+Output: { crossProjectTextVisible: true }
+Conclusion: synthesized recipient provenance makes the permission filter accept unrelated report content.
+
+9. Static exhaustive searches
+- Web pool construction: exactly 8 production `new pg.Pool` callsites; supports PRG-013.
+- Env templates: no `.env.example` or `*.env.example`; supports PRG-018/032.
+- Teams package files: README.md and manifest.json only; required icons absent; supports PRG-019.
+- Workflow actions: active workflows pin full SHAs; distributable DevOps workflows contain 3 mutable major-tag references; supports PRG-045.
+- Non-audit retention: no production DELETE/purge policy found for events, pm_events, pm_snapshots, standard_reports, llm_usage, or coding_tasks; supports PRG-046.
+- SQL interpolation: only generated positional placeholder interpolation in EventsRepo query construction; no user-controlled string-built query found.
+- Load tools: no k6/artillery/autocannon/traffic benchmark harness found; supports PRG-029.
+
+10. Checked-area coverage
+Result: PASS
+- 7/7 original no-additional-finding claims have adversarial techniques and outcomes in the canonical verification.
+- Six narrow claims held. HTML escaping held only for the standard-report renderer; sibling-sink expansion broke the broader claim and produced PRG-050.
+
+11. Alternate-lens coverage
+Result: PASS
+- Concurrency/races: PRG-041, PRG-047
+- Time/calendar: PRG-042
+- Data lifecycle/PII: PRG-043, PRG-048
+- Multi-tenant/privilege: PRG-044
+- Supply chain/license: PRG-045, PRG-049; no additional concrete license conflict established
+- Cost/capacity: PRG-046
+- Additional sibling HTML-sink expansion: PRG-050
+
+12. Artifact and workspace integrity
+Expected corrected audit totals:
+  CRITICAL: 4
+  HIGH: 38
+  MED: 8
+  Total: 50
+Expected surfaces:
+  Specification: 3
+  Documentation: 11
+  Implementation: 30
+  Verification: 6
+Product source diff expected: none. Pre-existing untracked `.agents/` is outside task scope and remains untouched.
+
+13. Revise round 1: delivery TOCTOU / PRG-047
+Command: run two concurrent distributeOne() calls with the same report/recipient and one shared delivery store
+Exit: 0
+Output: { outcomes: [ 'sent', 'sent' ], mails: 2 }
+Conclusion: current pending UPSERT is before send but is not an exclusive claim; both contenders perform the external send.
+
+14. Revise round 1: audit attribution / PRG-048
+Static trace:
+- Teams Graph message exposes raw.authorAadId at teamsConversationAgent.ts:208-235.
+- Audit actor is USER:${callerProfile} at lines 292-300 and 485-491.
+- coding_tasks.requested_by is USER:${callerProfile} at lines 426-435.
+Conclusion: immutable individual identity is available but discarded from autonomous-action attribution.
+
+15. Revise round 1: container hardening / PRG-049
+Static trace: packages/server/Dockerfile:20-31
+- Runtime COPY imports the entire /repo tree.
+- No pnpm prune --prod or selective runtime copy.
+- No USER directive; node:20-slim default remains root.
+
+16. Revise round 1: sibling HTML sink / PRG-050
+Command: call sendProgressReportRequests() with previousSummary3Lines set to `<img src=x onerror=alert(1)>`
+Exit: 0
+Output: { rawHtmlPreserved: true }
+Conclusion: standard-report HTML escaping is path-specific; the latent progress-request email path is injectable.
+
+17. Revise round 1: strengthened existing findings
+- PRG-033: ci.yml has no plain test step; Web's 152 tests are completely skipped because Web has no test:coverage.
+- PRG-042: isJpHoliday checks only set membership and ignores HolidayEntry.verified.
+- PRG-008: guardFailsafeTask and three mutating routes already enforce stops; remediation should extend rather than replace them.
+- PRG-010: HIGH retained because signed legitimate payloads may contain accidental secrets; first persistence is unsanitized while sibling repositories sanitize/refuse.

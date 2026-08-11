@@ -1,0 +1,65 @@
+T18 validation
+==============
+
+Branch:
+- agent/T18
+
+Base:
+- agent/T16
+
+Commit:
+- 3a8b283 feat: persist seven keys monthly snapshots
+- 001aaa1 fix: make seven keys snapshots explicit when disabled
+
+PR:
+- https://github.com/mryfmo/ai-ops-platform/pull/13
+
+Commands:
+- pnpm --filter @aiops/server test -- sevenKeysSnapshotsRepo.test.ts sevenKeysMonthlySnapshotTask.test.ts
+  - passed: 2 files, 5 tests
+- pnpm --filter @aiops/web test -- views.test.tsx prjopsReportData.test.ts
+  - passed: 2 files, 25 tests
+- pnpm --filter @aiops/server typecheck
+  - passed
+- pnpm --filter @aiops/web typecheck
+  - passed
+- pnpm --filter @aiops/server lint
+  - passed
+- pnpm --filter @aiops/web lint
+  - passed
+- pnpm run format
+  - passed
+- pnpm -r --if-present run test -- --run --reporter=dot
+  - passed: 747 tests
+- mise run ci
+  - passed
+  - covered lint, traceability, format, build, typecheck, test:coverage
+
+Revise commands:
+- pnpm --filter @aiops/shared test -- businessCalendar.test.ts
+  - passed: 1 file, 22 tests
+- pnpm --filter @aiops/server test -- sevenKeysMonthlySnapshotTask.test.ts
+  - passed: 1 file, 5 tests
+- pnpm --filter @aiops/shared build
+  - passed
+- pnpm --filter @aiops/shared typecheck
+  - passed
+- pnpm --filter @aiops/server typecheck
+  - passed
+- pnpm -r --if-present run test -- --run --reporter=dot
+  - passed: 750 tests
+- mise run ci
+  - passed after revise
+
+Traceability:
+- packages/traceability/output/traceability_matrix.md changed only by generated timestamp during ci.
+- The timestamp-only generated diff was restored before commit.
+
+Append-only guard:
+- seven_keys_snapshots has INSERT-only repo methods in this change.
+- Duplicate project/month handling uses UNIQUE (month, project_id) plus ON CONFLICT DO NOTHING.
+- No UPDATE or DELETE statements were added for audit_log or seven_keys_snapshots.
+
+Real API guard:
+- Tests use injected providers/repos only.
+- Server composition root provider for Seven Keys monthly snapshots is empty until a real prjops-data provider exists.

@@ -1,0 +1,21 @@
+$ git -C /Users/mryfmo/Workspace/ai-ops-platform log --oneline | head -5
+cb0f25a docs(ai-ops-platform): make AGENTS.md canonical
+a6dbcc0 Add ai-ops-platform subdirectory
+
+$ git -C /Users/mryfmo/Workspace/ai-ops-platform remote -v
+origin	https://github.com/mryfmo/ai-ops-platform.git (fetch)
+origin	git@github.com:mryfmo/ai-ops-platform.git (push)
+
+$ cat /Users/mryfmo/Workspace/ai-ops-platform/CLAUDE.md
+@AGENTS.md
+
+$ ls -d /Users/mryfmo/Workspace/.mryfmo-tmp
+ls: /Users/mryfmo/Workspace/.mryfmo-tmp: No such file or directory
+
+$ test -L /Users/mryfmo/Workspace/ai-ops-platform && echo symlink || echo real-dir
+real-dir
+
+$ gh pr view 2 --repo mryfmo/tmp --json state
+mise WARN  missing: node@20
+{"state":"CLOSED"}
+

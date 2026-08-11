@@ -1,0 +1,146 @@
+# T25 Validation
+
+Timestamp: 2026-07-10T01:39:37Z
+Branch/HEAD before commit: agent/T25
+
+1. Task and audit read
+- `.orchestration/tasks/T25-g4-observability.md`
+- `.orchestration/audit/2026-07-09-bestpractice-A-ops.md`
+- `.agents/worklog/codex/learn/learn_index.md`
+- `.agents/worklog/codex/learn/20260709_173241_learn.md`
+
+2. Dependency install
+Command:
+  pnpm --filter @aiops/server add pino @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-trace-otlp-http
+Result:
+  First sandbox run failed with npm registry DNS ENOTFOUND.
+  Approved sandbox-external rerun succeeded.
+
+3. Focused checks
+Command:
+  pnpm --filter @aiops/server test -- app.test.ts scheduler.test.ts eventsPollingTask.test.ts reportDeliveryTask.test.ts serverLifecycle.test.ts telemetry.test.ts config.test.ts
+Result:
+  PASS. 7 files passed, 52 tests passed.
+
+Command:
+  pnpm --filter @aiops/devops test -- migrate.test.ts
+Result:
+  PASS. 1 file passed, 4 tests passed.
+
+4. Package checks
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 36 files passed, 220 tests passed.
+
+Command:
+  pnpm --filter @aiops/devops test
+Result:
+  PASS. 16 files passed, 158 tests passed.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/devops lint
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/devops typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm exec prettier --check .
+Result:
+  PASS.
+
+5. Console check
+Command:
+  rg -n "console\\." packages/server/src packages/devops/src || true
+Result:
+  No matches.
+
+6. DoD CI
+Command:
+  mise run ci > /tmp/T25-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/14710.pipe
+
+Command:
+  mise run ci > /tmp/T25-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  36 passed (36)
+  packages/server test:coverage: Tests  220 passed (220)
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
+
+7. Commit
+Commit:
+  ce25e38 feat: add server observability
+
+8. Revise focused checks
+Command:
+  pnpm --filter @aiops/server test -- serverLifecycle.test.ts metrics.test.ts
+Result:
+  PASS. 2 files passed, 5 tests passed.
+
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 37 files passed, 223 tests passed.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm exec prettier --check .
+Result:
+  PASS.
+
+9. Revise DoD CI
+Command:
+  mise run ci > /tmp/T25-revise-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/25683.pipe
+
+Command:
+  mise run ci > /tmp/T25-revise-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  37 passed (37)
+  packages/server test:coverage: Tests  223 passed (223)
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
+
+10. Revise commit
+Commit:
+  36e3d25 fix: harden observability shutdown edges

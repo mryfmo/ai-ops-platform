@@ -1,0 +1,4 @@
+$ gh repo view mryfmo/tmp --json isArchived
+mise WARN  missing: node@20
+{"isArchived":true}
+

@@ -1,0 +1,590 @@
+AGMSG-VERIFY v1 task_id=T22 independent verification
+timestamp_utc: 2026-07-09T23:02:17Z
+branch: agent/T22
+commit: 0e774f0bd57adc2c1bd74e810c184724ef2bb5e8
+mode: code-change-forbidden; validation evidence only
+
+Inbox
+- command: /Users/mryfmo/.agents/skills/agmsg/scripts/inbox.sh /Users/mryfmo codex
+- result: PASS; "No new messages."
+
+CI
+- command: mise run ci
+- result: PASS; exit 0.
+- observed stages: governance, lint, traceability, format, build, typecheck, test:coverage.
+- governance emitted the expected CODEOWNERS go-live warning:
+  ::warning file=.github/CODEOWNERS::Unresolved @OWNER placeholder; replace with a real GitHub user/team before go-live.
+- server coverage stage observed: 31 test files passed, 182 tests passed.
+- note: traceability regenerated only packages/traceability/output/traceability_matrix.md timestamp; no semantic diff.
+
+A-9 failsafe effectiveness
+- command: rg "guardFailsafeTask|failsafe_task_skipped|coding_task_blocked_by_failsafe|isFailsafeActive|return !failsafeActive" packages/server/src packages/server/tests -n
+- result: PASS; guard, scheduler wiring, route-level block, readiness, and regression tests found.
+- scheduler guard implementation:
+  - packages/server/src/scheduler/scheduler.ts:29 defines guardFailsafeTask.
+  - packages/server/src/scheduler/scheduler.ts:36-48 skips guarded task execution while active and audits action=failsafe_task_skipped, basis=REQ-029.
+- scheduler wiring:
+  - packages/server/src/index.ts:211-217 creates guardTask over failsafeActive.
+  - packages/server/src/index.ts:239-333 wraps subscription renewal, channel polling, events polling, PM snapshot reconcile, Seven Keys monthly snapshot, and report delivery with guardTask.
+  - packages/server/src/index.ts:234-238 leaves JIT revocation unguarded, preserving safety-side cleanup.
+  - packages/server/src/index.ts:343-347 returns !failsafeActive for readiness.
+- coding task workflow dispatch block:
+  - packages/server/src/http/routes/codingTasks.ts:156-165 returns 503 before dispatch and audits action=coding_task_blocked_by_failsafe, basis=REQ-029.
+  - packages/server/src/index.ts:362-374 injects isFailsafeActive into coding task routes.
+- regression tests:
+  - command: pnpm --filter @aiops/server test -- tests/scheduler.test.ts tests/codingTaskRoutes.test.ts
+  - result: PASS; 2 files passed, 22 tests passed.
+  - packages/server/tests/scheduler.test.ts:92-119 verifies guarded side-effect task is skipped during failsafe and resumes after release.
+  - packages/server/tests/codingTaskRoutes.test.ts:188-192 verifies confirm returns 503, dispatchCalls=0, updateCalls=0, and audit is recorded.
+
+SHA pinning
+- command: rg "uses:" .github/workflows -n
+- result: PASS; remote GitHub Actions uses are pinned to 40-character SHAs with version comments.
+- command: rg "uses: [^\n]+@[0-9a-f]{40}" .github/workflows -n
+- result: PASS; matched all remote action uses in ci.yml, report-generation.yml, and coding-task.yml.
+- local action exception: .github/workflows/coding-task.yml:108 uses ./.github/actions/run-coding-agent.
+- command: rg "uses: [^#\n]+@v[0-9]|gitleaks-action|GITLEAKS_LICENSE|secrets.GITHUB_TOKEN" .github/workflows -n
+- result: PASS; no matches. This mechanically rejects tag-pinned remote actions, gitleaks-action/license usage, and default GITHUB_TOKEN usage in workflows.
+- gitleaks implementation check:
+  - command: rg "gitleaks-action|GITLEAKS_LICENSE|GITLEAKS_VERSION|GITLEAKS_LINUX_X64_SHA256|sha256sum -c|gitleaks detect" .github/workflows/ci.yml -n
+  - result: PASS; ci.yml downloads gitleaks CLI, checks GITLEAKS_LINUX_X64_SHA256 via sha256sum -c, then runs gitleaks detect.
+
+PR token fail-fast
+- command: rg "AIOPS_PR_TOKEN|GH_TOKEN|permissions:|contents: read|Require CI-triggering PR token|secrets.GITHUB_TOKEN" .github/workflows/coding-task.yml -n
+- result: PASS; AIOPS_PR_TOKEN is required before checkout, used for checkout token and GH_TOKEN, and secrets.GITHUB_TOKEN is absent.
+- .github/workflows/coding-task.yml:58-59 sets permissions: contents: read.
+- .github/workflows/coding-task.yml:69-77 fails fast when AIOPS_PR_TOKEN is empty.
+- .github/workflows/coding-task.yml:80-84 uses secrets.AIOPS_PR_TOKEN for checkout.
+- .github/workflows/coding-task.yml:139-143 uses secrets.AIOPS_PR_TOKEN as GH_TOKEN for PR creation.
+
+Conclusion
+- PASS: T22 independent verification found no counterexample for A-9 failsafe effectiveness, SHA pinning, or PR token fail-fast.
+- No code changes were made for this verification.
+
+---
+
+AGMSG-VERIFY follow-up from inbox/hook
+timestamp_utc: 2026-07-09T23:05:50Z
+branch: agent/T22
+commit: 0e774f0bd57adc2c1bd74e810c184724ef2bb5e8
+tracked_worktree_before_ci: clean
+code_change_policy: no code changes; append validation evidence only
+
+Inbox
+- command: /Users/mryfmo/.agents/skills/agmsg/scripts/inbox.sh /Users/mryfmo codex
+- result: PASS; "No new messages." Hook-delivered VERIFY request was handled from pane context.
+
+Clean checkout CI rerun
+- command attempted in sandbox: mise run ci > /tmp/T22-verify-ci.log 2>&1
+- sandbox result: blocked by environment, not product code; tsx failed with EPERM listening on /var/folders/.../tsx-501/*.pipe.
+- command rerun with approved external permission: mise run ci > /tmp/T22-verify-ci.log 2>&1
+- result: PASS; exit 0.
+- -j 1 check: PASS; command was exactly "mise run ci", not "mise run -j 1 ci".
+- observed after CI: only packages/traceability/output/traceability_matrix.md generated timestamp changed; semantic diff none.
+- full output tail pasted below from: tail -n 80 /tmp/T22-verify-ci.log
+
+```text
+packages/server test:coverage:  ✓ tests/importLedgerRepo.test.ts (4 tests) 5ms
+packages/server test:coverage:  ✓ tests/graphNotificationValidator.test.ts (7 tests) 6ms
+packages/server test:coverage:  ✓ tests/sevenKeysSnapshotsRepo.test.ts (2 tests) 4ms
+packages/server test:coverage:  ✓ tests/schedulerPolicy.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/reportDeliveryLogRepo.test.ts (3 tests) 4ms
+packages/server test:coverage:  ✓ tests/pmTimeseriesRepo.test.ts (3 tests) 7ms
+packages/server test:coverage:  ✓ tests/channelAuthorization.test.ts (4 tests) 2ms
+packages/server test:coverage:  ✓ tests/standardReportsRepo.test.ts (3 tests) 12ms
+packages/server test:coverage:  ✓ tests/recipientsRepo.test.ts (1 test) 4ms
+packages/server test:coverage:  ✓ tests/createGraphSubscriptionTool.test.ts (2 tests) 2ms
+packages/server test:coverage:  ✓ tests/stakeholderProfileResolver.test.ts (3 tests) 2ms
+packages/server test:coverage:  ✓ tests/xlsxImportRoutes.test.ts (8 tests) 2416ms
+packages/server test:coverage:    ✓ xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1] > executeは確認後にGitHubモックへ書き込み、監査ログを追記する 2073ms
+packages/server test:coverage:  Test Files  31 passed (31)
+packages/server test:coverage:       Tests  182 passed (182)
+packages/server test:coverage:    Start at  08:04:58
+packages/server test:coverage:    Duration  3.71s (transform 830ms, setup 0ms, collect 9.94s, tests 2.65s, environment 5ms, prepare 2.36s)
+packages/server test:coverage:  % Coverage report from v8
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: All files          |   72.01 |    77.98 |   92.35 |   72.01 |
+packages/server test:coverage:  scripts           |       0 |        0 |       0 |       0 |
+packages/server test:coverage:   ...container.mjs |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:  src               |     8.8 |    77.77 |      50 |     8.8 |
+packages/server test:coverage:   config.ts        |   90.69 |     87.5 |     100 |   90.69 | 58-61
+packages/server test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-445
+packages/server test:coverage:  src/agents        |   89.75 |    74.62 |     100 |   89.75 |
+packages/server test:coverage:   ...ationAgent.ts |   89.75 |    74.62 |     100 |   89.75 | ...46-350,353-355
+packages/server test:coverage:  src/auth          |    3.03 |      100 |       0 |    3.03 |
+packages/server test:coverage:   ...enProvider.ts |    3.03 |      100 |       0 |    3.03 | 18-50
+packages/server test:coverage:  src/db            |   66.49 |    71.15 |   85.96 |   66.49 |
+packages/server test:coverage:   ...ssagesRepo.ts |       0 |      100 |     100 |       0 | 26-96
+packages/server test:coverage:   ...gTasksRepo.ts |     100 |    78.94 |     100 |     100 | 68-70
+packages/server test:coverage:   eventsRepo.ts    |       0 |      100 |     100 |       0 | 19-62
+packages/server test:coverage:   grantsRepo.ts    |       0 |      100 |     100 |       0 | 11-42
+packages/server test:coverage:   ...ptionsRepo.ts |     100 |    66.66 |     100 |     100 | 39-42,68-69
+packages/server test:coverage:   ...LedgerRepo.ts |     100 |    88.88 |     100 |     100 | 16
+packages/server test:coverage:   pgAuditLog.ts    |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:   ...seriesRepo.ts |   78.18 |      100 |   66.66 |   78.18 | 87-93,96-102
+packages/server test:coverage:   pool.ts          |       0 |        0 |       0 |       0 | 1-10
+packages/server test:coverage:   ...annelsRepo.ts |     100 |       75 |     100 |     100 | 41-43
+packages/server test:coverage:   ...pientsRepo.ts |     100 |     37.5 |     100 |     100 | 25-31
+packages/server test:coverage:   ...eryLogRepo.ts |   76.66 |       80 |      80 |   76.66 | 23-31
+packages/server test:coverage:   ...pshotsRepo.ts |   89.83 |    53.33 |   85.71 |   89.83 | 59-65
+packages/server test:coverage:   ...eportsRepo.ts |   70.17 |       80 |   66.66 |   70.17 | 40-50,76-84
+packages/server test:coverage:  src/http          |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   app.ts           |     100 |      100 |     100 |     100 |
+packages/server test:coverage:  src/http/routes   |   90.04 |    71.12 |     100 |   90.04 |
+packages/server test:coverage:   codingTasks.ts   |   89.56 |    74.07 |     100 |   89.56 | ...19-220,260-269
+packages/server test:coverage:   githubWebhook.ts |    93.1 |       50 |     100 |    93.1 | 46-47
+packages/server test:coverage:   ...ifications.ts |      95 |    66.66 |     100 |      95 | 36-37
+packages/server test:coverage:   health.ts        |     100 |       60 |     100 |     100 | 18-19
+packages/server test:coverage:   reportIngest.ts  |   79.71 |    69.56 |     100 |   79.71 | 33-34,42-51,70-71
+packages/server test:coverage:   webuiProxy.ts    |   84.61 |       50 |     100 |   84.61 | 34-35,41-42
+packages/server test:coverage:   xlsxImport.ts    |   94.78 |    82.75 |     100 |   94.78 | ...07-108,125-126
+packages/server test:coverage:  src/lib           |   97.12 |    86.13 |     100 |   97.12 |
+packages/server test:coverage:   ...horization.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   confirmToken.ts  |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...rdDeepLink.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...TextIntent.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...ventRouter.ts |    95.7 |     82.5 |     100 |    95.7 | ...00,104,115-116
+packages/server test:coverage:   ...nValidator.ts |     100 |    88.23 |     100 |     100 | 42,73
+packages/server test:coverage:   ...ulerPolicy.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...leResolver.ts |   88.23 |    66.66 |     100 |   88.23 | 30-31
+packages/server test:coverage:  src/scheduler     |     100 |     92.3 |     100 |     100 |
+packages/server test:coverage:   scheduler.ts     |     100 |     92.3 |     100 |     100 | 68
+packages/server test:coverage:  ...cheduler/tasks |   99.38 |    85.21 |     100 |   99.38 |
+packages/server test:coverage:   ...ollingTask.ts |     100 |       75 |     100 |     100 | 74,92
+packages/server test:coverage:   ...ollingTask.ts |     100 |       95 |     100 |     100 | 74
+packages/server test:coverage:   ...hcheckTask.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...cationTask.ts |     100 |    66.66 |     100 |     100 | 25
+packages/server test:coverage:   ...oncileTask.ts |     100 |    83.33 |     100 |     100 | 32,60
+packages/server test:coverage:   ...liveryTask.ts |   98.34 |    78.37 |     100 |   98.34 | 81-82,88
+packages/server test:coverage:   ...apshotTask.ts |     100 |    89.47 |     100 |     100 | 51,70
+packages/server test:coverage:   ...enewalTask.ts |     100 |     87.5 |     100 |     100 | 68
+packages/server test:coverage:  src/tools         |    55.1 |       50 |   66.66 |    55.1 |
+packages/server test:coverage:   ...bscription.ts |    55.1 |       50 |   66.66 |    55.1 | 30-31,46-60,63-67
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: Done
+```
+
+---
+
+AGMSG-VERIFY v1 task_id=T22-rev3 CI rerun
+timestamp_utc: 2026-07-09T23:42:34Z
+branch: agent/T22
+commit: f7bb790239ed4163cf616bc2d05586cd96d5ac86
+mode: code-change-forbidden; validation evidence only
+
+CI command:
+- attempted: mise run ci > /tmp/T22-rev3-ci.log 2>&1
+- sandbox result: blocked by environment, not product code; tsx failed with EPERM listening on /var/folders/.../tsx-501/*.pipe.
+- rerun with approved external permission: mise run ci > /tmp/T22-rev3-ci.log 2>&1
+- result: PASS; exit 0.
+- note: command was exactly "mise run ci"; no "-j 1" was used.
+- post-CI generated diff: packages/traceability/output/traceability_matrix.md timestamp only.
+
+Tail evidence:
+
+```text
+packages/server test:coverage:       Coverage enabled with v8
+packages/server test:coverage:  ✓ tests/eventsPollingTask.test.ts (7 tests) 4ms
+packages/server test:coverage:  ✓ tests/codingTaskRoutes.test.ts (17 tests) 15ms
+packages/server test:coverage:  ✓ tests/app.test.ts (10 tests) 16ms
+packages/server test:coverage:  ✓ tests/schedulerTasks.test.ts (7 tests) 5ms
+packages/server test:coverage:  ✓ tests/reportDeliveryTask.test.ts (6 tests) 7ms
+packages/server test:coverage:  ✓ tests/teamsConversationAgent.test.ts (17 tests) 16ms
+packages/server test:coverage:  ✓ tests/codingTasksRepo.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/githubEventRouter.test.ts (10 tests) 7ms
+packages/server test:coverage:  ✓ tests/channelPollingTask.test.ts (3 tests) 5ms
+packages/server test:coverage:  ✓ tests/sevenKeysMonthlySnapshotTask.test.ts (5 tests) 6ms
+packages/server test:coverage:  ✓ tests/graphSubscriptionsRepo.test.ts (7 tests) 4ms
+packages/server test:coverage:  ✓ tests/subscriptionRenewalTask.test.ts (4 tests) 4ms
+packages/server test:coverage:  ✓ tests/reportIngestRoutes.test.ts (5 tests) 26ms
+packages/server test:coverage:  ✓ tests/projectChannelsRepo.test.ts (5 tests) 3ms
+packages/server test:coverage:  ✓ tests/pmSnapshotReconcileTask.test.ts (3 tests) 5ms
+packages/server test:coverage:  ✓ tests/freeTextIntent.test.ts (5 tests) 8ms
+packages/server test:coverage:  ✓ tests/config.test.ts (8 tests) 4ms
+packages/server test:coverage:  ✓ tests/scheduler.test.ts (5 tests) 29ms
+packages/server test:coverage:  ✓ tests/confirmToken.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/importLedgerRepo.test.ts (4 tests) 2ms
+packages/server test:coverage:  ✓ tests/graphNotificationValidator.test.ts (7 tests) 9ms
+packages/server test:coverage:  ✓ tests/sevenKeysSnapshotsRepo.test.ts (2 tests) 4ms
+packages/server test:coverage:  ✓ tests/schedulerPolicy.test.ts (7 tests) 2ms
+packages/server test:coverage:  ✓ tests/reportDeliveryLogRepo.test.ts (3 tests) 2ms
+packages/server test:coverage:  ✓ tests/pmTimeseriesRepo.test.ts (3 tests) 9ms
+packages/server test:coverage:  ✓ tests/channelAuthorization.test.ts (4 tests) 6ms
+packages/server test:coverage:  ✓ tests/standardReportsRepo.test.ts (3 tests) 10ms
+packages/server test:coverage:  ✓ tests/recipientsRepo.test.ts (1 test) 3ms
+packages/server test:coverage:  ✓ tests/stakeholderProfileResolver.test.ts (3 tests) 2ms
+packages/server test:coverage:  ✓ tests/createGraphSubscriptionTool.test.ts (2 tests) 2ms
+packages/server test:coverage:  ✓ tests/xlsxImportRoutes.test.ts (9 tests) 2425ms
+packages/server test:coverage:    ✓ xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1] > executeは確認後にGitHubモックへ書き込み、監査ログを追記する 2052ms
+packages/server test:coverage:  Test Files  31 passed (31)
+packages/server test:coverage:       Tests  186 passed (186)
+packages/server test:coverage:    Start at  08:42:19
+packages/server test:coverage:    Duration  3.50s (transform 717ms, setup 0ms, collect 7.83s, tests 2.64s, environment 4ms, prepare 1.91s)
+packages/server test:coverage:  % Coverage report from v8
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: All files          |   72.27 |    78.57 |   92.35 |   72.27 |
+packages/server test:coverage:  scripts           |       0 |        0 |       0 |       0 |
+packages/server test:coverage:   ...container.mjs |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:  src               |    8.84 |    77.77 |      50 |    8.84 |
+packages/server test:coverage:   config.ts        |   90.69 |     87.5 |     100 |   90.69 | 58-61
+packages/server test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-443
+packages/server test:coverage:  src/agents        |   89.75 |    74.62 |     100 |   89.75 |
+packages/server test:coverage:   ...ationAgent.ts |   89.75 |    74.62 |     100 |   89.75 | ...46-350,353-355
+packages/server test:coverage:  src/auth          |    3.03 |      100 |       0 |    3.03 |
+packages/server test:coverage:   ...enProvider.ts |    3.03 |      100 |       0 |    3.03 | 18-50
+packages/server test:coverage:  src/db            |   66.49 |    71.15 |   85.96 |   66.49 |
+packages/server test:coverage:   ...ssagesRepo.ts |       0 |      100 |     100 |       0 | 26-96
+packages/server test:coverage:   ...gTasksRepo.ts |     100 |    78.94 |     100 |     100 | 68-70
+packages/server test:coverage:   eventsRepo.ts    |       0 |      100 |     100 |       0 | 19-62
+packages/server test:coverage:   grantsRepo.ts    |       0 |      100 |     100 |       0 | 11-42
+packages/server test:coverage:   ...ptionsRepo.ts |     100 |    66.66 |     100 |     100 | 39-42,68-69
+packages/server test:coverage:   ...LedgerRepo.ts |     100 |    88.88 |     100 |     100 | 16
+packages/server test:coverage:   pgAuditLog.ts    |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:   ...seriesRepo.ts |   78.18 |      100 |   66.66 |   78.18 | 87-93,96-102
+packages/server test:coverage:   pool.ts          |       0 |        0 |       0 |       0 | 1-10
+packages/server test:coverage:   ...annelsRepo.ts |     100 |       75 |     100 |     100 | 41-43
+packages/server test:coverage:   ...pientsRepo.ts |     100 |     37.5 |     100 |     100 | 25-31
+packages/server test:coverage:   ...eryLogRepo.ts |   76.66 |       80 |      80 |   76.66 | 23-31
+packages/server test:coverage:   ...pshotsRepo.ts |   89.83 |    53.33 |   85.71 |   89.83 | 59-65
+packages/server test:coverage:   ...eportsRepo.ts |   70.17 |       80 |   66.66 |   70.17 | 40-50,76-84
+packages/server test:coverage:  src/http          |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   app.ts           |     100 |      100 |     100 |     100 |
+packages/server test:coverage:  src/http/routes   |   90.46 |    73.82 |     100 |   90.46 |
+packages/server test:coverage:   codingTasks.ts   |   89.56 |    74.07 |     100 |   89.56 | ...19-220,260-269
+packages/server test:coverage:   githubWebhook.ts |    93.1 |       50 |     100 |    93.1 | 46-47
+packages/server test:coverage:   ...ifications.ts |      95 |    66.66 |     100 |      95 | 36-37
+packages/server test:coverage:   health.ts        |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   reportIngest.ts  |   82.05 |    73.07 |     100 |   82.05 | 34-35,43-52,71-72
+packages/server test:coverage:   webuiProxy.ts    |   84.61 |       50 |     100 |   84.61 | 34-35,41-42
+packages/server test:coverage:   xlsxImport.ts    |   95.27 |    83.87 |     100 |   95.27 | ...08-109,138-139
+packages/server test:coverage:  src/lib           |   97.12 |    86.13 |     100 |   97.12 |
+packages/server test:coverage:   ...horization.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   confirmToken.ts  |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...rdDeepLink.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...TextIntent.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...ventRouter.ts |    95.7 |     82.5 |     100 |    95.7 | ...00,104,115-116
+packages/server test:coverage:   ...nValidator.ts |     100 |    88.23 |     100 |     100 | 42,73
+packages/server test:coverage:   ...ulerPolicy.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...leResolver.ts |   88.23 |    66.66 |     100 |   88.23 | 30-31
+packages/server test:coverage:  src/scheduler     |     100 |     92.3 |     100 |     100 |
+packages/server test:coverage:   scheduler.ts     |     100 |     92.3 |     100 |     100 | 68
+packages/server test:coverage:  ...cheduler/tasks |   99.38 |    85.21 |     100 |   99.38 |
+packages/server test:coverage:   ...ollingTask.ts |     100 |       75 |     100 |     100 | 74,92
+packages/server test:coverage:   ...ollingTask.ts |     100 |       95 |     100 |     100 | 74
+packages/server test:coverage:   ...hcheckTask.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...cationTask.ts |     100 |    66.66 |     100 |     100 | 25
+packages/server test:coverage:   ...oncileTask.ts |     100 |    83.33 |     100 |     100 | 32,60
+packages/server test:coverage:   ...liveryTask.ts |   98.34 |    78.37 |     100 |   98.34 | 81-82,88
+packages/server test:coverage:   ...apshotTask.ts |     100 |    89.47 |     100 |     100 | 51,70
+packages/server test:coverage:   ...enewalTask.ts |     100 |     87.5 |     100 |     100 | 68
+packages/server test:coverage:  src/tools         |    55.1 |       50 |   66.66 |    55.1 |
+packages/server test:coverage:   ...bscription.ts |    55.1 |       50 |   66.66 |    55.1 | 30-31,46-60,63-67
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: Done
+```
+
+---
+
+AGMSG-VERIFY v1 task_id=T22-rev2 CI rerun
+timestamp_utc: 2026-07-09T23:30:39Z
+branch: agent/T22
+commit: 19ec60e3d2757d9f58aac3549a6ccd209fedddb7
+mode: code-change-forbidden; validation evidence only
+
+CI command:
+- attempted: mise run ci > /tmp/T22-rev2-ci.log 2>&1
+- sandbox result: blocked by environment, not product code; tsx failed with EPERM listening on /var/folders/.../tsx-501/*.pipe.
+- rerun with approved external permission: mise run ci > /tmp/T22-rev2-ci.log 2>&1
+- result: PASS; exit 0.
+- note: command was exactly "mise run ci"; no "-j 1" was used.
+- post-CI generated diff: packages/traceability/output/traceability_matrix.md timestamp only.
+
+Tail evidence:
+
+```text
+packages/server test:coverage:       Coverage enabled with v8
+packages/server test:coverage:  ✓ tests/eventsPollingTask.test.ts (7 tests) 4ms
+packages/server test:coverage:  ✓ tests/codingTaskRoutes.test.ts (17 tests) 16ms
+packages/server test:coverage:  ✓ tests/app.test.ts (10 tests) 17ms
+packages/server test:coverage:  ✓ tests/schedulerTasks.test.ts (7 tests) 5ms
+packages/server test:coverage:  ✓ tests/reportDeliveryTask.test.ts (6 tests) 6ms
+packages/server test:coverage:  ✓ tests/teamsConversationAgent.test.ts (17 tests) 17ms
+packages/server test:coverage:  ✓ tests/codingTasksRepo.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/githubEventRouter.test.ts (10 tests) 6ms
+packages/server test:coverage:  ✓ tests/channelPollingTask.test.ts (3 tests) 4ms
+packages/server test:coverage:  ✓ tests/sevenKeysMonthlySnapshotTask.test.ts (5 tests) 6ms
+packages/server test:coverage:  ✓ tests/graphSubscriptionsRepo.test.ts (7 tests) 6ms
+packages/server test:coverage:  ✓ tests/subscriptionRenewalTask.test.ts (4 tests) 3ms
+packages/server test:coverage:  ✓ tests/reportIngestRoutes.test.ts (5 tests) 33ms
+packages/server test:coverage:  ✓ tests/projectChannelsRepo.test.ts (5 tests) 4ms
+packages/server test:coverage:  ✓ tests/pmSnapshotReconcileTask.test.ts (3 tests) 7ms
+packages/server test:coverage:  ✓ tests/config.test.ts (8 tests) 11ms
+packages/server test:coverage:  ✓ tests/scheduler.test.ts (5 tests) 13ms
+packages/server test:coverage:  ✓ tests/freeTextIntent.test.ts (5 tests) 6ms
+packages/server test:coverage:  ✓ tests/confirmToken.test.ts (7 tests) 5ms
+packages/server test:coverage:  ✓ tests/importLedgerRepo.test.ts (4 tests) 5ms
+packages/server test:coverage:  ✓ tests/graphNotificationValidator.test.ts (7 tests) 5ms
+packages/server test:coverage:  ✓ tests/sevenKeysSnapshotsRepo.test.ts (2 tests) 6ms
+packages/server test:coverage:  ✓ tests/schedulerPolicy.test.ts (7 tests) 2ms
+packages/server test:coverage:  ✓ tests/reportDeliveryLogRepo.test.ts (3 tests) 4ms
+packages/server test:coverage:  ✓ tests/pmTimeseriesRepo.test.ts (3 tests) 4ms
+packages/server test:coverage:  ✓ tests/channelAuthorization.test.ts (4 tests) 3ms
+packages/server test:coverage:  ✓ tests/standardReportsRepo.test.ts (3 tests) 10ms
+packages/server test:coverage:  ✓ tests/recipientsRepo.test.ts (1 test) 2ms
+packages/server test:coverage:  ✓ tests/stakeholderProfileResolver.test.ts (3 tests) 2ms
+packages/server test:coverage:  ✓ tests/createGraphSubscriptionTool.test.ts (2 tests) 2ms
+packages/server test:coverage:  ✓ tests/xlsxImportRoutes.test.ts (9 tests) 2463ms
+packages/server test:coverage:    ✓ xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1] > executeは確認後にGitHubモックへ書き込み、監査ログを追記する 2098ms
+packages/server test:coverage:  Test Files  31 passed (31)
+packages/server test:coverage:       Tests  186 passed (186)
+packages/server test:coverage:    Start at  08:30:27
+packages/server test:coverage:    Duration  3.48s (transform 768ms, setup 0ms, collect 7.29s, tests 2.68s, environment 4ms, prepare 2.06s)
+packages/server test:coverage:  % Coverage report from v8
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: All files          |   72.17 |    78.57 |   92.35 |   72.17 |
+packages/server test:coverage:  scripts           |       0 |        0 |       0 |       0 |
+packages/server test:coverage:   ...container.mjs |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:  src               |    8.76 |    77.77 |      50 |    8.76 |
+packages/server test:coverage:   config.ts        |   90.69 |     87.5 |     100 |   90.69 | 58-61
+packages/server test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-447
+packages/server test:coverage:  src/agents        |   89.75 |    74.62 |     100 |   89.75 |
+packages/server test:coverage:   ...ationAgent.ts |   89.75 |    74.62 |     100 |   89.75 | ...46-350,353-355
+packages/server test:coverage:  src/auth          |    3.03 |      100 |       0 |    3.03 |
+packages/server test:coverage:   ...enProvider.ts |    3.03 |      100 |       0 |    3.03 | 18-50
+packages/server test:coverage:  src/db            |   66.49 |    71.15 |   85.96 |   66.49 |
+packages/server test:coverage:   ...ssagesRepo.ts |       0 |      100 |     100 |       0 | 26-96
+packages/server test:coverage:   ...gTasksRepo.ts |     100 |    78.94 |     100 |     100 | 68-70
+packages/server test:coverage:   eventsRepo.ts    |       0 |      100 |     100 |       0 | 19-62
+packages/server test:coverage:   grantsRepo.ts    |       0 |      100 |     100 |       0 | 11-42
+packages/server test:coverage:   ...ptionsRepo.ts |     100 |    66.66 |     100 |     100 | 39-42,68-69
+packages/server test:coverage:   ...LedgerRepo.ts |     100 |    88.88 |     100 |     100 | 16
+packages/server test:coverage:   pgAuditLog.ts    |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:   ...seriesRepo.ts |   78.18 |      100 |   66.66 |   78.18 | 87-93,96-102
+packages/server test:coverage:   pool.ts          |       0 |        0 |       0 |       0 | 1-10
+packages/server test:coverage:   ...annelsRepo.ts |     100 |       75 |     100 |     100 | 41-43
+packages/server test:coverage:   ...pientsRepo.ts |     100 |     37.5 |     100 |     100 | 25-31
+packages/server test:coverage:   ...eryLogRepo.ts |   76.66 |       80 |      80 |   76.66 | 23-31
+packages/server test:coverage:   ...pshotsRepo.ts |   89.83 |    53.33 |   85.71 |   89.83 | 59-65
+packages/server test:coverage:   ...eportsRepo.ts |   70.17 |       80 |   66.66 |   70.17 | 40-50,76-84
+packages/server test:coverage:  src/http          |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   app.ts           |     100 |      100 |     100 |     100 |
+packages/server test:coverage:  src/http/routes   |   90.46 |    73.82 |     100 |   90.46 |
+packages/server test:coverage:   codingTasks.ts   |   89.56 |    74.07 |     100 |   89.56 | ...19-220,260-269
+packages/server test:coverage:   githubWebhook.ts |    93.1 |       50 |     100 |    93.1 | 46-47
+packages/server test:coverage:   ...ifications.ts |      95 |    66.66 |     100 |      95 | 36-37
+packages/server test:coverage:   health.ts        |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   reportIngest.ts  |   82.05 |    73.07 |     100 |   82.05 | 34-35,43-52,71-72
+packages/server test:coverage:   webuiProxy.ts    |   84.61 |       50 |     100 |   84.61 | 34-35,41-42
+packages/server test:coverage:   xlsxImport.ts    |   95.27 |    83.87 |     100 |   95.27 | ...08-109,138-139
+packages/server test:coverage:  src/lib           |   97.12 |    86.13 |     100 |   97.12 |
+packages/server test:coverage:   ...horization.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   confirmToken.ts  |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...rdDeepLink.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...TextIntent.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...ventRouter.ts |    95.7 |     82.5 |     100 |    95.7 | ...00,104,115-116
+packages/server test:coverage:   ...nValidator.ts |     100 |    88.23 |     100 |     100 | 42,73
+packages/server test:coverage:   ...ulerPolicy.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...leResolver.ts |   88.23 |    66.66 |     100 |   88.23 | 30-31
+packages/server test:coverage:  src/scheduler     |     100 |     92.3 |     100 |     100 |
+packages/server test:coverage:   scheduler.ts     |     100 |     92.3 |     100 |     100 | 68
+packages/server test:coverage:  ...cheduler/tasks |   99.38 |    85.21 |     100 |   99.38 |
+packages/server test:coverage:   ...ollingTask.ts |     100 |       75 |     100 |     100 | 74,92
+packages/server test:coverage:   ...ollingTask.ts |     100 |       95 |     100 |     100 | 74
+packages/server test:coverage:   ...hcheckTask.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...cationTask.ts |     100 |    66.66 |     100 |     100 | 25
+packages/server test:coverage:   ...oncileTask.ts |     100 |    83.33 |     100 |     100 | 32,60
+packages/server test:coverage:   ...liveryTask.ts |   98.34 |    78.37 |     100 |   98.34 | 81-82,88
+packages/server test:coverage:   ...apshotTask.ts |     100 |    89.47 |     100 |     100 | 51,70
+packages/server test:coverage:   ...enewalTask.ts |     100 |     87.5 |     100 |     100 | 68
+packages/server test:coverage:  src/tools         |    55.1 |       50 |   66.66 |    55.1 |
+packages/server test:coverage:   ...bscription.ts |    55.1 |       50 |   66.66 |    55.1 | 30-31,46-60,63-67
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: Done
+```
+
+A-9 failsafe effectiveness follow-up
+- Side-effect scheduler task wrapping check:
+  - command: rg "createSubscriptionRenewalTask|createChannelPollingTask|createEventsPollingTask|createPmSnapshotReconcileTask|createSevenKeysMonthlySnapshotTask|createReportDeliveryTask|createJitRevocationTask|guardTask\(" packages/server/src/index.ts -n
+  - result: PASS for requested side-effect tasks. Each requested side-effect task is created inside guardTask(...): subscriptionRenewal at index.ts:239-246, channelPolling at 247-256, eventDispatch/eventsPolling at 257-281, pmSnapshotReconcile at 282-309, sevenKeysMonthly at 310-318, reportDelivery at 319-333.
+  - guard shape: run is externally wrapped by guardFailsafeTask, not a repeated per-task internal check. scheduler.ts:29-49 returns a ScheduledTask whose run() checks isFailsafeActive() before calling the original task.run(now).
+  - JIT revocation exception: PASS. createJitRevocationTask is at index.ts:234-238 and is not wrapped by guardTask, so REQ-029 safety-side cleanup remains allowed.
+- Test coverage:
+  - command: pnpm --filter @aiops/server test -- tests/scheduler.test.ts tests/codingTaskRoutes.test.ts
+  - result: PASS; 2 files passed, 22 tests passed.
+  - scheduler.test.ts:92-119 verifies failsafe active -> original side-effect run count stays 0; failsafe release -> run count increments; audit failsafe_task_skipped is recorded.
+  - codingTaskRoutes.test.ts:188-192 verifies failsafe active -> HTTP 503, dispatchCalls=0, updateCalls=0, audit coding_task_blocked_by_failsafe is recorded.
+
+/readyz failsafe test check
+- command: rg "readyz|readiness|isReady" packages/server/tests packages/server/src/http -n
+- command: rg "failsafe|フェイルセーフ|readyz" packages/server/tests/app.test.ts -n
+- finding: DOCUMENTED GAP. Implementation returns 503 when readiness.isReady() returns false (health.ts:16-21), and index.ts:343-347 wires readiness to return !failsafeActive after DB query. However, current tests only cover /readyz DB exception -> 503 (app.test.ts:85-95). I found no dedicated test proving failsafe active -> /readyz false/503.
+
+GitHub Actions SHA/tag confirmation through gh api
+- actions/checkout@v4:
+  - workflow pinned SHA: 34e114876b0b11c390a56381ad16ebd13914f8d5
+  - command: gh api repos/actions/checkout/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
+  - result: commit 34e114876b0b11c390a56381ad16ebd13914f8d5
+- jdx/mise-action@v2:
+  - workflow pinned SHA: c37c93293d6b742fc901e1406b8f764f6fb19dac
+  - command: gh api repos/jdx/mise-action/git/ref/tags/v2 --jq '.object.type + " " + .object.sha'
+  - result: commit c37c93293d6b742fc901e1406b8f764f6fb19dac
+- pnpm/action-setup@v4:
+  - workflow pinned SHA: b906affcce14559ad1aafd4ab0e942779e9f58b1
+  - command: gh api repos/pnpm/action-setup/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
+  - result: tag f40ffcd9367d9f12939873eb1018b921a783ffaa
+  - dereference command: gh api repos/pnpm/action-setup/git/tags/f40ffcd9367d9f12939873eb1018b921a783ffaa --jq '.object.type + " " + .object.sha'
+  - dereference result: commit b906affcce14559ad1aafd4ab0e942779e9f58b1
+- actions/setup-node@v4:
+  - workflow pinned SHA: 49933ea5288caeca8642d1e84afbd3f7d6820020
+  - command: gh api repos/actions/setup-node/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
+  - result: commit 49933ea5288caeca8642d1e84afbd3f7d6820020
+- actions/upload-artifact@v4:
+  - workflow pinned SHA: ea165f8d65b6e75b540449e92b4886f43607fa02
+  - command: gh api repos/actions/upload-artifact/git/ref/tags/v4 --jq '.object.type + " " + .object.sha'
+  - result: commit ea165f8d65b6e75b540449e92b4886f43607fa02
+
+coding-task.yml AIOPS_PR_TOKEN fail-fast
+- Workflow order:
+  - .github/workflows/coding-task.yml:69-77 has "Require CI-triggering PR token".
+  - .github/workflows/coding-task.yml:79-84 checkout occurs after the fail-fast step and uses token: secrets.AIOPS_PR_TOKEN.
+  - .github/workflows/coding-task.yml:139-143 PR creation uses GH_TOKEN: secrets.AIOPS_PR_TOKEN.
+- Negative token check:
+  - command: AIOPS_PR_TOKEN= bash -c 'set -euo pipefail; if [ -z "${AIOPS_PR_TOKEN:-}" ]; then echo "::error::AIOPS_PR_TOKEN is required so AI-created PRs trigger ci.yml. See runbooks/production-gates.md."; exit 1; fi'
+  - result: PASS; exited 1 with the expected error before any checkout-equivalent command.
+- Default token absence:
+  - command: rg "secrets.GITHUB_TOKEN|github.token|GH_TOKEN: \${{ github.token }}" .github/workflows/coding-task.yml -n
+  - result: PASS; no matches.
+
+Follow-up conclusion
+- PASS: CI green on "mise run ci" without -j 1 after sandbox EPERM was bypassed with approved external execution.
+- PASS: Requested side-effect scheduler tasks are guarded outside run() by guardFailsafeTask; JIT revocation remains unguarded.
+- PASS: SHA pins resolve to their stated tags via gh api, including annotated tag dereference for pnpm/action-setup@v4.
+- PASS: coding-task.yml fails fast on missing AIOPS_PR_TOKEN before checkout and does not use secrets.GITHUB_TOKEN.
+- GAP: No dedicated test found for failsafe active -> /readyz false/503. Implementation wiring exists, but this verification task forbids code changes, so no test was added.
+
+---
+
+AGMSG-VERIFY v1 task_id=T22-rev CI rerun
+timestamp_utc: 2026-07-09T23:19:18Z
+branch: agent/T22
+commit: 5f33e9f475e315df724be9dcd77f0ccd0c4c1991
+mode: code-change-forbidden; validation evidence only
+
+CI command:
+- attempted: mise run ci > /tmp/T22-rev-ci.log 2>&1
+- sandbox result: blocked by environment, not product code; tsx failed with EPERM listening on /var/folders/.../tsx-501/*.pipe.
+- rerun with approved external permission: mise run ci > /tmp/T22-rev-ci.log 2>&1
+- result: PASS; exit 0.
+- note: command was exactly "mise run ci"; no "-j 1" was used.
+- post-CI generated diff: packages/traceability/output/traceability_matrix.md timestamp only.
+
+Tail evidence:
+
+```text
+packages/server test:coverage:       Coverage enabled with v8
+packages/server test:coverage:  ✓ tests/githubEventRouter.test.ts (10 tests) 5ms
+packages/server test:coverage:  ✓ tests/eventsPollingTask.test.ts (7 tests) 5ms
+packages/server test:coverage:  ✓ tests/codingTaskRoutes.test.ts (17 tests) 16ms
+packages/server test:coverage:  ✓ tests/app.test.ts (10 tests) 25ms
+packages/server test:coverage:  ✓ tests/schedulerTasks.test.ts (7 tests) 7ms
+packages/server test:coverage:  ✓ tests/reportDeliveryTask.test.ts (6 tests) 10ms
+packages/server test:coverage:  ✓ tests/codingTasksRepo.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/teamsConversationAgent.test.ts (17 tests) 10ms
+packages/server test:coverage:  ✓ tests/sevenKeysMonthlySnapshotTask.test.ts (5 tests) 6ms
+packages/server test:coverage:  ✓ tests/channelPollingTask.test.ts (3 tests) 9ms
+packages/server test:coverage:  ✓ tests/graphSubscriptionsRepo.test.ts (7 tests) 9ms
+packages/server test:coverage:  ✓ tests/reportIngestRoutes.test.ts (5 tests) 31ms
+packages/server test:coverage:  ✓ tests/subscriptionRenewalTask.test.ts (4 tests) 4ms
+packages/server test:coverage:  ✓ tests/projectChannelsRepo.test.ts (5 tests) 6ms
+packages/server test:coverage:  ✓ tests/pmSnapshotReconcileTask.test.ts (3 tests) 4ms
+packages/server test:coverage:  ✓ tests/freeTextIntent.test.ts (5 tests) 6ms
+packages/server test:coverage:  ✓ tests/scheduler.test.ts (5 tests) 31ms
+packages/server test:coverage:  ✓ tests/config.test.ts (8 tests) 6ms
+packages/server test:coverage:  ✓ tests/confirmToken.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/graphNotificationValidator.test.ts (7 tests) 4ms
+packages/server test:coverage:  ✓ tests/importLedgerRepo.test.ts (4 tests) 4ms
+packages/server test:coverage:  ✓ tests/schedulerPolicy.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/reportDeliveryLogRepo.test.ts (3 tests) 3ms
+packages/server test:coverage:  ✓ tests/sevenKeysSnapshotsRepo.test.ts (2 tests) 5ms
+packages/server test:coverage:  ✓ tests/pmTimeseriesRepo.test.ts (3 tests) 5ms
+packages/server test:coverage:  ✓ tests/channelAuthorization.test.ts (4 tests) 2ms
+packages/server test:coverage:  ✓ tests/standardReportsRepo.test.ts (3 tests) 13ms
+packages/server test:coverage:  ✓ tests/recipientsRepo.test.ts (1 test) 4ms
+packages/server test:coverage:  ✓ tests/stakeholderProfileResolver.test.ts (3 tests) 2ms
+packages/server test:coverage:  ✓ tests/createGraphSubscriptionTool.test.ts (2 tests) 2ms
+packages/server test:coverage:  ✓ tests/xlsxImportRoutes.test.ts (8 tests) 2437ms
+packages/server test:coverage:    ✓ xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1] > executeは確認後にGitHubモックへ書き込み、監査ログを追記する 2127ms
+packages/server test:coverage:  Test Files  31 passed (31)
+packages/server test:coverage:       Tests  185 passed (185)
+packages/server test:coverage:    Start at  08:19:05
+packages/server test:coverage:    Duration  4.22s (transform 866ms, setup 0ms, collect 9.39s, tests 2.68s, environment 4ms, prepare 2.24s)
+packages/server test:coverage:  % Coverage report from v8
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: All files          |   72.07 |    78.33 |   92.35 |   72.07 |
+packages/server test:coverage:  scripts           |       0 |        0 |       0 |       0 |
+packages/server test:coverage:   ...container.mjs |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:  src               |    8.78 |    77.77 |      50 |    8.78 |
+packages/server test:coverage:   config.ts        |   90.69 |     87.5 |     100 |   90.69 | 58-61
+packages/server test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-446
+packages/server test:coverage:  src/agents        |   89.75 |    74.62 |     100 |   89.75 |
+packages/server test:coverage:   ...ationAgent.ts |   89.75 |    74.62 |     100 |   89.75 | ...46-350,353-355
+packages/server test:coverage:  src/auth          |    3.03 |      100 |       0 |    3.03 |
+packages/server test:coverage:   ...enProvider.ts |    3.03 |      100 |       0 |    3.03 | 18-50
+packages/server test:coverage:  src/db            |   66.49 |    71.15 |   85.96 |   66.49 |
+packages/server test:coverage:   ...ssagesRepo.ts |       0 |      100 |     100 |       0 | 26-96
+packages/server test:coverage:   ...gTasksRepo.ts |     100 |    78.94 |     100 |     100 | 68-70
+packages/server test:coverage:   eventsRepo.ts    |       0 |      100 |     100 |       0 | 19-62
+packages/server test:coverage:   grantsRepo.ts    |       0 |      100 |     100 |       0 | 11-42
+packages/server test:coverage:   ...ptionsRepo.ts |     100 |    66.66 |     100 |     100 | 39-42,68-69
+packages/server test:coverage:   ...LedgerRepo.ts |     100 |    88.88 |     100 |     100 | 16
+packages/server test:coverage:   pgAuditLog.ts    |       0 |        0 |       0 |       0 | 1-49
+packages/server test:coverage:   ...seriesRepo.ts |   78.18 |      100 |   66.66 |   78.18 | 87-93,96-102
+packages/server test:coverage:   pool.ts          |       0 |        0 |       0 |       0 | 1-10
+packages/server test:coverage:   ...annelsRepo.ts |     100 |       75 |     100 |     100 | 41-43
+packages/server test:coverage:   ...pientsRepo.ts |     100 |     37.5 |     100 |     100 | 25-31
+packages/server test:coverage:   ...eryLogRepo.ts |   76.66 |       80 |      80 |   76.66 | 23-31
+packages/server test:coverage:   ...pshotsRepo.ts |   89.83 |    53.33 |   85.71 |   89.83 | 59-65
+packages/server test:coverage:   ...eportsRepo.ts |   70.17 |       80 |   66.66 |   70.17 | 40-50,76-84
+packages/server test:coverage:  src/http          |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   app.ts           |     100 |      100 |     100 |     100 |
+packages/server test:coverage:  src/http/routes   |   90.22 |    72.78 |     100 |   90.22 |
+packages/server test:coverage:   codingTasks.ts   |   89.56 |    74.07 |     100 |   89.56 | ...19-220,260-269
+packages/server test:coverage:   githubWebhook.ts |    93.1 |       50 |     100 |    93.1 | 46-47
+packages/server test:coverage:   ...ifications.ts |      95 |    66.66 |     100 |      95 | 36-37
+packages/server test:coverage:   health.ts        |     100 |    85.71 |     100 |     100 | 19
+packages/server test:coverage:   reportIngest.ts  |   82.05 |    73.07 |     100 |   82.05 | 34-35,43-52,71-72
+packages/server test:coverage:   webuiProxy.ts    |   84.61 |       50 |     100 |   84.61 | 34-35,41-42
+packages/server test:coverage:   xlsxImport.ts    |   94.78 |    82.75 |     100 |   94.78 | ...07-108,125-126
+packages/server test:coverage:  src/lib           |   97.12 |    86.13 |     100 |   97.12 |
+packages/server test:coverage:   ...horization.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   confirmToken.ts  |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...rdDeepLink.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...TextIntent.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...ventRouter.ts |    95.7 |     82.5 |     100 |    95.7 | ...00,104,115-116
+packages/server test:coverage:   ...nValidator.ts |     100 |    88.23 |     100 |     100 | 42,73
+packages/server test:coverage:   ...ulerPolicy.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...leResolver.ts |   88.23 |    66.66 |     100 |   88.23 | 30-31
+packages/server test:coverage:  src/scheduler     |     100 |     92.3 |     100 |     100 |
+packages/server test:coverage:   scheduler.ts     |     100 |     92.3 |     100 |     100 | 68
+packages/server test:coverage:  ...cheduler/tasks |   99.38 |    85.21 |     100 |   99.38 |
+packages/server test:coverage:   ...ollingTask.ts |     100 |       75 |     100 |     100 | 74,92
+packages/server test:coverage:   ...ollingTask.ts |     100 |       95 |     100 |     100 | 74
+packages/server test:coverage:   ...hcheckTask.ts |     100 |      100 |     100 |     100 |
+packages/server test:coverage:   ...cationTask.ts |     100 |    66.66 |     100 |     100 | 25
+packages/server test:coverage:   ...oncileTask.ts |     100 |    83.33 |     100 |     100 | 32,60
+packages/server test:coverage:   ...liveryTask.ts |   98.34 |    78.37 |     100 |   98.34 | 81-82,88
+packages/server test:coverage:   ...apshotTask.ts |     100 |    89.47 |     100 |     100 | 51,70
+packages/server test:coverage:   ...enewalTask.ts |     100 |     87.5 |     100 |     100 | 68
+packages/server test:coverage:  src/tools         |    55.1 |       50 |   66.66 |    55.1 |
+packages/server test:coverage:   ...bscription.ts |    55.1 |       50 |   66.66 |    55.1 | 30-31,46-60,63-67
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: Done
+```

@@ -1,0 +1,17 @@
+$ git log --oneline -1 agent/T01
+82b7299 docs(ai-ops-platform): make AGENTS.md canonical
+
+$ git show --stat HEAD
+commit 82b729948b1665c3671ccf4edbe138c4b14eb690
+Author: mryfmo <mryfmo@gmail.com>
+Date:   Thu Jul 9 14:09:14 2026 +0900
+
+    docs(ai-ops-platform): make AGENTS.md canonical
+
+ ai-ops-platform/AGENTS.md | 86 ++++++++++++++++++++++++++++++++++++++++-------
+ ai-ops-platform/CLAUDE.md | 79 +------------------------------------------
+ 2 files changed, 75 insertions(+), 90 deletions(-)
+
+$ gh pr view 2 --repo mryfmo/tmp --json url,title,labels,baseRefName,headRefName
+{"baseRefName":"main","headRefName":"agent/T01","labels":[{"id":"LA_kwDOTSl7E88AAAACq35okw","name":"ai-generated","description":"AI-generated changes","color":"ededed"}],"title":"docs(ai-ops-platform): make AGENTS.md canonical","url":"https://github.com/mryfmo/tmp/pull/2"}
+

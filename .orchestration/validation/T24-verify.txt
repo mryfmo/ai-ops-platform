@@ -1,0 +1,86 @@
+# T24 Verify
+
+## T24 CI evidence (2026-07-10T01:04:31Z)
+
+Branch/HEAD:
+  agent/T24 / f92f1b8
+
+Command:
+  mise run ci > /tmp/T24-verify-ci.log 2>&1
+
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/96597.pipe
+
+Command:
+  mise run ci > /tmp/T24-verify-ci.log 2>&1
+
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+
+Result:
+  PASS, exit 0.
+
+Tail evidence:
+  packages/server test:coverage: Test Files  34 passed (34)
+  packages/server test:coverage: Tests  211 passed (211)
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
+
+## T24 revise CI evidence (2026-07-10T01:21:24Z)
+
+Branch/HEAD:
+  agent/T24 / 257e58c
+
+Command:
+  mise run ci > /tmp/T24-rev-verify-ci.log 2>&1
+
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/6321.pipe
+
+Command:
+  mise run ci > /tmp/T24-rev-verify-ci.log 2>&1
+
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+
+Result:
+  PASS, exit 0.
+
+Tail evidence:
+  packages/server test:coverage:   ...ifications.ts |   88.17 |    69.69 |     100 |   88.17 | 60-61,83-91       
+  packages/server test:coverage:   health.ts        |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   reportIngest.ts  |   82.05 |    73.07 |     100 |   82.05 | 34-35,43-52,71-72 
+  packages/server test:coverage:   webuiProxy.ts    |   84.61 |       50 |     100 |   84.61 | 34-35,41-42       
+  packages/server test:coverage:   xlsxImport.ts    |   95.27 |    83.87 |     100 |   95.27 | ...08-109,138-139 
+  packages/server test:coverage:  src/lib           |   95.06 |     86.3 |     100 |   95.06 |                   
+  packages/server test:coverage:   ...horization.ts |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   confirmToken.ts  |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   ...rdDeepLink.ts |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   ...TextIntent.ts |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   ...ventRouter.ts |    95.7 |     82.5 |     100 |    95.7 | ...00,104,115-116 
+  packages/server test:coverage:   ...cleHandler.ts |   86.11 |       75 |     100 |   86.11 | 27-36             
+  packages/server test:coverage:   ...nValidator.ts |     100 |    94.44 |     100 |     100 | 42                
+  packages/server test:coverage:   ...ulerPolicy.ts |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   ...leResolver.ts |   88.23 |    66.66 |     100 |   88.23 | 30-31             
+  packages/server test:coverage:  src/scheduler     |     100 |     92.3 |     100 |     100 |                   
+  packages/server test:coverage:   scheduler.ts     |     100 |     92.3 |     100 |     100 | 68                
+  packages/server test:coverage:  ...cheduler/tasks |    99.4 |    85.12 |     100 |    99.4 |                   
+  packages/server test:coverage:   ...ollingTask.ts |     100 |    77.77 |     100 |     100 | 85,103            
+  packages/server test:coverage:   ...ollingTask.ts |     100 |       92 |     100 |     100 | 72,88             
+  packages/server test:coverage:   ...hcheckTask.ts |     100 |      100 |     100 |     100 |                   
+  packages/server test:coverage:   ...cationTask.ts |     100 |    66.66 |     100 |     100 | 25                
+  packages/server test:coverage:   ...oncileTask.ts |     100 |    83.33 |     100 |     100 | 32,60             
+  packages/server test:coverage:   ...liveryTask.ts |   98.34 |    78.37 |     100 |   98.34 | 81-82,88          
+  packages/server test:coverage:   ...apshotTask.ts |     100 |    89.47 |     100 |     100 | 51,70             
+  packages/server test:coverage:   ...enewalTask.ts |     100 |     87.5 |     100 |     100 | 68                
+  packages/server test:coverage:  src/tools         |    55.1 |       50 |   66.66 |    55.1 |                   
+  packages/server test:coverage:   ...bscription.ts |    55.1 |       50 |   66.66 |    55.1 | 30-31,46-60,63-67 
+  packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
