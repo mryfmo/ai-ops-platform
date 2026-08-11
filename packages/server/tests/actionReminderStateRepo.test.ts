@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionReminderStateRepo } from "../src/db/actionReminderStateRepo.js";
+import { applySchemaSerialized } from "./pgTestSchema.js";
 
 describe("ActionReminderStateRepo [PrjOps:REQ-009 / PrjOps:SPEC-INT-025]", () => {
   it("actionごとの通知状態を読み、未登録actionは返さない", async () => {
@@ -55,11 +56,10 @@ const realPool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 4 
 
 describe.skipIf(!databaseUrl)("ActionReminderStateRepo real PostgreSQL [PrjOps:REQ-009]", () => {
   beforeAll(async () => {
-    const migration = await readFile(
+    // P1-T05: 並行テストファイルとの schema 適用レース回避（advisory lock 直列化）
+    await applySchemaSerialized(realPool!, [
       new URL("../../devops/src/db/migrations/202608090000_action_reminder_state.sql", import.meta.url),
-      "utf8",
-    );
-    await realPool!.query(migration);
+    ]);
   });
 
   beforeEach(async () => {

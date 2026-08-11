@@ -2,8 +2,6 @@
 // P1-T05 ledger の実 PostgreSQL 制約プローブ（レビュー所見 001〜006 の回帰固定）。
 // TEST_DATABASE_URL がある環境（CI / 使い捨て DB）でのみ実行される。
 
-import { readFile } from "node:fs/promises";
-
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -11,6 +9,7 @@ import { ActionLedgerRepo } from "../src/db/actionLedgerRepo.js";
 import { IdMappingsRepo } from "../src/db/idMappingsRepo.js";
 import { MeetingArtifactsRepo } from "../src/db/ledgerEvidenceRepos.js";
 import { WorkflowRunsRepo } from "../src/db/workflowRunsRepo.js";
+import { applySchemaSerialized } from "./pgTestSchema.js";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 4 }) : undefined;
@@ -20,15 +19,13 @@ const uuid = (n: number) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000
 
 describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalArch:CON-003 / DELTA-03]", () => {
   beforeAll(async () => {
-    const schema = await readFile(new URL("../../devops/src/db/schema.sql", import.meta.url), "utf8");
-    const ledgerMigration = await readFile(
+    // 冪等性: 同一 migration を 2 回適用してもエラーにならない（advisory lock で
+    // 他 PG テストファイルの schema 適用と直列化）
+    await applySchemaSerialized(pool!, [
+      new URL("../../devops/src/db/schema.sql", import.meta.url),
       new URL("../../devops/src/db/migrations/202608110000_p1_ledger.sql", import.meta.url),
-      "utf8",
-    );
-    await pool!.query(schema);
-    // 冪等性: 同一 migration を 2 回適用してもエラーにならない
-    await pool!.query(ledgerMigration);
-    await pool!.query(ledgerMigration);
+      new URL("../../devops/src/db/migrations/202608110000_p1_ledger.sql", import.meta.url),
+    ]);
   });
 
   beforeEach(async () => {
