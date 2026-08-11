@@ -5,10 +5,13 @@
  * instrumented module import 前に起動する実行専用エントリ。
  */
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { loadConfig } from "./config.js";
 import { createLogger } from "./observability/logger.js";
 import { startTelemetry } from "./observability/telemetry.js";
+
+const SERVICE_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
 async function start(): Promise<void> {
   const config = loadConfig();
@@ -16,6 +19,7 @@ async function start(): Promise<void> {
   const telemetry = await startTelemetry(
     {
       serviceName: config.OTEL_SERVICE_NAME,
+      serviceVersion: SERVICE_VERSION,
       otlpEndpoint: config.OTEL_EXPORTER_OTLP_ENDPOINT,
       otlpTracesEndpoint: config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
     },
