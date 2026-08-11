@@ -1,0 +1,98 @@
+T22 validation
+==============
+
+Pre-fix regression checks:
+- pnpm --filter @aiops/server test -- tests/scheduler.test.ts
+  - Failed as expected before implementation: guardFailsafeTask was missing.
+- pnpm --filter @aiops/server test -- tests/codingTaskRoutes.test.ts
+  - Failed as expected before implementation: failsafe POST confirm returned 200 instead of 503.
+
+Verified external metadata:
+- gh api repos/actions/checkout/git/ref/tags/v4
+  - commit 34e114876b0b11c390a56381ad16ebd13914f8d5
+- gh api repos/jdx/mise-action/git/ref/tags/v2
+  - commit c37c93293d6b742fc901e1406b8f764f6fb19dac
+- gh api repos/pnpm/action-setup/git/ref/tags/v4 and git/tags/f40ffcd...
+  - commit b906affcce14559ad1aafd4ab0e942779e9f58b1
+- gh api repos/actions/setup-node/git/ref/tags/v4
+  - commit 49933ea5288caeca8642d1e84afbd3f7d6820020
+- gh api repos/actions/upload-artifact/git/ref/tags/v4
+  - commit ea165f8d65b6e75b540449e92b4886f43607fa02
+- gh api repos/gitleaks/gitleaks/releases/latest
+  - tag v8.30.1
+- curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt | grep linux_x64
+  - 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+Post-fix targeted checks:
+- pnpm --filter @aiops/server test -- tests/scheduler.test.ts tests/codingTaskRoutes.test.ts
+  - PASS: 2 files, 22 tests.
+- pnpm --filter @aiops/server test -- tests/reportIngestRoutes.test.ts tests/app.test.ts tests/schedulerTasks.test.ts
+  - Pre-fix R1 reproduction: failed as expected because failsafe ingest still called deliverReport.
+  - PASS after fix: 3 files, 22 tests.
+  - Covers report ingest failsafe delivery skip, /readyz readiness false -> 503, and JIT revocation outside the guard.
+- pnpm run governance:check
+  - PASS after replacing @OWNER with gh-verified repository owner @mryfmo.
+  - Negative placeholder check: printf '* @OWNER\n' | CODEOWNERS_FILE=/dev/stdin node scripts/check-codeowners.mjs
+    - EXPECTED FAIL exit 1 with ::error unresolved placeholder.
+  - Negative typo owner check: printf '* @mryfmo-typo\n' | CODEOWNERS_FILE=/dev/stdin node scripts/check-codeowners.mjs
+    - EXPECTED FAIL exit 1 with ::error unverified owner.
+- rg "uses:" .github/workflows -n
+  - All remote uses are 40-character SHAs with version comments; local ./.github/actions/run-coding-agent remains local.
+- rg "gitleaks-action|GITLEAKS_LICENSE|secrets.GITHUB_TOKEN|uses: [^#\n]+@v[0-9]" .github/workflows -n
+  - PASS: no matches.
+
+Full validation:
+- mise run ci
+  - PASS.
+  - Includes governance, lint, traceability, format, build, typecheck, and coverage tests.
+  - Server coverage observed 31 test files and 185 tests passing.
+- git diff --check
+  - PASS.
+- make require-crit-review
+  - NOT AVAILABLE in this repository: "No rule to make target `require-crit-review'."
+
+No dependencies were added. No real mutation API calls were made.
+
+Revise verification timestamp: 2026-07-09T23:14:38Z.
+
+Revise-2 checks:
+- printf '* nobody@example.com\n' | CODEOWNERS_FILE=/dev/stdin node scripts/check-codeowners.mjs
+  - Pre-fix reproduction: exited 0, proving email-style CODEOWNERS owners were ignored.
+- pnpm --filter @aiops/server test -- tests/xlsxImportRoutes.test.ts tests/app.test.ts tests/schedulerTasks.test.ts
+  - Pre-fix R1b reproduction: failed as expected; failsafe xlsx execute returned 200 instead of 503.
+  - Post-fix PASS: 3 files, 26 tests.
+  - Covers xlsx execute failsafe block/no createIssue, /readyz readiness false -> 503, and JIT revoke outside the guard.
+- pnpm run governance:check
+  - PASS for verified @mryfmo CODEOWNERS.
+- printf '* nobody@example.com\n' | CODEOWNERS_FILE=/dev/stdin node scripts/check-codeowners.mjs
+  - EXPECTED FAIL exit 1 with ::error unverified owner.
+- printf '* @mryfmo\n' | CODEOWNERS_FILE=/dev/stdin node scripts/check-codeowners.mjs
+  - PASS.
+- mise run ci
+  - PASS.
+  - Includes governance, lint, traceability, format, build, typecheck, and coverage tests.
+  - Server coverage observed 31 test files and 186 tests passing.
+- git diff --check
+  - PASS.
+- make require-crit-review
+  - NOT AVAILABLE in this repository: "No rule to make target `require-crit-review'."
+
+Revise-2 verification timestamp: 2026-07-09T23:26:39Z.
+
+Final revise checks:
+- Updated ADR-0005 and T22 report to state failsafe gates only REQ-029 dangerous operations.
+- Removed `guardTask` from `createSubscriptionRenewalTask` and `createChannelPollingTask` so keepalive/read+enqueue continues during failsafe.
+- Added `createGraphSubscription` CLI to the matrix as an out-of-band recovery tool, intentionally not gated.
+- Corrected /readyz and JIT test/report wording to avoid claiming composition-root failsafe state is driven by these unit tests.
+- rg "createSubscriptionRenewalTask|createChannelPollingTask|guardTask\(" packages/server/src/index.ts -n
+  - PASS: subscription renewal and channel polling are direct task entries; subsequent dangerous dispatch tasks remain wrapped.
+- pnpm --filter @aiops/server test -- tests/scheduler.test.ts tests/subscriptionRenewalTask.test.ts tests/channelPollingTask.test.ts tests/app.test.ts tests/schedulerTasks.test.ts tests/xlsxImportRoutes.test.ts tests/reportIngestRoutes.test.ts tests/codingTaskRoutes.test.ts
+  - PASS: 8 files, 60 tests.
+- pnpm exec prettier --check docs/adr/0005-resident-server-and-teams-integration.md packages/server/src/index.ts packages/server/tests/app.test.ts packages/server/tests/schedulerTasks.test.ts
+  - PASS.
+- mise run ci
+  - PASS.
+  - Includes governance, lint, traceability, format, build, typecheck, and coverage tests.
+  - Server coverage observed 31 test files and 186 tests passing.
+
+Final revise verification timestamp: 2026-07-09T23:38:03Z.

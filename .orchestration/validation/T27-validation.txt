@@ -1,0 +1,110 @@
+T27 validation evidence
+
+Branch: agent/T27
+Base: agent/T26
+Commit: 8f5e720
+PR: https://github.com/mryfmo/ai-ops-platform/pull/22
+
+Commands:
+
+1. pnpm --filter @aiops/devops test -- deployStateMachineAndDora.test.ts incidentBurndown.test.ts riskScore.test.ts reportTemplates.test.ts
+   Result: PASS
+   Evidence: 4 test files passed, 59 tests passed.
+
+2. pnpm --filter @aiops/prjops test -- executiveSevenKeys.test.ts investorMetrics.test.ts issueActionBurndown.test.ts
+   Result: PASS
+   Evidence: 3 test files passed, 24 tests passed.
+
+3. pnpm --filter @aiops/web test -- reportData/devopsReportData.test.ts reportData/prjopsReportData.test.ts views.test.tsx chartData.test.ts
+   Result: PASS
+   Evidence: 4 test files passed, 37 tests passed.
+
+4. pnpm -r --if-present run typecheck
+   Result: PASS
+   Evidence: shared, traceability, devops, prjops, server, web typecheck completed.
+
+5. mise run ci
+   Result: PASS
+   Notes: parallel CI command used as required; no "-j 1".
+   Evidence: governance, lint, traceability, format, build, typecheck, and test:coverage completed with process exit code 0. Coverage included shared 138, devops 159, prjops 202, server 223 tests.
+
+6. First mise run ci attempt
+   Result: FAIL
+   Evidence: format failed on local untracked `.agents/worklog/codex/todo/20260710_123516_todo.md`. The worklog was formatted and CI was rerun successfully. No code failure.
+
+7. git diff --check
+   Result: PASS
+   Evidence: no whitespace errors reported.
+
+8. make require-crit-review
+   Result: NOT AVAILABLE
+   Evidence: make exited with "No rule to make target `require-crit-review'." This repository does not expose the AGENTS.md review-gate target.
+
+9. T27 revise focused devops tests
+   Command: pnpm --filter @aiops/devops test -- deployStateMachineAndDora.test.ts reportTemplates.test.ts incidentBurndown.test.ts
+   Result: PASS
+   Evidence: 3 test files passed, 39 tests passed.
+
+10. T27 revise focused prjops tests
+    Command: pnpm --filter @aiops/prjops test -- investorMetrics.test.ts executiveSevenKeys.test.ts issueActionBurndown.test.ts
+    Result: PASS
+    Evidence: 3 test files passed, 24 tests passed.
+
+11. T27 revise focused web tests
+    Command: pnpm --filter @aiops/web test -- reportData/devopsReportData.test.ts reportData/prjopsReportData.test.ts chartData.test.ts views.test.tsx reportData/investorSummaryHandler.test.ts
+    Result: PASS
+    Evidence: 5 test files passed, 45 tests passed.
+
+12. T27 revise typecheck
+    Command: pnpm -r --if-present run typecheck
+    Result: PASS
+    Evidence: shared, traceability, devops, prjops, server, web typecheck completed.
+
+13. T27 revise first mise run ci attempt
+    Result: FAIL
+    Evidence: format failed on packages/web/src/components/views/InvestorReportView.tsx, packages/web/src/server/reportData/prjopsReportData.ts, and packages/web/tests/chartData.test.ts. Prettier was run on those files.
+
+14. T27 revise mise run ci
+    Result: PASS
+    Notes: parallel CI command used as required; no "-j 1".
+    Evidence: governance, lint, traceability, format, build, typecheck, and test:coverage completed with process exit code 0. Coverage included shared 138, devops 159, prjops 202, server 223 tests.
+
+15. T27 revise 第3巡 dead export scan
+    Command: rg -n "countTotalIncidentsInPeriod|countTotalItemsInPeriod|history: \[\{ revenue|trends\?|InvestorMetricTargetInputs" packages/devops packages/prjops packages/web
+    Result: PASS
+    Evidence: no matches after removing dead total-count exports and precomputed trend echo shapes.
+
+16. T27 revise 第3巡 focused devops tests
+    Command: pnpm --filter @aiops/devops test -- incidentBurndown.test.ts
+    Result: PASS
+    Evidence: 1 test file passed, 9 tests passed.
+
+17. T27 revise 第3巡 focused prjops tests
+    Command: pnpm --filter @aiops/prjops test -- investorMetrics.test.ts issueActionBurndown.test.ts
+    Result: PASS
+    Evidence: 2 test files passed, 12 tests passed.
+
+18. T27 revise 第3巡 package rebuild for downstream web tests
+    Commands: pnpm --filter @aiops/devops build; pnpm --filter @aiops/prjops build
+    Result: PASS
+    Evidence: both workspace packages built successfully.
+
+19. T27 revise 第3巡 focused web tests
+    Command: pnpm --filter @aiops/web test -- reportData/devopsReportData.test.ts reportData/prjopsReportData.test.ts
+    Result: PASS
+    Evidence: 2 test files passed, 24 tests passed.
+
+20. T27 revise 第3巡 first mise run ci attempt
+    Result: FAIL
+    Evidence: format failed on packages/web/tests/reportData/devopsReportData.test.ts. Prettier was run on the touched files.
+
+21. T27 revise 第3巡 mise run ci
+    Result: PASS
+    Notes: parallel CI command used as required; no "-j 1".
+    Evidence: governance, lint, traceability, format, build, typecheck, and test:coverage completed with process exit code 0. Coverage included shared 138, devops 157, prjops 200, server 223 tests.
+
+External behavior:
+- No real LLM calls.
+- No real Graph/GitHub/API calls.
+- No dependency additions.
+- No migrations.

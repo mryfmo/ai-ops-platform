@@ -1,0 +1,39 @@
+T10 validation
+==============
+
+Branch: agent/T10
+Head: b665f10 feat(dashboard): add PM timeseries snapshots
+PR: https://github.com/mryfmo/ai-ops-platform/pull/7
+PR base: agent/T09
+
+Targeted validation:
+
+- PASS: mise exec -- pnpm --filter @aiops/shared run test -- periodBuckets.test.ts
+- PASS: mise exec -- pnpm --filter @aiops/shared run test -- secretSanitizer.test.ts periodBuckets.test.ts
+- PASS: mise exec -- pnpm --filter @aiops/server run test -- githubEventRouter.test.ts pmTimeseriesRepo.test.ts pmSnapshotReconcileTask.test.ts
+- PASS: mise exec -- pnpm --filter @aiops/web run test -- reportData/timeseriesHandler.test.ts DashboardClient.test.tsx
+- PASS: mise exec -- pnpm --filter @aiops/shared --filter @aiops/server --filter @aiops/web run typecheck
+- PASS: mise exec -- pnpm --filter @aiops/shared --filter @aiops/server --filter @aiops/web run lint
+- PASS: mise run traceability
+- PASS: mise run format
+
+DoD validation:
+
+- PASS: mise run ci
+  Observed order after root fix: lint -> traceability -> format -> build -> typecheck -> test:coverage.
+  Observed counts:
+  - shared: 12 test files / 102 tests passed
+  - devops: 15 test files / 154 tests passed
+  - prjops: 19 test files / 192 tests passed
+  - server: 21 test files / 136 tests passed
+
+GitHub:
+
+- PASS: PR #7 status check rollup contains CodeRabbit success.
+- NOTE: build-test/gitleaks Actions did not run for PR #7 because the PR base is agent/T09 and workflow trigger branches are [main].
+
+Review gate:
+
+- Attempted: make require-crit-review
+- Result: unavailable in this repository (`make: *** No rule to make target 'require-crit-review'.  Stop.`)
+

@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_31b877",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "Codex self-review approval: ADR-0019 keeps Git record truth, Plane operating-flux authority, and platform observation/promotion distinct; Plan 014 has complete Phase A-D gates and resolves the independent review findings for exact-SHA Git projection, atomic snapshots, verified runtime mapping, and pre-ingestion data governance; README status and dependency are consistent. No unresolved blocking finding.",
+    "author": "Codex",
+    "created_at": "2026-07-19T05:53:40Z",
+    "updated_at": "2026-07-19T05:53:48Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_c90253",
+        "body": "Resolved after Codex diff review; no blocking findings remain.",
+        "author": "Codex",
+        "created_at": "2026-07-19T05:53:48Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

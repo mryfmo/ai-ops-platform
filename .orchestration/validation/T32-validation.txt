@@ -1,0 +1,83 @@
+T32 VALIDATION EVIDENCE
+=======================
+
+Repository: /Users/mryfmo/Workspace/ai-ops-platform
+Revision: 21306d8
+Date: 2026-07-10
+
+1. Generator
+Command:
+  node .orchestration/validation/T32-analyze.mjs
+Result:
+  PASS
+  indexed IDs=295 (PrjOps=156, DevOps=139)
+  catalog definition lines=32
+  indexed definitions=31
+  undefined indexed IDs=264
+  ADRs=14
+  reconstructed=129, partial=71, unrecoverable=64
+  dead=64, testless AC=36, unindexed source/test IDs=2
+  cross-system exact collisions=56, substring pairs=1
+
+Command:
+  node .orchestration/validation/T32-build-audit.mjs
+Result:
+  PASS
+  findings=26 (CRITICAL=3, HIGH=17, MED=6, LOW=0)
+
+2. Independent artifact validator
+Command:
+  node .orchestration/validation/T32-validate.mjs
+Result:
+  PASS
+  - official ID totals/cardinality and ADR count
+  - reconstruction rows=264, unique keys=264, exact key-set match
+  - reconstruction contains reverse/partial/unrecoverable states and ratification prohibition
+  - SPC count=26, contiguous SPC-001..026
+  - all findings contain type/severity/target/quote/problem/recommendation
+  - all four defect types present
+  - REQ gaps PrjOps=8, DevOps=17; all 16 system/category gap rows present
+  - orphan DevOps REQ-032, dead/testless/unindexed/collision lists present
+  - PRG-041/042/044/047/048 retrospective rows present
+  - orchestrator candidate findings and T31 stale-value follow-up present
+
+3. Gap history
+Commands:
+  git log --format=%H -- packages/traceability/spec-ids/prjops.json
+  git log --format=%H -- packages/traceability/spec-ids/devops.json
+  git show <revision>:<registry> for every numeric-base gap
+Result:
+  PrjOps registry revisions=11; DevOps registry revisions=5.
+  No current numeric-base gap appeared in an earlier registry revision and was later removed.
+  No ADR supplied an intentional-deletion explanation. Every gap remains owner-disposition unknown.
+
+4. External originals
+Checks:
+  repository search for PrjOps.zip, DevOps.zip, and referenced PPTX
+  test -e /mnt/user-data/uploads
+Result:
+  no source archives/PPTX found; /mnt/user-data/uploads absent.
+
+5. Workspace integrity
+Command:
+  git diff --quiet
+Result:
+  exit 0; no tracked product/docs/spec/schema/audit diff.
+  Writes are T32 artifacts under .orchestration only.
+  Existing T31 plans were intentionally not corrected; T32-report.md records the required follow-up.
+
+6. Acceptance revise round 1
+Command:
+  node .orchestration/validation/T32-validate.mjs
+Result:
+  PASS in both specification_content_audit.md and T32-id-inventory.md:
+  - `(system,id)` composite key and 295-key cardinality
+  - PrjOps-only, DevOps-only, shared/server/web both-system, and .github scope rules
+  - test/source/doc kind rules; doc excluded from dead
+  - dead and testless-AC predicates
+  - registry/generated/verifier/orchestration/dependency/build exclusions
+  - analyzer regeneration and validator commands
+
+AGMSG-RESULT contract:
+  resend includes audit=.orchestration/audit/specification_content_audit.md
+  and reconstruction=.orchestration/audit/spec_reconstruction.md in addition to all expected evidence paths.

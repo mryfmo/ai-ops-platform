@@ -1,0 +1,25 @@
+[
+  {
+    "scope": "line",
+    "path": "packages/web/src/server/projectSelection.ts",
+    "id": "c_9a1c32",
+    "start_line": 49,
+    "end_line": 52,
+    "body": "Self-review finding: scoped options also need canonical PJ-* validation. Without this filter, a legacy PRJ-* option could be auto-selected and then rejected by the next request parser. The current filter plus the noncanonical-option negative test closes that loop.",
+    "anchor": "export function canonicalProjectOptions(options: ProjectOption[]): ProjectOption[] {\n  return options\n    .filter((option) => isValidId(\"project\", option.id))\n    .sort((left, right) => asciiCompare(left.id, right.id) || asciiCompare(left.name, right.name));",
+    "author": "Codex",
+    "created_at": "2026-07-19T05:05:50Z",
+    "updated_at": "2026-07-19T05:06:21Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_649645",
+        "body": "Resolved by canonicalProjectOptions() and the focused noncanonical scoped-option regression test; focused tests and full CI are green.",
+        "author": "Codex",
+        "created_at": "2026-07-19T05:06:21Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

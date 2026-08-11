@@ -1,0 +1,224 @@
+T23 validation evidence
+timestamp_utc: 2026-07-09T23:59:15Z
+branch: agent/T23
+base: agent/T22
+
+1. Reproduction tests first
+Command:
+  pnpm --filter @aiops/server test -- eventsRepo.test.ts eventsPollingTask.test.ts app.test.ts
+Result:
+  FAIL before implementation.
+  10 failed, 15 passed.
+  Failures matched A-6 retry/DLQ/lease, A-7 dedupe, and A-8 lifecycle gaps.
+
+2. Focused tests after implementation
+Command:
+  pnpm --filter @aiops/server test -- eventsRepo.test.ts eventsPollingTask.test.ts app.test.ts graphLifecycleHandler.test.ts channelPollingTask.test.ts
+Result:
+  PASS. 5 files passed, 32 tests passed.
+
+3. Server package checks
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 33 files passed, 198 tests passed.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+4. Formatting note
+Command:
+  pnpm exec prettier --write <touched files including schema.sql>
+Result:
+  Exit 2 because Prettier cannot infer a parser for schema.sql when directly specified.
+  TS files were formatted. Final mise CI format passed.
+
+5. Required DoD CI
+Command:
+  mise run ci > /tmp/T23-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/55750.pipe
+
+Command:
+  mise run ci > /tmp/T23-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  33 passed (33)
+  packages/server test:coverage: Tests  198 passed (198)
+  packages/server test:coverage: Done
+
+6. Local review gate
+Command:
+  make require-crit-review
+Result:
+  Not available in this repo.
+  Output: make: *** No rule to make target `require-crit-review'.  Stop.
+
+7. Revise reproduction tests first (T23-R1/R2/R3)
+Command:
+  pnpm --filter @aiops/server test -- eventsRepo.test.ts app.test.ts
+Result:
+  FAIL before revise implementation.
+  7 failed, 17 passed.
+  Failures covered missing GitHub delivery id, missing Graph notification id, missing decideEventDisposition, and lease reclaim max/dead SQL.
+
+8. Revise focused tests after implementation
+Command:
+  pnpm --filter @aiops/server test -- eventsRepo.test.ts app.test.ts
+Result:
+  PASS. 2 files passed, 24 tests passed.
+
+Command:
+  pnpm --filter @aiops/server test -- eventsRepo.test.ts app.test.ts eventsPollingTask.test.ts
+Result:
+  PASS. 3 files passed, 32 tests passed.
+
+9. Revise server package checks
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 33 files passed, 205 tests passed.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+10. Revise required DoD CI
+Command:
+  mise run ci > /tmp/T23-revise-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/65281.pipe
+
+Command:
+  mise run ci > /tmp/T23-revise-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  33 passed (33)
+  packages/server test:coverage: Tests  205 passed (205)
+  packages/server test:coverage: Done
+
+11. Re-revise reproduction tests first (T23-Rb1/Rb2/Rb3)
+Command:
+  pnpm --filter @aiops/server test -- app.test.ts eventsRepo.test.ts
+Result:
+  FAIL before re-revise implementation.
+  4 failed, 21 passed.
+  Failures covered id-less lifecycle blocked by the id guard, batch id-missing 400 interruption, and claimNextQueued not using TS disposition for reclaim/dead behavior.
+
+12. Re-revise focused tests after implementation
+Command:
+  pnpm --filter @aiops/server test -- app.test.ts eventsRepo.test.ts
+Result:
+  PASS. 2 files passed, 25 tests passed.
+
+13. Re-revise server package checks
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 33 files passed, 206 tests passed.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+14. Re-revise required DoD CI
+Command:
+  mise run ci > /tmp/T23-rb-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/74123.pipe
+
+Command:
+  mise run ci > /tmp/T23-rb-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  33 passed (33)
+  packages/server test:coverage: Tests  206 passed (206)
+  packages/server test:coverage: Done
+
+15. Re-revise commit
+Commit:
+  a93b86e fix: harden T23 ingest reliability
+
+16. Revise-3 focused tests after implementation (T23-Rc1/Rc2/Rc3/Rc4)
+Command:
+  pnpm --filter @aiops/server test -- app.test.ts eventsRepo.test.ts
+Result:
+  PASS. 2 files passed, 26 tests passed.
+
+17. Revise-3 server package checks
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 33 files passed, 207 tests passed.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+18. Revise-3 formatting
+Command:
+  pnpm exec prettier --write packages/server/src/db/eventsRepo.ts packages/server/src/http/routes/graphNotifications.ts packages/server/tests/app.test.ts packages/server/tests/eventsRepo.test.ts
+Result:
+  PASS. All four files unchanged.
+
+19. Revise-3 required DoD CI
+Command:
+  mise run ci > /tmp/T23-rc-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/81564.pipe
+
+Command:
+  mise run ci > /tmp/T23-rc-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  33 passed (33)
+  packages/server test:coverage: Tests  207 passed (207)
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
+
+20. Revise-3 commit
+Commit:
+  d98b18e fix: make event claiming atomic

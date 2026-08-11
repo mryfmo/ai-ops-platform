@@ -1,0 +1,35 @@
+T08 validation
+==============
+
+Local checks:
+
+- PASS: mise exec -- pnpm --filter @aiops/shared run lint
+- PASS: mise exec -- pnpm --filter @aiops/server run lint
+- PASS: mise exec -- pnpm --filter @aiops/shared run test -- xlsxImport.test.ts githubClient.test.ts
+  - Test Files: 11 passed
+  - Tests: 102 passed
+- PASS: mise exec -- pnpm --filter @aiops/server run test -- importLedgerRepo.test.ts xlsxImportRoutes.test.ts
+  - Test Files: 19 passed
+  - Tests: 124 passed
+- PASS: mise run traceability
+  - OK: all REQ/SPEC-INT/TH IDs referenced from implementation code.
+- PASS: mise exec -- pnpm exec tsx packages/shared/src/xlsxImport/generateTemplate.ts /private/tmp/aiops-import-template.xlsx
+  - wrote /private/tmp/aiops-import-template.xlsx
+- PASS: mise run -j 1 ci
+  - lint, format, typecheck, build, coverage, traceability completed successfully.
+
+Review gate:
+
+- NOT AVAILABLE: make require-crit-review
+  - Output: make: *** No rule to make target `require-crit-review'.  Stop.
+
+GitHub:
+
+- PR: https://github.com/mryfmo/ai-ops-platform/pull/5
+- PR labels: ai-generated
+- CodeRabbit: pass
+- build-test/gitleaks: pending when last checked after local CI success
+
+Commit:
+
+- 32038c0 feat(import): add xlsx GitHub import flow
