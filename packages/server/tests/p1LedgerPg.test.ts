@@ -39,6 +39,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
       "model_invocations",
       "meeting_artifacts",
       "id_mappings",
+      "id_mapping_heads",
       "agent_runs",
       "workflow_runs",
     ]) {
@@ -183,12 +184,13 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
       provenance: { by: "sync" },
     };
     await repo.addVersion({ ...base, projectId: "PJ-1", mappingVersion: 1 });
+    // 同一版の重複履歴は unique が拒否（同版 divergent target の防止）
     await expect(
       pool!.query(
-        `INSERT INTO id_mappings (project_id, source_system, source_object_id, target_system, target_object_id, mapping_version, provenance, active)
-         VALUES ('PJ-1', 'github', 'issue-1', 'plane', 'work-2', 9, '{}'::jsonb, true)`,
+        `INSERT INTO id_mappings (project_id, source_system, source_object_id, target_system, target_object_id, mapping_version, provenance)
+         VALUES ('PJ-1', 'github', 'issue-1', 'plane', 'work-2', 1, '{}'::jsonb)`,
       ),
-    ).rejects.toThrow(/idx_id_mappings_one_active/u);
+    ).rejects.toThrow(/duplicate key/u);
 
     await repo.addVersion({ ...base, projectId: "PJ-2", mappingVersion: 1 });
     await repo.addVersion({ ...base, projectId: "PJ-1", targetObjectId: "work-2", mappingVersion: 2 });
@@ -197,8 +199,10 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     const pj2 = await repo.findActive("PJ-2", "github", "issue-1", "plane");
     expect(pj1).toMatchObject({ target_object_id: "work-2", mapping_version: "2" });
     expect(pj2).toMatchObject({ target_object_id: "work-1", mapping_version: "1" });
-    const actives = await pool!.query("SELECT count(*)::int AS n FROM id_mappings WHERE active");
-    expect(actives.rows[0]!.n).toBe(2);
+    const heads = await pool!.query(
+      "SELECT count(*)::int AS n FROM id_mapping_heads WHERE source_object_id = 'issue-1'",
+    );
+    expect(heads.rows[0]!.n).toBe(2);
 
     // 単調 version CAS: stale 版（v1）は現行 active（v2）を置換も非活性化もしない
     await expect(repo.addVersion({ ...base, projectId: "PJ-1", mappingVersion: 1 })).resolves.toBe(false);
@@ -236,7 +240,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     await expect(ledger.plan({ ...tuple, operationId: uuid(12), workflowId: "incident/inc-b" })).resolves.toBe(false);
   });
 
-  it("FinalArch:CON-002: 並行 addVersion は retry で高い版へ収束し、初回並行は 唯一の active", async () => {
+  it("FinalArch:CON-002: 並行 addVersion は head upsert で高い版へ収束し、初回並行は勝者 1", async () => {
     const repo = new IdMappingsRepo(pool!);
     const base = {
       projectId: "PJ-9",
@@ -259,8 +263,42 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     ]);
     const active = await repo.findActive("PJ-9", "github", "issue-9", "plane");
     expect(active).toMatchObject({ target_object_id: "w-v3", mapping_version: "3" });
-    const count = await pool!.query("SELECT count(*)::int AS n FROM id_mappings WHERE project_id = 'PJ-9' AND active");
+    const count = await pool!.query("SELECT count(*)::int AS n FROM id_mapping_heads WHERE project_id = 'PJ-9'");
     expect(count.rows[0]!.n).toBe(1);
+    // 履歴は受理版のみ追記（勝者 v1 + v2 + v3 = 3 行、削除なし）
+    const history = await pool!.query("SELECT count(*)::int AS n FROM id_mappings WHERE project_id = 'PJ-9'");
+    expect(history.rows[0]!.n).toBe(3);
+  });
+
+  it("FinalArch:CON-002: explicit transaction の client 同士でも addVersion は直列化され 25P02 にならない", async () => {
+    const repo = new IdMappingsRepo(pool!);
+    const base = {
+      projectId: "PJ-TX",
+      sourceSystem: "github",
+      sourceObjectId: "issue-tx",
+      targetSystem: "plane",
+      provenance: { by: "tx" },
+    };
+    const clientA = await pool!.connect();
+    const clientB = await pool!.connect();
+    try {
+      await clientA.query("BEGIN");
+      await clientB.query("BEGIN");
+      const repoA = new IdMappingsRepo(clientA);
+      const repoB = new IdMappingsRepo(clientB);
+      await expect(repoA.addVersion({ ...base, targetObjectId: "w-v2", mappingVersion: 2 })).resolves.toBe(true);
+      // B は advisory xact lock で A の commit まで待たされる（エラーにならない）
+      const pending = repoB.addVersion({ ...base, targetObjectId: "w-v3", mappingVersion: 3 });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await clientA.query("COMMIT");
+      await expect(pending).resolves.toBe(true);
+      await clientB.query("COMMIT");
+    } finally {
+      clientA.release();
+      clientB.release();
+    }
+    const active = await repo.findActive("PJ-TX", "github", "issue-tx", "plane");
+    expect(active).toMatchObject({ target_object_id: "w-v3", mapping_version: "3" });
   });
 
   it("replay 安全性: 同一 run は no-op、completed を退行させない。新 run は全状態リセット", async () => {

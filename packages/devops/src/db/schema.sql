@@ -660,6 +660,23 @@ CREATE INDEX IF NOT EXISTS idx_tool_invocations_workflow ON tool_invocations (wo
 -- rollback: DROP TABLE tool_invocations;
 
 -- FinalArch:CON-002: SoR 間 ID 対応の versioned mapping。
+-- 現行値の正本は id_mapping_heads（論理キー PK の単一行。単調 version CAS は
+-- ON CONFLICT DO UPDATE + WHERE で行い、READ COMMITTED の並行実行でも
+-- EvalPlanQual により最新行と比較される）。id_mappings は受理された全版の
+-- 追記専用履歴（UPDATE/DELETE しない）。
+CREATE TABLE IF NOT EXISTS id_mapping_heads (
+  project_id       TEXT NOT NULL,
+  source_system    TEXT NOT NULL,
+  source_object_id TEXT NOT NULL,
+  target_system    TEXT NOT NULL,
+  target_object_id TEXT NOT NULL,
+  mapping_version  BIGINT NOT NULL,
+  provenance       JSONB NOT NULL,
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (project_id, source_system, source_object_id, target_system)
+);
+-- rollback: DROP TABLE id_mapping_heads;
+
 CREATE TABLE IF NOT EXISTS id_mappings (
   mapping_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id       TEXT NOT NULL,
@@ -669,17 +686,10 @@ CREATE TABLE IF NOT EXISTS id_mappings (
   target_object_id TEXT NOT NULL,
   mapping_version  BIGINT NOT NULL,
   provenance       JSONB NOT NULL,
-  active           BOOLEAN NOT NULL DEFAULT true,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (project_id, source_system, source_object_id, target_system, target_object_id, mapping_version)
+  UNIQUE (project_id, source_system, source_object_id, target_system, mapping_version)
 );
 CREATE INDEX IF NOT EXISTS idx_id_mappings_project ON id_mappings (project_id);
--- FinalArch:CON-002: project スコープの論理キーごとに active は常に 1 行（並行 addVersion は
--- この partial unique が直列化する）
-CREATE UNIQUE INDEX IF NOT EXISTS idx_id_mappings_one_active
-  ON id_mappings (project_id, source_system, source_object_id, target_system)
-  WHERE active = true;
 -- rollback: DROP TABLE id_mappings;
 
 -- FinalArch:PRD-005: 会議成果物（抽出・レビュー・公開状態）。

@@ -1,8 +1,13 @@
 /**
  * packages/server/src/db/idMappingsRepo.ts
  *
- * 根拠: FinalArch:CON-002 / ADR-0020。SoR 間 ID 対応の versioned mapping。
- * 版は追記で増やし、旧版は active=false で無効化する（削除しない）。
+ * 根拠: FinalArch:CON-002 / DevOps:SPEC-INT-091 / ADR-0020。
+ * SoR 間 ID 対応の versioned mapping。現行値の正本は id_mapping_heads
+ * （論理キー PK の単一行）で、単調 version CAS は 1 文の
+ * ON CONFLICT DO UPDATE ... WHERE old.version < new.version による。
+ * READ COMMITTED の並行実行でも EvalPlanQual が最新行と比較するため、
+ * Pool（autocommit）でも explicit transaction の Client でも追加の
+ * lock / retry なしで安全。受理された版は id_mappings へ追記専用で残す。
  */
 import type { PgQueryable } from "@aiops/shared";
 
@@ -20,46 +25,32 @@ export class IdMappingsRepo {
   constructor(private readonly db: PgQueryable) {}
 
   /**
-   * 新版を 1 文の CTE で原子的に追加する（単調 version CAS）。
-   * 現 active 行の version >= 新 version の場合は何もせず false（stale 置換の拒否 —
-   * 現行 active は非活性化されない）。並行競合は idx_id_mappings_one_active が直列化。
-   * 旧版は削除しない。
+   * 新版の登録。true = 受理（head 更新 + 履歴追記）、false = stale
+   * （現行 head の version 以下 — head は不変のまま）。旧版は削除しない。
    */
   async addVersion(mapping: IdMapping): Promise<boolean> {
-    // 並行 addVersion は partial unique（idx_id_mappings_one_active）に敗れた側が
-    // 23505 を受ける。snapshot を取り直して再試行し、より高い版が既に入っていれば
-    // stale として false に収束する（呼び出し側リトライへ依存しない）。
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        return await this.addVersionOnce(mapping);
-      } catch (error) {
-        const pgError = error as { code?: string; constraint?: string };
-        const isActiveRace = pgError.code === "23505" && pgError.constraint === "idx_id_mappings_one_active";
-        if (!isActiveRace || attempt >= 3) throw error;
-      }
-    }
-  }
-
-  private async addVersionOnce(mapping: IdMapping): Promise<boolean> {
     const result = await this.db.query(
-      `WITH current AS (
-         SELECT mapping_id, mapping_version FROM id_mappings
-          WHERE project_id = $1 AND source_system = $2 AND source_object_id = $3
-            AND target_system = $4 AND active = true
-       ),
-       deactivated AS (
-         UPDATE id_mappings m SET active = false, updated_at = now()
-           FROM current c
-          WHERE m.mapping_id = c.mapping_id AND c.mapping_version < $6
-          RETURNING 1
+      `WITH head AS (
+         INSERT INTO id_mapping_heads AS h (
+           project_id, source_system, source_object_id, target_system, target_object_id,
+           mapping_version, provenance, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+         ON CONFLICT (project_id, source_system, source_object_id, target_system)
+         DO UPDATE SET
+           target_object_id = EXCLUDED.target_object_id,
+           mapping_version = EXCLUDED.mapping_version,
+           provenance = EXCLUDED.provenance,
+           updated_at = now()
+         WHERE h.mapping_version < EXCLUDED.mapping_version
+         RETURNING 1
        )
        INSERT INTO id_mappings (
          project_id, source_system, source_object_id, target_system, target_object_id,
-         mapping_version, provenance, active
+         mapping_version, provenance
        )
-       SELECT $1, $2, $3, $4, $5, $6, $7, true
-        WHERE NOT EXISTS (SELECT 1 FROM current WHERE mapping_version >= $6)
-          AND (SELECT count(*) FROM deactivated) IS NOT NULL`,
+       SELECT $1, $2, $3, $4, $5, $6, $7
+         FROM head
+       ON CONFLICT DO NOTHING`,
       [
         mapping.projectId,
         mapping.sourceSystem,
@@ -80,9 +71,8 @@ export class IdMappingsRepo {
     targetSystem: string,
   ): Promise<Record<string, unknown> | null> {
     const result = await this.db.query(
-      `SELECT * FROM id_mappings
-        WHERE project_id = $1 AND source_system = $2 AND source_object_id = $3
-          AND target_system = $4 AND active = true`,
+      `SELECT * FROM id_mapping_heads
+        WHERE project_id = $1 AND source_system = $2 AND source_object_id = $3 AND target_system = $4`,
       [projectId, sourceSystem, sourceObjectId, targetSystem],
     );
     return (result.rows[0] as Record<string, unknown> | undefined) ?? null;

@@ -208,7 +208,7 @@ describe("証跡 ledger repos [FinalArch:CON-004 / FinalArch:CON-005 / FinalArch
 });
 
 describe("IdMappingsRepo [FinalArch:CON-002]", () => {
-  it("addVersion は単調 version CAS つき 1 文 CTE（stale は false、削除なし）", async () => {
+  it("addVersion は head upsert の単調 CAS（stale は false、履歴は追記のみ）", async () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
@@ -237,15 +237,18 @@ describe("IdMappingsRepo [FinalArch:CON-002]", () => {
       }),
     ).resolves.toBe(false);
     const sql = String(query.mock.calls[0]![0]);
-    expect(sql).toContain("c.mapping_version < $6");
-    expect(sql).toContain("NOT EXISTS (SELECT 1 FROM current WHERE mapping_version >= $6)");
+    expect(sql).toContain("WHERE h.mapping_version < EXCLUDED.mapping_version");
+    expect(sql).toContain("INSERT INTO id_mappings");
     expect(sql).not.toContain("DELETE");
+    expect(sql).not.toContain("UPDATE id_mappings");
   });
 
-  it("findActive は project_id を必須条件にする（cross-project 遮断）", async () => {
+  it("findActive は head 表を project_id 必須条件で引く（cross-project 遮断）", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
     await new IdMappingsRepo({ query }).findActive("PJ-1", "github", "issue-1", "plane");
-    expect(String(query.mock.calls[0]![0])).toContain("WHERE project_id = $1");
+    const sql = String(query.mock.calls[0]![0]);
+    expect(sql).toContain("FROM id_mapping_heads");
+    expect(sql).toContain("WHERE project_id = $1");
   });
 });
 
