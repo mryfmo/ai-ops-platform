@@ -26,6 +26,21 @@ export class IdMappingsRepo {
    * 旧版は削除しない。
    */
   async addVersion(mapping: IdMapping): Promise<boolean> {
+    // 並行 addVersion は partial unique（idx_id_mappings_one_active）に敗れた側が
+    // 23505 を受ける。snapshot を取り直して再試行し、より高い版が既に入っていれば
+    // stale として false に収束する（呼び出し側リトライへ依存しない）。
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.addVersionOnce(mapping);
+      } catch (error) {
+        const pgError = error as { code?: string; constraint?: string };
+        const isActiveRace = pgError.code === "23505" && pgError.constraint === "idx_id_mappings_one_active";
+        if (!isActiveRace || attempt >= 3) throw error;
+      }
+    }
+  }
+
+  private async addVersionOnce(mapping: IdMapping): Promise<boolean> {
     const result = await this.db.query(
       `WITH current AS (
          SELECT mapping_id, mapping_version FROM id_mappings

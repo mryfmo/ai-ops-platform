@@ -45,6 +45,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
       await pool!.query(`DELETE FROM ${table}`);
     }
     await pool!.query("DELETE FROM deployments WHERE trace_id = $1", [TRACE]);
+    await pool!.query("DELETE FROM approvals WHERE requested_by = 'p1t05-suite'");
   });
 
   afterAll(async () => {
@@ -125,7 +126,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     // unknown は claim できない（非冪等書き込みの再送防止）。resolveUnknown でのみ確定
     await pool!.query("UPDATE action_ledger SET status = 'unknown' WHERE operation_id = $1", [uuid(3)]);
     await expect(ledger.claimExecution(uuid(3))).resolves.toBe(false);
-    await expect(ledger.resolveUnknown(uuid(3), "applied", "external object confirmed")).resolves.toBe(true);
+    await expect(ledger.resolveUnknown(uuid(3), "applied")).resolves.toBe(true);
     const resolved = await pool!.query("SELECT status FROM action_ledger WHERE operation_id = $1", [uuid(3)]);
     expect(resolved.rows[0]).toMatchObject({ status: "applied" });
   });
@@ -136,7 +137,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     const ledger = new ActionLedgerRepo(pool!);
     const approvalB = await pool!.query(
       `INSERT INTO approvals (approval_type, target_id, project_id, requested_by)
-       VALUES ('change', 't-1', 'PJ-B', 'actor') RETURNING approval_id`,
+       VALUES ('change', 't-p1t05-xproj', 'PJ-B', 'p1t05-suite') RETURNING approval_id`,
     );
     await expect(
       ledger.plan({
@@ -203,6 +204,63 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     await expect(repo.addVersion({ ...base, projectId: "PJ-1", mappingVersion: 1 })).resolves.toBe(false);
     const still = await repo.findActive("PJ-1", "github", "issue-1", "plane");
     expect(still).toMatchObject({ target_object_id: "work-2", mapping_version: "2" });
+  });
+
+  it("DELTA-03: 冪等キー衝突でも workflow/authority scope が違えば合流させない", async () => {
+    const runs = new WorkflowRunsRepo(pool!);
+    await startWorkflow(runs); // incident/inc-1, PJ-1
+    await runs.recordStart({
+      workflowId: "incident/inc-b",
+      runId: "run-b",
+      workflowType: "incident",
+      businessKey: "inc-b",
+      projectId: "PJ-B",
+      traceId: TRACE,
+      correlationId: TRACE,
+      startedAt: "2026-08-11T00:00:00Z",
+    });
+    const ledger = new ActionLedgerRepo(pool!);
+    const tuple = {
+      system: "github",
+      operation: "op",
+      resourceKey: "shared-key",
+      inputHash: "h-shared",
+      approvalId: null,
+      deploymentId: null,
+      traceId: TRACE,
+    };
+    await expect(ledger.plan({ ...tuple, operationId: uuid(10), workflowId: "incident/inc-b" })).resolves.toBe(true);
+    await expect(ledger.plan({ ...tuple, operationId: uuid(11), workflowId: "incident/inc-1" })).rejects.toThrow(
+      /different workflow\/authority scope/u,
+    );
+    await expect(ledger.plan({ ...tuple, operationId: uuid(12), workflowId: "incident/inc-b" })).resolves.toBe(false);
+  });
+
+  it("FinalArch:CON-002: 並行 addVersion は retry で高い版へ収束し、初回並行は 唯一の active", async () => {
+    const repo = new IdMappingsRepo(pool!);
+    const base = {
+      projectId: "PJ-9",
+      sourceSystem: "github",
+      sourceObjectId: "issue-9",
+      targetSystem: "plane",
+      provenance: { by: "race" },
+    };
+    // 初回並行 v1/v1: 勝者 1、active 1 行
+    const firstPair = await Promise.all([
+      repo.addVersion({ ...base, targetObjectId: "w-a", mappingVersion: 1 }),
+      repo.addVersion({ ...base, targetObjectId: "w-b", mappingVersion: 1 }),
+    ]);
+    expect(firstPair.filter(Boolean)).toHaveLength(1);
+
+    // 並行 v2/v3: どちらの順でも最終 active は v3（retry が収束させ、throw しない）
+    await Promise.all([
+      repo.addVersion({ ...base, targetObjectId: "w-v2", mappingVersion: 2 }),
+      repo.addVersion({ ...base, targetObjectId: "w-v3", mappingVersion: 3 }),
+    ]);
+    const active = await repo.findActive("PJ-9", "github", "issue-9", "plane");
+    expect(active).toMatchObject({ target_object_id: "w-v3", mapping_version: "3" });
+    const count = await pool!.query("SELECT count(*)::int AS n FROM id_mappings WHERE project_id = 'PJ-9' AND active");
+    expect(count.rows[0]!.n).toBe(1);
   });
 
   it("replay 安全性: 同一 run は no-op、completed を退行させない。新 run は全状態リセット", async () => {

@@ -70,7 +70,18 @@ export class ActionLedgerRepo {
     );
     if ((result.rowCount ?? 0) === 1) return true;
     const existing = await this.findByIdempotencyKey(op.system, op.operation, op.resourceKey, op.inputHash);
-    if (existing) return false;
+    if (existing) {
+      const sameScope =
+        existing.workflow_id === op.workflowId &&
+        ((existing.approval_id as string | null) ?? null) === op.approvalId &&
+        ((existing.deployment_id as string | null) ?? null) === op.deploymentId;
+      if (!sameScope) {
+        throw new RangeError(
+          "action plan rejected: idempotency key already claimed by a different workflow/authority scope",
+        );
+      }
+      return false;
+    }
     throw new RangeError(
       "action plan rejected: unknown workflow or cross-project authority reference (approval/deployment)",
     );
@@ -97,15 +108,17 @@ export class ActionLedgerRepo {
   /**
    * unknown の照合結果の記録（reconciler / 運用者の明示操作専用）。
    * 外部側の実結果を確認した上で applied / failed のどちらかへ確定させる。
+   * 照合の根拠・証跡は本テーブルに書かず、既存の監査境界
+   * （AuditLogWriter.append — sanitizeSecrets 済み・追記専用）で呼び出し側が記録する。
    */
-  async resolveUnknown(operationId: string, resolved: "applied" | "failed", evidenceNote: string): Promise<boolean> {
+  async resolveUnknown(operationId: string, resolved: "applied" | "failed"): Promise<boolean> {
     const result = await this.db.query(
       `UPDATE action_ledger SET
          status = $2,
-         last_error_class = CASE WHEN $2 = 'failed' THEN $3 ELSE NULL END,
+         last_error_class = CASE WHEN $2 = 'failed' THEN 'reconciled_failed' ELSE NULL END,
          updated_at = now()
        WHERE operation_id = $1 AND status = 'unknown'`,
-      [operationId, resolved, evidenceNote],
+      [operationId, resolved],
     );
     return (result.rowCount ?? 0) === 1;
   }
