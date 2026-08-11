@@ -13,7 +13,8 @@
 ## Content and boundary checks
 
 - P3-T01 contains the exact ENV-DEC-001 deliverable and no Cloud namespace
-  deliverable.
+  deliverable. Its verification requires denial outside worker scope and for
+  admin/operator APIs.
 - P0-T09 contains no Azure / Key Vault / ACA / AKS / Bedrock-federation
   premise; its M365-only Entra rows remain explicit.
 - IMPORT_NOTES contains ACA, Key Vault, Entra Workload ID, Bicep, Azure

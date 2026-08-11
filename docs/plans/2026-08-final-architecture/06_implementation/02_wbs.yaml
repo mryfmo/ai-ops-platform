@@ -853,7 +853,7 @@ tasks:
   requirement_refs: *id005
   adr_refs: *id006
 - id: P3-T01
-  title: Provision Temporal Fargate service and worker connectivity
+  title: Provision Temporal namespace and worker connectivity
   writer: claude-code-fable5-xhigh
   reviewer: codex-gpt56-sol-high
   depends_on:
@@ -874,6 +874,7 @@ tasks:
   - worker identity scoped
   verification:
   - Temporal connection smoke
+  - mTLS worker certificate denial outside environment/namespace/task-queue scope and for admin/operator APIs
   rollback: Revert the task PR and leave the previous path enabled.
   acceptance_gate_ids:
   - TMP-001

@@ -10,7 +10,8 @@
 
 - Replaced P3-T01's Cloud-namespace deliverable with the exact
   ENV-DEC-001 outcome: Fargate single-service Terraform, dev compose, mTLS
-  worker authentication, and a startup runbook.
+  worker authentication, and a startup runbook; added explicit denial
+  verification outside worker scope and for admin/operator APIs.
 - Rewrote P0-T09's Azure platform assumptions to ADR-0029 AWS equivalents:
   Secrets Manager, ECS task IAM roles, Fargate, RDS IAM authentication,
   CloudTrail/CloudWatch, and direct same-cloud Bedrock authorization.
