@@ -21,12 +21,12 @@ workers）はこの方針と衝突するため不採用と確定する。
 
 ## 選択肢の比較
 
-| 観点           | A: Temporal Cloud + ACA workers | B: AKS セルフホスト | B': セルフホスト OSS 最小形（採用）            | C: 段階（本番裁定を P3 末へ先送り） |
-| -------------- | ------------------------------- | ------------------- | ---------------------------------------------- | ----------------------------------- |
-| 契約           | 有償 order 必要（P0-T06 STOP）  | 不要（MIT）         | **不要（MIT、P0-T06 で確認済み）**             | 不要                                |
-| 新規基盤       | ACA 従量（Cloud 分離）          | AKS クラスタ新設    | **なし（ADR-0016 の既存 Azure 基盤に載せる）** | なし（dev のみ）                    |
-| 運用負荷       | 最小                            | 最大                | 小（コンテナ 1〜2 + DB 1 個の増分）            | 小だが決定負債が残る                |
-| 本番形態の確定 | 今                              | 今                  | **今**                                         | P3 末へ先送り（受入条件と衝突）     |
+| 観点           | A: Temporal Cloud + ACA workers | B: AKS セルフホスト | B': セルフホスト OSS 最小形（採用）                           | C: 段階（本番裁定を P3 末へ先送り） |
+| -------------- | ------------------------------- | ------------------- | ------------------------------------------------------------- | ----------------------------------- |
+| 契約           | 有償 order 必要（P0-T06 STOP）  | 不要（MIT）         | **不要（MIT、P0-T06 で確認済み）**                            | 不要                                |
+| 新規基盤       | ACA 従量（Cloud 分離）          | AKS クラスタ新設    | **なし（ADR-0029 の AWS 基盤 = ECS Fargate + RDS に載せる）** | なし（dev のみ）                    |
+| 運用負荷       | 最小                            | 最大                | 小（コンテナ 1〜2 + DB 1 個の増分）                           | 小だが決定負債が残る                |
+| 本番形態の確定 | 今                              | 今                  | **今**                                                        | P3 末へ先送り（受入条件と衝突）     |
 
 ## 案 B' の本番プロファイル（正確な定義）
 
@@ -36,11 +36,12 @@ workers）はこの方針と衝突するため不採用と確定する。
 | 要素             | 確定内容                                                                                                                                                                                        |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 本番コンピュート | **Amazon ECS on Fargate（ADR-0029 ベースライン）上の Temporal server 単一タスクサービス**（private subnet、gRPC 7233 は VPC 内部のみ、外部非公開）。Web UI は別サービス（internal、運用者のみ） |
-| 永続化           | **既存の Azure Database for PostgreSQL Flexible Server に専用データベースを追加**（temporal / temporal_visibility）。新 DB 製品（Cassandra/Elasticsearch）は導入しない                          |
-| dev/staging      | docker-compose 単一ノード（正典 runtime 文書どおり compose はローカル/開発専用。**本番形態ではない**）                                                                                          |
-| worker           | 既存パッケージ内の Node プロセス（Temporal SDK）。実行面は ADR-0016 の ACA 上の既存 server/worker 面                                                                                            |
-| IaC              | ADR-0016 に従い Bicep 定義（P3 帯で追加）。Portal 手作業は構成ドリフトとして不受理                                                                                                              |
-| 運用責任         | ADR-0016 の既存運用境界に従う（patching/HA/秘密配布/rollout/backup/監視は Azure マネージド面 + 既存運用。新たな Owner 負担受容は不要）                                                          |
+| 永続化           | **RDS for PostgreSQL（ADR-0029 ベースライン）に専用データベースを追加**（temporal / temporal_visibility）。新 DB 製品（Cassandra/Elasticsearch）は導入しない                                    |
+| dev              | docker-compose 単一ノード（正典 runtime 文書どおり compose はローカル/開発専用。**本番形態ではない**）                                                                                          |
+| staging          | 本番同形の縮小構成（ECS Fargate + RDS。P3 帯で整備）。compose を staging と呼ばない                                                                                                             |
+| worker           | 既存パッケージ内の Node プロセス（Temporal SDK）。実行面は ADR-0029 の ECS Fargate 上の既存 server/worker サービス面                                                                            |
+| IaC              | ADR-0029 に従い Terraform 定義（P3 帯で追加）。Console 手作業は構成ドリフトとして不受理                                                                                                         |
+| 運用責任         | ADR-0029 の運用境界に従う（patching/HA/秘密配布/rollout/backup/監視は AWS マネージド面 = RDS / Fargate / Secrets Manager / CloudWatch + 既存運用。新たな Owner 負担受容は不要）                 |
 
 ## worker 認証（P0-T09 マトリクス・P3-T01 の信頼境界を維持）
 
@@ -60,13 +61,13 @@ workers）はこの方針と衝突するため不採用と確定する。
 
 単一レプリカは HA クラスタではない。受容の前提と検証:
 
-| 検証                                         | フェーズ           | 合否基準                                                                                                                | 証跡責任                       |
-| -------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| server/worker 強制再起動からの workflow 再開 | P3 shadow          | 実行中 workflow が再開し、**副作用の重複実行ゼロ**（idempotency 検証を含む）                                            | P3-T01 実装タスクの validation |
-| PostgreSQL リストア演習                      | P3                 | Temporal DB を PITR から復元し workflow 状態が整合（**restore 証跡必須** — バックアップ設定のみでは不合格）             | P3 帯検証タスク                |
-| RPO/RTO                                      | P3/P10             | ADR-0016 目標を適用: same-region RPO ≤ 5 分 / RTO ≤ 60 分（PG Flexible Server PITR + ACA 再デプロイで達成見込みを実測） | P10 cutover ゲート             |
-| 可用性                                       | P3 shadow ≥ 2 週間 | shadow 期間の Temporal 実効可用性を計測し、99.9%（NFR-REL-005/ADR-0029）に対する達成度と欠損理由を記録                  | P9 監視帯 + P10 ゲート         |
-| アラート                                     | P9                 | Temporal liveness / workflow 失敗率 / DB 接続を既存 alert 集合へ追加し発報試験                                          | P9-T08                         |
+| 検証                                         | フェーズ           | 合否基準                                                                                                     | 証跡責任                       |
+| -------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| server/worker 強制再起動からの workflow 再開 | P3 shadow          | 実行中 workflow が再開し、**副作用の重複実行ゼロ**（idempotency 検証を含む）                                 | P3-T01 実装タスクの validation |
+| PostgreSQL リストア演習                      | P3                 | Temporal DB を PITR から復元し workflow 状態が整合（**restore 証跡必須** — バックアップ設定のみでは不合格）  | P3 帯検証タスク                |
+| RPO/RTO                                      | P3/P10             | ADR-0029 目標を適用: same-region RPO ≤ 5 分 / RTO ≤ 60 分（RDS PITR + Fargate 再デプロイで達成見込みを実測） | P10 cutover ゲート             |
+| 可用性                                       | P3 shadow ≥ 2 週間 | shadow 期間の Temporal 実効可用性を計測し、99.9%（NFR-REL-005/ADR-0029）に対する達成度と欠損理由を記録       | P9 監視帯 + P10 ゲート         |
+| アラート                                     | P9                 | Temporal liveness / workflow 失敗率 / DB 接続を既存 alert 集合へ追加し発報試験                               | P9-T08                         |
 
 **停止規則**: 上記のいずれかが不合格の間、`control.temporal.enabled` は `limited` 以下に
 留め、cutover（`primary` + `legacy_scheduler=false`）を実施しない。目標未達のまま進める
@@ -77,13 +78,16 @@ workers）はこの方針と衝突するため不採用と確定する。
 - **P0-T07a（正典追補 chore、P0-T10 の前提）**: Writer = codex-gpt56-sol-high /
   Reviewer = claude-code-fable5-xhigh / depends_on = P0-T07 / allowed_paths =
   `docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml`（P3-T01 行）,
-  `docs/security/2026-08-10-secret-identity-migration-plan.md`（Temporal 行）。
+  `docs/security/2026-08-10-secret-identity-migration-plan.md`（Temporal 行）,
+  `docs/plans/2026-08-final-architecture/IMPORT_NOTES.md`（読み替え規則の記載先）。
   受入条件: (1) P3-T01 の deliverable を「Cloud namespace 発行」から「Fargate 単一
   サービス Terraform + dev compose + mTLS worker 認証 + 起動 runbook」へ差し替え、
   (2) P0-T09 マトリクスの Azure 前提行（Key Vault / Entra Workload ID / ACA / Bedrock
   STS フェデレーション）を ADR-0029 の AWS 等価（Secrets Manager / IAM ロール /
-  Fargate / 同一クラウド IAM）へ改訂、(3) pack 内 Azure 固有記述の読み替え規則を追記、
-  (4) 文書間矛盾ゼロ
+  Fargate / 同一クラウド IAM）へ改訂、(3) pack 内 Azure 固有記述の読み替え規則を
+  IMPORT_NOTES.md の是正表へ追記、(4) 文書間矛盾ゼロ。
+  なお ADR-0028 の Azure 維持条項の置換は本 PR（ADR-0029 + ADR-0028 両正典コピーの
+  改訂）で実施済みであり、P0-T07a の範囲外
 - `control.temporal.enabled` flag: dev で `shadow` 開始。`primary` は
   `control.legacy_scheduler.enabled=false` の明示が必須（P0-T08 実装済み・E-FLAG03）
 - 将来 Cloud/クラスタ化を検討する場合は新 ENV-DEC として起票する（本判定の再解釈で
@@ -94,10 +98,10 @@ workers）はこの方針と衝突するため不採用と確定する。
 ENV-DEC-001 の正典必須承認者は Owner / Security / Ops / Procurement
 （09_owner_decision_register.md）。
 
-| 役割                         | 状態                                                                                                                                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner                        | **承認（案 B'、2026-08-10、セッション記録:「有償契約は意図していない」「Kubernetes まで大掛かりなことをする必要がない」「案B' 承認」）** |
-| Security / Ops / Procurement | **pending** — 本環境の役割保持者確認待ち。Owner が全役割を兼任する場合はその旨の明示記録をもって充足とする（推定はしない）               |
+| 役割                         | 状態                                                                                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner                        | **承認（案 B'、2026-08-10、セッション記録:「有償契約は意図していない」「Kubernetes まで大掛かりなことをする必要がない」「案B' 承認」）**     |
+| Security / Ops / Procurement | **承認（2026-08-10）** — Owner の公式役割兼任記録 `docs/decisions/owner-role-consolidation.md` に基づき、Owner 承認 1 件で三役割の承認を充足 |
 
 **実装ゲート**: 承認表は完了。実装は WBS の依存順（P0-T07a → P3 帯）に従う。
 

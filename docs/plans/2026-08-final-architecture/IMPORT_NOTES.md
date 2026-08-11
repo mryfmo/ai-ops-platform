@@ -23,3 +23,4 @@
 | DELTA-07 | 02_wbs.yaml / 02_acceptance_test_catalog.yaml / 09_owner_decision_register.md | P6-T11（A054）・P9-T09（A053）新設、ING-001/AIO-006 ゲート追加、D-14/15/16 を ENV-DEC-012..014 として統合 |
 | — | BASELINE.md / PACK_MANIFEST.yaml | 承認済み delta の記録、統計更新（113 tasks / 64 gates） |
 | — | 10_wbs_task_summary.md / SHA256SUMS | 再生成 |
+| PACK-IMPORT-006 | 10_adrs/0028-no-cloudflare-artifacts-azure.md / SHA256SUMS | ADR-0029（Owner 再裁定 AWS、PR #160）による Azure 維持条項の一部 supersession 注記を Status へ追記、当該行の SHA256 更新 |

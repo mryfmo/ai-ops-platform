@@ -55,7 +55,11 @@ ADR-0016 の各決定を AWS の等価物へ一対一で置換する。信頼性
 
 本 ADR は **ADR-0016 の全決定を置換**する（ADR-0016 は歴史的記録として残す）。
 ADR-0003 / ADR-0005 の常駐サーバ・スケジューリング・Hono・Graph・権限の決定、
-および ADR-0020〜0028 のアーキテクチャ方針は影響を受けない。ただし ADR-0020 系文書内の
+および ADR-0020〜0027 のアーキテクチャ方針は影響を受けない。**ADR-0028 は一部置換**:
+Cloudflare Artifacts 不採用と SoR 構成（GitHub / SharePoint / 一時成果物）の決定は
+維持するが、「Bedrock 利用を理由に platform を AWS へ移さず ADR-0016 の Azure baseline
+を維持する」条項は本 ADR の Owner 再裁定（2026-08-10）により置換する（ADR-0028 の
+両正典コピーに同旨の追記あり）。ただし ADR-0020 系文書内の
 Azure 固有記述（ACA / Key Vault / Entra Workload ID 等）は AWS 等価物へ読み替え、
 正典追補タスク（P0-T07a）で明文化する。
 
