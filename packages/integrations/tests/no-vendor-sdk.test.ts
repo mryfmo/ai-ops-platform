@@ -7,6 +7,7 @@
 // 引用符種別非依存）を検査する。
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,13 +54,21 @@ export function vendorImportViolations(fileName: string, source: string): string
   return violations;
 }
 
-function contractSources(dir: string = srcDir): Array<[string, string]> {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) return entry.name === IMPL_DIR ? [] : contractSources(p);
-    if (!entry.name.endsWith(".ts")) return [];
-    return [[path.relative(srcDir, p), fs.readFileSync(p, "utf8")]] as Array<[string, string]>;
-  });
+/** 契約面ファイルの一覧。除外は root 直下の src/impl サブツリーのみで、
+ *  それ以外の場所にある impl という名前のディレクトリは走査対象に含める。 */
+export function listContractFiles(rootDir: string): string[] {
+  const walk = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const p = path.join(dir, entry.name);
+      const relative = path.relative(rootDir, p);
+      if (entry.isDirectory()) return relative === IMPL_DIR ? [] : walk(p);
+      return entry.name.endsWith(".ts") ? [relative] : [];
+    });
+  return walk(rootDir);
+}
+
+function contractSources(): Array<[string, string]> {
+  return listContractFiles(srcDir).map((relative) => [relative, fs.readFileSync(path.join(srcDir, relative), "utf8")]);
 }
 
 describe("FinalArch:CON-001 vendor SDK は契約面・ドメインに漏出しない", () => {
@@ -85,6 +94,31 @@ describe("FinalArch:CON-001 vendor SDK は契約面・ドメインに漏出し�
     ];
     for (const [label, source] of bypasses) {
       expect(vendorImportViolations("fixture.ts", source).length, `未検出: ${label}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("走査は root の src/impl のみ除外し、入れ子の impl は対象に含める（回帰）", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "contract-scan-"));
+    try {
+      for (const [file, body] of [
+        ["index.ts", "export {};"],
+        ["impl/vendorOnly.ts", 'import "@vendor/sdk";'],
+        ["adapters/impl/bypass.ts", 'import "@vendor/sdk";'],
+        ["adapters/deep/impl/bypass2.ts", 'import "@vendor/sdk";'],
+      ] as const) {
+        const target = path.join(root, file);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, body);
+      }
+      const files = listContractFiles(root).sort();
+      expect(files).toEqual(["adapters/deep/impl/bypass2.ts", "adapters/impl/bypass.ts", "index.ts"]);
+      for (const nested of ["adapters/impl/bypass.ts", "adapters/deep/impl/bypass2.ts"]) {
+        expect(vendorImportViolations(nested, fs.readFileSync(path.join(root, nested), "utf8")).length).toBeGreaterThan(
+          0,
+        );
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
