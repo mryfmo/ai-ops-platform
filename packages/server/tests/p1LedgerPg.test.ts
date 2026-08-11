@@ -256,8 +256,8 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     ]);
     expect(firstPair.filter(Boolean)).toHaveLength(1);
 
-    // 並行 v2/v3: どちらの順でも最終 active は v3（retry が収束させ、throw しない）
-    await Promise.all([
+    // 並行 v2/v3: どちらの順でも最終 head は v3（throw しない。v3 先勝ちなら v2 は stale）
+    const racePair = await Promise.all([
       repo.addVersion({ ...base, targetObjectId: "w-v2", mappingVersion: 2 }),
       repo.addVersion({ ...base, targetObjectId: "w-v3", mappingVersion: 3 }),
     ]);
@@ -265,9 +265,11 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     expect(active).toMatchObject({ target_object_id: "w-v3", mapping_version: "3" });
     const count = await pool!.query("SELECT count(*)::int AS n FROM id_mapping_heads WHERE project_id = 'PJ-9'");
     expect(count.rows[0]!.n).toBe(1);
-    // 履歴は受理版のみ追記（勝者 v1 + v2 + v3 = 3 行、削除なし）
+    // 履歴は「受理された呼び出し」と 1:1 で追記される（順序非依存の決定的検証）
+    const accepted = [...firstPair, ...racePair].filter(Boolean).length;
     const history = await pool!.query("SELECT count(*)::int AS n FROM id_mappings WHERE project_id = 'PJ-9'");
-    expect(history.rows[0]!.n).toBe(3);
+    expect(history.rows[0]!.n).toBe(accepted);
+    expect(history.rows[0]!.n).toBeGreaterThanOrEqual(2);
   });
 
   it("FinalArch:CON-002: explicit transaction の client 同士でも addVersion は直列化され 25P02 にならない", async () => {
