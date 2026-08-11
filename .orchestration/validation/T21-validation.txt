@@ -1,0 +1,42 @@
+T21 validation
+==============
+
+Initial regression checks before fixes:
+- pnpm --filter @aiops/shared test -- tests/reporting.test.ts tests/periodBuckets.test.ts tests/xlsxImport.test.ts
+  - Failed as expected before implementation for finite metrics, grapheme count, invalid baseDate, date normalization, and rate-limit boundaries.
+- pnpm --filter @aiops/prjops test -- tests/agt05Distributor.test.ts tests/executiveSevenKeys.test.ts
+  - Failed as expected before implementation for card failure separation and null Seven Keys values.
+- pnpm --filter @aiops/server test -- tests/reportDeliveryTask.test.ts tests/pmSnapshotReconcileTask.test.ts tests/githubEventRouter.test.ts
+  - Failed as expected before implementation for holiday catch-up, bad deep-link isolation, reconcile stored count, and deployment_status normalization.
+
+Targeted post-fix checks:
+- pnpm --filter @aiops/shared test -- tests/reporting.test.ts tests/periodBuckets.test.ts tests/xlsxImport.test.ts
+  - PASS: 3 files, 25 tests.
+- pnpm --filter @aiops/prjops test -- tests/agt05Distributor.test.ts tests/executiveSevenKeys.test.ts
+  - PASS: 2 files, 17 tests.
+- pnpm --filter @aiops/server test -- tests/reportDeliveryTask.test.ts tests/pmSnapshotReconcileTask.test.ts tests/githubEventRouter.test.ts
+  - PASS: 3 files, 19 tests.
+- pnpm --filter @aiops/web test -- tests/reportData/timeseriesHandler.test.ts
+  - PASS: 1 file, 3 tests.
+
+Full validation:
+- mise run ci
+  - PASS.
+  - Covered lint, traceability, format, build, typecheck, and coverage tests.
+  - Traceability guards: root evidence header missing = none; invalid ADR references = none.
+
+No real API calls were made. No dependencies were added.
+
+Revise validation:
+- Added failing regression tests for:
+  - R1: invalid timeseries baseDate returns 400, not 500.
+  - R2: non-ISO XLSX due_on string is rejected as a row validation error, not parsed with timezone-sensitive Date.
+- Pre-fix targeted tests failed as expected.
+- Post-fix targeted tests:
+  - pnpm --filter @aiops/web test -- tests/reportData/timeseriesHandler.test.ts
+    - PASS: 1 file, 4 tests.
+  - pnpm --filter @aiops/shared test -- tests/xlsxImport.test.ts
+    - PASS: 1 file, 13 tests.
+- Full validation:
+  - mise run ci
+    - PASS.

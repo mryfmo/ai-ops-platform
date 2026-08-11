@@ -23,3 +23,22 @@
 | DELTA-07 | 02_wbs.yaml / 02_acceptance_test_catalog.yaml / 09_owner_decision_register.md | P6-T11（A054）・P9-T09（A053）新設、ING-001/AIO-006 ゲート追加、D-14/15/16 を ENV-DEC-012..014 として統合 |
 | — | BASELINE.md / PACK_MANIFEST.yaml | 承認済み delta の記録、統計更新（113 tasks / 64 gates） |
 | — | 10_wbs_task_summary.md / SHA256SUMS | 再生成 |
+| PACK-IMPORT-006 | 10_adrs/0028-no-cloudflare-artifacts-azure.md / SHA256SUMS | ADR-0029（Owner 再裁定 AWS、PR #160）による Azure 維持条項の一部 supersession 注記を Status へ追記、当該行の SHA256 更新 |
+| P0-T07a | 06_implementation/02_wbs.yaml / docs/security/2026-08-10-secret-identity-migration-plan.md / SHA256SUMS | ENV-DEC-001 / ADR-0029 の実装帰結として P3-T01 を Fargate セルフホスト構成へ改訂し、P0-T09 資格マトリクスと pack 内 Azure 固有語を下表の AWS 等価へ読み替え |
+
+## P0-T07a: ADR-0029 AWS 読み替え規則
+
+ENV-DEC-001、ADR-0029、WBS P3-T01、P0-T09 資格マトリクスの間では、pack 内の旧 Azure
+固有語を次の AWS 等価として読む。Teams / Graph / Work IQ の Entra 資格は M365 アクセス専用で
+維持し、AWS workload identity の代替には使わない。
+
+| Pack 内の旧 Azure 記述 | ADR-0029 の AWS 等価 | 適用上の注記 |
+| --- | --- | --- |
+| Azure Container Apps (ACA) | Amazon ECS on Fargate | Temporal は単一サービス、Kubernetes なし |
+| Azure Key Vault | AWS Secrets Manager (KMS) | staging / production 分離、IAM task role で解決 |
+| Entra Workload ID / managed identity | IAM role / ECS task role | Entra は M365 専用資格としてのみ維持 |
+| Bicep | Terraform | 全 AWS resource を immutable IaC とする |
+| Azure Monitor / Log Analytics | CloudWatch + OTel Collector | logs / metrics / traces / alerts の正本 |
+| Azure Front Door + WAF | CloudFront + WAF → ALB | ECS origin と RDS endpoint は非公開 |
+| Azure Database for PostgreSQL | Amazon RDS for PostgreSQL | private subnet、PITR / cross-region snapshot |
+| Azure Container Registry | Amazon ECR | SBOM / provenance 付き immutable digest |

@@ -1,0 +1,25 @@
+$ cat CLAUDE.md
+mise WARN  missing: node@20
+@AGENTS.md
+
+$ head -10 AGENTS.md
+mise WARN  missing: node@20
+# ai-ops-platform 開発ガイド（AIコーディングエージェント向け）
+
+PrjOps AI基盤 + DevOps運用基盤の統合モノレポ（14エージェント）。
+このファイル（AGENTS.md）が Claude Code / Droid 等のAIコーディングエージェント向け規約の正本である。CLAUDE.md は `@AGENTS.md` によるインポートのみを含む。
+
+## コマンド体系（mise + pnpm）
+
+ツールバージョンは `.mise.toml` で固定（Node 20 / pnpm 9）。npmコマンドは使用しない。
+
+```bash
+
+$ git -C /Users/mryfmo/Workspace/.mryfmo-tmp status --short
+mise WARN  missing: node@20
+ M ai-ops-platform/AGENTS.md
+ M ai-ops-platform/CLAUDE.md
+?? ai-ops-platform/.orchestration/
+
+Note: `.orchestration/` is the task workspace containing the task file and required T01 artifacts.
+

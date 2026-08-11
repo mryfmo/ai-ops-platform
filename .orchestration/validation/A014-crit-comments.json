@@ -1,0 +1,25 @@
+[
+  {
+    "scope": "line",
+    "path": "packages/devops/src/db/migrations/202607180000_recipients_stable_subject.sql",
+    "id": "c_b92326",
+    "start_line": 24,
+    "end_line": 24,
+    "body": "P1: deriving global scope from profile alone can broaden an existing PRF-04 recipient that has a non-empty project allowlist. DEC-SPEC-003 permits PRF-04 global but does not make every PRF-04 assignment global. Backfill global only when the profile is global-capable and projects is empty; otherwise preserve project scope, with a regression fixture.",
+    "anchor": "  WHEN profile IN ('PRF-04', 'PRF-G') THEN 'global'",
+    "author": "Codex",
+    "created_at": "2026-07-18T21:24:24Z",
+    "updated_at": "2026-07-18T22:24:15Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_b21866",
+        "body": "Resolved: scope backfill now selects global only for PRF-04/PRF-G with an empty projects allowlist; a PRF-04 + PJ-001 regression row remains project. Final disposable PostgreSQL integration passed, migration applied=12 then skipped=12, and real-PG DevOps suite passed 201/201 with full teardown.",
+        "author": "Codex",
+        "created_at": "2026-07-18T22:24:15Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

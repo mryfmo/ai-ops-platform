@@ -1,0 +1,67 @@
+T13 validation log (2026-07-09)
+
+Branch:
+- Created agent/T13 from agent/T12.
+- Inspected PR #9 (agent/T12) via gh.
+
+Build:
+- mise run build
+- Result: PASS.
+- Web build emitted the existing warning: Next.js plugin was not detected in ESLint configuration.
+
+Environment facts:
+- docker --version: command not found.
+- pg_isready: /tmp:5432 - no response.
+- command -v postgres: no result.
+- command -v initdb: /opt/homebrew/bin/initdb.
+- initdb -D /private/tmp/aiops-t13-pgdata2: failed because postgres binary is missing beside libpq initdb.
+- ANTHROPIC_API_KEY: not present in env.
+- T08 Excel import implementation is not in current agent/T12 ancestry; rg found no Excel/xlsx/import route implementation in packages/server/src or packages/shared/src.
+
+Web actual startup / actual HTTP:
+- Initial sandbox next dev bind failed: listen EPERM 0.0.0.0:3100.
+- Approved outside-sandbox command:
+  env AUTH_SECRET=t13-secret AUTH_MICROSOFT_ENTRA_ID_ID=dummy AUTH_MICROSOFT_ENTRA_ID_SECRET=dummy AUTH_MICROSOFT_ENTRA_ID_TENANT_ID=dummy DATABASE_URL=postgres://localhost/aiops_t13 pnpm --filter @aiops/web exec next start -p 3100 -H 127.0.0.1
+- Result: Next.js ready, but curl using /api/health and /dashboard without basePath returned 404 because app basePath is /app.
+- Curl against /app paths showed:
+  - /app/login: HTTP 200.
+  - /app/api/health: HTTP 200, {"ok":true}.
+  - /app/dashboard: HTTP 307 redirect to login.
+  - /app/api/data/executive-summary: HTTP 401 {"error":"E-AUTH01: authentication required"}.
+  - /app/api/data/manager-summary: HTTP 401.
+  - /app/api/data/investor-summary: HTTP 401.
+  - /app/api/data/timeseries?period=week/month/quarter/half/year: HTTP 401 for each.
+  - /app/api/data/projects: HTTP 401.
+  - /app/api/data/agent-activity: HTTP 401.
+  - /app/api/chat POST: HTTP 401.
+- Server log observation:
+  - Without AUTH_TRUST_HOST=true, Auth.js logged UntrustedHost for localhost.
+  - Restarted with AUTH_TRUST_HOST=true.
+  - Re-ran /app/login, /app/api/health, /app/dashboard, /app/api/data/*, /app/api/chat.
+  - No additional server logs after restart.
+
+Server integration-test-level check:
+- pnpm --filter @aiops/server run test -- app.test.ts
+- Result: PASS. Vitest ran server package tests: 21 files, 136 tests passed.
+- This is integration-test-level evidence, not real server+real DB E2E.
+
+Standard report CLI:
+- pnpm --filter @aiops/shared exec tsx src/reporting/printReportSchema.ts | /usr/bin/head -n 20
+- Result: schema JSON printed.
+- pnpm --filter @aiops/shared exec tsx src/reporting/validateReportJson.ts ../../.orchestration/validation/T13-standard-report-valid.json
+- Result: OK: standard report JSON is valid.
+- pnpm --filter @aiops/shared exec tsx src/reporting/validateReportJson.ts ../../.orchestration/validation/T13-standard-report-invalid.json
+- Result: expected failure with E-RPT02: evidenceIds must contain at least one non-empty string; slots.riskSummary must be a non-empty string; slots.nextActions must be a non-empty string.
+- Initial tsx executions inside sandbox failed with EPERM on tsx IPC pipe; reran with approved outside-sandbox execution.
+
+Docs/artifacts:
+- verification/VERIFICATION_REPORT.md updated with T13 verified-integration / requires-real-env sections.
+- runbooks/e2e-real-environment.md added.
+- README.md updated to point to the real-environment E2E runbook and T13 observations.
+
+Final verification:
+- pnpm run format: PASS.
+- mise run ci: PASS (lint, traceability, format, build, typecheck, test:coverage).
+- packages/traceability/output/traceability_matrix.md was restored after CI because it is a generated timestamped artifact and not part of T13 docs changes.
+- pnpm run format after restoring traceability output: PASS.
+- make require-crit-review: not available in this repository (`No rule to make target require-crit-review`).

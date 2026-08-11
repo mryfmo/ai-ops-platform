@@ -1,0 +1,57 @@
+Validation for T06
+==================
+
+Branch
+------
+agent/T06 from origin/main/main, not from agent/T05.
+
+Commands
+--------
+
+git diff --check
+result: passed
+
+mise run traceability
+result: passed
+tail:
+OK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。
+
+mise run ci
+result: failed because `format` and `traceability` run concurrently; `traceability` rewrote packages/traceability/output/traceability_matrix.md while `format` checked it.
+failure tail:
+[format] [warn] packages/traceability/output/traceability_matrix.md
+[format] [warn] Code style issues found in the above file. Run Prettier with --write to fix.
+[format] ERROR task failed
+
+mise run -j 1 ci
+result: passed
+tail:
+packages/server test:coverage: Test Files  17 passed (17)
+packages/server test:coverage:       Tests  118 passed (118)
+[traceability] OK: 全REQ/SPEC-INT/TH IDが実装コードから最低1回参照されています。
+Finished in 30.94s
+
+git show --stat --oneline HEAD
+-------------------------------
+ef5ef6e docs: draft phase d architecture adrs
+ docs/adr/0007-github-time-series-snapshots.md     | 35 +++++++++++++++
+ docs/adr/0008-excel-import.md                     | 34 +++++++++++++++
+ docs/adr/0009-recharts-3.md                       | 35 +++++++++++++++
+ docs/adr/0010-seven-keys-canonical.md             | 39 +++++++++++++++++
+ docs/adr/0011-investor-persona.md                 | 32 ++++++++++++++
+ docs/adr/0012-agent-report-standardization.md     | 33 ++++++++++++++
+ docs/research/2026-07-09-agent-standardization.md | 32 ++++++++++++++
+ docs/research/2026-07-09-charts-and-design.md     | 39 +++++++++++++++++
+ docs/research/2026-07-09-deep-research.md         | 52 +++++++++++++++++++++++
+ docs/research/2026-07-09-seven-keys.md            | 39 +++++++++++++++++
+ packages/traceability/spec-ids/devops.json        |  4 +-
+ packages/traceability/spec-ids/prjops.json        |  8 +++-
+ 12 files changed, 380 insertions(+), 2 deletions(-)
+
+gh pr view 3 --repo mryfmo/ai-ops-platform --json url,labels
+------------------------------------------------------------
+{"labels":[{"id":"LA_kwDOTSsiiM8AAAACq46VqQ","name":"ai-generated","description":"AI-generated changes","color":"ededed"}],"url":"https://github.com/mryfmo/ai-ops-platform/pull/3"}
+
+gh issue view 2 --repo mryfmo/ai-ops-platform --json url,title
+--------------------------------------------------------------
+{"title":"[spec] REQ-010 AC-010-1: Recharts 3 adoption","url":"https://github.com/mryfmo/ai-ops-platform/issues/2"}

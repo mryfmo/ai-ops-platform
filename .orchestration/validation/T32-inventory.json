@@ -1,0 +1,4131 @@
+{
+  "generatedAt": "2026-07-10T10:39:39.081Z",
+  "totals": {
+    "ids": 295,
+    "prjops": 156,
+    "devops": 139,
+    "catalogDefinitionLines": 32,
+    "indexedDefined": 31,
+    "undefined": 264,
+    "adrs": 14
+  },
+  "stats": [
+    {
+      "system": "PrjOps",
+      "category": "REQ",
+      "total": 34,
+      "defined": 7,
+      "undefined": 27,
+      "dead": 0,
+      "testlessAc": null
+    },
+    {
+      "system": "PrjOps",
+      "category": "SPEC-EXT",
+      "total": 27,
+      "defined": 0,
+      "undefined": 27,
+      "dead": 5,
+      "testlessAc": null
+    },
+    {
+      "system": "PrjOps",
+      "category": "SPEC-INT",
+      "total": 30,
+      "defined": 8,
+      "undefined": 22,
+      "dead": 0,
+      "testlessAc": null
+    },
+    {
+      "system": "PrjOps",
+      "category": "ISS",
+      "total": 10,
+      "defined": 0,
+      "undefined": 10,
+      "dead": 9,
+      "testlessAc": null
+    },
+    {
+      "system": "PrjOps",
+      "category": "TOBE",
+      "total": 10,
+      "defined": 0,
+      "undefined": 10,
+      "dead": 8,
+      "testlessAc": null
+    },
+    {
+      "system": "PrjOps",
+      "category": "ASM",
+      "total": 7,
+      "defined": 0,
+      "undefined": 7,
+      "dead": 3,
+      "testlessAc": null
+    },
+    {
+      "system": "PrjOps",
+      "category": "AC",
+      "total": 38,
+      "defined": 7,
+      "undefined": 31,
+      "dead": 9,
+      "testlessAc": 11
+    },
+    {
+      "system": "DevOps",
+      "category": "REQ",
+      "total": 25,
+      "defined": 3,
+      "undefined": 22,
+      "dead": 0,
+      "testlessAc": null
+    },
+    {
+      "system": "DevOps",
+      "category": "SPEC-EXT",
+      "total": 25,
+      "defined": 0,
+      "undefined": 25,
+      "dead": 6,
+      "testlessAc": null
+    },
+    {
+      "system": "DevOps",
+      "category": "SPEC-INT",
+      "total": 30,
+      "defined": 3,
+      "undefined": 27,
+      "dead": 0,
+      "testlessAc": null
+    },
+    {
+      "system": "DevOps",
+      "category": "TH",
+      "total": 7,
+      "defined": 0,
+      "undefined": 7,
+      "dead": 0,
+      "testlessAc": null
+    },
+    {
+      "system": "DevOps",
+      "category": "ISS",
+      "total": 8,
+      "defined": 0,
+      "undefined": 8,
+      "dead": 8,
+      "testlessAc": null
+    },
+    {
+      "system": "DevOps",
+      "category": "AC",
+      "total": 44,
+      "defined": 3,
+      "undefined": 41,
+      "dead": 16,
+      "testlessAc": 25
+    }
+  ],
+  "gaps": [
+    {
+      "system": "PrjOps",
+      "category": "REQ",
+      "min": 1,
+      "max": 42,
+      "missing": [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ]
+    },
+    {
+      "system": "PrjOps",
+      "category": "SPEC-EXT",
+      "min": 1,
+      "max": 39,
+      "missing": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        15,
+        16,
+        17,
+        18,
+        19,
+        29
+      ]
+    },
+    {
+      "system": "PrjOps",
+      "category": "SPEC-INT",
+      "min": 1,
+      "max": 69,
+      "missing": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        28,
+        29,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        55,
+        56,
+        57,
+        58,
+        59
+      ]
+    },
+    {
+      "system": "PrjOps",
+      "category": "TH",
+      "min": null,
+      "max": null,
+      "missing": [],
+      "absent": true
+    },
+    {
+      "system": "PrjOps",
+      "category": "AC",
+      "min": 1,
+      "max": 42,
+      "missing": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35
+      ]
+    },
+    {
+      "system": "PrjOps",
+      "category": "ISS",
+      "min": 1,
+      "max": 10,
+      "missing": []
+    },
+    {
+      "system": "PrjOps",
+      "category": "TOBE",
+      "min": 1,
+      "max": 10,
+      "missing": []
+    },
+    {
+      "system": "PrjOps",
+      "category": "ASM",
+      "min": 1,
+      "max": 7,
+      "missing": []
+    },
+    {
+      "system": "DevOps",
+      "category": "REQ",
+      "min": 1,
+      "max": 42,
+      "missing": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        13,
+        14,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    },
+    {
+      "system": "DevOps",
+      "category": "SPEC-EXT",
+      "min": 1,
+      "max": 44,
+      "missing": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        13,
+        14,
+        18,
+        19,
+        27,
+        28,
+        29,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39
+      ]
+    },
+    {
+      "system": "DevOps",
+      "category": "SPEC-INT",
+      "min": 1,
+      "max": 83,
+      "missing": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        58,
+        59,
+        65,
+        66,
+        67,
+        69,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ]
+    },
+    {
+      "system": "DevOps",
+      "category": "TH",
+      "min": 1,
+      "max": 7,
+      "missing": []
+    },
+    {
+      "system": "DevOps",
+      "category": "AC",
+      "min": 1,
+      "max": 42,
+      "missing": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        13,
+        14,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ]
+    },
+    {
+      "system": "DevOps",
+      "category": "ISS",
+      "min": 1,
+      "max": 8,
+      "missing": []
+    },
+    {
+      "system": "DevOps",
+      "category": "TOBE",
+      "min": null,
+      "max": null,
+      "missing": [],
+      "absent": true
+    },
+    {
+      "system": "DevOps",
+      "category": "ASM",
+      "min": null,
+      "max": null,
+      "missing": [],
+      "absent": true
+    }
+  ],
+  "missingDefinitions": [
+    "PrjOps:REQ-001",
+    "PrjOps:REQ-002",
+    "PrjOps:REQ-003",
+    "PrjOps:REQ-004",
+    "PrjOps:REQ-005",
+    "PrjOps:REQ-006",
+    "PrjOps:REQ-007",
+    "PrjOps:REQ-008",
+    "PrjOps:REQ-009",
+    "PrjOps:REQ-010",
+    "PrjOps:REQ-011",
+    "PrjOps:REQ-012",
+    "PrjOps:REQ-013",
+    "PrjOps:REQ-014",
+    "PrjOps:REQ-015",
+    "PrjOps:REQ-016",
+    "PrjOps:REQ-017",
+    "PrjOps:REQ-018",
+    "PrjOps:REQ-019",
+    "PrjOps:REQ-020",
+    "PrjOps:REQ-021",
+    "PrjOps:REQ-030",
+    "PrjOps:REQ-031",
+    "PrjOps:REQ-032",
+    "PrjOps:REQ-033",
+    "PrjOps:REQ-034",
+    "PrjOps:REQ-035",
+    "PrjOps:SPEC-EXT-001",
+    "PrjOps:SPEC-EXT-002",
+    "PrjOps:SPEC-EXT-003",
+    "PrjOps:SPEC-EXT-010",
+    "PrjOps:SPEC-EXT-011",
+    "PrjOps:SPEC-EXT-012",
+    "PrjOps:SPEC-EXT-013",
+    "PrjOps:SPEC-EXT-014",
+    "PrjOps:SPEC-EXT-020",
+    "PrjOps:SPEC-EXT-021",
+    "PrjOps:SPEC-EXT-022",
+    "PrjOps:SPEC-EXT-023",
+    "PrjOps:SPEC-EXT-024",
+    "PrjOps:SPEC-EXT-025",
+    "PrjOps:SPEC-EXT-026",
+    "PrjOps:SPEC-EXT-027",
+    "PrjOps:SPEC-EXT-028",
+    "PrjOps:SPEC-EXT-030",
+    "PrjOps:SPEC-EXT-031",
+    "PrjOps:SPEC-EXT-032",
+    "PrjOps:SPEC-EXT-033",
+    "PrjOps:SPEC-EXT-034",
+    "PrjOps:SPEC-EXT-035",
+    "PrjOps:SPEC-EXT-036",
+    "PrjOps:SPEC-EXT-037",
+    "PrjOps:SPEC-EXT-038",
+    "PrjOps:SPEC-EXT-039",
+    "PrjOps:SPEC-INT-001",
+    "PrjOps:SPEC-INT-010",
+    "PrjOps:SPEC-INT-020",
+    "PrjOps:SPEC-INT-021",
+    "PrjOps:SPEC-INT-022",
+    "PrjOps:SPEC-INT-023",
+    "PrjOps:SPEC-INT-024",
+    "PrjOps:SPEC-INT-025",
+    "PrjOps:SPEC-INT-026",
+    "PrjOps:SPEC-INT-027",
+    "PrjOps:SPEC-INT-030",
+    "PrjOps:SPEC-INT-031",
+    "PrjOps:SPEC-INT-032",
+    "PrjOps:SPEC-INT-033",
+    "PrjOps:SPEC-INT-040",
+    "PrjOps:SPEC-INT-050",
+    "PrjOps:SPEC-INT-051",
+    "PrjOps:SPEC-INT-052",
+    "PrjOps:SPEC-INT-053",
+    "PrjOps:SPEC-INT-054",
+    "PrjOps:SPEC-INT-060",
+    "PrjOps:SPEC-INT-061",
+    "PrjOps:ISS-001",
+    "PrjOps:ISS-002",
+    "PrjOps:ISS-003",
+    "PrjOps:ISS-004",
+    "PrjOps:ISS-005",
+    "PrjOps:ISS-006",
+    "PrjOps:ISS-007",
+    "PrjOps:ISS-008",
+    "PrjOps:ISS-009",
+    "PrjOps:ISS-010",
+    "PrjOps:TOBE-01",
+    "PrjOps:TOBE-02",
+    "PrjOps:TOBE-03",
+    "PrjOps:TOBE-04",
+    "PrjOps:TOBE-05",
+    "PrjOps:TOBE-06",
+    "PrjOps:TOBE-07",
+    "PrjOps:TOBE-08",
+    "PrjOps:TOBE-09",
+    "PrjOps:TOBE-10",
+    "PrjOps:ASM-001",
+    "PrjOps:ASM-002",
+    "PrjOps:ASM-003",
+    "PrjOps:ASM-004",
+    "PrjOps:ASM-005",
+    "PrjOps:ASM-006",
+    "PrjOps:ASM-007",
+    "PrjOps:AC-001-1",
+    "PrjOps:AC-001-2",
+    "PrjOps:AC-002-1",
+    "PrjOps:AC-002-2",
+    "PrjOps:AC-003-1",
+    "PrjOps:AC-003-2",
+    "PrjOps:AC-003-3",
+    "PrjOps:AC-004-1",
+    "PrjOps:AC-004-2",
+    "PrjOps:AC-005-1",
+    "PrjOps:AC-005-2",
+    "PrjOps:AC-005-3",
+    "PrjOps:AC-006-1",
+    "PrjOps:AC-006-2",
+    "PrjOps:AC-007-1",
+    "PrjOps:AC-007-2",
+    "PrjOps:AC-008-1",
+    "PrjOps:AC-008-2",
+    "PrjOps:AC-009-1",
+    "PrjOps:AC-009-2",
+    "PrjOps:AC-010-1",
+    "PrjOps:AC-010-2",
+    "PrjOps:AC-010-3",
+    "PrjOps:AC-017-1",
+    "PrjOps:AC-017-2",
+    "PrjOps:AC-018-1",
+    "PrjOps:AC-018-2",
+    "PrjOps:AC-019-1",
+    "PrjOps:AC-020-1",
+    "PrjOps:AC-020-2",
+    "PrjOps:AC-021-1",
+    "DevOps:REQ-001",
+    "DevOps:REQ-002",
+    "DevOps:REQ-003",
+    "DevOps:REQ-010",
+    "DevOps:REQ-011",
+    "DevOps:REQ-012",
+    "DevOps:REQ-015",
+    "DevOps:REQ-016",
+    "DevOps:REQ-017",
+    "DevOps:REQ-018",
+    "DevOps:REQ-019",
+    "DevOps:REQ-020",
+    "DevOps:REQ-021",
+    "DevOps:REQ-022",
+    "DevOps:REQ-023",
+    "DevOps:REQ-024",
+    "DevOps:REQ-025",
+    "DevOps:REQ-026",
+    "DevOps:REQ-027",
+    "DevOps:REQ-028",
+    "DevOps:REQ-029",
+    "DevOps:REQ-030",
+    "DevOps:SPEC-EXT-001",
+    "DevOps:SPEC-EXT-002",
+    "DevOps:SPEC-EXT-003",
+    "DevOps:SPEC-EXT-010",
+    "DevOps:SPEC-EXT-011",
+    "DevOps:SPEC-EXT-012",
+    "DevOps:SPEC-EXT-015",
+    "DevOps:SPEC-EXT-016",
+    "DevOps:SPEC-EXT-017",
+    "DevOps:SPEC-EXT-020",
+    "DevOps:SPEC-EXT-021",
+    "DevOps:SPEC-EXT-022",
+    "DevOps:SPEC-EXT-023",
+    "DevOps:SPEC-EXT-024",
+    "DevOps:SPEC-EXT-025",
+    "DevOps:SPEC-EXT-026",
+    "DevOps:SPEC-EXT-030",
+    "DevOps:SPEC-EXT-031",
+    "DevOps:SPEC-EXT-032",
+    "DevOps:SPEC-EXT-033",
+    "DevOps:SPEC-EXT-040",
+    "DevOps:SPEC-EXT-041",
+    "DevOps:SPEC-EXT-042",
+    "DevOps:SPEC-EXT-043",
+    "DevOps:SPEC-EXT-044",
+    "DevOps:SPEC-INT-001",
+    "DevOps:SPEC-INT-010",
+    "DevOps:SPEC-INT-011",
+    "DevOps:SPEC-INT-020",
+    "DevOps:SPEC-INT-021",
+    "DevOps:SPEC-INT-030",
+    "DevOps:SPEC-INT-031",
+    "DevOps:SPEC-INT-032",
+    "DevOps:SPEC-INT-033",
+    "DevOps:SPEC-INT-040",
+    "DevOps:SPEC-INT-041",
+    "DevOps:SPEC-INT-050",
+    "DevOps:SPEC-INT-051",
+    "DevOps:SPEC-INT-052",
+    "DevOps:SPEC-INT-053",
+    "DevOps:SPEC-INT-054",
+    "DevOps:SPEC-INT-055",
+    "DevOps:SPEC-INT-056",
+    "DevOps:SPEC-INT-057",
+    "DevOps:SPEC-INT-060",
+    "DevOps:SPEC-INT-061",
+    "DevOps:SPEC-INT-062",
+    "DevOps:SPEC-INT-063",
+    "DevOps:SPEC-INT-064",
+    "DevOps:SPEC-INT-068",
+    "DevOps:SPEC-INT-070",
+    "DevOps:SPEC-INT-080",
+    "DevOps:TH-001",
+    "DevOps:TH-002",
+    "DevOps:TH-003",
+    "DevOps:TH-004",
+    "DevOps:TH-005",
+    "DevOps:TH-006",
+    "DevOps:TH-007",
+    "DevOps:ISS-01",
+    "DevOps:ISS-02",
+    "DevOps:ISS-03",
+    "DevOps:ISS-04",
+    "DevOps:ISS-05",
+    "DevOps:ISS-06",
+    "DevOps:ISS-07",
+    "DevOps:ISS-08",
+    "DevOps:AC-001a",
+    "DevOps:AC-001b",
+    "DevOps:AC-001c",
+    "DevOps:AC-002a",
+    "DevOps:AC-002b",
+    "DevOps:AC-003a",
+    "DevOps:AC-003b",
+    "DevOps:AC-010a",
+    "DevOps:AC-010b",
+    "DevOps:AC-010c",
+    "DevOps:AC-011a",
+    "DevOps:AC-011b",
+    "DevOps:AC-012a",
+    "DevOps:AC-012b",
+    "DevOps:AC-012c",
+    "DevOps:AC-015a",
+    "DevOps:AC-015b",
+    "DevOps:AC-015c",
+    "DevOps:AC-016a",
+    "DevOps:AC-016b",
+    "DevOps:AC-017a",
+    "DevOps:AC-017b",
+    "DevOps:AC-018a",
+    "DevOps:AC-018b",
+    "DevOps:AC-018c",
+    "DevOps:AC-019a",
+    "DevOps:AC-020a",
+    "DevOps:AC-020b",
+    "DevOps:AC-021a",
+    "DevOps:AC-021b",
+    "DevOps:AC-022a",
+    "DevOps:AC-023a",
+    "DevOps:AC-023b",
+    "DevOps:AC-024a",
+    "DevOps:AC-025a",
+    "DevOps:AC-026a",
+    "DevOps:AC-027a",
+    "DevOps:AC-028a",
+    "DevOps:AC-029a",
+    "DevOps:AC-030a",
+    "DevOps:AC-041-1"
+  ],
+  "deadIds": [
+    "PrjOps:SPEC-EXT-002",
+    "PrjOps:SPEC-EXT-022",
+    "PrjOps:SPEC-EXT-028",
+    "PrjOps:SPEC-EXT-031",
+    "PrjOps:SPEC-EXT-033",
+    "PrjOps:ISS-002",
+    "PrjOps:ISS-003",
+    "PrjOps:ISS-004",
+    "PrjOps:ISS-005",
+    "PrjOps:ISS-006",
+    "PrjOps:ISS-007",
+    "PrjOps:ISS-008",
+    "PrjOps:ISS-009",
+    "PrjOps:ISS-010",
+    "PrjOps:TOBE-02",
+    "PrjOps:TOBE-03",
+    "PrjOps:TOBE-04",
+    "PrjOps:TOBE-05",
+    "PrjOps:TOBE-06",
+    "PrjOps:TOBE-07",
+    "PrjOps:TOBE-08",
+    "PrjOps:TOBE-09",
+    "PrjOps:ASM-001",
+    "PrjOps:ASM-005",
+    "PrjOps:ASM-007",
+    "PrjOps:AC-001-2",
+    "PrjOps:AC-002-2",
+    "PrjOps:AC-003-1",
+    "PrjOps:AC-003-2",
+    "PrjOps:AC-003-3",
+    "PrjOps:AC-004-1",
+    "PrjOps:AC-005-3",
+    "PrjOps:AC-006-1",
+    "PrjOps:AC-020-2",
+    "DevOps:SPEC-EXT-002",
+    "DevOps:SPEC-EXT-011",
+    "DevOps:SPEC-EXT-012",
+    "DevOps:SPEC-EXT-031",
+    "DevOps:SPEC-EXT-032",
+    "DevOps:SPEC-EXT-044",
+    "DevOps:ISS-01",
+    "DevOps:ISS-02",
+    "DevOps:ISS-03",
+    "DevOps:ISS-04",
+    "DevOps:ISS-05",
+    "DevOps:ISS-06",
+    "DevOps:ISS-07",
+    "DevOps:ISS-08",
+    "DevOps:AC-001a",
+    "DevOps:AC-001b",
+    "DevOps:AC-010b",
+    "DevOps:AC-010c",
+    "DevOps:AC-015a",
+    "DevOps:AC-015b",
+    "DevOps:AC-016a",
+    "DevOps:AC-016b",
+    "DevOps:AC-018c",
+    "DevOps:AC-019a",
+    "DevOps:AC-020a",
+    "DevOps:AC-021a",
+    "DevOps:AC-022a",
+    "DevOps:AC-027a",
+    "DevOps:AC-029a",
+    "DevOps:AC-030a"
+  ],
+  "testlessAc": [
+    "PrjOps:AC-001-2",
+    "PrjOps:AC-002-2",
+    "PrjOps:AC-003-1",
+    "PrjOps:AC-003-2",
+    "PrjOps:AC-003-3",
+    "PrjOps:AC-004-1",
+    "PrjOps:AC-004-2",
+    "PrjOps:AC-005-3",
+    "PrjOps:AC-006-1",
+    "PrjOps:AC-008-1",
+    "PrjOps:AC-020-2",
+    "DevOps:AC-001a",
+    "DevOps:AC-001b",
+    "DevOps:AC-002a",
+    "DevOps:AC-002b",
+    "DevOps:AC-003b",
+    "DevOps:AC-010b",
+    "DevOps:AC-010c",
+    "DevOps:AC-012b",
+    "DevOps:AC-015a",
+    "DevOps:AC-015b",
+    "DevOps:AC-015c",
+    "DevOps:AC-016a",
+    "DevOps:AC-016b",
+    "DevOps:AC-018c",
+    "DevOps:AC-019a",
+    "DevOps:AC-020a",
+    "DevOps:AC-020b",
+    "DevOps:AC-021a",
+    "DevOps:AC-022a",
+    "DevOps:AC-025a",
+    "DevOps:AC-026a",
+    "DevOps:AC-027a",
+    "DevOps:AC-028a",
+    "DevOps:AC-029a",
+    "DevOps:AC-030a"
+  ],
+  "unindexedReferences": [
+    {
+      "id": "AC-016-1",
+      "refs": [
+        "packages/prjops/src/templates/index.ts:4",
+        "packages/prjops/tests/reportTemplates.test.ts:177"
+      ]
+    },
+    {
+      "id": "REQ-999",
+      "refs": [
+        "packages/server/tests/standardReportsRepo.test.ts:29"
+      ]
+    }
+  ],
+  "collisions": [
+    {
+      "id": "AC-041-1",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "AC-042-1",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-001",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-010",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-011",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-012",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-015",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-016",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-017",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-018",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-019",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-020",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-021",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-030",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-031",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-041",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "REQ-042",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-001",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-002",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-003",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-010",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-011",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-012",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-020",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-021",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-022",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-023",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-024",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-025",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-026",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-030",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-031",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-032",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-EXT-033",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-001",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-010",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-020",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-021",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-030",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-031",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-032",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-033",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-040",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-050",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-051",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-052",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-053",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-054",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-060",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-061",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-062",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-063",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-064",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    },
+    {
+      "id": "SPEC-INT-068",
+      "systems": [
+        "PrjOps",
+        "DevOps"
+      ]
+    }
+  ],
+  "substringPairs": [
+    {
+      "short": "ISS-01",
+      "long": "ISS-010"
+    }
+  ],
+  "reconstruction": [
+    {
+      "key": "PrjOps:REQ-001",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: プロジェクトマスタ（REQ-001, SPEC-INT-021） # パス規約: projects/{PJ-nnn}.yaml id: PJ-001」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/projects/PJ-001.yaml:1",
+      "test": "packages/prjops/tests/masterValidation.test.ts:4",
+      "doc": "docs/spec/spec-id-catalog.md:3",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-002",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: 企業マスタ（REQ-002, SPEC-INT-023） # パス規約: organizations/{ORG-nnn}.yaml id: ORG-001」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/organizations/ORG-001.yaml:1",
+      "test": "packages/prjops/tests/masterValidation.test.ts:62",
+      "doc": "docs/adr/0002-claude-sdk-usage.md:36",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-003",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** * REQ-003 進捗報告依頼の自動送付 / SPEC-EXT-010 報告依頼メッセージ / SPEC-EXT-030 通知一覧(依頼)。 * 毎週水曜09:00 JSTに、全activeプロジェクトの報告担当者へTeams/メールで報告依頼を送付する（TOBE-01）。 * 件名形式: 【進捗報告依頼】{プロジェクト名} ({PJ-nnn}) {YYYY-MM-DD}週 / en: [Status Request] ...」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:165",
+      "test": "packages/prjops/tests/agt05Distributor.test.ts:141",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-004",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT02_collector.ts * * 根拠: REQ-004 マルチチャネル取り込み / REQ-005 自由文の構造化 / SPEC-INT-030 * * パイプライン（SPEC-INT-030）:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT02_collector.ts:4",
+      "test": "packages/shared/tests/auditLog.test.ts:11",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-005",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT02_collector.ts * * 根拠: REQ-004 マルチチャネル取り込み / REQ-005 自由文の構造化 / SPEC-INT-030 * * パイプライン（SPEC-INT-030）:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT02_collector.ts:4",
+      "test": "packages/prjops/tests/freeTextValidation.test.ts:9",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-006",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT01_orchestrator.ts * * 根拠: DOC-02 §5（例外・障害時のふるまい） / REQ-006 * エージェント処理が失敗した場合、AGT-01が同一ジョブを最大2回リトライ（間隔10分）し、 * 3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT01_orchestrator.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-007",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT03_analyzer.ts * * 根拠: REQ-007 ステータス自動判定 / REQ-008 重要度スコアリング / SPEC-INT-001, 032 * * 判定計算そのもの（judgeStatus, evaluateEscalationTrigger）はLLMを使わない純粋関数」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT03_analyzer.ts:4",
+      "test": "packages/prjops/tests/statusJudge.test.ts:4",
+      "doc": "README.md:80",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-008",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT03_analyzer.ts * * 根拠: REQ-007 ステータス自動判定 / REQ-008 重要度スコアリング / SPEC-INT-001, 032 * * 判定計算そのもの（judgeStatus, evaluateEscalationTrigger）はLLMを使わない純粋関数」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT03_analyzer.ts:4",
+      "test": "packages/prjops/tests/severityProposal.test.ts:8",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-009",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT06_tracker.ts * * 根拠: REQ-009（アクション期限管理）/ SPEC-EXT-034（アクション事前通知/督促）/ SPEC-EXT-035（エスカレーション） * 毎営業日09:00 JSTのtrack-dailyジョブから呼ばれる想定（SPEC-INT-040）だが、T20時点では * packages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT06_tracker.ts:4",
+      "test": "packages/prjops/tests/actionReminder.test.ts:8",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-010",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT04_reportGenerator.ts * * 根拠: REQ-010〜016 プロファイル別レポート生成 / SPEC-INT-031 * 数値・色・表はコード算出、LLMは文章スロット（結論3行・トピック要約等）のみ生成する。 * LLM出力に数値が混入した場合は採用しない（narrativeSanitizer.tsで機械的に強制）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT04_reportGenerator.ts:4",
+      "test": "packages/shared/tests/auditLog.test.ts:68",
+      "doc": "docs/adr/0009-recharts-3.md:9",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-011",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「- すべて純粋関数。祝日データ（HolidayCalendar）を明示的に注入することで、 * 同一入力に対し常に同一出力を返す決定的な実装とする * （PrjOps REQ-007 AC-007-1 および DevOps REQ-011 AC-011a と同じ設計原則を踏襲）。 * - 日付は \"YYYY-MM-DD\" のJSTカレンダー日として扱う。ホストのタイムゾーンに依存しないよう、 * 日付演算はすべて Date.UTC を「タイムゾーン中立な日数カウンタ」として使う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/calendar/businessCalendar.ts:12",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:REQ-012",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} // ---------- PRF-02 リーダー (REQ-012) ---------- export interface LeaderProjectRow { id: string;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/profileReports.ts:92",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-013",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} // ---------- PRF-03 マネージャー (REQ-013) ---------- export interface ManagerReportData { heatmapRows: Array<{ projectId: string; projectName: string; weeklyColors: Array<StatusColor \\| \"unknown\"> }>;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/profileReports.ts:162",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-014",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} // ---------- PRF-04 経営陣 (REQ-014) ---------- export interface ExecutiveReportData { conclusionLines: [string, string, string]; // LLM生成の要約文（数値を含まない）」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/profileReports.ts:212",
+      "test": "packages/shared/tests/businessCalendar.test.ts:77",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-015",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} // ---------- PRF-05 投資元 (REQ-015) ---------- export interface InvestorProjectPage { id: string;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/profileReports.ts:253",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-016",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** * packages/prjops/src/templates/index.ts * REQ-010〜016（REQ-016: 多言語生成。ja/en切り替えでcommon.langを指定するだけで全プロファイルが * 対応する。AC-016-1: 同一データから生成したja版とen版で数値・色判定が完全一致することは * reportTemplates.test.tsの「英語版レポート」テストで検証済み）を満たす完成レポートHTMLを」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/index.ts:3",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-017",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/approvalTimer.ts * * 根拠: REQ-017 承認ゲート / AC-017-2 / SPEC-INT-050 / SPEC-EXT-038（承認依頼/承認督促の通知一覧項目） * 承認期限24時間超過で代理承認者へ、さらに24時間で配信保留のまま遅延通知（DOC-02 §4）。 * SPEC-INT-050: 24h/48h判定は track-daily とは別の毎時ジョブで行う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/approvalTimer.ts:4",
+      "test": "packages/prjops/tests/permissionAndDelivery.test.ts:13",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-018",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT05_distributor.ts * * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信 / ADR-0014 REQ-042 SPEC-INT-069 AC-042-1 * 承認済み（PRF-04/05）または検証済み（PRF-01〜03）レポートを、Outlookメール（HTML添付）で * 各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:4",
+      "test": "packages/prjops/tests/agt05Distributor.test.ts:49",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-019",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT07_verifier.ts * * 根拠: REQ-019 配信前検証 / SPEC-INT-051 * AGT-07は配信前に次を機械検証する: * (a) レポート内数値と正本データの一致」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT07_verifier.ts:4",
+      "test": "packages/prjops/tests/agt07Verifier.test.ts:6",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-020",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: * - PrjOps REQ-020/021, SPEC-INT-053: 全エージェント入出力・人間介入を追記型で記録、改変不可、5年保持。 * - DevOps REQ-028, SPEC-INT-056: 全エージェント判断・人間承認・権限操作を追記専用ログに記録、1年保持、 * UPDATE/DELETE権限をアプリロールに与えない。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/auditLog.ts:5",
+      "test": "packages/shared/tests/auditLog.test.ts:4",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:REQ-021",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/logicalDelete.ts * * 根拠: SPEC-INT-027 削除 / REQ-021 上書き・介入の記録 / AC-021-1 * 「物理削除禁止。deleted: true の論理削除のみ。操作可能者はPRF-03、delete_reason必須」 * 「理由未入力の上書き・削除操作はUIレベルで完了できない」」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/logicalDelete.ts:4",
+      "test": "packages/prjops/tests/logicalDelete.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-030",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「根拠: * - PrjOps REQ-032（認証情報は暗号化シークレットストアのみで保持、コード・ログに平文で現れない） * - DevOps REQ-030 / SPEC-INT-070（シークレットを平文でログ・レポート・PRコメントに出力しない。 * LLMへの入力からシークレットパターンを除去するサニタイザを全エージェント共通ライブラリとして実装） *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/secretSanitizer.ts:6",
+      "test": "packages/shared/tests/secretSanitizer.test.ts:4",
+      "doc": "docs/claude-code-setup.md:42",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:REQ-031",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「actor: \"AGT-05\", action: \"deliver_card_failed\", basis: \"REQ-031\", detail: { reportId: target.reportId, recipientId: target.recipientId, error: String(err) }, at: new Date().toISOString(),」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:115",
+      "test": "packages/shared/tests/periodBuckets.test.ts:4",
+      "doc": "docs/adr/0007-github-time-series-snapshots.md:12",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-032",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「const { redactionCount } = sanitizeSecrets(detailStr); if (redactionCount > 0) { // REQ-032/030: シークレットが混入していた場合は例外を出し、呼び出し側にサニタイズを強制する throw new Error( `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize bef…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/auditLog.ts:59",
+      "test": "packages/shared/tests/auditLog.test.ts:37",
+      "doc": "docs/adr/0012-agent-report-standardization.md:12",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-033",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「workflow_dispatchで起動する方式。当該ワークフローはエージェントのサービスアカウントのみが * 起動できるようGitHub Environments保護ルールで制限する（AC-010a）。 * - REQ-033: 正本リポジトリへの書込はエージェント用マシンアカウントとPRF-03のみ。 * * Webhook署名検証: GitHubはWebhookペイロードに対しHMAC-SHA256署名（X-Hub-Signature-256）を付与する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/githubClient.ts:14",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-034",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「- 年1回、内閣府公表の官報を根拠に本ファイルを更新する。 # - 更新はPull Request必須、承認者はマネージャー/PRF-03相当（DOC-02 §3 PROC-10置換、DOC-05 SPEC-INT-054）。 # - 「第n営業日」判定・TH-*の営業時間判定・REQ-009/REQ-034の督促タイミングは、本ファイルのみを根拠とする。 # - 春分の日・秋分の日は前年2月の官報公示で確定するため、翌年分は「要確認」として仮値を置く。 # - 振替休日（日曜が祝日の場合の翌平日休日）は本ファイ…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/calendar/jp_holidays.yaml:8",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:REQ-035",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「- DevOps SPEC-INT-011/030/031/033: 分類・要約はClaude API（構造化JSON出力）。 * - DevOps SPEC-INT-070: LLMへの入力からシークレットパターンを除去するサニタイザを共通ライブラリとして実装。 * - PrjOps REQ-035 データ所在: 外部送信されるデータは Anthropic API・Microsoft Graph・GitHub に限定する * （外部通信allowlist: api.anthropic.com, graph.mi…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/anthropicClient.ts:11",
+      "test": "なし",
+      "doc": "docs/spec/spec-id-catalog.md:3",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-001",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「repo: string; issueOrPrNumber: number; body: string; // SPEC-EXT-001形式のMarkdown等 }」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/githubClient.ts:67",
+      "test": "packages/shared/tests/githubClient.test.ts:56",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-002",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-003",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはSPEC-INT-010のディスパッチ * 60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。 * - PrjOps SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。 * - DevOps SPEC-INT-061: GitHub App認証（installation token）。Webhook購読: push, pull_request, * workfl…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/githubClient.ts:8",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-010",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** * REQ-003 進捗報告依頼の自動送付 / SPEC-EXT-010 報告依頼メッセージ / SPEC-EXT-030 通知一覧(依頼)。 * 毎週水曜09:00 JSTに、全activeプロジェクトの報告担当者へTeams/メールで報告依頼を送付する（TOBE-01）。 * 件名形式: 【進捗報告依頼】{プロジェクト名} ({PJ-nnn}) {YYYY-MM-DD}週 / en: [Status Request] ...」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:165",
+      "test": "packages/prjops/tests/agt05Distributor.test.ts:141",
+      "doc": "docs/best-practices-research.md:44",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-011",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/freeTextValidation.ts * * 根拠: REQ-005 自由文の構造化 / SPEC-EXT-011, 012 / SPEC-INT-030 * 自由文報告の6項目: ①進捗率(0-100の整数%) ②自己申告ステータス(順調/注意/危険 or Green/Yellow/Red) * ③今週の実績 ④来週の予定 ⑤課題(なければ「なし」) ⑥リスク(なければ「なし」)」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/freeTextValidation.ts:4",
+      "test": "packages/prjops/tests/freeTextValidation.test.ts:88",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-012",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「AC-005-2: 聞き返しは最大3回。3回で充足しない場合は運用担当へエスカレーション、「不完全」フラグ。 * SPEC-INT-030手順3: 必須6項目の欠落判定は構造化後にコードで実施（LLMに判定させない）。 * SPEC-EXT-012 / SPEC-EXT-032（通知一覧の聞き返し）: 聞き返しの文面形式「不足: ②ステータス, ⑥リスク」。 * * 設計方針: LLM構造化の出力を受け取り、完全性判定は本モジュール（決定的コード）が単独で行う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/freeTextValidation.ts:10",
+      "test": "packages/prjops/tests/freeTextValidation.test.ts:62",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-013",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「export type CollectorOutcome = \\| { kind: \"accepted\"; structured: StructuredStatusUpdate; projectId: string; stakeholderId: string } // SPEC-EXT-013/033 受理通知の送信対象 \\| { kind: \"clarify\"; message: string; clarifyCount: number } \\| { kind: \"escalate_incomplete\"; …」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT02_collector.ts:63",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-014",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/commandParser.ts * * 根拠: SPEC-EXT-014 Teamsコマンド / SPEC-INT-033 コマンドパーサ * 本システム宛のTeamsメッセージで次の定型コマンドを受け付ける（PRF-02以上）: * /action add PJ-nnn \"{内容}\" @担当者 期限:YYYY-MM-DD — アクション登録」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/commandParser.ts:4",
+      "test": "packages/prjops/tests/commandParser.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-020",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/templates/reportShell.ts * * 根拠: REQ-010（共通要件）/ SPEC-EXT-020（共通仕様） * - 自己完結型HTML（外部CSS/JS参照なし、1ファイル）。全レポートに生成日時、対象期間、 * レポートID、データ取得時点を明記。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/reportShell.ts:4",
+      "test": "packages/web/tests/ui.test.tsx:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-021",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/reportPermissionFilter.ts * * 根拠: DOC-03 §4.5（プロファイル別要件・閲覧権限）, SPEC-EXT-021（プロファイル別レイアウト）, * AC-011〜015共通-1: 各プロファイルのレポートに「非表示」と定めた情報が一切含まれない * （AGT-07が配信前に機械チェック。SPEC-INT-051）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/reportPermissionFilter.ts:4",
+      "test": "packages/prjops/tests/reportTemplates.test.ts:36",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-022",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-023",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「配信前に prjops-reports/delivery_log/{RPT-id}.yaml の存在を確認し、存在すればスキップ。 * 送信成功後に記録を書く（記録失敗時は再送許容だが件名 (再送) を付与）。 * SPEC-EXT-023: 重複して2通届くことはない。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/idempotentDelivery.ts:7",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-024",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「\"logical_delete\", // PrjOps: 正本データの論理削除 (PRF-03のみ) \"grant_revoke_manual_override\", // DevOps: 手動権限変更の検出時の是正 \"approval_reject\", // 承認差し戻し（コメント必須, SPEC-EXT-024 / SPEC-EXT-010） ]);」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/auditLog.ts:41",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-025",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「const PROFILE_REQUIREMENTS: Record<ParsedCommand[\"kind\"], ReadonlyArray<\"PRF-01\" \\| \"PRF-02\" \\| \"PRF-03\">> = { action_add: [\"PRF-02\", \"PRF-03\"], action_done: [\"PRF-01\", \"PRF-02\", \"PRF-03\"], // 完了のみは本人担当分についてPRF-01も可（SPEC-EXT-025の権限マトリクス） issue_close: [\"PRF-02…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/commandParser.ts:137",
+      "test": "packages/prjops/tests/commandParser.test.ts:106",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-026",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「本モジュールは「どのプロジェクト/課題/個人名をレポート対象データに含めてよいか」を決定的に判定する。 * テンプレート層はこのフィルタを通過したデータのみを描画に用いる（禁止語彙の後付け除去には頼らない設計。 * SPEC-EXT-026「配信名簿はAGT-SEC管理の名簿を唯一のソースとする」と同じ「事前フィルタ」思想）。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/reportPermissionFilter.ts:17",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-027",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** 外部向け日時表記（SPEC-EXT-027: \"2026-07-06 08:00 JST (UTC+9)\"） */ export function formatExternalDateTime(now: Date = new Date()): string { const jstMs = now.getTime() + 9 * 60 * 60 * 1000;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/ids.ts:129",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-028",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-030",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** * REQ-003 進捗報告依頼の自動送付 / SPEC-EXT-010 報告依頼メッセージ / SPEC-EXT-030 通知一覧(依頼)。 * 毎週水曜09:00 JSTに、全activeプロジェクトの報告担当者へTeams/メールで報告依頼を送付する（TOBE-01）。 * 件名形式: 【進捗報告依頼】{プロジェクト名} ({PJ-nnn}) {YYYY-MM-DD}週 / en: [Status Request] ...」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:165",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-031",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-032",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「AC-005-2: 聞き返しは最大3回。3回で充足しない場合は運用担当へエスカレーション、「不完全」フラグ。 * SPEC-INT-030手順3: 必須6項目の欠落判定は構造化後にコードで実施（LLMに判定させない）。 * SPEC-EXT-012 / SPEC-EXT-032（通知一覧の聞き返し）: 聞き返しの文面形式「不足: ②ステータス, ⑥リスク」。 * * 設計方針: LLM構造化の出力を受け取り、完全性判定は本モジュール（決定的コード）が単独で行う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/freeTextValidation.ts:10",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-033",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-034",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT06_tracker.ts * * 根拠: REQ-009（アクション期限管理）/ SPEC-EXT-034（アクション事前通知/督促）/ SPEC-EXT-035（エスカレーション） * 毎営業日09:00 JSTのtrack-dailyジョブから呼ばれる想定（SPEC-INT-040）だが、T20時点では * packages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT06_tracker.ts:4",
+      "test": "packages/prjops/tests/agt06Tracker.test.ts:32",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-035",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT06_tracker.ts * * 根拠: REQ-009（アクション期限管理）/ SPEC-EXT-034（アクション事前通知/督促）/ SPEC-EXT-035（エスカレーション） * 毎営業日09:00 JSTのtrack-dailyジョブから呼ばれる想定（SPEC-INT-040）だが、T20時点では * packages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT06_tracker.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-036",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** REQ-008: 課題・リスクの重要度引き上げ提案（トリガー判定は決定的、理由文のみLLM生成）。 * 提案はSPEC-EXT-036の通知（該当PRF-02へAGT-03提案時に送信）としてTeamsへ届けられる。 */ export async function proposeEscalationIfNeeded( trigger: EscalationTriggerInput,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT03_analyzer.ts:63",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-037",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「const cardRecipientId = (recipientId: string): string => `${recipientId}#teams-card`; /** REQ-018 + SPEC-INT-052: 1件の配信対象に対する冪等配信処理（SPEC-EXT-037 レポート配信/遅延通知） */ export async function distributeOne( target: DeliveryTarget,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:41",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-038",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/approvalTimer.ts * * 根拠: REQ-017 承認ゲート / AC-017-2 / SPEC-INT-050 / SPEC-EXT-038（承認依頼/承認督促の通知一覧項目） * 承認期限24時間超過で代理承認者へ、さらに24時間で配信保留のまま遅延通知（DOC-02 §4）。 * SPEC-INT-050: 24h/48h判定は track-daily とは別の毎時ジョブで行う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/approvalTimer.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-EXT-039",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「(d) 宛先とレポート対象者の一致 * AC-019-1: (a)〜(d)のいずれかがNGのレポートは配信されず、NG理由コード付きで運用担当へ通知される * （SPEC-EXT-039 検証NG・障害通知）。 * SPEC-INT-061エラーコード: E-VER0A〜0D 検証NG(a〜d) */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT07_verifier.ts:11",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-001",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「parse: (raw) => raw as StructuredStatusUpdate, maxAttempts: 2, // SPEC-INT-030: LLM呼び出しは最大2回 allowEscalation: true, // (a)自由文構造化のみ昇格対象（SPEC-INT-001） }); return result.value;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT02_collector.ts:102",
+      "test": "packages/shared/tests/graphClientChannelMessages.test.ts:5",
+      "doc": "docs/adr/0002-claude-sdk-usage.md:9",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-010",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「根拠: * - DevOps REQ-025 GitHub連携: リポジトリイベント(push, workflow_run, PR)をWebhookで受信し、 * Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはSPEC-INT-010のディスパッチ * 60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。 * - PrjOps SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/githubClient.ts:6",
+      "test": "packages/server/tests/eventsPollingTask.test.ts:4",
+      "doc": "docs/best-practices-research.md:65",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-INT-020",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「1. 受信 → 発信者をstakeholderマスタと突合。不一致は運用担当へ通知し破棄（E-ING01）。 * 2. 対象PJ特定: 件名のPJ-nnn → 本文中のPJ-nnn → 発信者の担当PJが1件ならそれ、の優先順（E-ING02）。 * 3. LLM構造化: 温度0、SPEC-INT-020スキーマへのJSON出力を強制。必須6項目の欠落判定はコードで実施。 * 4. 欠落あり→聞き返し送信（上限3, REQ-005）。充足→YAMLコミット→受理通知。 * 1件あたりの処理タイムアウトは10分、L…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT02_collector.ts:9",
+      "test": "packages/shared/tests/ids.test.ts:13",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-021",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: プロジェクトマスタ（REQ-001, SPEC-INT-021） # パス規約: projects/{PJ-nnn}.yaml id: PJ-001」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/projects/PJ-001.yaml:1",
+      "test": "packages/shared/tests/businessCalendar.test.ts:103",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-022",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: 関係者マスタ（REQ-002, SPEC-INT-022） # パス規約: stakeholders/{ST-nnn}.yaml id: ST-010」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/stakeholders/ST-010.yaml:1",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-023",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: 企業マスタ（REQ-002, SPEC-INT-023） # パス規約: organizations/{ORG-nnn}.yaml id: ORG-001」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/organizations/ORG-001.yaml:1",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-024",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: 課題（SPEC-INT-024） id: ISSUE-0001 project_id: PJ-001」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/issues/ISSUE-0001.yaml:1",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-025",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: アクション（SPEC-INT-025） id: ACT-0001 project_id: PJ-001」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/actions/ACT-0001.yaml:1",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-026",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「サンプルデータ: レポートジョブ（SPEC-INT-026） # パス規約: report_jobs/{RPT-id}.yaml （id形式: RPT-{profile}-{scope}-{period}-{recipient}） id: RPT-PRF-02-PJ-001-2026-W27-ST-010」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/report_jobs/RPT-PRF-02-PJ-001-2026-W27-ST-010.yaml:1",
+      "test": "packages/prjops/tests/reportJobStateMachine.test.ts:21",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-027",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/logicalDelete.ts * * 根拠: SPEC-INT-027 削除 / REQ-021 上書き・介入の記録 / AC-021-1 * 「物理削除禁止。deleted: true の論理削除のみ。操作可能者はPRF-03、delete_reason必須」 * 「理由未入力の上書き・削除操作はUIレベルで完了できない」」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/logicalDelete.ts:4",
+      "test": "packages/prjops/tests/logicalDelete.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-030",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT02_collector.ts * * 根拠: REQ-004 マルチチャネル取り込み / REQ-005 自由文の構造化 / SPEC-INT-030 * * パイプライン（SPEC-INT-030）:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT02_collector.ts:4",
+      "test": "packages/prjops/tests/freeTextValidation.test.ts:9",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-031",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT04_reportGenerator.ts * * 根拠: REQ-010〜016 プロファイル別レポート生成 / SPEC-INT-031 * 数値・色・表はコード算出、LLMは文章スロット（結論3行・トピック要約等）のみ生成する。 * LLM出力に数値が混入した場合は採用しない（narrativeSanitizer.tsで機械的に強制）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT04_reportGenerator.ts:4",
+      "test": "packages/prjops/tests/narrativeSanitizer.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-032",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/statusJudge.ts * * 根拠: REQ-007 ステータス自動判定 / SPEC-INT-032 * * 判定基準（REQ-007から一字一句変更せず実装する）:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/statusJudge.ts:4",
+      "test": "packages/server/tests/scheduler.test.ts:5",
+      "doc": "docs/adr/0003-devops-runtime.md:18",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-033",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/commandParser.ts * * 根拠: SPEC-EXT-014 Teamsコマンド / SPEC-INT-033 コマンドパーサ * 本システム宛のTeamsメッセージで次の定型コマンドを受け付ける（PRF-02以上）: * /action add PJ-nnn \"{内容}\" @担当者 期限:YYYY-MM-DD — アクション登録」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/commandParser.ts:4",
+      "test": "packages/server/tests/freeTextIntent.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-040",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「エージェント処理が失敗した場合、AGT-01が同一ジョブを最大2回リトライ（間隔10分）し、 * 3回目失敗でPMO運用担当（PRF-03が指名する1名）へTeams通知する。 * SPEC-INT-040（DOC-05 §5）: ジョブの依存順序（analyze→report→verify→deliver）を定義する。 * T20時点ではpackages/prjops/src/workflows/*.ymlを出荷しておらず、package-local schedulerは未実装。 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT01_orchestrator.ts:7",
+      "test": "packages/prjops/tests/agt01Orchestrator.test.ts:23",
+      "doc": "docs/adr/0003-devops-runtime.md:13",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-050",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/lib/approvalTimer.ts * * 根拠: REQ-017 承認ゲート / AC-017-2 / SPEC-INT-050 / SPEC-EXT-038（承認依頼/承認督促の通知一覧項目） * 承認期限24時間超過で代理承認者へ、さらに24時間で配信保留のまま遅延通知（DOC-02 §4）。 * SPEC-INT-050: 24h/48h判定は track-daily とは別の毎時ジョブで行う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/approvalTimer.ts:4",
+      "test": "なし",
+      "doc": "README.md:34",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-051",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT07_verifier.ts * * 根拠: REQ-019 配信前検証 / SPEC-INT-051 * AGT-07は配信前に次を機械検証する: * (a) レポート内数値と正本データの一致」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT07_verifier.ts:4",
+      "test": "packages/prjops/tests/permissionAndDelivery.test.ts:108",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-052",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/prjops/src/agents/AGT05_distributor.ts * * 根拠: REQ-018 配信 / SPEC-INT-052 冪等配信 / ADR-0014 REQ-042 SPEC-INT-069 AC-042-1 * 承認済み（PRF-04/05）または検証済み（PRF-01〜03）レポートを、Outlookメール（HTML添付）で * 各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:4",
+      "test": "packages/prjops/tests/agt05Distributor.test.ts:49",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:SPEC-INT-053",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: * - PrjOps REQ-020/021, SPEC-INT-053: 全エージェント入出力・人間介入を追記型で記録、改変不可、5年保持。 * - DevOps REQ-028, SPEC-INT-056: 全エージェント判断・人間承認・権限操作を追記専用ログに記録、1年保持、 * UPDATE/DELETE権限をアプリロールに与えない。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/auditLog.ts:5",
+      "test": "packages/shared/tests/auditLog.test.ts:4",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-INT-054",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: * - PrjOps SPEC-INT-054（営業日カレンダー。「第n営業日」判定の唯一の根拠） * - PrjOps DOC-02 §2（月次=毎月第1営業日、四半期=四半期初月第3営業日） * - DevOps SPEC-INT-033（AGT-RPTの営業日判定）、SPEC-INT-021 factor E（営業時間外判定）」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/calendar/businessCalendar.ts:5",
+      "test": "packages/shared/tests/businessCalendar.test.ts:17",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-INT-060",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「- PrjOps REQ-035 データ所在: 外部送信されるデータは Anthropic API・Microsoft Graph・GitHub に限定する * （外部通信allowlist: api.anthropic.com, graph.microsoft.com, github.com/api.github.com のみ。 * SPEC-INT-060）。本クライアントが通信するホストは api.anthropic.com のみであり、この制約に従う。 * * 実装方式: Anthropic Messag…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/anthropicClient.ts:13",
+      "test": "packages/shared/tests/pgCostGuard.test.ts:4",
+      "doc": "docs/adr/0005-resident-server-and-teams-integration.md:47",
+      "ambiguity": true
+    },
+    {
+      "key": "PrjOps:SPEC-INT-061",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「AC-019-1: (a)〜(d)のいずれかがNGのレポートは配信されず、NG理由コード付きで運用担当へ通知される * （SPEC-EXT-039 検証NG・障害通知）。 * SPEC-INT-061エラーコード: E-VER0A〜0D 検証NG(a〜d) */ import {」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT07_verifier.ts:12",
+      "test": "packages/shared/tests/githubClient.test.ts:5",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-001",
+      "category": "ISS",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは課題識別子として「export const XLSX_IMPORT_TEMPLATE: Record<SheetName, ColumnDefinition[]> = { issues: [ { key: \"source_key\", label: \"source_key\", required: true, type: \"string\", example: \"ISS-001\" }, { key: \"title\", label: \"title\", required: true, type: \"string\", example: \"初期…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/xlsxImport/template.ts:24",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-002",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-003",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-004",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-005",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-006",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-007",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-008",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-009",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ISS-010",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-01",
+      "category": "TOBE",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは将来像識別子として「** * REQ-003 進捗報告依頼の自動送付 / SPEC-EXT-010 報告依頼メッセージ / SPEC-EXT-030 通知一覧(依頼)。 * 毎週水曜09:00 JSTに、全activeプロジェクトの報告担当者へTeams/メールで報告依頼を送付する（TOBE-01）。 * 件名形式: 【進捗報告依頼】{プロジェクト名} ({PJ-nnn}) {YYYY-MM-DD}週 / en: [Status Request] ... */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:166",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-02",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-03",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-04",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-05",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-06",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-07",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-08",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-09",
+      "category": "TOBE",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:TOBE-10",
+      "category": "TOBE",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは将来像識別子として「* 根拠: REQ-009 アクション期限管理 * 毎営業日09:00 JSTに (a) 期限3営業日前の事前通知、(b) 期限超過の督促を担当者へ送付する（TOBE-10）。 * AC-009-1: 同一アクションへの督促は最大3回（超過当日、+2営業日、+5営業日）。 * AC-009-2: 3回目の督促後も未完了の場合、当該プロジェクトのPRF-03へエスカレーション通知が送られる。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/actionReminder.ts:5",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-001",
+      "category": "ASM",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "README.md:110",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-002",
+      "category": "ASM",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは前提識別子として「サンプルデータ: 企業マスタ（海外企業の例。ASM-002の既定言語判定=enの対象） id: ORG-002 name: Example Overseas Partner Inc.」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/data/organizations/ORG-002.yaml:1",
+      "test": "packages/prjops/tests/reportTemplates.test.ts:177",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-003",
+      "category": "ASM",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは前提識別子として「- ADR-0005: 常駐サーバ（WebUIチャット）とバッチエージェントが同一のコスト台帳を共有するため、 * プロセス内メモリ（InMemoryCostGuard）ではなくPostgreSQLのllm_usage表を正本とする。 * 日次判定はJST基準（ASM-003）。agent別サブ上限（例: WEB-CHAT $10）を任意設定できる。 * * 設計: shared パッケージに pg への依存を持ち込まないため、クエリ実行を PgQueryable として注入する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/pgCostGuard.ts:8",
+      "test": "packages/shared/tests/pgCostGuard.test.ts:5",
+      "doc": "docs/adr/0005-resident-server-and-teams-integration.md:49",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-004",
+      "category": "ASM",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは前提識別子として「export type Profile = \"PRF-01\" \\| \"PRF-02\" \\| \"PRF-03\" \\| \"PRF-04\" \\| \"PRF-05\"; /** ASM-004: 経営陣(PRF-04)・投資元(PRF-05)向けレポートは配信前にマネージャー承認が必須 */ export function requiresApproval(profile: Profile): boolean { return profile === \"PRF-04\" \\|\\| profile === \"PRF-05\";」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/reportJobStateMachine.ts:17",
+      "test": "packages/prjops/tests/reportJobStateMachine.test.ts:9",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-005",
+      "category": "ASM",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-006",
+      "category": "ASM",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは前提識別子として「source: \"https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html\" last_reviewed: \"2026-07-03\" reviewed_by: \"ASM-006 前提: PRF-03承認のPR運用（未実施のためこのファイルはサンプル値）\" holidays:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/calendar/jp_holidays.yaml:17",
+      "test": "なし",
+      "doc": "docs/adr/0003-devops-runtime.md:11",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:ASM-007",
+      "category": "ASM",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "docs/adr/0001-monorepo.md:14",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-001-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「- REQ-001 プロジェクトマスタ: 名称、担当リーダー(PRF-02)、担当マネージャー(PRF-03)、参加企業ID一覧、 * 開始日、終了予定日、報告頻度（週次固定）、状態(active/suspended/closed)。 * AC-001-1: 属性が1つでも欠けたプロジェクト登録はエラーになり、欠落属性名がエラーメッセージに含まれる。 * - REQ-002 関係者・企業マスタ（SPEC-INT-022 stakeholder / SPEC-INT-023 organization）: * 氏名、…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/masterValidation.ts:7",
+      "test": "packages/prjops/tests/masterValidation.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-001-2",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-002-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「氏名、所属企業ID、プロファイル(PRF-01〜05)、メールアドレス、TeamsユーザーID(任意)、 * 優先言語(ja/en)、タイムゾーン。企業は国内/海外区分を持つ。 * AC-002-1: 1人の関係者は複数プロジェクトに異なる立場で参加できる。 * * 設計方針: zodのような外部バリデーションライブラリに頼らず、依存ゼロの手書き検証関数として実装する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/masterValidation.ts:11",
+      "test": "packages/prjops/tests/masterValidation.test.ts:62",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-002-2",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-003-1",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-003-2",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-003-3",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-004-1",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-004-2",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「** * SU-{PJ-nnn}-{YYYY}-W{ww}-{seq} 形式（SPEC-INT-020）。 * seq: 同一週の版番号。最新のみ有効（REQ-004 AC-004-2）。 */ export function formatStatusUpdateId(projectId: string, isoYear: number, isoWeek: number, seq: number): string {」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/ids.ts:76",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-005-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「自由文報告の6項目: ①進捗率(0-100の整数%) ②自己申告ステータス(順調/注意/危険 or Green/Yellow/Red) * ③今週の実績 ④来週の予定 ⑤課題(なければ「なし」) ⑥リスク(なければ「なし」) * AC-005-1: 必須6項目のうち欠落があった場合、聞き返しが自動送信される。 * AC-005-2: 聞き返しは最大3回。3回で充足しない場合は運用担当へエスカレーション、「不完全」フラグ。 * SPEC-INT-030手順3: 必須6項目の欠落判定は構造化後にコードで実施（LLMに…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/freeTextValidation.ts:7",
+      "test": "packages/prjops/tests/freeTextValidation.test.ts:9",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-005-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「③今週の実績 ④来週の予定 ⑤課題(なければ「なし」) ⑥リスク(なければ「なし」) * AC-005-1: 必須6項目のうち欠落があった場合、聞き返しが自動送信される。 * AC-005-2: 聞き返しは最大3回。3回で充足しない場合は運用担当へエスカレーション、「不完全」フラグ。 * SPEC-INT-030手順3: 必須6項目の欠落判定は構造化後にコードで実施（LLMに判定させない）。 * SPEC-EXT-012 / SPEC-EXT-032（通知一覧の聞き返し）: 聞き返しの文面形式「不足: ②ステータ…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/freeTextValidation.ts:8",
+      "test": "packages/prjops/tests/freeTextValidation.test.ts:73",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-005-3",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-006-1",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-006-2",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「expect(html).toContain(\"順調\"); }); it(\"未報告プロジェクトは前回値ラベル付きで表示される（AC-006-2）\", () => { expect(html).toContain(\"(前回値)\"); expect(html).toContain(\"未報告\");」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "なし",
+      "test": "packages/prjops/tests/reportTemplates.test.ts:90",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-007-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは受入条件の根拠として「計画線 = 経過期間÷全期間×100（開始日・終了予定日から算出） * * AC-007-1: 同一入力に対する判定結果は常に同一である（LLMの裁量を挟まない決定的計算）。 * → 本関数はLLM呼び出しを一切行わない純粋関数として実装する。 * SPEC-INT-032: 単体テストで境界値（▲5.0 / ▲15.0ポイント、超過0日/1日）を固定する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/statusJudge.ts:12",
+      "test": "packages/prjops/tests/statusJudge.test.ts:102",
+      "doc": "README.md:80",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-007-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「** * 自己申告色と機械判定色の乖離チェック（AC-007-2: 両方がレポートに併記される）。 * @returns 乖離していればtrue */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/statusJudge.ts:97",
+      "test": "packages/prjops/tests/reportTemplates.test.ts:86",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-008-1",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「actor: \"AGT-03\", action: \"propose_escalation\", basis: \"REQ-008 AC-008-1\", detail: { issueId, matchedKeywords: evaluation.matchedKeywords, reason_ja: result.value.reason_ja }, at: new Date().toISOString(),」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT03_analyzer.ts:94",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-008-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「かつ対象が複数企業に及ぶ」場合に「高」への引き上げを提案できる（自動確定はしない。確定はPRF-02）。 * - AC-008-1: 引き上げ提案は理由文とともにPRF-02へTeams通知される。 * - AC-008-2: PRF-02が72時間応答しない場合、提案値が仮適用され、レポートに「仮」ラベルが付く。 * * 設計方針: トリガー判定（キーワード照合＋対象企業数）は決定的なコード判定とし、LLMには理由文の」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/severityProposal.ts:8",
+      "test": "packages/prjops/tests/severityProposal.test.ts:56",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-009-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「actor: \"AGT-06\", action: \"reminder\", basis: \"REQ-009 AC-009-1\", detail: { actionId: action.id, reminderNumber: decision.reminderNumber }, at: new Date().toISOString(),」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT06_tracker.ts:85",
+      "test": "packages/prjops/tests/actionReminder.test.ts:8",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-009-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「actor: \"AGT-06\", action: \"escalation\", basis: \"REQ-009 AC-009-2\", detail: { actionId: action.id, projectId: action.projectId }, at: new Date().toISOString(),」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT06_tracker.ts:104",
+      "test": "packages/prjops/tests/actionReminder.test.ts:64",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-010-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは受入条件の根拠として「} // 付随チェック（REQ-010 AC-010-1/2。専用の失敗コードはないためV-Cに含める） if (!checkFileSizeWithinLimit(input.html)) { failureCodes.push(\"V-C\");」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT07_verifier.ts:70",
+      "test": "packages/shared/tests/htmlSanitizeCheck.test.ts:33",
+      "doc": "docs/adr/0009-recharts-3.md:9",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-010-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「- フッター: 問い合わせ先、機密表示（PRF-05向けは \"Confidential — for investor use only\"）。 * - AC-010-1: ネットワーク遮断環境のブラウザで崩れなく表示される（インラインCSSのみで実装）。 * - AC-010-2: 1ファイルのサイズは2MB以下。 * * data-src属性: `data-src=\"{path}#{field}\"` を数値要素に付与し、AGT-07（SPEC-INT-051(a)）が」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/templates/reportShell.ts:10",
+      "test": "packages/shared/tests/htmlSanitizeCheck.test.ts:24",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-010-3",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは受入条件の根拠として「packages/web/src/components/charts/chartData.ts * * 根拠: ADR-0009 / SPEC-INT-064 / AC-010-3。 * Rechartsへ渡すprops形状を表示層の外で決定する純粋関数。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/web/src/components/charts/chartData.ts:4",
+      "test": "packages/web/tests/chartData.test.ts:9",
+      "doc": "docs/adr/0009-recharts-3.md:13",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-017-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「状態遷移: generated → verified → (PRF-01..03: → delivered) / (PRF-04,05: → pending_approval → approved → delivered) * 分岐: pending_approval → rejected（差し戻し。コメント必須） * 状態遷移は上記の順のみ許可（スキップ不可）[REQ-017 AC-017-1]。 * AC-017-1: 承認前に配信された事例が発生しない（audit_logで機械検証可能）。 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/reportJobStateMachine.ts:7",
+      "test": "packages/prjops/tests/reportJobStateMachine.test.ts:48",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-017-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「packages/prjops/src/lib/approvalTimer.ts * * 根拠: REQ-017 承認ゲート / AC-017-2 / SPEC-INT-050 / SPEC-EXT-038（承認依頼/承認督促の通知一覧項目） * 承認期限24時間超過で代理承認者へ、さらに24時間で配信保留のまま遅延通知（DOC-02 §4）。 * SPEC-INT-050: 24h/48h判定は track-daily とは別の毎時ジョブで行う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/approvalTimer.ts:4",
+      "test": "packages/prjops/tests/permissionAndDelivery.test.ts:13",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-018-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「承認済み（PRF-04/05）または検証済み（PRF-01〜03）レポートを、Outlookメール（HTML添付）で * 各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。 * AC-018-1: 1配信サイクル最大2,000通が2時間以内に完了する。 * AC-018-2: 同一レポートIDの重複配信が発生しない（再送時も受信者ごとに1通）。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:7",
+      "test": "packages/prjops/tests/agt05Distributor.test.ts:120",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-018-2",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「各受信者へ個別配信し、併せてPRF-02/03にはTeamsチャネルにも要約カードを投稿する。 * AC-018-1: 1配信サイクル最大2,000通が2時間以内に完了する。 * AC-018-2: 同一レポートIDの重複配信が発生しない（再送時も受信者ごとに1通）。 */ import type { GraphClient } from \"@aiops/shared/clients/graphClient.js\";」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT05_distributor.ts:8",
+      "test": "packages/prjops/tests/agt05Distributor.test.ts:59",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-019-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「(c) プレースホルダ（未置換変数）の不在 * (d) 宛先とレポート対象者の一致 * AC-019-1: (a)〜(d)のいずれかがNGのレポートは配信されず、NG理由コード付きで運用担当へ通知される * （SPEC-EXT-039 検証NG・障害通知）。 * SPEC-INT-061エラーコード: E-VER0A〜0D 検証NG(a〜d)」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/agents/AGT07_verifier.ts:10",
+      "test": "packages/prjops/tests/agt07Verifier.test.ts:6",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-020-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは受入条件の根拠として「（型システムのレベルで改変不可を強制する。実運用ではGitのforce-push禁止・ブランチ保護、 * またはDBのREVOKE UPDATE/DELETEと組み合わせる。DOC-05 §7 / SPEC-INT-056参照）。 * - basisフィールドは「適用した閾値ID・要件ID等」を記録し、根拠までの遡及可能性（AC-020-1, AC-028a）を担保する。 * - レコードはJSONLとして永続化する想定（1行1レコード、追記のみ）。本モジュールはフォーマットと * インメモリ/ファイルの2実装を…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/auditLog.ts:13",
+      "test": "packages/shared/tests/auditLog.test.ts:63",
+      "doc": "runbooks/manual-ops.md:65",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-020-2",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "PrjOps:AC-021-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「packages/prjops/src/lib/logicalDelete.ts * * 根拠: SPEC-INT-027 削除 / REQ-021 上書き・介入の記録 / AC-021-1 * 「物理削除禁止。deleted: true の論理削除のみ。操作可能者はPRF-03、delete_reason必須」 * 「理由未入力の上書き・削除操作はUIレベルで完了できない」」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/prjops/src/lib/logicalDelete.ts:4",
+      "test": "packages/prjops/tests/logicalDelete.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-001",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_BLD.ts * * 根拠: REQ-001 ビルド失敗の自動一次調査 / REQ-002 修正案の自動生成 / SPEC-INT-011 * * 注意: 本ファイルは @anthropic-ai/sdk（分類）と @anthropic-ai/claude-agent-sdk（診断修正案生成）に」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_BLD.ts:4",
+      "test": "なし",
+      "doc": "docs/spec/spec-id-catalog.md:3",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-002",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_BLD.ts * * 根拠: REQ-001 ビルド失敗の自動一次調査 / REQ-002 修正案の自動生成 / SPEC-INT-011 * * 注意: 本ファイルは @anthropic-ai/sdk（分類）と @anthropic-ai/claude-agent-sdk（診断修正案生成）に」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_BLD.ts:4",
+      "test": "packages/server/tests/stakeholderProfileResolver.test.ts:4",
+      "doc": "docs/adr/0002-claude-sdk-usage.md:36",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-003",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_DEP.ts * * 根拠: REQ-003 ステージング自動昇格 / REQ-010 本番デプロイの人間承認 / REQ-012 自動ロールバック * SPEC-INT-020 デプロイ状態機械 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:4",
+      "test": "packages/devops/tests/agtDep.test.ts:43",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-010",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_CHG.ts * * 根拠: SPEC-INT-031 AGT-CHG 承認パッケージ生成 / REQ-010, REQ-011 * 入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、 * リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:4",
+      "test": "packages/devops/tests/agtDep.test.ts:71",
+      "doc": "docs/adr/0009-recharts-3.md:9",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-011",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_CHG.ts * * 根拠: SPEC-INT-031 AGT-CHG 承認パッケージ生成 / REQ-010, REQ-011 * 入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、 * リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-012",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_DEP.ts * * 根拠: REQ-003 ステージング自動昇格 / REQ-010 本番デプロイの人間承認 / REQ-012 自動ロールバック * SPEC-INT-020 デプロイ状態機械 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:4",
+      "test": "packages/devops/tests/agtDep.test.ts:87",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-015",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_INC.ts * * 根拠: REQ-015 一次切り分けの自動化 / REQ-016 時限エスカレーション / REQ-017 誤検知の抑制 * SPEC-INT-030 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-016",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_INC.ts * * 根拠: REQ-015 一次切り分けの自動化 / REQ-016 時限エスカレーション / REQ-017 誤検知の抑制 * SPEC-INT-030 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-017",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_INC.ts * * 根拠: REQ-015 一次切り分けの自動化 / REQ-016 時限エスカレーション / REQ-017 誤検知の抑制 * SPEC-INT-030 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-018",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_SEC.ts * * 根拠: REQ-018 JIT権限付与と自動失効 / REQ-019 月次棚卸し / SPEC-INT-032 / SPEC-INT-053 * 妥当性チェック（決定的ロジック）: 申請者の所属プロジェクト一致、理由テキスト非空、 * 同一対象への有効な既存権限なし、TH-007上限以内の期間。いずれか不成立で申請を差し戻す。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:4",
+      "test": "packages/shared/tests/graphClient.test.ts:48",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-019",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_SEC.ts * * 根拠: REQ-018 JIT権限付与と自動失効 / REQ-019 月次棚卸し / SPEC-INT-032 / SPEC-INT-053 * 妥当性チェック（決定的ロジック）: 申請者の所属プロジェクト一致、理由テキスト非空、 * 同一対象への有効な既存権限なし、TH-007上限以内の期間。いずれか不成立で申請を差し戻す。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:4",
+      "test": "packages/devops/tests/reportTemplates.test.ts:131",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-020",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_RPT.ts * * 根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033 / ADR-0014 REQ-042 SPEC-INT-083 AC-042-1 * 数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。 * 配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:4",
+      "test": "packages/shared/tests/auditLog.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-021",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** PRF-M日次レポートの配信（REQ-021） */ export async function deliverMemberDailyReport( common: DevOpsComposeCommon,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:40",
+      "test": "packages/devops/tests/reportPermissionFilter.test.ts:12",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-022",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** PRF-L日次/週次レポートの配信（REQ-022） */ export async function deliverLeaderReport( common: DevOpsComposeCommon,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:59",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-023",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA指標表示） */ export async function buildAndDeliverManagerReport( common: DevOpsComposeCommon,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:80",
+      "test": "packages/devops/tests/deployStateMachineAndDora.test.ts:62",
+      "doc": "docs/best-practices-research.md:57",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-024",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。 * 配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。 * 配信名簿はAGT-SEC管理の名簿を唯一のソースとし、配信直前に毎回読み直す（REQ-024）。 * * DevOpsのプロファイル別レポート仕様（SPEC-EXT-020〜025）は構造化データの表示が中心で、」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:7",
+      "test": "packages/devops/tests/agtRpt.test.ts:33",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-025",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: * - DevOps REQ-025 GitHub連携: リポジトリイベント(push, workflow_run, PR)をWebhookで受信し、 * Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはSPEC-INT-010のディスパッチ * 60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/githubClient.ts:5",
+      "test": "packages/shared/tests/githubClient.test.ts:38",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-026",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: * - DevOps REQ-026 Teams/Outlook連携: 通知・承認はTeams（アダプティブカード）、定期報告・棚卸しは * Outlook（Microsoft Graph API）で行う。AC-026a: 承認カードのボタン操作が監査ログに操作者IDと * 共に記録される（呼び出し側のagents層がAADユーザーIDをauditLogへ記録する）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/graphClient.ts:5",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-027",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「}; /** SPEC-EXT-033 / REQ-027（多言語通知）: 承認完了時点で影響対象企業へリリース事前通知を送信する */ export async function notifyPartnersOfRelease( targets: PartnerCompanyNotifyTarget[],」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:104",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-028",
+      "category": "REQ",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「); -- SPEC-INT-056 audit_log（追記専用。REQ-028） CREATE TABLE IF NOT EXISTS audit_log ( log_id BIGSERIAL PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:186",
+      "test": "なし",
+      "doc": "runbooks/channel-messages-purge.md:3",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-029",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_ORCH.ts * * 根拠: SPEC-INT-040 AGT-ORCH / REQ-029 可用性・失敗時挙動 * 各エージェントのヘルスチェック（30秒間隔）。エージェント不応答が3回連続した場合、 * REQ-029のフェイルセーフを発動: 能動操作（デプロイ・自動クローズ・権限剥奪以外の付与）を停止し、」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_ORCH.ts:4",
+      "test": "packages/devops/tests/agtOrch.test.ts:4",
+      "doc": "docs/adr/0005-resident-server-and-teams-integration.md:50",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:REQ-030",
+      "category": "REQ",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「rollback: DROP TABLE project_channels; -- ADR-0005: チャネル会話の写し。保存前に sanitizeSecrets() を必ず通すこと（REQ-030）。 -- Teams側の編集/削除は last_modified_at / deleted_at で追従（物理削除しない。監査整合のため）。 -- 保持期間: project_channels.closed_at から13か月後に当該チャネル分をDELETE（runbooks/channel-messages-pu…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:239",
+      "test": "packages/shared/tests/secretSanitizer.test.ts:4",
+      "doc": "docs/claude-code-setup.md:42",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-001",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「repo: string; issueOrPrNumber: number; body: string; // SPEC-EXT-001形式のMarkdown等 }」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/githubClient.ts:67",
+      "test": "packages/shared/tests/githubClient.test.ts:56",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-EXT-002",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-003",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはSPEC-INT-010のディスパッチ * 60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。 * - PrjOps SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。 * - DevOps SPEC-INT-061: GitHub App認証（installation token）。Webhook購読: push, pull_request, * workfl…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/githubClient.ts:8",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-EXT-010",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「根拠: SPEC-INT-031 AGT-CHG 承認パッケージ生成 / REQ-010, REQ-011 * 入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、 * リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。 * 承認完了イベントを受けた場合、影響対象の関連企業へSPEC-EXT-033のリリース事前通知を送信する。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:6",
+      "test": "packages/shared/tests/graphClient.test.ts:48",
+      "doc": "docs/best-practices-research.md:44",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-011",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-012",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-015",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** SPEC-EXT-001 ビルド失敗PRコメント / SPEC-EXT-015 インシデントIssue本文への追記等 */ async createIssueComment(input: CreateIssueCommentInput): Promise<void> { const headers = await this.headers();」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/githubClient.ts:128",
+      "test": "packages/shared/tests/githubClient.test.ts:70",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-016",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** REQ-016: TH-005エスカレーション判定（決定的ロジックへの委譲。SPEC-EXT-016 エスカレーション通知） */ export function evaluateEscalation(input: Th005Input) { return evaluateTh005Escalation(input);」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:131",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-017",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** REQ-017: TH-006誤検知候補判定（決定的ロジックへの委譲、SPEC-INT-030手順5: LLM不使用。 * 候補化時はSPEC-EXT-017 誤検知候補の確認依頼を当番メンバーへ送付する） */ export function evaluateFalsePositiveCandidate(input: Th006Input) { return evaluateTh006FalsePositiveCandidate(input);」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:137",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-020",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「配信名簿はAGT-SEC管理の名簿を唯一のソースとし、配信直前に毎回読み直す（REQ-024）。 * * DevOpsのプロファイル別レポート仕様（SPEC-EXT-020〜025）は構造化データの表示が中心で、 * PrjOps PRF-04のような自由文の「結論」スロットを必須としないため、本エージェントは * 数値集計→権限フィルタ→テンプレート合成→配信 の完全に決定的なパイプラインとして実装する」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:9",
+      "test": "packages/devops/tests/reportTemplates.test.ts:19",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-021",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/lib/reportPermissionFilter.ts * * 根拠: SPEC-EXT-021/022/024（プロファイル別レイアウト）, SPEC-EXT-026（閲覧権限） * REQ-021 PRF-M: 本人の担当分のみ（他人の個人別データは含めない） * REQ-022 PRF-L: 担当プロジェクトのみ。メンバー別ではなくタスク種別別の滞留状況」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/reportPermissionFilter.ts:4",
+      "test": "packages/devops/tests/reportTemplates.test.ts:25",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-022",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「REQ-022 PRF-L: 担当プロジェクトのみ。メンバー別ではなくタスク種別別の滞留状況 * REQ-023 PRF-G: 全50プロジェクト横断 * SPEC-EXT-022 PRF-L日次(5): 滞留状況はメンバー個人名別の集計を表示しない */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/reportPermissionFilter.ts:8",
+      "test": "packages/devops/tests/reportPermissionFilter.test.ts:34",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-023",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/templates/profileReports.ts * * 根拠: SPEC-EXT-021 PRF-M日次 / SPEC-EXT-022 PRF-L日次 / SPEC-EXT-023 PRF-L週次 / * SPEC-EXT-024 PRF-G週次 / SPEC-EXT-025 PRF-G月次 * 数値はすべて data-src 属性付きで埋め込み、AGT-RPT検証（REQ-020 AC-020b）の対象とする。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/templates/profileReports.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-024",
+      "category": "SPEC-EXT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: SPEC-EXT-021 PRF-M日次 / SPEC-EXT-022 PRF-L日次 / SPEC-EXT-023 PRF-L週次 / * SPEC-EXT-024 PRF-G週次 / SPEC-EXT-025 PRF-G月次 * 数値はすべて data-src 属性付きで埋め込み、AGT-RPT検証（REQ-020 AC-020b）の対象とする。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/templates/profileReports.ts:5",
+      "test": "packages/devops/tests/reportTemplates.test.ts:82",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-025",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: SPEC-EXT-021 PRF-M日次 / SPEC-EXT-022 PRF-L日次 / SPEC-EXT-023 PRF-L週次 / * SPEC-EXT-024 PRF-G週次 / SPEC-EXT-025 PRF-G月次 * 数値はすべて data-src 属性付きで埋め込み、AGT-RPT検証（REQ-020 AC-020b）の対象とする。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/templates/profileReports.ts:5",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-026",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033 / ADR-0014 REQ-042 SPEC-INT-083 AC-042-1 * 数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。 * 配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。 * 配信名簿はAGT-SEC管理の名簿を唯一のソースとし、配信直前に毎回読み直す（REQ-024）。 *」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:6",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-030",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「JIT失効: スケジューラが毎分、expires_at <= now の権限を剥奪する。 * 手動変更を検出した場合は差分をSev3インシデントとして起票する。 * 外部企業アカウントに関する見え方はSPEC-EXT-030(障害通知)/031(障害受付)/032(アクセス権の見え方、 * 期限7日前の更新案内)に対応する。権限不足時の見え方はSPEC-EXT-043。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:9",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-031",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-032",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-033",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、 * リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。 * 承認完了イベントを受けた場合、影響対象の関連企業へSPEC-EXT-033のリリース事前通知を送信する。 */ import type { AnthropicStructuredClient } from \"@aiops/shared/clients/anthropicCl…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:7",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-040",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** REQ-012: TH-003充足時に自動ロールバックし、Sev2起票、Teams即時通知（2分以内, AC-012b）。 * ユーザー視点の見え方はSPEC-EXT-040（デプロイ失敗時のロールバック通知）に対応する。 * 承認期限切れ時の見え方はSPEC-EXT-041（別経路、TH-002タイマー）を参照。 */ export async function monitorAndRollbackIfNeeded(」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:111",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-041",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「** REQ-012: TH-003充足時に自動ロールバックし、Sev2起票、Teams即時通知（2分以内, AC-012b）。 * ユーザー視点の見え方はSPEC-EXT-040（デプロイ失敗時のロールバック通知）に対応する。 * 承認期限切れ時の見え方はSPEC-EXT-041（別経路、TH-002タイマー）を参照。 */ export async function monitorAndRollbackIfNeeded( th003Input: Th003Input,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:112",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-042",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「各エージェントのヘルスチェック（30秒間隔）。エージェント不応答が3回連続した場合、 * REQ-029のフェイルセーフを発動: 能動操作（デプロイ・自動クローズ・権限剥奪以外の付与）を停止し、 * SPEC-EXT-042の通知を送信。権限の自動失効（剥奪）は安全側の操作として継続する。 * 逸脱監視: 各エージェントの出力が本仕様のスキーマに適合しない場合、当該出力を破棄してリトライ * （最大2回）、それでも失敗した場合は人間へエスカレーションする。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_ORCH.ts:7",
+      "test": "なし",
+      "doc": "runbooks/manual-ops.md:39",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-043",
+      "category": "SPEC-EXT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「手動変更を検出した場合は差分をSev3インシデントとして起票する。 * 外部企業アカウントに関する見え方はSPEC-EXT-030(障害通知)/031(障害受付)/032(アクセス権の見え方、 * 期限7日前の更新案内)に対応する。権限不足時の見え方はSPEC-EXT-043。 */ import type { GitHubClient } from \"@aiops/shared/clients/githubClient.js\";」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:10",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-EXT-044",
+      "category": "SPEC-EXT",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-001",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「ADR-0005: Graphサブスクリプション台帳。renew対象・プロセス再起動後の復元・deltaLink永続化の正本。 -- mode: notification=change notification受信中 / polling=renew失敗時の5分deltaフォールバック（SPEC-INT-001） CREATE TABLE IF NOT EXISTS graph_subscriptions ( subscription_id TEXT PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:262",
+      "test": "packages/shared/tests/graphClientChannelMessages.test.ts:5",
+      "doc": "docs/adr/0002-claude-sdk-usage.md:9",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-010",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「2026-07-10 ADR-0005 / SPEC-INT-010: eventsキューのretry/DLQ/lease回収とwebhook冪等キー。 -- attempts/next_attempt_atは失敗イベントの指数backoff再試行、claimed_atはdispatched lease回収、 -- dedupe_keyはGitHub X-GitHub-Delivery / Graph message id の重複投入防止に使う。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/migrations/202607100001_events_retry_dedupe.sql:1",
+      "test": "packages/server/tests/eventsPollingTask.test.ts:4",
+      "doc": "docs/best-practices-research.md:65",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-011",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_BLD.ts * * 根拠: REQ-001 ビルド失敗の自動一次調査 / REQ-002 修正案の自動生成 / SPEC-INT-011 * * 注意: 本ファイルは @anthropic-ai/sdk（分類）と @anthropic-ai/claude-agent-sdk（診断修正案生成）に」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_BLD.ts:4",
+      "test": "packages/devops/tests/buildClassification.test.ts:12",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-020",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: REQ-003 ステージング自動昇格 / REQ-010 本番デプロイの人間承認 / REQ-012 自動ロールバック * SPEC-INT-020 デプロイ状態機械 * * 決定的な判断（TH-001/TH-002/TH-003評価、状態遷移検証）はlib/配下の純粋関数に委譲し、」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:5",
+      "test": "packages/devops/tests/agtDep.test.ts:71",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-021",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「根拠: SPEC-INT-031 AGT-CHG 承認パッケージ生成 / REQ-010, REQ-011 * 入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、 * リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。 * 承認完了イベントを受けた場合、影響対象の関連企業へSPEC-EXT-033のリリース事前通知を送信する。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:6",
+      "test": "packages/devops/tests/riskScore.test.ts:13",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-030",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: REQ-015 一次切り分けの自動化 / REQ-016 時限エスカレーション / REQ-017 誤検知の抑制 * SPEC-INT-030 * * 分類（severity_candidate等）はLLM（PROMPT-INC-01）、TH-005エスカレーション・TH-006誤検知判定は」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:5",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-031",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_CHG.ts * * 根拠: SPEC-INT-031 AGT-CHG 承認パッケージ生成 / REQ-010, REQ-011 * 入力: 対象リリースのPR一覧・diff・CI結果。処理: 差分要約(PROMPT-CHG-01、最大10行)、 * リスクスコア(SPEC-INT-021)、ロールバック手順を組み立て、SPEC-EXT-010カードをTeamsへ送信。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_CHG.ts:4",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-032",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_SEC.ts * * 根拠: REQ-018 JIT権限付与と自動失効 / REQ-019 月次棚卸し / SPEC-INT-032 / SPEC-INT-053 * 妥当性チェック（決定的ロジック）: 申請者の所属プロジェクト一致、理由テキスト非空、 * 同一対象への有効な既存権限なし、TH-007上限以内の期間。いずれか不成立で申請を差し戻す。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:4",
+      "test": "packages/devops/tests/agtSec.test.ts:27",
+      "doc": "docs/adr/0003-devops-runtime.md:18",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-033",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_RPT.ts * * 根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033 / ADR-0014 REQ-042 SPEC-INT-083 AC-042-1 * 数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。 * 配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:4",
+      "test": "packages/server/tests/freeTextIntent.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-040",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_ORCH.ts * * 根拠: SPEC-INT-040 AGT-ORCH / REQ-029 可用性・失敗時挙動 * 各エージェントのヘルスチェック（30秒間隔）。エージェント不応答が3回連続した場合、 * REQ-029のフェイルセーフを発動: 能動操作（デプロイ・自動クローズ・権限剥奪以外の付与）を停止し、」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_ORCH.ts:4",
+      "test": "packages/server/tests/scheduler.test.ts:5",
+      "doc": "docs/adr/0003-devops-runtime.md:13",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-041",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「TH-007（JIT失効）はjitExpiry.tsに分離する。 * * SPEC-INT-041 スケジューラ: TH-002/TH-005等のタイマージョブは永続化キューで管理し、 * プロセス再起動でタイマーが消失しないこと。本ファイルのevaluateTh002ApprovalTimer / * evaluateTh005Escalationは「現在時刻と起点時刻の差分」から都度再計算する副作用のない設計とし、」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/thresholds.ts:15",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-050",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/db/schema.sql -- -- 根拠: DevOps DOC-INT-04 §3 データ構造（SPEC-INT-050番台） -- データストアはRDB（PostgreSQL想定）。本ファイルは全テーブル定義の正本。 -- 変更時は通常のPRレビューを経ること。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:3",
+      "test": "なし",
+      "doc": "README.md:34",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-051",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: * - PrjOps SPEC-INT-051 (c): プレースホルダ（{{ }} / undefined / null の出現ゼロ検査）。 * - PrjOps SPEC-INT-051 (a): レポートHTML内の data-src=\"{path}#{field}\" 属性付き数値を全抽出し、 * 正本YAMLの値と完全一致比較。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/html/htmlSanitizeCheck.ts:5",
+      "test": "packages/shared/tests/htmlSanitizeCheck.test.ts:11",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-INT-052",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「return `PRJ-${pad(seq, 3)}`; } /** DevOps: INC-nnn（SPEC-INT-052） */ export function formatIncidentId(seq: number): string { return `INC-${pad(seq, 4)}`;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/ids.ts:95",
+      "test": "packages/server/tests/reportDeliveryLogRepo.test.ts:21",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-INT-053",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「packages/devops/src/agents/AGT_SEC.ts * * 根拠: REQ-018 JIT権限付与と自動失効 / REQ-019 月次棚卸し / SPEC-INT-032 / SPEC-INT-053 * 妥当性チェック（決定的ロジック）: 申請者の所属プロジェクト一致、理由テキスト非空、 * 同一対象への有効な既存権限なし、TH-007上限以内の期間。いずれか不成立で申請を差し戻す。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:4",
+      "test": "packages/shared/tests/auditLog.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-054",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「CREATE INDEX IF NOT EXISTS idx_grants_subject ON grants (subject); -- SPEC-INT-054 配信名簿（recipients） CREATE TABLE IF NOT EXISTS recipients ( user_id TEXT PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:141",
+      "test": "packages/shared/tests/businessCalendar.test.ts:17",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-055",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「); -- SPEC-INT-055 report_snapshots CREATE TABLE IF NOT EXISTS report_snapshots ( snapshot_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:176",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-056",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「); -- SPEC-INT-056 audit_log（追記専用。REQ-028） CREATE TABLE IF NOT EXISTS audit_log ( log_id BIGSERIAL PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:186",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-057",
+      "category": "SPEC-INT",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「GRANT INSERT, SELECT ON audit_log TO app_role; -- SPEC-INT-057 partner_companies CREATE TABLE IF NOT EXISTS partner_companies ( company_id TEXT PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:203",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-060",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「rollback: DROP TABLE graph_subscriptions; -- ADR-0005: LLM使用量台帳（PgCostGuard。SPEC-INT-060: 日次コスト上限をバッチ+WebチャットでSYSTEM全体共有） CREATE TABLE IF NOT EXISTS llm_usage ( usage_id BIGSERIAL PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/schema.sql:275",
+      "test": "packages/shared/tests/pgCostGuard.test.ts:4",
+      "doc": "docs/adr/0005-resident-server-and-teams-integration.md:47",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-061",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。 * - PrjOps SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。 * - DevOps SPEC-INT-061: GitHub App認証（installation token）。Webhook購読: push, pull_request, * workflow_run, issues。API操作: Issue/PRコメント作成、workflow_dispatch、権限付与API、監査ロ…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/clients/githubClient.ts:9",
+      "test": "packages/shared/tests/githubClient.test.ts:5",
+      "doc": "なし",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-INT-062",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「2026-07-10 ADR-0007 / SPEC-INT-062 / SPEC-INT-081: pm_events subject_typeの拡張。 ALTER TABLE pm_events DROP CONSTRAINT IF EXISTS pm_events_subject_type_check; ALTER TABLE pm_events ADD CONSTRAINT pm_events_subject_type_check CHECK (subject_type IN ('issue', 'pul…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/migrations/202607100000_pm_events_subject_type.sql:1",
+      "test": "packages/shared/tests/graphClient.test.ts:48",
+      "doc": "docs/adr/0007-github-time-series-snapshots.md:12",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-063",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「2026-07-09 ADR-0008 / REQ-037 / SPEC-INT-063: Excelインポート台帳。 CREATE TABLE IF NOT EXISTS import_ledger ( source_key TEXT PRIMARY KEY,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/db/migrations/202607100004_import_ledger.sql:1",
+      "test": "packages/shared/tests/githubClient.test.ts:85",
+      "doc": "AGENTS.md:57",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-064",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「- PrjOps ASM-002: 報告言語は受信者ごとにja/enを選択可能。既定値は国内企業=ja、海外企業=en。 * - PrjOps DOC-05 §8: stakeholder.preferred_language未設定時は organization.country が JP なら ja、他は en。 * - DevOps SPEC-INT-064: 外部向け通知はja/en両言語のテンプレートを保持し、partner_companies.languageで選択。 * 機械翻訳の動的生成は行わない（文…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/shared/src/language.ts:7",
+      "test": "packages/web/tests/chartData.test.ts:9",
+      "doc": "docs/adr/0009-recharts-3.md:13",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-INT-068",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは要求・仕様の根拠として「* 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/ * ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。POST /api/chat — * 本ファイルは本番用DI（auth() + pg.Pool + createAnthropic + PgCostGuard）を組み立てて * server/chat/chatHandler.ts へ委譲する薄い配線層。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/web/src/app/api/chat/route.ts:5",
+      "test": "packages/web/tests/chat/ChatPanel.test.tsx:7",
+      "doc": "docs/adr/0013-page-agent-reasoning-generative-ui.md:34",
+      "ambiguity": true
+    },
+    {
+      "key": "DevOps:SPEC-INT-070",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「REQ-032/030: シークレットが混入していた場合は例外を出し、呼び出し側にサニタイズを強制する throw new Error( `E-AUD02: refusing to write audit record containing ${redactionCount} secret-like pattern(s). Sanitize before writing (REQ-032/SPEC-INT-070).`, ); }」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/auditLog.ts:61",
+      "test": "packages/shared/tests/secretSanitizer.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:SPEC-INT-080",
+      "category": "SPEC-INT",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「- DevOps SPEC-INT-062: Teamsアダプティブカード送信・アクション受信（カード操作者のAADユーザーIDを * 監査ログに記録）、sendMailによるHTMLメール配信。 * - DevOps SPEC-INT-080: GitHub/Graph APIレート制限（429）は指数バックオフ（初期30秒、最大15分）。 * * 実装上の重要な制約（公式ドキュメントに基づく設計判断）:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/graphClient.ts:13",
+      "test": "packages/shared/tests/graphClient.test.ts:6",
+      "doc": "docs/best-practices-research.md:41",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-001",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「SPEC-INT-020 デプロイ状態機械 * * 決定的な判断（TH-001/TH-002/TH-003評価、状態遷移検証）はlib/配下の純粋関数に委譲し、 * 本エージェントはGitHubClient/Graph/AuditLogとの結線のみを担当する。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:7",
+      "test": "packages/devops/tests/agtDep.test.ts:43",
+      "doc": "README.md:31",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-002",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「SPEC-INT-020 デプロイ状態機械 * * 決定的な判断（TH-001/TH-002/TH-003評価、状態遷移検証）はlib/配下の純粋関数に委譲し、 * 本エージェントはGitHubClient/Graph/AuditLogとの結線のみを担当する。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:7",
+      "test": "packages/devops/tests/thresholds.test.ts:57",
+      "doc": "runbooks/manual-ops.md:19",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-003",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「SPEC-INT-020 デプロイ状態機械 * * 決定的な判断（TH-001/TH-002/TH-003評価、状態遷移検証）はlib/配下の純粋関数に委譲し、 * 本エージェントはGitHubClient/Graph/AuditLogとの結線のみを担当する。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:7",
+      "test": "packages/devops/tests/agtDep.test.ts:92",
+      "doc": "runbooks/manual-ops.md:21",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-004",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「} /** REQ-015: TH-004 SLA内に起票・通知する（AC-015c: sev1は候補としてのみ扱う） */ export async function triageAndNotify( classification: IncidentClassification,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:70",
+      "test": "packages/devops/tests/thresholds.test.ts:79",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-005",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「SPEC-INT-030 * * 分類（severity_candidate等）はLLM（PROMPT-INC-01）、TH-005エスカレーション・TH-006誤検知判定は * 決定的ロジック（lib/thresholds.ts, lib/falsePositiveRule.ts、いずれもオフライン検証済み）。 * Sev1は候補提示のみで、人間の宣言操作なしに確定しない（AC-015c）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:7",
+      "test": "packages/devops/tests/thresholds.test.ts:88",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-006",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは要求・仕様の根拠として「SPEC-INT-030 * * 分類（severity_candidate等）はLLM（PROMPT-INC-01）、TH-005エスカレーション・TH-006誤検知判定は * 決定的ロジック（lib/thresholds.ts, lib/falsePositiveRule.ts、いずれもオフライン検証済み）。 * Sev1は候補提示のみで、人間の宣言操作なしに確定しない（AC-015c）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:7",
+      "test": "packages/devops/tests/falsePositiveRule.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:TH-007",
+      "category": "TH",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは要求・仕様の根拠として「根拠: REQ-018 JIT権限付与と自動失効 / REQ-019 月次棚卸し / SPEC-INT-032 / SPEC-INT-053 * 妥当性チェック（決定的ロジック）: 申請者の所属プロジェクト一致、理由テキスト非空、 * 同一対象への有効な既存権限なし、TH-007上限以内の期間。いずれか不成立で申請を差し戻す。 * JIT失効: スケジューラが毎分、expires_at <= now の権限を剥奪する。 * 手動変更を検出した場合は差分をSev3インシデントとして起票する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_SEC.ts:6",
+      "test": "packages/devops/tests/agtSec.test.ts:44",
+      "doc": "docs/adr/0003-devops-runtime.md:44",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-01",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-02",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-03",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-04",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-05",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-06",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-07",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:ISS-08",
+      "category": "ISS",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-001a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-001b",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-001c",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「packages/devops/src/lib/buildClassification.ts * * 根拠: SPEC-INT-011 手順6 / REQ-001 AC-001c * confidence < 0.6 の場合は classification を unknown に上書きする * （過信した誤分類より不明を優先する）。LLM出力に対する決定的な後処理。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/buildClassification.ts:4",
+      "test": "packages/devops/tests/buildClassification.test.ts:12",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-002a",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「export interface DiffSuggestionResult { diffText: string \\| null; // 生成できなかった場合はnull（AC-002a: 8件中8件以上を目標。全件成功は保証しない） rawTranscriptSummary: string; }」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/claudeAgentClient.ts:42",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-002b",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** SPEC-INT-011手順4: test_failure/compile_errorの場合のみClaude Codeで修正diffを生成（read-only、AC-002b） */ export async function generateFixSuggestionIfApplicable( classification: ClassificationResult,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_BLD.ts:71",
+      "test": "なし",
+      "doc": "docs/adr/0002-claude-sdk-usage.md:36",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-003a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** TH-001: ステージング自動昇格条件（AC-003a: カバレッジ80.0%ちょうどは充足＝境界値を満たす） */ export function evaluateTh001StagingPromotion(input: Th001Input): boolean { return input.ciAllJobsSuccess && input.unitTestCoveragePct >= 80.0 && input.staticAnalysisCriticalCount === 0;」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/thresholds.ts:28",
+      "test": "packages/devops/tests/agtDep.test.ts:58",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-003b",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** REQ-003: TH-001充足時にステージングへ自動昇格し、Teamsチャネルへ事後通知する（AC-003b: 5分以内） */ export async function promoteToStagingIfEligible( th001Input: Th001Input,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:32",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-010a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** AC-010a: 承認なしで本番デプロイが実行される経路が存在しないことの機械検証用ヘルパ */ export function reachesProdDeployingWithoutApproval(transitionLog: DeployState[]): boolean { const prodIndex = transitionLog.indexOf(\"prod_deploying\");」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/deployStateMachine.ts:53",
+      "test": "packages/devops/tests/agtDep.test.ts:79",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-010b",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-010c",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-011a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは受入条件の根拠として「D: テスト結果（失敗あり=100。失敗0ならカバレッジ80%以上=0、80%未満は不足分を線形評価） * E: デプロイ予定時刻が営業時間外（JST 19:00〜翌9:00・土日）なら100、営業時間内0 * AC-011a: 同一入力に対しスコアが決定的（同値）であること → 純関数として実装。 * AC-011b: スコア70以上の場合、承認カードに「高リスク」バッジが表示される。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/riskScore.ts:11",
+      "test": "packages/devops/tests/riskScore.test.ts:72",
+      "doc": "README.md:80",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-011b",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「E: デプロイ予定時刻が営業時間外（JST 19:00〜翌9:00・土日）なら100、営業時間内0 * AC-011a: 同一入力に対しスコアが決定的（同値）であること → 純関数として実装。 * AC-011b: スコア70以上の場合、承認カードに「高リスク」バッジが表示される。 */ import { isBusinessHoursJst, type HolidayCalendar } from \"@aiops/shared/calendar/businessCalendar.js\";」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/riskScore.ts:12",
+      "test": "packages/devops/tests/riskScore.test.ts:72",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-012a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「(b) p95レイテンシがデプロイ前1時間ベースラインの200%超を10分間継続 * のいずれかを満たした場合、自動ロールバックを発動する。 * AC-012a: (a)(b)それぞれを模擬した負荷テストでロールバックが発動する。 * * サンプルは30秒間隔取得を想定（SPEC-INT-020: 監視API(Datadog想定)から30秒間隔でメトリクス取得）が、」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/deployMonitor.ts:9",
+      "test": "packages/devops/tests/agtDep.test.ts:87",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-012b",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** REQ-012: TH-003充足時に自動ロールバックし、Sev2起票、Teams即時通知（2分以内, AC-012b）。 * ユーザー視点の見え方はSPEC-EXT-040（デプロイ失敗時のロールバック通知）に対応する。 * 承認期限切れ時の見え方はSPEC-EXT-041（別経路、TH-002タイマー）を参照。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:110",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-012c",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「actor: \"AGT-DEP\", action: \"rollback_target_not_found\", basis: \"TH-003/AC-012c\", detail: { matchedConditions: evaluation.matchedConditions }, at: new Date().toISOString(),」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_DEP.ts:131",
+      "test": "packages/devops/tests/agtDep.test.ts:130",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-015a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-015b",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-015c",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「分類（severity_candidate等）はLLM（PROMPT-INC-01）、TH-005エスカレーション・TH-006誤検知判定は * 決定的ロジック（lib/thresholds.ts, lib/falsePositiveRule.ts、いずれもオフライン検証済み）。 * Sev1は候補提示のみで、人間の宣言操作なしに確定しない（AC-015c）。 */ import type { AnthropicStructuredClient } from \"@aiops/shared/clients/anth…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_INC.ts:9",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-016a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-016b",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-017a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「同一アラートルールが直近30日で3回以上「誤検知」ラベルでクローズ済み AND 今回のメトリクス値が * 閾値の110%未満 → 自動クローズ候補として人間の確認（24時間以内）に回す。 * AC-017a: TH-006充足ケースが候補化され、非充足ケースが候補化されないことを確認。 * AC-017b: 人間確認なしで自動クローズされないことを確認（24時間経過してもオープンのまま維持）。 * SPEC-INT-030手順5: TH-006判定は決定的ロジック（LLM不使用）で実装する。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/falsePositiveRule.ts:7",
+      "test": "packages/devops/tests/falsePositiveRule.test.ts:4",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-017b",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「閾値の110%未満 → 自動クローズ候補として人間の確認（24時間以内）に回す。 * AC-017a: TH-006充足ケースが候補化され、非充足ケースが候補化されないことを確認。 * AC-017b: 人間確認なしで自動クローズされないことを確認（24時間経過してもオープンのまま維持）。 * SPEC-INT-030手順5: TH-006判定は決定的ロジック（LLM不使用）で実装する。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/falsePositiveRule.ts:8",
+      "test": "packages/devops/tests/falsePositiveRule.test.ts:43",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-018a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「本番環境権限は最長8時間で自動失効。開発・ステージングは最長30日。 * 外部企業アカウントは全環境で最長90日、更新には再承認必須。 * AC-018a: 本番権限が付与から8時間で自動失効することを確認。 * AC-018b: 外部企業アカウントが90日で失効し、再承認なしに延長されないことを確認。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/jitExpiry.ts:7",
+      "test": "packages/devops/tests/jitExpiry.test.ts:28",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-018b",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「外部企業アカウントは全環境で最長90日、更新には再承認必須。 * AC-018a: 本番権限が付与から8時間で自動失効することを確認。 * AC-018b: 外部企業アカウントが90日で失効し、再承認なしに延長されないことを確認。 */」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/jitExpiry.ts:8",
+      "test": "packages/devops/tests/jitExpiry.test.ts:56",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-018c",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-019a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-020a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-020b",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「* 根拠: REQ-020〜024 プロファイル別定期報告 / SPEC-INT-033 / ADR-0014 REQ-042 SPEC-INT-083 AC-042-1 * 数値はスナップショットから直接埋め込み、LLMによる数値の再生成は行わない（AC-020bの捏造防止）。 * 配信: プロファイル・担当範囲でデータをフィルタしてからレンダリングする（SPEC-EXT-026）。 * 配信名簿はAGT-SEC管理の名簿を唯一のソースとし、配信直前に毎回読み直す（REQ-024）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:5",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-021a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-021b",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** REQ-021 AC-021b: 他メンバーの個人別タスクデータが含まれない（自分のPRのみ） */ export function filterOwnPrsForMember(prs: PrLike[], recipientUserId: string): PrLike[] { return prs.filter((pr) => pr.authorUserId === recipientUserId \\|\\| pr.reviewerUserId === recipientUserId);」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/reportPermissionFilter.ts:31",
+      "test": "packages/devops/tests/reportPermissionFilter.test.ts:22",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-022a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-023a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** PRF-G週次/月次レポートの配信（REQ-023, AC-023a/b: 全50プロジェクト横断・DORA指標表示） */ export async function buildAndDeliverManagerReport( common: DevOpsComposeCommon,」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:80",
+      "test": "packages/devops/tests/agtRpt.test.ts:58",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-023b",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "high",
+      "text": "現行リポジトリでは受入条件の根拠として「packages/devops/src/lib/doraMetrics.ts * * 根拠: REQ-023 PRF-G（マネージャー）向け / AC-023b: DORA指標を決定的に算出する。 * * DORA（DevOps Research and Assessment）の5指標定義（出典: dora.dev / Google Cloud \"Four Keys\"）:」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/lib/doraMetrics.ts:4",
+      "test": "packages/devops/tests/deployStateMachineAndDora.test.ts:62",
+      "doc": "docs/best-practices-research.md:57",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-024a",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "medium",
+      "text": "現行リポジトリでは受入条件の根拠として「} /** REQ-024 AC-024a: 配信直前に名簿を読み直し、非activeな宛先を除外する */ export function resolveActiveRecipients(recipients: RecipientRecord[], candidateUserIds: string[]): string[] { return candidateUserIds.filter((id) => isActiveRecipient(recipients, id));」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/devops/src/agents/AGT_RPT.ts:35",
+      "test": "packages/devops/tests/agtRpt.test.ts:33",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-025a",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「根拠: * - DevOps REQ-025 GitHub連携: リポジトリイベント(push, workflow_run, PR)をWebhookで受信し、 * Issue/PRコメント・デプロイをGitHub API経由で実行する（AC-025aはSPEC-INT-010のディスパッチ * 60秒以内要件、本クライアントはそのAPI呼び出し部分を担当）。 * - PrjOps SPEC-EXT-003 / REQ-004(c): GitHub構造化ファイルのコミット/PR受付。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/githubClient.ts:6",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-026a",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「根拠: * - DevOps REQ-026 Teams/Outlook連携: 通知・承認はTeams（アダプティブカード）、定期報告・棚卸しは * Outlook（Microsoft Graph API）で行う。AC-026a: 承認カードのボタン操作が監査ログに操作者IDと * 共に記録される（呼び出し側のagents層がAADユーザーIDをauditLogへ記録する）。 * - PrjOps SPEC-INT-001: Microsoft連携はMicrosoft Graph API（アプリケーション権限）。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/clients/graphClient.ts:6",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-027a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-028a",
+      "category": "AC",
+      "status": "部分復元",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「（型システムのレベルで改変不可を強制する。実運用ではGitのforce-push禁止・ブランチ保護、 * またはDBのREVOKE UPDATE/DELETEと組み合わせる。DOC-05 §7 / SPEC-INT-056参照）。 * - basisフィールドは「適用した閾値ID・要件ID等」を記録し、根拠までの遡及可能性（AC-020-1, AC-028a）を担保する。 * - レコードはJSONLとして永続化する想定（1行1レコード、追記のみ）。本モジュールはフォーマットと * インメモリ/ファイルの2実装を…」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。",
+      "source": "packages/shared/src/auditLog.ts:13",
+      "test": "なし",
+      "doc": "runbooks/manual-ops.md:65",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-029a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "runbooks/manual-ops.md:6",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-030a",
+      "category": "AC",
+      "status": "復元不能",
+      "confidence": "low",
+      "text": "復元不能。実装・テストにexact-token参照がなく、外部原本もないため、意味・境界条件・期待結果を証拠から再構成できない。",
+      "source": "なし",
+      "test": "なし",
+      "doc": "なし",
+      "ambiguity": false
+    },
+    {
+      "key": "DevOps:AC-041-1",
+      "category": "AC",
+      "status": "逆再構成",
+      "confidence": "low",
+      "text": "現行リポジトリでは受入条件の根拠として「* 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/ * ADR-0013 / REQ-041 / SPEC-INT-068 / AC-041-1。POST /api/chat — * 本ファイルは本番用DI（auth() + pg.Pool + createAnthropic + PgCostGuard）を組み立てて * server/chat/chatHandler.ts へ委譲する薄い配線層。」が参照されている。これは実装・テストが示す現状記述であり、正しい要求の証明ではない。同一IDが両systemに存在し、共有corpus参照はnamespaceを確定できない。",
+      "source": "packages/web/src/app/api/chat/route.ts:5",
+      "test": "packages/web/tests/chat/ChatPanel.test.tsx:7",
+      "doc": "docs/adr/0013-page-agent-reasoning-generative-ui.md:34",
+      "ambiguity": true
+    }
+  ]
+}

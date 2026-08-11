@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "standard-report.v1",
+  "reportType": "manager-weekly",
+  "evidenceIds": [],
+  "period": {
+    "label": "2026-W28",
+    "generatedAt": "2026-07-09T18:30:00+09:00"
+  },
+  "metrics": {
+    "completed": 3
+  },
+  "slots": {
+    "conclusion": "ok"
+  }
+}

@@ -1,0 +1,34 @@
+T20 validation
+
+Failing repro tests before implementation:
+- pnpm --filter @aiops/server test -- tests/xlsxImportRoutes.test.ts tests/standardReportsRepo.test.ts
+  - failed as expected: missing/bad xlsx signatures returned 200; missing secret returned 200; allowlist outsider returned 200; generatedAt changed report ID.
+- pnpm --filter @aiops/shared test -- tests/xlsxImport.test.ts
+  - failed as expected: ledger insert failure still called createIssue.
+- pnpm --filter @aiops/prjops test -- tests/agt05Distributor.test.ts
+  - failed as expected: pending delivery log replay was skipped instead of sent with "(再送)".
+
+Targeted validation after implementation:
+- pnpm --filter @aiops/server test -- tests/xlsxImportRoutes.test.ts tests/standardReportsRepo.test.ts tests/importLedgerRepo.test.ts
+  - passed: 15 tests.
+- pnpm --filter @aiops/shared test -- tests/xlsxImport.test.ts
+  - passed: 9 tests.
+- pnpm --filter @aiops/prjops test -- tests/agt05Distributor.test.ts
+  - passed: 9 tests.
+- pnpm --filter @aiops/server test -- tests/reportDeliveryLogRepo.test.ts tests/xlsxImportRoutes.test.ts tests/standardReportsRepo.test.ts tests/importLedgerRepo.test.ts
+  - passed: 18 tests.
+- pnpm --filter @aiops/server test -- tests/reportIngestRoutes.test.ts tests/standardReportsRepo.test.ts
+  - passed: 7 tests.
+  - verifies generatedAt-only regeneration is treated as duplicate and does not call delivery again.
+
+Full validation:
+- pnpm format:write
+  - passed.
+- mise run ci
+  - passed after final report ingest dedup test addition.
+  - Final run included lint, traceability, format, build, typecheck, and coverage.
+  - Final coverage summary included server 31 files / 176 tests passed, shared 13 files / 118 tests passed, prjops 19 files / 194 tests passed, devops 15 files / 154 tests passed.
+
+Traceability:
+- packages/traceability/src/verifyTraceability.ts now includes packages/server in both PrjOps and DevOps corpora.
+- Final traceability run: OK, all REQ/SPEC-INT/TH IDs referenced from implementation code.

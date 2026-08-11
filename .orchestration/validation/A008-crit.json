@@ -1,0 +1,12 @@
+[
+  {
+    "scope": "review",
+    "id": "r_7295c2",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A008 Phase 1 self-review: P0=0, P1=0. P2-01: show_project_board is exposed although DashboardClient has no board endpoint and ADR-0018 requires a false availability gate. Owner: P013-F01-T02. Target date: 2026-07-25. Mitigation: page-agent-tools.md now warns that the path always returns E-VIEW02; P013-F01-T02 must hide the tool until P010-F02-T10..T14 delivers the read-only board. P2-02: tests/validate-acceptance-manifest.test.mjs still treats the tracked manifest as ending at T09, so 9 of 12 root tests fail after the accepted T10 record even though the production --through P010-F01-T10 command succeeds. Owner: codex-gpt56sol-high follow-up assigned by orchestrator. Target date: 2026-07-25. Mitigation: use the exact golden-name test plus the production through-T10 validator for A008; follow-up must build T09 fixtures from an explicit prefix rather than the advancing tracked manifest. No product logic or test edit is permitted in A008.",
+    "author": "Codex",
+    "created_at": "2026-07-18T00:45:07Z",
+    "updated_at": "2026-07-18T00:45:07Z"
+  }
+]

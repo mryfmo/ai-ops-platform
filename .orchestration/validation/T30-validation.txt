@@ -1,0 +1,91 @@
+T30 VALIDATION EVIDENCE
+=======================
+
+Repository: /Users/mryfmo/Workspace/ai-ops-platform
+Commit: 21306d8
+Branch: main
+Date: 2026-07-10
+
+1. mise run ci
+Result: PASS (exit 0)
+Observed stages: governance, lint, traceability, format, build, typecheck, test:coverage.
+Coverage-gated test totals:
+  shared: 145 passed
+  prjops: 201 passed
+  devops: 157 passed
+  server: 230 passed
+  total: 833 passed
+Important coverage observations:
+  packages/server/src/index.ts: 0%
+  packages/server/src/main.ts: 0%
+  packages/server/scripts/start-container.mjs: 0%
+  packages/server/src/db/pgAuditLog.ts: 0%
+  packages/devops/src/agents/AGT_BLD.ts: 0%
+  packages/devops/src/agents/AGT_CHG.ts: 0%
+  packages/devops/src/agents/AGT_INC.ts: 0%
+  packages/prjops/src/agents/AGT02_collector.ts: 0%
+  packages/prjops/src/agents/AGT03_analyzer.ts: 0%
+  packages/prjops/src/agents/AGT04_reportGenerator.ts: 0%
+
+2. pnpm --filter @aiops/web run test
+Result: PASS (exit 0)
+Test files: 20 passed
+Tests: 152 passed
+Note: one expected stream-error test prints an Error: boom stack to stderr and still passes.
+
+3. pnpm audit --prod
+Result: advisories found (non-zero policy result expected)
+Summary: 4 vulnerabilities, 3 moderate and 1 low.
+  - next-auth beta email misdelivery advisory; current app uses Entra provider, not email provider.
+  - PostCSS stringify XSS advisory via Next.js dependency.
+  - uuid buffer bounds advisory via exceljs dependency.
+  - @ai-sdk/provider-utils resource-consumption advisory; no patched release listed by audit.
+No high or critical advisory reported.
+
+4. Traceability output during CI
+PrjOps test references: REQ 74%, SPEC-EXT 30%, SPEC-INT 83%, AC 71%.
+DevOps test references: REQ 64%, SPEC-EXT 28%, SPEC-INT 77%, TH 100%, AC 43%.
+Gate still reports OK because only missing source references for REQ/SPEC-INT/TH are hard failures.
+
+5. Workspace integrity
+`mise run ci` regenerated packages/traceability/output/traceability_matrix.md only by timestamp.
+The worker restored that worker-caused tracked change to HEAD after validation.
+Final `git status --short`: only pre-existing untracked `.agents/`; no tracked source diff.
+
+6. Not executed
+- Real PostgreSQL/schema/migration/role test: PostgreSQL environment not provisioned.
+- Docker build/start: Docker availability was not assumed and this audit did not download images.
+- Real Entra/GitHub/Graph/Anthropic E2E: forbidden or requires external production-like environment.
+- Load/performance test: no repository harness exists.
+
+7. Artifact completeness checks
+Result: PASS
+- All six requested worker artifact files are non-empty.
+- Canonical audit finding count: 40.
+- 4 surfaces x 6 lenses matrix row count: 24.
+- Each finding has Surface/lens/severity, Evidence, Why production needs it, and Recommended follow-up fields.
+
+8. Revise round 1: workflow local-reference sweep
+Scope:
+  - .github/workflows/ci.yml
+  - .github/workflows/coding-task.yml
+  - .github/workflows/report-generation.yml
+  - packages/devops/src/workflows/deploy-prod.yml
+  - packages/devops/src/workflows/on-workflow-failure-triage.yml
+  - .github/actions/run-coding-agent/action.yml (local action reached from coding-task.yml)
+Method:
+  - Enumerated workflow/action YAML with `rg --files --hidden`.
+  - Extracted explicit `uses: ./...`, `node <repo-path>`, and `pnpm exec tsx <repo-path>` references with `rg`.
+  - Checked each referenced local path with filesystem existence tests.
+Result:
+  - MISSING: packages/devops/scripts/jobs/on-build-failure.mjs
+  - EXISTS: .github/actions/run-coding-agent
+  - EXISTS: packages/traceability/src/verifyTraceability.ts
+  - EXISTS: all six packages/shared/src/reporting/*.ts entrypoints referenced by report-generation.yml
+  - EXISTS: .factory/droids/report-generator.md
+  - No other missing explicit local script/action reference was found in the workflow scope.
+
+9. Revise round 1: supplemental absence/provisional checks
+- `find packages/devops/scripts/jobs -maxdepth 2 -type f -print` returned only README.md.
+- Repository-wide env template search returned no `.env.example` or `*.env.example`.
+- packages/devops/src/lib/incidentBurndown.ts:7-11 labels incident-as-ticket semantics provisional and ticket-system integration out of scope; packages/web/src/server/reportData/devopsReportData.ts:300-301 exposes that calculation.

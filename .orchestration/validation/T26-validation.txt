@@ -1,0 +1,110 @@
+T26 validation evidence
+
+Branch: agent/T26
+Base: agent/T25
+Commit: eb07363
+PR: https://github.com/mryfmo/ai-ops-platform/pull/21
+
+Revise validation:
+
+8. pnpm --filter @aiops/shared test
+   Result: PASS
+   Evidence: 14 test files passed, 137 tests passed.
+
+9. pnpm --filter @aiops/web test -- chatRoute.test.ts
+   Result: PASS
+   Evidence: 1 test file passed, 12 tests passed.
+
+10. pnpm -r --if-present run typecheck
+    Result: PASS
+    Evidence: shared, traceability, devops, prjops, server, web typecheck completed.
+
+11. pnpm -r --if-present run lint
+    Result: PASS
+    Evidence: shared, traceability, devops, prjops, server, web lint completed.
+
+12. pnpm run format
+    Result: PASS
+    Evidence: "All matched files use Prettier code style!"
+
+13. pnpm -r --if-present run test
+    Result: PASS
+    Evidence: shared 137 + devops 158 + prjops 196 + server 223 + web 141 = 855 tests passed.
+
+14. mise run ci
+    Result: PASS
+    Notes: parallel CI command used as required; no "-j 1".
+    Evidence: governance, lint, traceability, format, build, typecheck, and test:coverage completed with process exit code 0.
+
+Commands run:
+
+1. pnpm --filter @aiops/shared test
+   Result: PASS
+   Evidence: 14 test files passed, 133 tests passed.
+
+2. pnpm --filter @aiops/web test -- chatRoute.test.ts
+   Result: PASS
+   Evidence: 1 test file passed, 11 tests passed.
+
+3. pnpm -r --if-present run typecheck
+   Result: PASS
+   Evidence: shared, traceability, devops, prjops, web, server typecheck completed.
+
+4. pnpm -r --if-present run lint
+   Result: PASS
+   Evidence: shared, traceability, devops, prjops, web, server lint completed.
+
+5. pnpm run format
+   Result: PASS
+   Evidence: "All matched files use Prettier code style!"
+
+6. pnpm -r --if-present run test
+   Result: PASS
+   Evidence: shared 133 + devops 158 + prjops 196 + server 223 + web 140 = 850 tests passed.
+
+7. mise run ci
+   Result: PASS
+   Notes: parallel CI command used as required; no "-j 1".
+   Evidence: governance, lint, traceability, format, build, typecheck, and test:coverage completed with process exit code 0.
+
+External behavior:
+- No real LLM calls.
+- No real Graph/GitHub API calls.
+- Official Anthropic docs were browsed only for parameter acceptance facts.
+
+Second-revise validation:
+
+15. pnpm --filter @aiops/shared test -- reporting.test.ts anthropicClient.test.ts pgCostGuard.test.ts
+    Result: PASS
+    Evidence: 3 test files passed, 29 tests passed.
+
+16. pnpm --filter @aiops/web test -- chatRoute.test.ts
+    Result: PASS
+    Evidence: 1 test file passed, 11 tests passed.
+
+17. pnpm -r --if-present run typecheck
+    Result: PASS
+    Evidence: shared, traceability, devops, prjops, server, web typecheck completed.
+
+18. pnpm -r --if-present run lint
+    Result: PASS
+    Evidence: shared, traceability, devops, prjops, server, web lint completed.
+
+19. pnpm run format
+    Result: PASS after formatting the two touched files.
+    Evidence: "All matched files use Prettier code style!"
+
+20. mise run ci
+    Result: PASS
+    Notes: parallel CI command used as required; no "-j 1".
+    Evidence: governance, lint, traceability, format, build, typecheck, and test:coverage completed with process exit code 0. Coverage run included shared 138, devops 158, prjops 196, and server 223 tests.
+
+21. make require-crit-review
+    Result: NOT AVAILABLE
+    Evidence: make reported "No rule to make target `require-crit-review'." No Crit review gate exists in this repository checkout.
+
+Second-revise scope notes:
+- No real LLM calls.
+- T26-R6 tests intentionally do not include period label digits in metrics.
+- T26-R7 synthetic finishReason=error/providerMetadata refusal test was removed; the retained test covers the actual AI SDK refusal mapping via finishReason=content-filter.
+- Real PostgreSQL concurrency remains unexecuted in this environment; fake-pool tests verify statement ordering only.

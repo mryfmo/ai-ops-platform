@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_c0f463",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A018 self-review approved: all nine production surfaces use getPool plus the same pinned provider instance for persona and report access; missing provider configuration fails closed; production empty InMemory providers and route-level Pool constructors are absent; the 19-case composition matrix, 500-request pool test, and full repository CI are green.",
+    "author": "Codex",
+    "created_at": "2026-07-19T03:57:32Z",
+    "updated_at": "2026-07-19T03:57:50Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_84dec2",
+        "body": "Self-review complete; no actionable findings remain.",
+        "author": "Codex",
+        "created_at": "2026-07-19T03:57:50Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

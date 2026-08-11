@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_ad7472",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A013 self-review approval: staged scope is exactly LICENSE plus the root and six workspace package.json license fields; LICENSE matches the canonical Apache-2.0 text with only the instructed appendix copyright replacement; all manifests parse with license Apache-2.0. No P0/P1/P2 findings.",
+    "author": "Codex",
+    "created_at": "2026-07-18T02:32:34Z",
+    "updated_at": "2026-07-18T02:32:56Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_7a84c9",
+        "body": "Resolved approval scope after verifying canonical text, SPDX fields, JSON parsing, format, and exact staged paths.",
+        "author": "Codex",
+        "created_at": "2026-07-18T02:32:56Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
