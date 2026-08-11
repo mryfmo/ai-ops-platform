@@ -1,7 +1,8 @@
 name: ci
 # このリポジトリ自体（ai-ops-platform モノレポ）のCI。
 # 根拠: REQ-032/DevOps REQ-030（gitleaksによる秘密情報検知, DEV-10）、
-#       DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテストが存在し合格していること」
+#       DOC-05 §11「実装完了の定義: 対応するREQのACを検証するテストが存在し合格していること」、
+#       FinalArch:CON-001 / FinalArch:GOV-004 / FinalArch:GOV-005 / ADR-0020
 on:
   push:
     branches: [main]
@@ -43,11 +44,26 @@ jobs:
       AIOPS_TEST_DATABASE_PORT: "5432"
       AIOPS_LOAD_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/aiops_load_test
       AIOPS_LOAD_TEST_CONFIRM_DATABASE: aiops_load_test
+      OPA_VERSION: "1.19.0"
+      OPA_LINUX_AMD64_SHA256: "1dd5c5591ff856f5e20a1d66bafae9511ddf3c5552ed3b5070c70b2b6580ee3f"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+      # Architecture fitness remains in governance:check; migration idempotency remains in the PostgreSQL integration step below.
       - run: pnpm run governance:check
       - run: pnpm install --frozen-lockfile
+      - name: sha256-pinned OPAを導入
+        run: |
+          set -euo pipefail
+          asset="opa_linux_amd64_static"
+          curl -fsSLO "https://github.com/open-policy-agent/opa/releases/download/v${OPA_VERSION}/${asset}"
+          echo "${OPA_LINUX_AMD64_SHA256}  ${asset}" | sha256sum -c -
+          install -m 0755 "${asset}" "${RUNNER_TEMP}/opa"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+      - name: OPA policy gate (FinalArch:CON-001 / GOV-004)
+        run: mise run policy:rego
+      - name: Contract gate (FinalArch:CON-001 / GOV-005)
+        run: mise run contracts
       - name: 実DBテスト用データベースを作成
         run: |
           set -euo pipefail

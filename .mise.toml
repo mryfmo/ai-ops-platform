@@ -1,3 +1,4 @@
+# 根拠: FinalArch:CON-001 / FinalArch:GOV-004 / FinalArch:GOV-005 / ADR-0020
 [tools]
 "aqua:rhysd/actionlint" = "1.7.12"
 node = "22"
@@ -10,6 +11,20 @@ run = "pnpm audit --prod --audit-level high"
 [tasks.actionlint]
 description = "GitHub Actions workflowの静的検証"
 run = "actionlint -shellcheck= -pyflakes= .github/workflows/*.yml"
+
+[tasks."policy:rego"]
+description = "OPA policyテスト（ローカルはPATH上の既存opaを使用）"
+run = """
+if ! command -v opa >/dev/null 2>&1; then
+  echo "OPA is required. Install it with 'brew install opa' or provide 'opa' on PATH." >&2
+  exit 1
+fi
+opa test packages/policy/policies
+"""
+
+[tasks.contracts]
+description = "独立contracts workspaceのfrozen install + lint/test"
+run = "pnpm --dir contracts install --frozen-lockfile && pnpm --dir contracts run check"
 
 [tasks.install]
 description = "依存関係のインストール"
@@ -77,5 +92,5 @@ description = "PostgreSQL統合検証（追記専用・パーティション・m
 run = "bash verification/run_db_integration.sh"
 
 [tasks.ci]
-description = "CIと同一の一括検証（db:require→governance→audit→actionlint→lint→traceability→format→build→typecheck→test:coverage→verify:db）。実PostgreSQLが必須。"
-run = "mise run db:require && mise run governance && mise run audit && mise run actionlint && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage && mise run verify:db"
+description = "CIと同一の一括検証（db:require→governance→policy:rego→contracts→audit→actionlint→lint→traceability→format→build→typecheck→test:coverage→verify:db）。実PostgreSQLが必須。"
+run = "mise run db:require && mise run governance && mise run policy:rego && mise run contracts && mise run audit && mise run actionlint && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage && mise run verify:db"
