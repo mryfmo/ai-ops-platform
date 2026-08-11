@@ -63,18 +63,18 @@ ADR-0020..0028(+0029) = GOV-003、ENV decision = ENV-DEC-001/011 裁定記録、
 
 ### §3-1 内訳（register の状態を転記。profile 裁定済みでも残証跡がある限り open）
 
-| 製品         | register 状態                             | 残項目（要旨）                                                    | 封鎖境界                                                             |
-| ------------ | ----------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Temporal     | OPEN（profile は ENV-DEC-001 で確定済み） | exact pinned version/image、依存インベントリ、license notice 証跡 | **P3 go-live 前**（P3 の実装・shadow 作業は可、本番 cutover を封鎖） |
-| LiteLLM      | OPEN                                      | exact artifact の pin、enterprise 機能境界のライセンス確認        | **P2-T02 の proxy 稼働開始前**（タスク開始境界）                     |
-| agentgateway | OPEN                                      | Apache notice レビュー                                            | **P4 の gateway 稼働開始前**（P4-T01 系タスク開始境界）              |
-| OPA          | OPEN                                      | Apache notice レビュー（vendor 配布物は別扱い）                   | **P4 の policy engine 稼働開始前**（同上）                           |
-| Work IQ      | **OPEN / STOP**                           | delegated-surface 適格性、tenant/license、OBO、データ境界、課金   | **P5 の Work IQ 接続タスク開始前**（phase entry 境界）               |
-| Wispr Flow   | **OPEN / STOP**                           | 同意、residency/retention、Privacy Mode/Cloud Sync、subprocessors | **P4-T08 connector 有効化前**（タスク開始境界）                      |
-| Confluence   | OPEN                                      | 支配契約/order の特定、Rovo MCP の別途承認                        | **P4-T07 connector 有効化前**（タスク開始境界）                      |
-| OpenTag      | OPEN                                      | license notice 保持と exact package/version の pin                | **P7 での UI 組込タスク開始前**                                      |
-| CopilotKit   | OPEN                                      | 公開ライセンス記述の齟齬解消、OSS/Cloud/premium 境界選択          | **P7 での runtime 組込タスク開始前**                                 |
-| Plane CE     | **OPEN / STOP**                           | AGPL の deployment/modification/integration 境界の Legal 承認     | **P4-T06 connector 有効化前**（タスク開始境界）                      |
+| 製品         | register 状態                             | 残項目（要旨）                                                    | 封鎖境界                                                                                       |
+| ------------ | ----------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Temporal     | OPEN（profile は ENV-DEC-001 で確定済み） | exact pinned version/image、依存インベントリ、license notice 証跡 | **P3 go-live（本番 cutover）前**。P3 の実装・shadow 作業自体は封鎖しない                       |
+| LiteLLM      | OPEN                                      | exact artifact の pin、enterprise 機能境界のライセンス確認        | **P2 phase entry 前**（正典 phase acceptance の P2 entry criteria「LiteLLM exact pin」と一致） |
+| agentgateway | OPEN                                      | Apache notice レビュー                                            | **P4 phase entry 前**（P4 entry criteria「agentgateway/OPA exact pin」と一致）                 |
+| OPA          | OPEN                                      | Apache notice レビュー（vendor 配布物は別扱い）                   | **P4 phase entry 前**（OPA 自身の pin/notice。P4 entry criteria と一致）                       |
+| Work IQ      | **OPEN / STOP**                           | delegated-surface 適格性、tenant/license、OBO、データ境界、課金   | **P5 phase entry 前**                                                                          |
+| Wispr Flow   | **OPEN / STOP**                           | 同意、residency/retention、Privacy Mode/Cloud Sync、subprocessors | **P4-T08 タスク開始前**                                                                        |
+| Confluence   | OPEN                                      | 支配契約/order の特定、Rovo MCP の別途承認                        | **P4-T07 タスク開始前**                                                                        |
+| OpenTag      | OPEN                                      | license notice 保持と exact package/version の pin                | **P7 phase entry 前**                                                                          |
+| CopilotKit   | OPEN                                      | 公開ライセンス記述の齟齬解消、OSS/Cloud/premium 境界選択          | **P7 phase entry 前**                                                                          |
+| Plane CE     | **OPEN / STOP**                           | AGPL の deployment/modification/integration 境界の Legal 承認     | **P4-T06 タスク開始前**                                                                        |
 
 ## 4. Owner 承認（Phase-0 exit 裁定）
 
