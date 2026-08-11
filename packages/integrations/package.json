@@ -1,0 +1,30 @@
+{
+  "name": "@aiops/integrations",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": "外部統合 scaffold: Work IQ・MCP gateway・Wispr・Plane・Confluence の adapter 契約（vendor SDK 非依存、FetchLike/TokenProvider 注入。FinalArch:CON-001/CON-002 / ADR-0020）",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
+  },
+  "dependencies": {
+    "@aiops/shared": "workspace:*"
+  }
+}
