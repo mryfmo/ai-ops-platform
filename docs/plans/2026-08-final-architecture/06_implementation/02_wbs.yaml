@@ -868,12 +868,13 @@ tasks:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - namespace, task queues, TLS/auth, worker bootstrap
+  - Fargate 単一サービス Terraform + dev compose + mTLS worker 認証 + 起動 runbook
   acceptance:
   - dev/staging/prod separation
   - worker identity scoped
   verification:
   - Temporal connection smoke
+  - mTLS worker certificate denial outside environment/namespace/task-queue scope and for admin/operator APIs
   rollback: Revert the task PR and leave the previous path enabled.
   acceptance_gate_ids:
   - TMP-001
