@@ -169,6 +169,13 @@ test("FinalArch:GOV-005 rejects adversarial WBS ownership bypasses", () => {
     ["duplicate writer key override", "tasks:\n- id: T1\n  writer: claude-x\n  reviewer: codex-x\n  writer: codex-x\n"],
     ["empty writer value", "tasks:\n- id: T1\n  writer:\n  reviewer: codex-x\n"],
     ["no tasks parsed", "phases:\n- id: P0\n  name: fixture\n"],
+    ["alias equality", "tasks:\n- id: T1\n  writer: &owner codex-x\n  reviewer: *owner\n"],
+    [
+      "alias-to-scalar equality",
+      "anchors:\n- &owner codex-x\ntasks:\n- id: T1\n  writer: *owner\n  reviewer: codex-x\n",
+    ],
+    ["block-scalar equality", "tasks:\n- id: T1\n  writer: >-\n    codex-x\n  reviewer: codex-x\n"],
+    ["malformed yaml fails closed", "tasks:\n- id: T1\n  writer: [unclosed\n"],
   ];
   for (const [label, wbs] of cases) {
     const root = createCleanFixture();

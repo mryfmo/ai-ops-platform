@@ -1,5 +1,6 @@
 // 根拠: FinalArch:INV-005 / FinalArch:INV-006 / FinalArch:INV-009 / FinalArch:INV-013 / FinalArch:INV-019 / FinalArch:INV-020 / FinalArch:GOV-004 / FinalArch:GOV-005
 import fs from "node:fs";
+import YAML from "yaml";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -470,64 +471,38 @@ function checkInvariantMatrix(root, violations) {
   }
 }
 
-function stripInlineComment(value) {
-  return value.replace(/\s+#.*$/u, "").trim();
-}
-
 function checkWbsOwnership(root, violations) {
   const wbsPath = path.join(root, WBS_CONTRACT);
   if (!fs.existsSync(wbsPath)) {
     push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "WBS one-writer contract file is missing");
     return;
   }
-  const tasks = [];
-  let inTasks = false;
-  let current = null;
-  for (const line of fs.readFileSync(wbsPath, "utf8").split("\n")) {
-    const section = line.match(/^([A-Za-z_][\w-]*):\s*$/u);
-    if (section) {
-      inTasks = section[1] === "tasks";
-      current = null;
-      continue;
-    }
-    if (!inTasks) continue;
-    const id = line.match(/^- id:(.*)$/u);
-    if (id) {
-      current = { id: unquote(stripInlineComment(id[1])), writers: [], reviewers: [] };
-      tasks.push(current);
-      continue;
-    }
-    if (!current) continue;
-    const field = line.match(/^ {2}(writer|reviewer):(.*)$/u);
-    if (!field) continue;
-    const value = unquote(stripInlineComment(field[2]));
-    (field[1] === "writer" ? current.writers : current.reviewers).push(value);
+  let document;
+  try {
+    document = YAML.parse(fs.readFileSync(wbsPath, "utf8"), { uniqueKeys: true, maxAliasCount: 10000 });
+  } catch (error) {
+    push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, `WBS contract failed strict YAML parsing: ${error.message}`);
+    return;
   }
-  if (!tasks.length) {
+  const tasks = document?.tasks;
+  if (!Array.isArray(tasks) || tasks.length === 0) {
     push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "no tasks were parsed from the WBS contract");
     return;
   }
-  for (const task of tasks) {
-    if (task.writers.length !== 1 || !task.writers[0]) {
+  for (const [index, task] of tasks.entries()) {
+    const id = typeof task?.id === "string" && task.id.trim() ? task.id.trim() : `tasks[${index}]`;
+    const writer = typeof task?.writer === "string" ? task.writer.trim() : "";
+    const reviewer = typeof task?.reviewer === "string" ? task.reviewer.trim() : "";
+    if (!writer) {
+      push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, `task ${id} must declare exactly one nonempty writer`);
+    } else if (!reviewer) {
+      push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, `task ${id} must declare exactly one nonempty reviewer`);
+    } else if (writer === reviewer) {
       push(
         violations,
         "DUPLICATE_OWNER",
         WBS_CONTRACT,
-        `task ${task.id} must declare exactly one nonempty writer (found ${task.writers.length})`,
-      );
-    } else if (task.reviewers.length !== 1 || !task.reviewers[0]) {
-      push(
-        violations,
-        "DUPLICATE_OWNER",
-        WBS_CONTRACT,
-        `task ${task.id} must declare exactly one nonempty reviewer (found ${task.reviewers.length})`,
-      );
-    } else if (task.writers[0] === task.reviewers[0]) {
-      push(
-        violations,
-        "DUPLICATE_OWNER",
-        WBS_CONTRACT,
-        `task ${task.id} assigns the same identity as writer and reviewer: ${task.writers[0]}`,
+        `task ${id} assigns the same identity as writer and reviewer: ${writer}`,
       );
     }
   }
