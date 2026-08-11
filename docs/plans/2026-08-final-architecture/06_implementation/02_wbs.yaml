@@ -853,7 +853,7 @@ tasks:
   requirement_refs: *id005
   adr_refs: *id006
 - id: P3-T01
-  title: Provision Temporal namespace and worker connectivity
+  title: Provision Temporal Fargate service and worker connectivity
   writer: claude-code-fable5-xhigh
   reviewer: codex-gpt56-sol-high
   depends_on:
@@ -868,7 +868,7 @@ tasks:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - namespace, task queues, TLS/auth, worker bootstrap
+  - Fargate 単一サービス Terraform + dev compose + mTLS worker 認証 + 起動 runbook
   acceptance:
   - dev/staging/prod separation
   - worker identity scoped
