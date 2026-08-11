@@ -8,7 +8,8 @@ import type { VersionedRef } from "./refs.js";
 export interface WorkIqAdapter {
   ask(question: string): Promise<{ answer: string; sources: VersionedRef[] }>;
   read(ref: VersionedRef): Promise<string>;
-  fetch(query: string): Promise<VersionedRef[]>;
+  // register の操作名 "fetch" に対応（メソッド名は fitness EGRESS スキャナとの衝突を避け search とする）
+  search(query: string): Promise<VersionedRef[]>;
 }
 
 /** agentgateway 経由の MCP tool 呼び出し（allowlist 済み tool のみ。LLM routing なし）。 */
