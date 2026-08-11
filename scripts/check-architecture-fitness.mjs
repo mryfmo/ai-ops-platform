@@ -1,5 +1,6 @@
 // 根拠: FinalArch:INV-005 / FinalArch:INV-006 / FinalArch:INV-009 / FinalArch:INV-013 / FinalArch:INV-019 / FinalArch:INV-020 / FinalArch:GOV-004 / FinalArch:GOV-005
 import fs from "node:fs";
+import YAML from "yaml";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +9,7 @@ const FLAG_REGISTRY = "packages/shared/src/migration/featureFlags.ts";
 const MCP_REGISTRY = "docs/plans/2026-08-final-architecture/05_contracts/mcp-registry-manifest.yaml";
 const TOOL_CATALOG = "docs/plans/2026-08-final-architecture/05_contracts/tool-risk-catalog.yaml";
 const INVARIANT_MATRIX = "docs/plans/2026-08-final-architecture/06_implementation/11_architecture_fitness_matrix.md";
+const WBS_CONTRACT = "docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml";
 const EXTERNAL_ALLOWLIST = new Set(["api.anthropic.com", "api.github.com", "github.com", "graph.microsoft.com"]);
 const EXTERNAL_SDK_IMPORT = /from\s+["'](?:@anthropic-ai\/(?:sdk|claude-agent-sdk)|@azure\/msal-node)["']/gu;
 const GRANDFATHERED_EXTERNAL_CLIENTS = new Set([
@@ -469,6 +471,43 @@ function checkInvariantMatrix(root, violations) {
   }
 }
 
+function checkWbsOwnership(root, violations) {
+  const wbsPath = path.join(root, WBS_CONTRACT);
+  if (!fs.existsSync(wbsPath)) {
+    push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "WBS one-writer contract file is missing");
+    return;
+  }
+  let document;
+  try {
+    document = YAML.parse(fs.readFileSync(wbsPath, "utf8"), { uniqueKeys: true, maxAliasCount: 10000 });
+  } catch (error) {
+    push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, `WBS contract failed strict YAML parsing: ${error.message}`);
+    return;
+  }
+  const tasks = document?.tasks;
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "no tasks were parsed from the WBS contract");
+    return;
+  }
+  for (const [index, task] of tasks.entries()) {
+    const id = typeof task?.id === "string" && task.id.trim() ? task.id.trim() : `tasks[${index}]`;
+    const writer = typeof task?.writer === "string" ? task.writer.trim() : "";
+    const reviewer = typeof task?.reviewer === "string" ? task.reviewer.trim() : "";
+    if (!writer) {
+      push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, `task ${id} must declare exactly one nonempty writer`);
+    } else if (!reviewer) {
+      push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, `task ${id} must declare exactly one nonempty reviewer`);
+    } else if (writer === reviewer) {
+      push(
+        violations,
+        "DUPLICATE_OWNER",
+        WBS_CONTRACT,
+        `task ${id} assigns the same identity as writer and reviewer: ${writer}`,
+      );
+    }
+  }
+}
+
 export function checkArchitectureFitness(root) {
   const resolvedRoot = path.resolve(root);
   const files = walk(resolvedRoot);
@@ -479,6 +518,7 @@ export function checkArchitectureFitness(root) {
   checkMcpTools(resolvedRoot, files, violations);
   checkFlagRegistry(resolvedRoot, violations);
   checkInvariantMatrix(resolvedRoot, violations);
+  checkWbsOwnership(resolvedRoot, violations);
   return violations.sort((left, right) =>
     `${left.code}:${left.path}:${left.message}`.localeCompare(`${right.code}:${right.path}:${right.message}`),
   );

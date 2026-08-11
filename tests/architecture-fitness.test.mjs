@@ -66,12 +66,24 @@ function createCleanFixture() {
     "protocol: mcp\nserver: github\nllm_routing_enabled: false\ntools: [read]\n",
   );
   write(root, "docs/plans/2026-08-final-architecture/06_implementation/11_architecture_fitness_matrix.md", matrix());
+  write(
+    root,
+    "docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml",
+    "tasks:\n- id: FIX-T01\n  writer: claude-code-fable5-xhigh\n  reviewer: codex-gpt56-sol-high\n",
+  );
   return root;
 }
 
 test("FinalArch:INV-005/006/009/013/019 and GOV-005 reject every required negative fixture", () => {
   const codes = new Set(checkArchitectureFitness(negativeFixture).map(({ code }) => code));
-  for (const code of ["EGRESS", "GATEWAY_OVERLAP", "FORBIDDEN_PLATFORM", "MCP_TOOL", "FLAG_REGISTRY"]) {
+  for (const code of [
+    "EGRESS",
+    "GATEWAY_OVERLAP",
+    "FORBIDDEN_PLATFORM",
+    "MCP_TOOL",
+    "FLAG_REGISTRY",
+    "DUPLICATE_OWNER",
+  ]) {
     assert.ok(codes.has(code), `missing ${code}: ${[...codes].join(", ")}`);
   }
 });
@@ -147,6 +159,35 @@ test("FinalArch:INV-019 scans root environment and infrastructure configuration"
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("FinalArch:GOV-005 rejects adversarial WBS ownership bypasses", () => {
+  const cases = [
+    ["missing reviewer", "tasks:\n- id: T1\n  writer: codex-gpt56-sol-high\n"],
+    ["inline-comment equality", "tasks:\n- id: T1\n  writer: codex-x # writer\n  reviewer: codex-x\n"],
+    ["duplicate writer key override", "tasks:\n- id: T1\n  writer: claude-x\n  reviewer: codex-x\n  writer: codex-x\n"],
+    ["empty writer value", "tasks:\n- id: T1\n  writer:\n  reviewer: codex-x\n"],
+    ["no tasks parsed", "phases:\n- id: P0\n  name: fixture\n"],
+    ["alias equality", "tasks:\n- id: T1\n  writer: &owner codex-x\n  reviewer: *owner\n"],
+    [
+      "alias-to-scalar equality",
+      "anchors:\n- &owner codex-x\ntasks:\n- id: T1\n  writer: *owner\n  reviewer: codex-x\n",
+    ],
+    ["block-scalar equality", "tasks:\n- id: T1\n  writer: >-\n    codex-x\n  reviewer: codex-x\n"],
+    ["malformed yaml fails closed", "tasks:\n- id: T1\n  writer: [unclosed\n"],
+  ];
+  for (const [label, wbs] of cases) {
+    const root = createCleanFixture();
+    try {
+      write(root, "docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml", wbs);
+      assert.ok(
+        checkArchitectureFitness(root).some(({ code }) => code === "DUPLICATE_OWNER"),
+        `case not rejected: ${label}`,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 });
 

@@ -1,0 +1,6 @@
+# 根拠: FinalArch:GOV-005 / ADR-0027
+tasks:
+  - id: FIX-T01
+    title: duplicate owner negative fixture
+    writer: codex-gpt56-sol-high
+    reviewer: codex-gpt56-sol-high
