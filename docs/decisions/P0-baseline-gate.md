@@ -23,20 +23,22 @@
 | P0-T08 feature flag / kill-switch 契約      | #156 | `f179156`    | 正本 YAML 完全鏡 + fail-closed（E-FLAG03 等）                                       |
 | P0-T09 secret/identity 移行計画             | #159 | `c8d891a`    | credential マトリクス + break-glass（P0-T08 flag 文法準拠）                         |
 
-補助: evidence 同期 #163（`eb4ebf9`）、dependabot #133（`6089d76`、App token merge）。
+補助: evidence 同期 #163（`eb4ebf9`）、dependabot #133（`6089d76`、App token merge）、
+本ゲート文書 #168（`f89541b`、初版）+ 前提修正 #169（`b1be788`、ADR 採択・GOV-005 機械検証・
+register 整合）+ 本改訂 PR（P0-T10b）。
 全タスクが「Codex/Claude の相互独立レビュー → 全スレッド解決 → exact-head checks green →
 squash merge → main CI green」のゲートを通過。P0-T02 merge（`92ce8aa`）以降は
 ruleset により「App token push/PR + Owner approve」がプラットフォーム強制。
 
 ## 2. Acceptance gates（GOV-001〜005）
 
-| Gate    | 内容                                                    | 判定                      | 証跡                                                                                                                                                                                                                                                                |
-| ------- | ------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GOV-001 | Baseline and delta approved                             | **PASS**                  | #152（承認済み baseline-delta 適用、`IMPORT_NOTES.md` 正本）+ #153（fresh DB `mise run ci` exit 0）。Owner 承認はセッション記録 + PR merge                                                                                                                          |
-| GOV-002 | Main branch protection effective                        | **PASS**                  | ruleset **20678089** active / bypass_actors 空。負証明: AI(App) token main 直接 push 拒否、承認なし merge 405、force push 拒否、red check merge 405、別トークン merge 405（`runbooks/production-gates.md` Evidence、`.orchestration/validation/P0-T02-probes.log`） |
-| GOV-003 | Architecture ADRs and supersession complete             | **PASS（条件付き — §3）** | ADR-0020〜0028 採択 + ADR-0029 が ADR-0016 を置換、ADR-0028 は一部置換を両正典コピーへ明記（#160/#164）。traceability green（毎 CI）                                                                                                                                |
-| GOV-004 | Cloudflare Artifacts / Notion excluded by fitness check | **PASS**                  | `mise run governance` の fitness check が immutable-off flag を毎 CI 検証（#158。#165 exact-head run 31461602149 green に含まれる）                                                                                                                                 |
-| GOV-005 | One-writer contract machine-validated                   | **PASS**                  | pack `validate_pack.py`（113 tasks の Writer/Reviewer distinct 検証、Import revalidation 記録）+ `mise run governance` の WBS/契約整合チェック（#158）                                                                                                              |
+| Gate    | 内容                                                    | 判定                      | 証跡                                                                                                                                                                                                                                                                                                     |
+| ------- | ------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GOV-001 | Baseline and delta approved                             | **PASS**                  | #152（承認済み baseline-delta 適用、`IMPORT_NOTES.md` 正本）+ #153（fresh DB `mise run ci` exit 0）。Owner 承認はセッション記録 + PR merge                                                                                                                                                               |
+| GOV-002 | Main branch protection effective                        | **PASS**                  | ruleset **20678089** active / bypass_actors 空。負証明: AI(App) token main 直接 push 拒否、承認なし merge 405、force push 拒否、red check merge 405、別トークン merge 405（`runbooks/production-gates.md` Evidence、`.orchestration/validation/P0-T02-probes.log`）                                      |
+| GOV-003 | Architecture ADRs and supersession complete             | **PASS（条件付き — §3）** | ADR-0020〜0028 の Status を **Accepted 化（#169 merge `b1be788`、Owner approve = 採択署名）**。ADR-0029 が ADR-0016 を置換、ADR-0028 の一部置換を両正典コピーへ明記（#160/#164）。traceability green（毎 CI）                                                                                            |
+| GOV-004 | Cloudflare Artifacts / Notion excluded by fitness check | **PASS**                  | `mise run governance` の fitness check が immutable-off flag を毎 CI 検証（#158。#165 exact-head run 31461602149 green に含まれる）                                                                                                                                                                      |
+| GOV-005 | One-writer contract machine-validated                   | **PASS**                  | `mise run governance` → `governance:check` が実行する `check-architecture-fitness.mjs` の **DUPLICATE_OWNER 検証**（yaml 厳密パース: parse error / 重複キー / 欠落・空値 / writer==reviewer を fail-closed 拒否）+ 永続 negative fixture と敵対 9 ケースの durable テスト（#169）。実 WBS 113 tasks pass |
 
 Phase acceptance（03_phase_acceptance.md P0 行）との対応: branch protection 証跡 = GOV-002、
 ADR-0020..0028(+0029) = GOV-003、ENV decision = ENV-DEC-001/011 裁定記録、
@@ -48,25 +50,52 @@ ADR-0020..0028(+0029) = GOV-003、ENV decision = ENV-DEC-001/011 裁定記録、
 以下は P0 exit を妨げないが、**各項目の解消まで対応フェーズ/機能の go-live を封鎖する**
 （既存 STOP 条件はすべて効力維持。license register の go-live チェックリストが正本）。
 
-| #   | 項目                                                                                                                                                    | 封鎖対象                                                 | 解消期限/フェーズ                                                                                                                                          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | license register の OPEN/STOP（Work IQ / Wispr / Plane = STOP、CopilotKit / OpenTag / Confluence = OPEN。Temporal は ENV-DEC-001 + MIT 確認で解消済み） | 各製品の導入フェーズ（P4〜P8）の当該統合                 | 各製品の contracts 承認ゲート（P4/P5/P6/P8 entry）                                                                                                         |
-| 2   | license register「Decision record」表の Legal/Security/Procurement 行                                                                                   | 各製品 go-live                                           | Owner 役割兼任（`docs/decisions/owner-role-consolidation.md`）により Owner 承認 1 件で充足可。ただし Legal 相当の判断（AGPL 境界等）は製品導入時に個別記録 |
-| 3   | App `aiops-pr-bot` の `issues:write` 未付与                                                                                                             | coding-task workflow での `AIOPS_PR_TOKEN` 使用（P8 帯） | Owner の App 設定操作（`runbooks/production-gates.md` AI PR Token 節）                                                                                     |
-| 4   | Upstream rate limiting（LB/WAF）ゲート                                                                                                                  | 本番トラフィック開放（P10）                              | P10 cutover 前（`runbooks/production-gates.md`）                                                                                                           |
-| 5   | E2E・実環境最終テスト（ENV 制約で保留）                                                                                                                 | 該当フェーズの exit                                      | 各フェーズの実環境ゲート（ENV-blocked ≠ pass 規律を維持）                                                                                                  |
-| 6   | ENV-DEC-012（用語リスト）/ 013（プロファイル別報告範囲）/ 014（code scanning）                                                                          | P6 / P6 / P8 の該当タスク                                | 各フェーズ entry まで                                                                                                                                      |
+| #   | 項目                                                                            | 封鎖対象                                                 | 解消期限/フェーズ                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | license register の全 OPEN/STOP 品目（§3-1 内訳。register 2026-08-11 版が正本） | 各製品への接続・導入を含む最初の WBS タスクの開始        | 各製品の導入フェーズ entry まで（§3-1）                                                                                                                    |
+| 2   | license register「Decision record」表の Legal/Security/Procurement 行           | 各製品 go-live                                           | Owner 役割兼任（`docs/decisions/owner-role-consolidation.md`）により Owner 承認 1 件で充足可。ただし Legal 相当の判断（AGPL 境界等）は製品導入時に個別記録 |
+| 3   | App `aiops-pr-bot` の `issues:write` 未付与                                     | coding-task workflow での `AIOPS_PR_TOKEN` 使用（P8 帯） | Owner の App 設定操作（`runbooks/production-gates.md` AI PR Token 節）                                                                                     |
+| 4   | Upstream rate limiting（LB/WAF）ゲート                                          | 本番トラフィック開放（P10）                              | P10 cutover 前（`runbooks/production-gates.md`）                                                                                                           |
+| 5   | E2E・実環境最終テスト（ENV 制約で保留）                                         | 該当フェーズの exit                                      | 各フェーズの実環境ゲート（ENV-blocked ≠ pass 規律を維持）                                                                                                  |
+| 6   | ENV-DEC-012（用語リスト）/ 013（プロファイル別報告範囲）/ 014（code scanning）  | P6 / P6 / P8 の該当タスク                                | 各フェーズ entry まで                                                                                                                                      |
+
+### §3-1 内訳（register の状態を転記。profile 裁定済みでも残証跡がある限り open）
+
+| 製品         | register 状態                             | 残項目（要旨）                                                    | 封鎖対象フェーズ |
+| ------------ | ----------------------------------------- | ----------------------------------------------------------------- | ---------------- |
+| Temporal     | OPEN（profile は ENV-DEC-001 で確定済み） | exact pinned version/image、依存インベントリ、license notice 証跡 | P3 go-live       |
+| LiteLLM      | OPEN                                      | exact artifact の pin、enterprise 機能境界のライセンス確認        | P2               |
+| agentgateway | OPEN                                      | Apache notice レビュー                                            | P4               |
+| OPA          | OPEN                                      | Apache notice レビュー（vendor 配布物は別扱い）                   | P4               |
+| Work IQ      | **OPEN / STOP**                           | delegated-surface 適格性、tenant/license、OBO、データ境界、課金   | P5               |
+| Wispr Flow   | **OPEN / STOP**                           | 同意、residency/retention、Privacy Mode/Cloud Sync、subprocessors | P4-T08/P6        |
+| Confluence   | OPEN                                      | 支配契約/order の特定、Rovo MCP の別途承認                        | P4-T07/P6        |
+| OpenTag      | OPEN                                      | license notice 保持と exact package/version の pin                | P7               |
+| CopilotKit   | OPEN                                      | 公開ライセンス記述の齟齬解消、OSS/Cloud/premium 境界選択          | P7               |
+| Plane CE     | **OPEN / STOP**                           | AGPL の deployment/modification/integration 境界の Legal 承認     | P4-T06           |
 
 ## 4. Owner 承認（Phase-0 exit 裁定）
 
 - 承認方式: 本文書を含む PR への **GitHub approve + merge**。ruleset 20678089 が
-  「author（App）以外の approve」を強制するため、この approve はプラットフォーム
-  検証可能な署名として機能する（approver = mryfmo = Owner）。
+  実際に強制する統制は「CODEOWNER による approving review 1 件を、**最後に push した
+  者以外**が exact head に対して行うこと（push 時に stale review は自動 dismiss）+
+  全レビュースレッド解決 + required checks（build-test / gitleaks）green +
+  bypass_actors 空」である。本プロジェクトの運用では AI（App `aiops-pr-bot`）が
+  author かつ最終 pusher であるため、この統制下で成立する approve は Owner
+  （mryfmo、唯一の CODEOWNER）のものに限られ、プロジェクトのゲート署名記録として扱う。
 - 役割包含: `docs/decisions/owner-role-consolidation.md`（2026-08-10 Owner 裁定）により、
   Owner 承認 1 件で Security / Ops / Procurement の承認を充足する。
 - 裁定内容: 上記 §1〜2 の証跡に基づき Phase P0 の exit を承認し、§3 の 6 項目を
   条件付き（binding）で明示繰延する。
 - 日付: 2026-08-11（approve のタイムスタンプが正）
+
+## 5. 改訂記録
+
+- 初版（#168 merge `f89541b`）は P0-T10-REVIEW（所見 001〜004）の是正**前**に Owner
+  判断で merge された。所見の実体是正は #169 merge `b1be788`（ADR-0020..0028 Accepted 化、
+  GOV-005 機械検証、register 整合）で完了し、本改訂（P0-T10b）が文書記載
+  （GOV-003/005 の証跡、§3-1 の全 OPEN 品目列挙、§4 の統制記述）を実態へ一致させた。
+  レビュー証跡: `.orchestration/reviews/P0-T10-REVIEW.md` / `P0-T10a-REVIEW.md`。
 
 merge をもって P0 は完了し、P1「Contracts and scaffolding」（P1-T01 scaffold から、
 ADR-0029 により Azure 前提記述は AWS へ読み替え）へ進む。
