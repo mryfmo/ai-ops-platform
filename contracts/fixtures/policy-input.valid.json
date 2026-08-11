@@ -1,0 +1,7 @@
+{
+  "actor": { "id": "user-1", "type": "human", "tenantId": "tenant-1", "groups": ["developers"] },
+  "agent": { "id": "control-api", "kind": "control-api" },
+  "action": { "name": "workflow.start", "riskLevel": "L1", "protocol": "api" },
+  "resource": { "system": "control-api", "id": "workflow-1", "classification": "internal" },
+  "context": { "purpose": "start an approved workflow", "environment": "dev" }
+}

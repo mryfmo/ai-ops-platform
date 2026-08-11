@@ -1,0 +1,76 @@
+{
+  "$comment": "根拠: FinalArch:CON-001 / FinalArch:CON-002 / FinalArch:CON-004 / FinalArch:CON-005 / FinalArch:PRD-003 / FinalArch:FR-CP-001 / ADR-0020",
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0-draft",
+  "controlPlane": {
+    "workflowKindsSource": "packages/control-plane/src/contracts/index.ts#WORKFLOW_KINDS",
+    "versionedPayloadSchemaVersion": 1
+  },
+  "contracts": [
+    {
+      "id": "control-api",
+      "kind": "openapi",
+      "current": "contracts/openapi/control-api.v1.yaml",
+      "baseline": "contracts/baseline/v1/openapi/control-api.v1.yaml",
+      "canonical": "docs/plans/2026-08-final-architecture/05_contracts/control-api.openapi.yaml",
+      "canonicalSha256": "977c790528a6e8973ac65faf0b05f6ed13f661e92f8a01be874e2397cd77c1a0",
+      "canonicalCompatibilityExceptions": ["components/schemas/WorkflowStatus: disallowed unevaluated properties"]
+    },
+    {
+      "id": "events",
+      "kind": "asyncapi",
+      "current": "contracts/asyncapi/events.v1.yaml",
+      "baseline": "contracts/baseline/v1/asyncapi/events.v1.yaml",
+      "canonical": "docs/plans/2026-08-final-architecture/05_contracts/events.asyncapi.yaml",
+      "canonicalSha256": "f2ce4984a658b6c138e71b6bfb0380d040586028310987097bf73c8613474603"
+    },
+    {
+      "id": "domain",
+      "kind": "json-schema",
+      "current": "contracts/schemas/domain.v1.schema.json",
+      "baseline": "contracts/baseline/v1/schemas/domain.v1.schema.json",
+      "canonical": "docs/plans/2026-08-final-architecture/05_contracts/domain-schemas.json",
+      "canonicalSha256": "73257bc4d41233f87fe5cd3ee53bb4510870af57439f7dd1e4dbc210298cf666"
+    },
+    {
+      "id": "policy-input",
+      "kind": "json-schema",
+      "current": "contracts/schemas/policy-input.v1.schema.json",
+      "baseline": "contracts/baseline/v1/schemas/policy-input.v1.schema.json",
+      "canonical": "docs/plans/2026-08-final-architecture/05_contracts/policy-input.schema.json",
+      "canonicalSha256": "de5339e1de349030c604bd6c4190ad06373f3c7645a96d26f610edf063840321",
+      "canonicalCompatibilityExceptions": [
+        "properties/action/properties/name: tightened maxLength",
+        "properties/action/properties/toolName: tightened maxLength",
+        "properties/action: disallowed additional properties",
+        "properties/actor/properties/groups/items: tightened maxLength",
+        "properties/actor/properties/groups: tightened maxItems",
+        "properties/actor/properties/id: tightened maxLength",
+        "properties/actor/properties/projectIds/items: tightened maxLength",
+        "properties/actor/properties/projectIds: tightened maxItems",
+        "properties/actor/properties/tenantId: tightened maxLength",
+        "properties/actor: disallowed additional properties",
+        "properties/agent/properties/id: tightened maxLength",
+        "properties/agent: disallowed additional properties",
+        "properties/context/properties/approvalId: tightened maxLength",
+        "properties/context/properties/purpose: tightened maxLength",
+        "properties/context: disallowed additional properties",
+        "properties/resource/properties/id: tightened maxLength",
+        "properties/resource/properties/labels/items: tightened maxLength",
+        "properties/resource/properties/labels: tightened maxItems",
+        "properties/resource/properties/projectId: tightened maxLength",
+        "properties/resource/properties/system: tightened maxLength",
+        "properties/resource: disallowed additional properties"
+      ]
+    },
+    {
+      "id": "policy-decision",
+      "kind": "json-schema",
+      "current": "contracts/schemas/policy-decision.v1.schema.json",
+      "baseline": "contracts/baseline/v1/schemas/policy-decision.v1.schema.json",
+      "canonical": "docs/plans/2026-08-final-architecture/05_contracts/policy-decision.schema.json",
+      "canonicalSha256": "7844bd61dab6d01c96afdc07aeee451701724f0db280f6b9dc2ed4223818f400",
+      "canonicalCompatibilityExceptions": ["properties/obligations: disallowed additional properties"]
+    }
+  ]
+}

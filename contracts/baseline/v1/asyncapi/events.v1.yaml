@@ -1,0 +1,65 @@
+# 根拠: FinalArch:CON-002 / FinalArch:PRD-003 / FinalArch:FR-CP-001 / ADR-0020
+# 出所: docs/plans/2026-08-final-architecture/05_contracts/events.asyncapi.yaml (sha256: f2ce4984a658b6c138e71b6bfb0380d040586028310987097bf73c8613474603)
+asyncapi: 3.0.0
+x-aiops-contract-version: v1
+info:
+  title: AI Ops Platform Event Contracts
+  version: 1.0.0-draft
+channels:
+  workflowEvents:
+    address: aiops.workflow.events.v1
+    messages:
+      workflowEvent:
+        $ref: "#/components/messages/WorkflowEvent"
+  integrationEvents:
+    address: aiops.integration.events.v1
+    messages:
+      integrationEvent:
+        $ref: "#/components/messages/IntegrationEvent"
+operations:
+  publishWorkflowEvent:
+    action: send
+    channel: { $ref: "#/channels/workflowEvents" }
+  receiveIntegrationEvent:
+    action: receive
+    channel: { $ref: "#/channels/integrationEvents" }
+components:
+  messages:
+    WorkflowEvent:
+      name: WorkflowEvent
+      payload:
+        $ref: "#/components/schemas/EventEnvelope"
+    IntegrationEvent:
+      name: IntegrationEvent
+      payload:
+        $ref: "#/components/schemas/EventEnvelope"
+  schemas:
+    EventEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        [eventId, eventType, schemaVersion, source, occurredAt, receivedAt, traceId, correlationId, dedupeKey, payload]
+      properties:
+        eventId: { type: string, format: uuid }
+        eventType: { type: string, maxLength: 200 }
+        schemaVersion: { type: string, pattern: "^v[0-9]+$" }
+        source: { type: string }
+        subject: { type: string }
+        actorId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+        traceId: { type: string, format: uuid }
+        correlationId: { type: string, format: uuid }
+        workflowId: { type: string }
+        projectId: { type: string }
+        classification: { type: string }
+        dedupeKey: { type: string, minLength: 1, maxLength: 512 }
+        sourceReference:
+          type: object
+          properties:
+            objectId: { type: string }
+            version: { type: string }
+            url: { type: string, format: uri }
+        payload:
+          type: object
+          description: Allowlisted normalized fields only. Raw external payload must not be persisted here.

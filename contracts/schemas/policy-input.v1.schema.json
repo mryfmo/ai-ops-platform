@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.aiops.example.invalid/contracts/policy-input/v1",
+  "$comment": "根拠: FinalArch:CON-004 / FinalArch:CON-005 / FinalArch:PRD-005 / ADR-0020 / ADR-0023; 出所: docs/plans/2026-08-final-architecture/05_contracts/policy-input.schema.json sha256=de5339e1de349030c604bd6c4190ad06373f3c7645a96d26f610edf063840321; nested unknown fields are rejected for CON-004",
+  "title": "OPA policy input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["actor", "agent", "action", "resource", "context"],
+  "properties": {
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "tenantId"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "type": {
+          "enum": ["human", "service", "agent"]
+        },
+        "tenantId": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "projectIds": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "kind": {
+          "enum": ["control-api", "claude-code", "droid", "web-workbench", "teams-adapter", "temporal-worker"]
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "riskLevel"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "riskLevel": {
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6"]
+        },
+        "toolName": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "protocol": {
+          "enum": ["api", "mcp", "a2a", "llm", "ui"]
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "id", "classification"],
+      "properties": {
+        "system": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "projectId": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "classification": {
+          "enum": ["public", "internal", "confidential", "customer-confidential", "restricted"]
+        },
+        "labels": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "environment"],
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "environment": {
+          "enum": ["dev", "staging", "prod"]
+        },
+        "providerCandidate": {
+          "enum": ["bedrock", "anthropic", "none"]
+        },
+        "approvalId": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "sourceTrust": {
+          "enum": ["trusted-platform", "reviewed", "untrusted-content"]
+        }
+      }
+    }
+  }
+}
