@@ -2,6 +2,7 @@
 export { ADAPTER_KINDS } from "./adapters/types.js";
 export type { AdapterKind, AdapterOperation, AdapterDependencies, TokenProvider } from "./adapters/types.js";
 export type { VersionedRef } from "./adapters/refs.js";
+export { WORKIQ_SURFACE_OPERATIONS } from "./adapters/index.js";
 export type {
   WorkIqAdapter,
   McpGatewayAdapter,

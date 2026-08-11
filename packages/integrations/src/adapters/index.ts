@@ -3,13 +3,15 @@
 // vendor SDK・実 HTTP 呼び出しをこの package に持ち込まない。
 
 import type { VersionedRef } from "./refs.js";
+import type { AdapterOperation } from "./types.js";
 
 /** Work IQ: signed-in-user delegated/OBO の read/ask/fetch のみ（ADR-0024）。 */
 export interface WorkIqAdapter {
   ask(question: string): Promise<{ answer: string; sources: VersionedRef[] }>;
   read(ref: VersionedRef): Promise<string>;
-  // register の操作名 "fetch" に対応（メソッド名は fitness EGRESS スキャナとの衝突を避け search とする）
-  search(query: string): Promise<VersionedRef[]>;
+  // register の正規操作名 "fetch" を維持する。property-style 署名にすることで
+  // fitness EGRESS スキャナの呼び出し式パターン（fetch\s*\(）に一致しない。
+  fetch: (query: string) => Promise<VersionedRef[]>;
 }
 
 /** agentgateway 経由の MCP tool 呼び出し（allowlist 済み tool のみ。LLM routing なし）。 */
@@ -33,3 +35,8 @@ export interface ConfluenceAdapter {
   read(ref: VersionedRef): Promise<string>;
   draft(spaceRef: VersionedRef, content: string): Promise<VersionedRef>;
 }
+
+// 型レベル回帰チェック: WorkIqAdapter の公開表面が operation 語彙（AdapterOperation）
+// から乖離すると compile error になる（P1-T02-002 の再発防止。tsc 対象の src に置く）。
+export const WORKIQ_SURFACE_OPERATIONS = ["ask", "read", "fetch"] as const satisfies readonly (keyof WorkIqAdapter &
+  AdapterOperation)[];

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ADAPTER_KINDS,
+  WORKIQ_SURFACE_OPERATIONS,
   assertOperationAllowed,
   isOperationAllowed,
   type AdapterKind,
@@ -39,6 +40,13 @@ describe("FinalArch:CON-002 adapter 操作境界（register の承認境界と�
     expect(isOperationAllowed("plane", "delete" as AdapterOperation)).toBe(false);
     expect(() => assertOperationAllowed("wispr", "draft")).toThrow(RangeError);
     expect(() => assertOperationAllowed("plane", "read")).not.toThrow();
+  });
+
+  it("WorkIq の公開表面（型レベル固定）は boundary でもすべて許可される", () => {
+    for (const operation of WORKIQ_SURFACE_OPERATIONS) {
+      expect(isOperationAllowed("workiq", operation)).toBe(true);
+    }
+    expect([...WORKIQ_SURFACE_OPERATIONS].sort()).toEqual(["ask", "fetch", "read"]);
   });
 
   it("全 adapter kind に境界が定義されている", () => {
