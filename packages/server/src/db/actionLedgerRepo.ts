@@ -27,6 +27,7 @@ export interface PlannedOperation {
   resourceKey: string;
   inputHash: string;
   approvalId: string | null;
+  deploymentId: string | null;
   traceId: string;
 }
 
@@ -41,26 +42,55 @@ export class ActionLedgerRepo {
     const result = await this.db.query(
       `INSERT INTO action_ledger (
          operation_id, workflow_id, system, operation, resource_key,
-         input_hash, status, approval_id, trace_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, 'planned', $7, $8)
+         input_hash, status, approval_id, deployment_id, trace_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'planned', $7, $8, $9)
        ON CONFLICT (system, operation, resource_key, input_hash) DO NOTHING`,
-      [op.operationId, op.workflowId, op.system, op.operation, op.resourceKey, op.inputHash, op.approvalId, op.traceId],
+      [
+        op.operationId,
+        op.workflowId,
+        op.system,
+        op.operation,
+        op.resourceKey,
+        op.inputHash,
+        op.approvalId,
+        op.deploymentId,
+        op.traceId,
+      ],
+    );
+    return (result.rowCount ?? 0) === 1;
+  }
+
+  /**
+   * 実行権の claim。planned/approved/unknown/failed の行を一撃の条件付き UPDATE で
+   * applying へ遷移させ、勝者だけが true を得る（重複 worker の同時実行を直列化。
+   * applying への遷移はこのメソッド以外から行えない）。
+   */
+  async claimExecution(operationId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE action_ledger SET
+         status = 'applying',
+         attempt_count = attempt_count + 1,
+         updated_at = now()
+       WHERE operation_id = $1 AND status IN ('planned', 'approved', 'unknown', 'failed')`,
+      [operationId],
     );
     return (result.rowCount ?? 0) === 1;
   }
 
   async updateStatus(
     operationId: string,
-    status: ActionLedgerStatus,
+    status: Exclude<ActionLedgerStatus, "applying">,
     fields: { externalId?: string | null; externalVersion?: string | null; lastErrorClass?: string | null } = {},
   ): Promise<void> {
+    if ((status as ActionLedgerStatus) === "applying") {
+      throw new RangeError("applying へは claimExecution を使う（同時実行の直列化のため）");
+    }
     await this.db.query(
       `UPDATE action_ledger SET
          status = $2,
          external_id = COALESCE($3, external_id),
          external_version = COALESCE($4, external_version),
          last_error_class = $5,
-         attempt_count = attempt_count + CASE WHEN $2 = 'applying' THEN 1 ELSE 0 END,
          updated_at = now()
        WHERE operation_id = $1`,
       [operationId, status, fields.externalId ?? null, fields.externalVersion ?? null, fields.lastErrorClass ?? null],

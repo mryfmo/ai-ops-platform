@@ -498,11 +498,12 @@ CREATE TABLE IF NOT EXISTS approvals (
   reason              TEXT,
   delivered_at        TIMESTAMPTZ,
   dispatched_at       TIMESTAMPTZ,
-  -- P1-T05 expand（FinalArch:CON-003 / DELTA-03）: 冪等承認・CAS・期限。既存行は NULL 許容
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- P1-T05 expand（FinalArch:CON-003 / DELTA-03）: 冪等承認・CAS・期限。既存行は NULL 許容。
+  -- ALTER 追記との列順一致のため created_at の後に置く
   payload_hash        TEXT,
   expected_version    BIGINT,
   expires_at          TIMESTAMPTZ,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (
     (status = 'pending' AND approver_tenant_id IS NULL AND approver_object_id IS NULL AND decided_at IS NULL AND reason IS NULL)
     OR (status = 'approved' AND approver_tenant_id IS NOT NULL AND approver_object_id IS NOT NULL AND decided_at IS NOT NULL)
@@ -581,6 +582,9 @@ CREATE TABLE IF NOT EXISTS action_ledger (
                      'rejected', 'failed', 'unknown', 'compensated'
                    )),
   approval_id      UUID REFERENCES approvals(approval_id),
+  -- DELTA-03: deploy 系操作は既存 deployments 状態機械が正本。action_ledger の行は
+  -- 外部呼び出しの冪等性のみを追跡し、必ず正本行へ anchor する（並行正本の禁止を CHECK で強制）
+  deployment_id    UUID REFERENCES deployments(deploy_id),
   external_id      TEXT,
   external_version TEXT,
   attempt_count    INT NOT NULL DEFAULT 0,
@@ -588,7 +592,8 @@ CREATE TABLE IF NOT EXISTS action_ledger (
   trace_id         UUID NOT NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (system, operation, resource_key, input_hash)
+  UNIQUE (system, operation, resource_key, input_hash),
+  CONSTRAINT action_ledger_deployment_authority CHECK (system <> 'deployments' OR deployment_id IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_action_ledger_workflow ON action_ledger (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_action_ledger_status ON action_ledger (status);
@@ -667,9 +672,14 @@ CREATE TABLE IF NOT EXISTS id_mappings (
   active           BOOLEAN NOT NULL DEFAULT true,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (source_system, source_object_id, target_system, target_object_id, mapping_version)
+  UNIQUE (project_id, source_system, source_object_id, target_system, target_object_id, mapping_version)
 );
 CREATE INDEX IF NOT EXISTS idx_id_mappings_project ON id_mappings (project_id);
+-- FinalArch:CON-002: project スコープの論理キーごとに active は常に 1 行（並行 addVersion は
+-- この partial unique が直列化する）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_id_mappings_one_active
+  ON id_mappings (project_id, source_system, source_object_id, target_system)
+  WHERE active = true;
 -- rollback: DROP TABLE id_mappings;
 
 -- FinalArch:PRD-005: 会議成果物（抽出・レビュー・公開状態）。

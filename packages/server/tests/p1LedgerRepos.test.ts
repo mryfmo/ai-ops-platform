@@ -24,11 +24,18 @@ const start = {
 };
 
 describe("WorkflowRunsRepo [FinalArch:FR-CP-001 / FinalArch:CON-003]", () => {
-  it("recordStart は workflow_id 冪等 upsert（再投影で version を進める）", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
-    await new WorkflowRunsRepo({ query }).recordStart(start);
+  it("recordStart は同一 run replay を no-op、新 run は全状態リセットで置換する", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const repo = new WorkflowRunsRepo({ query });
+    await expect(repo.recordStart(start)).resolves.toBe(true);
+    await expect(repo.recordStart(start)).resolves.toBe(false);
     const sql = String(query.mock.calls[0]![0]);
     expect(sql).toContain("ON CONFLICT (workflow_id) DO UPDATE");
+    expect(sql).toContain("WHERE workflow_runs.run_id <> EXCLUDED.run_id");
+    expect(sql).toContain("completed_at = NULL");
     expect(sql).toContain("version = workflow_runs.version + 1");
     expect(query.mock.calls[0]![1]).toEqual([
       start.workflowId,
@@ -63,6 +70,7 @@ describe("ActionLedgerRepo [FinalArch:CON-003 / DELTA-03]", () => {
     resourceKey: "owner/repo#branch",
     inputHash: "abc",
     approvalId: null,
+    deploymentId: null,
     traceId: "11111111-1111-1111-1111-111111111111",
   };
 
@@ -79,12 +87,25 @@ describe("ActionLedgerRepo [FinalArch:CON-003 / DELTA-03]", () => {
     );
   });
 
-  it("updateStatus は applying でのみ attempt_count を増やす", async () => {
+  it("claimExecution は条件付き UPDATE で勝者のみ true（重複 worker 直列化）", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const repo = new ActionLedgerRepo({ query });
+    await expect(repo.claimExecution(op.operationId)).resolves.toBe(true);
+    await expect(repo.claimExecution(op.operationId)).resolves.toBe(false);
+    const sql = String(query.mock.calls[0]![0]);
+    expect(sql).toContain("WHERE operation_id = $1 AND status IN ('planned', 'approved', 'unknown', 'failed')");
+    expect(sql).toContain("attempt_count = attempt_count + 1");
+  });
+
+  it("updateStatus は applying への遷移を拒否する（claim 経由を強制）", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
-    await new ActionLedgerRepo({ query }).updateStatus(op.operationId, "applying");
-    expect(String(query.mock.calls[0]![0])).toContain(
-      "attempt_count = attempt_count + CASE WHEN $2 = 'applying' THEN 1 ELSE 0 END",
-    );
+    const repo = new ActionLedgerRepo({ query });
+    await expect(repo.updateStatus(op.operationId, "applying" as unknown as "applied")).rejects.toThrow(RangeError);
+    await repo.updateStatus(op.operationId, "applied");
+    expect(String(query.mock.calls[0]![0])).not.toContain("attempt_count");
   });
 });
 
@@ -163,18 +184,20 @@ describe("証跡 ledger repos [FinalArch:CON-004 / FinalArch:CON-005 / FinalArch
       projectId: null,
       sourceVersion: "v1",
       correlationConfidence: null,
-      extraction: {},
+      extraction: { note: "api_key=abcdefghijklmnopqrstuvwx" },
       publicationStatus: {},
       traceId: "t",
     };
     await expect(repo.record(artifact)).resolves.toBe(true);
     await expect(repo.record(artifact)).resolves.toBe(false);
     expect(String(query.mock.calls[0]![0])).toContain("ON CONFLICT (m365_meeting_id, source_version) DO NOTHING");
+    const storedExtraction = String((query.mock.calls[0]![1] as unknown[])[6]);
+    expect(storedExtraction).not.toContain("abcdefghijklmnopqrstuvwx");
   });
 });
 
 describe("IdMappingsRepo [FinalArch:CON-002]", () => {
-  it("addVersion は旧版を非活性化してから新版を追記する（削除しない）", async () => {
+  it("addVersion は project スコープの 1 文 CTE（非活性化 + 追記、削除なし）", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     await new IdMappingsRepo({ query }).addVersion({
       projectId: "PJ-1",
@@ -185,9 +208,17 @@ describe("IdMappingsRepo [FinalArch:CON-002]", () => {
       mappingVersion: 2,
       provenance: { by: "sync" },
     });
-    expect(String(query.mock.calls[0]![0])).toContain("SET active = false");
-    expect(String(query.mock.calls[1]![0])).toContain("INSERT INTO id_mappings");
-    expect(String(query.mock.calls[1]![0])).not.toContain("DELETE");
+    expect(query).toHaveBeenCalledTimes(1);
+    const sql = String(query.mock.calls[0]![0]);
+    expect(sql).toContain("WITH deactivated AS");
+    expect(sql).toContain("WHERE project_id = $1");
+    expect(sql).not.toContain("DELETE");
+  });
+
+  it("findActive は project_id を必須条件にする（cross-project 遮断）", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    await new IdMappingsRepo({ query }).findActive("PJ-1", "github", "issue-1", "plane");
+    expect(String(query.mock.calls[0]![0])).toContain("WHERE project_id = $1");
   });
 });
 

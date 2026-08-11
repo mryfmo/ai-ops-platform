@@ -23,9 +23,13 @@ export interface WorkflowRunStart {
 export class WorkflowRunsRepo {
   constructor(private readonly db: PgQueryable) {}
 
-  /** 同一 workflow_id の再投影は run_id と状態を更新する（accepted からの再開）。 */
-  async recordStart(run: WorkflowRunStart): Promise<void> {
-    await this.db.query(
+  /**
+   * workflow 開始の投影。同一 (workflow_id, run_id) の replay は no-op（false）。
+   * 別 run_id は意図的な新 run 置換として全状態を一貫リセットする
+   * （status/step/waiting/completed_at/trace/correlation/project/started_at）。
+   */
+  async recordStart(run: WorkflowRunStart): Promise<boolean> {
+    const result = await this.db.query(
       `INSERT INTO workflow_runs (
          workflow_id, run_id, workflow_type, business_key, project_id,
          status, version, trace_id, correlation_id, started_at, updated_at
@@ -33,8 +37,16 @@ export class WorkflowRunsRepo {
        ON CONFLICT (workflow_id) DO UPDATE SET
          run_id = EXCLUDED.run_id,
          status = 'accepted',
+         current_step = NULL,
+         waiting_reason = NULL,
+         completed_at = NULL,
+         project_id = EXCLUDED.project_id,
+         trace_id = EXCLUDED.trace_id,
+         correlation_id = EXCLUDED.correlation_id,
+         started_at = EXCLUDED.started_at,
          version = workflow_runs.version + 1,
-         updated_at = now()`,
+         updated_at = now()
+       WHERE workflow_runs.run_id <> EXCLUDED.run_id`,
       [
         run.workflowId,
         run.runId,
@@ -46,6 +58,7 @@ export class WorkflowRunsRepo {
         run.startedAt,
       ],
     );
+    return (result.rowCount ?? 0) === 1;
   }
 
   /** version CAS 付き状態遷移。競合時は false（呼び出し側が再読して再試行）。 */

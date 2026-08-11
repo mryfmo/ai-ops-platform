@@ -6,7 +6,26 @@
  * meeting_artifacts）の追記中心リポジトリ。判定・実行の正本はそれぞれ
  * OPA bundle / LiteLLM / agentgateway / 会議 SoR にあり、ここは監査可能な写し。
  */
-import type { PgQueryable } from "@aiops/shared";
+import { sanitizeSecrets, type PgQueryable } from "@aiops/shared";
+
+/**
+ * JSON 値の全 string leaf（key 含む）を sanitizeSecrets で redact する。
+ * 直列化後の文字列に regex を当てると閉じ引用符まで消費して JSON を壊し得るため、
+ * 構造を保ったまま値単位で redact する。
+ */
+function sanitizeJsonDeep(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeSecrets(value).sanitized;
+  if (Array.isArray(value)) return value.map(sanitizeJsonDeep);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        sanitizeSecrets(key).sanitized,
+        sanitizeJsonDeep(entry),
+      ]),
+    );
+  }
+  return value;
+}
 
 export class PolicyDecisionsRepo {
   constructor(private readonly db: PgQueryable) {}
@@ -136,7 +155,11 @@ export class ToolInvocationsRepo {
 export class MeetingArtifactsRepo {
   constructor(private readonly db: PgQueryable) {}
 
-  /** (m365_meeting_id, source_version) で冪等。既存版があれば挿入せず false。 */
+  /**
+   * (m365_meeting_id, source_version) で冪等。既存版があれば挿入せず false。
+   * extraction / publication_status は Wispr/M365 由来の外部テキストを含み得るため、
+   * DB 保存前に sanitizeSecrets を必ず通す（AGENTS.md 多層防御 (a)）。
+   */
   async record(artifact: {
     meetingArtifactId: string;
     m365MeetingId: string;
@@ -161,8 +184,8 @@ export class MeetingArtifactsRepo {
         artifact.projectId,
         artifact.sourceVersion,
         artifact.correlationConfidence,
-        JSON.stringify(artifact.extraction),
-        JSON.stringify(artifact.publicationStatus),
+        JSON.stringify(sanitizeJsonDeep(artifact.extraction)),
+        JSON.stringify(sanitizeJsonDeep(artifact.publicationStatus)),
         artifact.traceId,
       ],
     );

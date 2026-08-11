@@ -19,19 +19,26 @@ export interface IdMapping {
 export class IdMappingsRepo {
   constructor(private readonly db: PgQueryable) {}
 
-  /** 新版を追加し、同一対応の旧版を非活性化する（1 トランザクションは呼び出し側）。 */
+  /**
+   * 新版を 1 文の CTE で原子的に追加する（同一 project スコープ論理キーの旧 active を
+   * 非活性化してから挿入。並行実行は idx_id_mappings_one_active の partial unique が
+   * 直列化し、敗者は unique violation で失敗する）。旧版は削除しない。
+   */
   async addVersion(mapping: IdMapping): Promise<void> {
     await this.db.query(
-      `UPDATE id_mappings SET active = false, updated_at = now()
-        WHERE source_system = $1 AND source_object_id = $2
-          AND target_system = $3 AND active = true`,
-      [mapping.sourceSystem, mapping.sourceObjectId, mapping.targetSystem],
-    );
-    await this.db.query(
-      `INSERT INTO id_mappings (
+      `WITH deactivated AS (
+         UPDATE id_mappings SET active = false, updated_at = now()
+          WHERE project_id = $1 AND source_system = $2 AND source_object_id = $3
+            AND target_system = $4 AND active = true
+          RETURNING 1
+       )
+       INSERT INTO id_mappings (
          project_id, source_system, source_object_id, target_system, target_object_id,
          mapping_version, provenance, active
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+       )
+       -- CTE を参照して deactivate の完了後に挿入させる（未参照だと実行順が保証されない）
+       SELECT $1, $2, $3, $4, $5, $6, $7, true
+        WHERE (SELECT count(*) FROM deactivated) IS NOT NULL`,
       [
         mapping.projectId,
         mapping.sourceSystem,
@@ -45,15 +52,16 @@ export class IdMappingsRepo {
   }
 
   async findActive(
+    projectId: string,
     sourceSystem: string,
     sourceObjectId: string,
     targetSystem: string,
   ): Promise<Record<string, unknown> | null> {
     const result = await this.db.query(
       `SELECT * FROM id_mappings
-        WHERE source_system = $1 AND source_object_id = $2 AND target_system = $3 AND active = true
-        ORDER BY mapping_version DESC LIMIT 1`,
-      [sourceSystem, sourceObjectId, targetSystem],
+        WHERE project_id = $1 AND source_system = $2 AND source_object_id = $3
+          AND target_system = $4 AND active = true`,
+      [projectId, sourceSystem, sourceObjectId, targetSystem],
     );
     return (result.rows[0] as Record<string, unknown> | undefined) ?? null;
   }

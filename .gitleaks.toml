@@ -29,3 +29,14 @@ condition = "AND"
 regexTarget = "line"
 paths = ['''packages/server/tests/p1LedgerRepos\.test\.ts''']
 regexes = ['''^\s*businessKey: "[0-9A-Za-z._:-]+",$''']
+
+[[allowlists]]
+description = "Intentional fake api_key fixture proving MeetingArtifactsRepo sanitizes external JSON before storage (P1-T05)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = [
+  '''packages/server/tests/p1LedgerRepos\.test\.ts''',
+  '''packages/server/tests/p1LedgerPg\.test\.ts''',
+]
+regexes = ['''api_key=abcdefghijklm[n]opqrstuvwx''']
