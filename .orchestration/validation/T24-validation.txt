@@ -1,0 +1,174 @@
+# T24 Validation
+
+1. Focused server tests
+Command:
+  pnpm --filter @aiops/server test -- config.test.ts pool.test.ts eventsRepo.test.ts
+Result:
+  PASS. 3 files passed, 23 tests passed.
+
+2. Focused devops migration tests
+Command:
+  pnpm --filter @aiops/devops test -- migrate.test.ts
+Result:
+  PASS. 1 file passed, 3 tests passed.
+
+3. Package typecheck/lint
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/devops typecheck
+Result:
+  PASS after adding local pg declaration instead of adding a dependency.
+
+Command:
+  pnpm --filter @aiops/devops lint
+Result:
+  PASS.
+
+9. Revise focused checks
+Command:
+  pnpm --filter @aiops/devops test -- migrate.test.ts
+Result:
+  PASS. 1 file passed, 3 tests passed.
+
+Command:
+  pnpm --filter @aiops/devops typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/devops lint
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server test -- eventsRepo.test.ts
+Result:
+  PASS. 1 file passed, 13 tests passed.
+
+10. Revise package checks
+Command:
+  pnpm --filter @aiops/devops test
+Result:
+  PASS. 16 files passed, 157 tests passed.
+
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 34 files passed, 211 tests passed.
+
+Command:
+  pnpm exec prettier --check .
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+11. Revise DoD CI
+Command:
+  mise run ci > /tmp/T24-revise-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/3069.pipe
+
+Command:
+  mise run ci > /tmp/T24-revise-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  34 passed (34)
+  packages/server test:coverage: Tests  211 passed (211)
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
+
+7. DoD CI
+Command:
+  mise run ci > /tmp/T24-ci.log 2>&1
+Result:
+  First sandbox run failed at traceability with tsx IPC EPERM:
+    Error: listen EPERM ... /tsx-501/91579.pipe
+
+Command:
+  mise run ci > /tmp/T24-ci.log 2>&1
+Execution:
+  Approved sandbox-external rerun; no -j 1.
+Result:
+  PASS, exit 0.
+Tail evidence:
+  packages/server test:coverage: Test Files  34 passed (34)
+  packages/server test:coverage: Tests  211 passed (211)
+  packages/server test:coverage: Done
+
+Post-run cleanup:
+  Restored generated packages/traceability/output/traceability_matrix.md timestamp diff.
+
+8. Commit
+Commit:
+  f92f1b8 fix: add data migration health checks
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+4. Formatting
+Command:
+  pnpm exec prettier --write packages/server/src/config.ts packages/server/src/db/pool.ts packages/server/src/db/eventsRepo.ts packages/server/src/index.ts packages/server/tests/config.test.ts packages/server/tests/pool.test.ts packages/server/tests/eventsRepo.test.ts packages/devops/src/db/schema.sql packages/devops/src/db/migrate.ts packages/devops/src/db/migrations/*.sql packages/devops/tests/migrate.test.ts docs/reference/configuration.md docs/reference/cli.md runbooks/database-migrations.md runbooks/e2e-real-environment.md
+Result:
+  SQL files have no direct Prettier parser when invoked by filename; TS/MD files were processed. This matches existing schema.sql behavior.
+
+Command:
+  pnpm exec prettier --write packages/devops/src/types/pg.d.ts
+Result:
+  PASS.
+
+Command:
+  pnpm exec prettier --check .
+Result:
+  PASS.
+
+5. Full package tests
+Command:
+  pnpm --filter @aiops/server test
+Result:
+  PASS. 34 files passed, 211 tests passed.
+
+Command:
+  pnpm --filter @aiops/devops test
+Result:
+  PASS. 16 files passed, 157 tests passed.
+
+6. Full package lint/typecheck
+Command:
+  pnpm --filter @aiops/server typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/devops typecheck
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/server lint
+Result:
+  PASS.
+
+Command:
+  pnpm --filter @aiops/devops lint
+Result:
+  PASS.
+
+12. Revise commit
+Commit:
+  257e58c fix: make migrations run atomically

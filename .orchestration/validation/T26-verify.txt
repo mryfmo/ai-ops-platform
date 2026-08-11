@@ -1,0 +1,310 @@
+
+## T26 VERIFY 2026-07-10T11:22:31+09:00
+Branch: agent/T26
+Head: 077dabf
+Command: mise run ci
+
+
+## T26 VERIFY retry 2026-07-10T11:22:54+09:00
+Branch: agent/T26
+Head: 077dabf
+Command: mise run ci
+
+
+--- mise run ci tail (last 240 lines) ---
+[ci] $ mise run governance && mise run lint && mise run traceability && mise ru…
+[governance] $ pnpm run governance:check
+
+> ai-ops-platform@1.0.0 governance:check /Users/mryfmo/Workspace/ai-ops-platform
+> node scripts/check-codeowners.mjs
+
+[lint] $ pnpm -r --if-present run lint
+Scope: 6 of 7 workspace projects
+packages/shared lint$ eslint . --config ../../eslint.config.mjs
+packages/traceability lint$ eslint . --config ../../eslint.config.mjs
+packages/traceability lint: Done
+packages/shared lint: Done
+packages/devops lint$ eslint . --config ../../eslint.config.mjs
+packages/prjops lint$ eslint . --config ../../eslint.config.mjs
+packages/devops lint: Done
+packages/prjops lint: Done
+packages/server lint$ eslint . --config ../../eslint.config.mjs
+packages/web lint$ eslint . --config ../../eslint.config.mjs
+packages/web lint: Done
+packages/server lint: Done
+[traceability] $ pnpm exec tsx packages/traceability/src/verifyTraceability.ts
+node:net:1986
+      const error = new UVExceptionWithHostPort(rval, 'listen', address, port);
+                    ^
+
+Error: listen EPERM: operation not permitted /var/folders/r2/_gkywj713g54lbxkc_hv7j400000gn/T/tsx-501/44289.pipe
+    at Server.setupListenHandle [as _listen2] (node:net:1986:21)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2187:5)
+    at file:///Users/mryfmo/Workspace/ai-ops-platform/node_modules/.pnpm/tsx@4.23.0/node_modules/tsx/dist/cli.mjs:53:31537
+    at new Promise (<anonymous>)
+    at createIpcServer (file:///Users/mryfmo/Workspace/ai-ops-platform/node_modules/.pnpm/tsx@4.23.0/node_modules/tsx/dist/cli.mjs:53:31515)
+    at async file:///Users/mryfmo/Workspace/ai-ops-platform/node_modules/.pnpm/tsx@4.23.0/node_modules/tsx/dist/cli.mjs:55:459 {
+  code: 'EPERM',
+  errno: -1,
+  syscall: 'listen',
+  address: '/var/folders/r2/_gkywj713g54lbxkc_hv7j400000gn/T/tsx-501/44289.pipe',
+  port: -1
+}
+
+Node.js v26.0.0
+[traceability] ERROR task failed
+[ci] ERROR task failed
+
+Exit status: 1
+
+## T26 VERIFY escalated retry 2026-07-10T11:23:45+09:00
+Branch: agent/T26
+Head: 077dabf
+Command: mise run ci
+Reason: sandbox tsx IPC EPERM on traceability
+
+
+--- mise run ci tail (last 240 lines) ---
+packages/shared test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/shared test:coverage: Done
+packages/devops test:coverage$ vitest run --coverage
+packages/prjops test:coverage$ vitest run --coverage
+packages/prjops test:coverage:  RUN  v2.1.9 /Users/mryfmo/Workspace/ai-ops-platform/packages/prjops
+packages/prjops test:coverage:       Coverage enabled with v8
+packages/devops test:coverage:  RUN  v2.1.9 /Users/mryfmo/Workspace/ai-ops-platform/packages/devops
+packages/devops test:coverage:       Coverage enabled with v8
+packages/prjops test:coverage:  ✓ tests/statusJudge.test.ts (17 tests) 3ms
+packages/prjops test:coverage:  ✓ tests/freeTextValidation.test.ts (15 tests) 4ms
+packages/prjops test:coverage:  ✓ tests/commandParser.test.ts (21 tests) 9ms
+packages/prjops test:coverage:  ✓ tests/masterValidation.test.ts (14 tests) 3ms
+packages/devops test:coverage:  ✓ tests/incidentBurndown.test.ts (10 tests) 17ms
+packages/devops test:coverage:  ✓ tests/codingTaskActivity.test.ts (11 tests) 7ms
+packages/devops test:coverage:  ✓ tests/deployMonitor.test.ts (11 tests) 8ms
+packages/prjops test:coverage:  ✓ tests/permissionAndDelivery.test.ts (20 tests) 12ms
+packages/devops test:coverage:  ✓ tests/deployStateMachineAndDora.test.ts (13 tests) 9ms
+packages/prjops test:coverage:  ✓ tests/agt05Distributor.test.ts (10 tests) 6ms
+packages/devops test:coverage:  ✓ tests/reportTemplates.test.ts (15 tests) 4ms
+packages/devops test:coverage:  ✓ tests/agtSec.test.ts (10 tests) 6ms
+packages/devops test:coverage:  ✓ tests/agtDep.test.ts (7 tests) 13ms
+packages/devops test:coverage:  ✓ tests/thresholds.test.ts (15 tests) 4ms
+packages/devops test:coverage:  ✓ tests/riskScore.test.ts (20 tests) 7ms
+packages/prjops test:coverage:  ✓ tests/issueActionBurndown.test.ts (9 tests) 4ms
+packages/prjops test:coverage:  ✓ tests/executiveSevenKeys.test.ts (7 tests) 4ms
+packages/prjops test:coverage:  ✓ tests/reportJobStateMachine.test.ts (14 tests) 6ms
+packages/devops test:coverage:  ✓ tests/migrate.test.ts (4 tests) 3ms
+packages/prjops test:coverage:  ✓ tests/actionReminder.test.ts (12 tests) 4ms
+packages/prjops test:coverage:  ✓ tests/severityProposal.test.ts (11 tests) 43ms
+packages/prjops test:coverage:  ✓ tests/agt06Tracker.test.ts (4 tests) 42ms
+packages/devops test:coverage:  ✓ tests/agtRpt.test.ts (4 tests) 8ms
+packages/devops test:coverage:  ✓ tests/reportPermissionFilter.test.ts (8 tests) 2ms
+packages/devops test:coverage:  ✓ tests/falsePositiveRule.test.ts (7 tests) 5ms
+packages/devops test:coverage:  ✓ tests/jitExpiry.test.ts (10 tests) 50ms
+packages/devops test:coverage:  ✓ tests/buildClassification.test.ts (4 tests) 2ms
+packages/prjops test:coverage:  ✓ tests/agt07Verifier.test.ts (6 tests) 3ms
+packages/devops test:coverage:  ✓ tests/agtOrch.test.ts (9 tests) 2ms
+packages/prjops test:coverage:  ✓ tests/logicalDelete.test.ts (5 tests) 6ms
+packages/prjops test:coverage:  ✓ tests/narrativeSanitizer.test.ts (6 tests) 5ms
+packages/prjops test:coverage:  ✓ tests/investorMetrics.test.ts (2 tests) 6ms
+packages/prjops test:coverage:  ✓ tests/agt01Orchestrator.test.ts (6 tests) 9ms
+packages/devops test:coverage:  Test Files  16 passed (16)
+packages/devops test:coverage:       Tests  158 passed (158)
+packages/devops test:coverage:    Start at  11:24:17
+packages/devops test:coverage:    Duration  2.59s (transform 558ms, setup 0ms, collect 2.36s, tests 149ms, environment 5ms, prepare 2.41s)
+packages/devops test:coverage:  % Coverage report from v8
+packages/devops test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/devops test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+packages/devops test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/devops test:coverage: All files          |   71.73 |    90.57 |   90.12 |   71.73 |                   
+packages/devops test:coverage:  src               |       0 |        0 |       0 |       0 |                   
+packages/devops test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-19              
+packages/devops test:coverage:  src/agents        |      50 |    90.69 |   72.22 |      50 |                   
+packages/devops test:coverage:   AGT_BLD.ts       |       0 |        0 |       0 |       0 | 1-99              
+packages/devops test:coverage:   AGT_CHG.ts       |       0 |        0 |       0 |       0 | 1-128             
+packages/devops test:coverage:   AGT_DEP.ts       |   98.36 |       90 |      75 |   98.36 | 75-76             
+packages/devops test:coverage:   AGT_INC.ts       |       0 |        0 |       0 |       0 | 1-140             
+packages/devops test:coverage:   AGT_ORCH.ts      |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   AGT_RPT.ts       |   78.88 |      100 |      75 |   78.88 | 60-78             
+packages/devops test:coverage:   AGT_SEC.ts       |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:  src/db            |   68.65 |    76.92 |      50 |   68.65 |                   
+packages/devops test:coverage:   migrate.ts       |   68.65 |    76.92 |      50 |   68.65 | ...92-102,105-106 
+packages/devops test:coverage:  src/lib           |   99.39 |    96.07 |     100 |   99.39 |                   
+packages/devops test:coverage:   ...sification.ts |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   ...skActivity.ts |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   deployMonitor.ts |     100 |     90.9 |     100 |     100 | 39,87             
+packages/devops test:coverage:   ...ateMachine.ts |     100 |    85.71 |     100 |     100 | 56                
+packages/devops test:coverage:   doraMetrics.ts   |     100 |    91.66 |     100 |     100 | 36,41             
+packages/devops test:coverage:   ...sitiveRule.ts |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   ...ntBurndown.ts |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   jitExpiry.ts     |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   ...sionFilter.ts |    90.9 |    93.33 |     100 |    90.9 | 22-23             
+packages/devops test:coverage:   riskScore.ts     |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   thresholds.ts    |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:  src/templates     |   89.86 |    73.52 |     100 |   89.86 |                   
+packages/devops test:coverage:   index.ts         |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage:   ...ileReports.ts |   85.03 |    67.85 |     100 |   85.03 | ...,78,83,170-175 
+packages/devops test:coverage:   reportShell.ts   |     100 |      100 |     100 |     100 |                   
+packages/devops test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/devops test:coverage: Done
+packages/prjops test:coverage:  ✓ tests/weeklySummaryReport.test.ts (2 tests) 2ms
+packages/prjops test:coverage:  ✓ tests/reportTemplates.test.ts (15 tests) 3ms
+packages/prjops test:coverage:  Test Files  19 passed (19)
+packages/prjops test:coverage:       Tests  196 passed (196)
+packages/prjops test:coverage:    Start at  11:24:17
+packages/prjops test:coverage:    Duration  2.92s (transform 985ms, setup 0ms, collect 4.22s, tests 176ms, environment 2ms, prepare 2.76s)
+packages/prjops test:coverage:  % Coverage report from v8
+packages/prjops test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/prjops test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+packages/prjops test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/prjops test:coverage: All files          |   82.23 |    86.71 |      94 |   82.23 |                   
+packages/prjops test:coverage:  src               |       0 |        0 |       0 |       0 |                   
+packages/prjops test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-27              
+packages/prjops test:coverage:  src/agents        |   50.52 |    78.18 |   69.23 |   50.52 |                   
+packages/prjops test:coverage:   ...chestrator.ts |    90.9 |      100 |   66.66 |    90.9 | 39-40             
+packages/prjops test:coverage:   ..._collector.ts |       0 |        0 |       0 |       0 | 1-173             
+packages/prjops test:coverage:   ...3_analyzer.ts |       0 |        0 |       0 |       0 | 1-100             
+packages/prjops test:coverage:   ...tGenerator.ts |       0 |        0 |       0 |       0 | 1-76              
+packages/prjops test:coverage:   ...istributor.ts |   81.81 |    78.57 |     100 |   81.81 | ...34-143,158-159 
+packages/prjops test:coverage:   AGT06_tracker.ts |   97.46 |     90.9 |     100 |   97.46 | 111-112           
+packages/prjops test:coverage:   ...7_verifier.ts |   81.81 |    71.42 |     100 |   81.81 | 72-74,76-78       
+packages/prjops test:coverage:  src/lib           |   97.82 |     90.9 |   98.48 |   97.82 |                   
+packages/prjops test:coverage:   ...onReminder.ts |     100 |     92.3 |     100 |     100 | 34                
+packages/prjops test:coverage:   approvalTimer.ts |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage:   commandParser.ts |     100 |    89.18 |     100 |     100 | 121-122,126,161   
+packages/prjops test:coverage:   ...eSevenKeys.ts |     100 |     82.6 |     100 |     100 | ...39,158,163-164 
+packages/prjops test:coverage:   ...Validation.ts |   94.64 |    90.32 |     100 |   94.64 | 77-79             
+packages/prjops test:coverage:   ...ntDelivery.ts |   90.69 |     82.6 |     100 |   90.69 | 71-72,75-76       
+packages/prjops test:coverage:   ...torMetrics.ts |     100 |    94.44 |     100 |     100 | 99                
+packages/prjops test:coverage:   ...onBurndown.ts |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage:   logicalDelete.ts |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage:   ...Validation.ts |   94.59 |     92.3 |     100 |   94.59 | 53-54,111-112     
+packages/prjops test:coverage:   ...eSanitizer.ts |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage:   ...ateMachine.ts |   95.45 |    95.45 |   85.71 |   95.45 | 61-63             
+packages/prjops test:coverage:   ...sionFilter.ts |   96.15 |    85.18 |     100 |   96.15 | 38,40             
+packages/prjops test:coverage:   ...tyProposal.ts |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage:   statusJudge.ts   |   95.23 |       95 |     100 |   95.23 | 37-38             
+packages/prjops test:coverage:  src/templates     |   98.06 |    77.38 |     100 |   98.06 |                   
+packages/prjops test:coverage:   index.ts         |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage:   ...ileReports.ts |   99.33 |    66.66 |     100 |   99.33 | 175               
+packages/prjops test:coverage:   reportShell.ts   |      98 |    93.33 |     100 |      98 | 79                
+packages/prjops test:coverage:   svgCharts.ts     |   92.15 |     87.5 |     100 |   92.15 | 29-33             
+packages/prjops test:coverage:   ...maryReport.ts |     100 |      100 |     100 |     100 |                   
+packages/prjops test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/prjops test:coverage: Done
+packages/server test:coverage$ vitest run --coverage
+packages/server test:coverage:  RUN  v2.1.9 /Users/mryfmo/Workspace/ai-ops-platform/packages/server
+packages/server test:coverage:       Coverage enabled with v8
+packages/server test:coverage:  ✓ tests/eventsRepo.test.ts (13 tests) 6ms
+packages/server test:coverage:  ✓ tests/eventsPollingTask.test.ts (9 tests) 6ms
+packages/server test:coverage:  ✓ tests/codingTaskRoutes.test.ts (17 tests) 20ms
+packages/server test:coverage:  ✓ tests/app.test.ts (17 tests) 22ms
+packages/server test:coverage:  ✓ tests/teamsConversationAgent.test.ts (17 tests) 9ms
+packages/server test:coverage:  ✓ tests/schedulerTasks.test.ts (7 tests) 6ms
+packages/server test:coverage:  ✓ tests/reportDeliveryTask.test.ts (7 tests) 6ms
+packages/server test:coverage:  ✓ tests/githubEventRouter.test.ts (10 tests) 5ms
+packages/server test:coverage:  ✓ tests/codingTasksRepo.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/sevenKeysMonthlySnapshotTask.test.ts (5 tests) 7ms
+packages/server test:coverage:  ✓ tests/channelPollingTask.test.ts (3 tests) 6ms
+packages/server test:coverage:  ✓ tests/config.test.ts (10 tests) 9ms
+packages/server test:coverage:  ✓ tests/graphSubscriptionsRepo.test.ts (7 tests) 5ms
+packages/server test:coverage:  ✓ tests/reportIngestRoutes.test.ts (5 tests) 24ms
+packages/server test:coverage:  ✓ tests/scheduler.test.ts (6 tests) 33ms
+packages/server test:coverage:  ✓ tests/subscriptionRenewalTask.test.ts (4 tests) 4ms
+packages/server test:coverage:  ✓ tests/pmSnapshotReconcileTask.test.ts (3 tests) 5ms
+packages/server test:coverage:  ✓ tests/projectChannelsRepo.test.ts (5 tests) 4ms
+packages/server test:coverage:  ✓ tests/serverLifecycle.test.ts (4 tests) 8ms
+packages/server test:coverage:  ✓ tests/graphLifecycleHandler.test.ts (4 tests) 3ms
+packages/server test:coverage:  ✓ tests/freeTextIntent.test.ts (5 tests) 8ms
+packages/server test:coverage:  ✓ tests/confirmToken.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/importLedgerRepo.test.ts (4 tests) 3ms
+packages/server test:coverage:  ✓ tests/graphNotificationValidator.test.ts (7 tests) 3ms
+packages/server test:coverage:  ✓ tests/sevenKeysSnapshotsRepo.test.ts (2 tests) 3ms
+packages/server test:coverage:  ✓ tests/schedulerPolicy.test.ts (7 tests) 4ms
+packages/server test:coverage:  ✓ tests/pmTimeseriesRepo.test.ts (3 tests) 4ms
+packages/server test:coverage:  ✓ tests/reportDeliveryLogRepo.test.ts (3 tests) 2ms
+packages/server test:coverage:  ✓ tests/channelAuthorization.test.ts (4 tests) 2ms
+packages/server test:coverage:  ✓ tests/metrics.test.ts (1 test) 4ms
+packages/server test:coverage:  ✓ tests/standardReportsRepo.test.ts (3 tests) 10ms
+packages/server test:coverage:  ✓ tests/recipientsRepo.test.ts (1 test) 4ms
+packages/server test:coverage:  ✓ tests/pool.test.ts (1 test) 3ms
+packages/server test:coverage:  ✓ tests/stakeholderProfileResolver.test.ts (3 tests) 3ms
+packages/server test:coverage:  ✓ tests/createGraphSubscriptionTool.test.ts (2 tests) 2ms
+packages/server test:coverage:  ✓ tests/xlsxImportRoutes.test.ts (9 tests) 2437ms
+packages/server test:coverage:    ✓ xlsx import routes [REQ-037, SPEC-INT-063, AC-037-1] > executeは確認後にGitHubモックへ書き込み、監査ログを追記する 2087ms
+packages/server test:coverage:  ✓ tests/telemetry.test.ts (1 test) 2ms
+packages/server test:coverage:  Test Files  37 passed (37)
+packages/server test:coverage:       Tests  223 passed (223)
+packages/server test:coverage:    Start at  11:24:21
+packages/server test:coverage:    Duration  4.24s (transform 828ms, setup 0ms, collect 9.22s, tests 2.69s, environment 5ms, prepare 2.43s)
+packages/server test:coverage:  % Coverage report from v8
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: All files          |   74.25 |    77.98 |    91.7 |   74.25 |                   
+packages/server test:coverage:  scripts           |       0 |        0 |       0 |       0 |                   
+packages/server test:coverage:   ...container.mjs |       0 |        0 |       0 |       0 | 1-49              
+packages/server test:coverage:  src               |   14.53 |    84.61 |   83.33 |   14.53 |                   
+packages/server test:coverage:   config.ts        |   92.15 |    85.71 |     100 |   92.15 | 74-77             
+packages/server test:coverage:   index.ts         |       0 |        0 |       0 |       0 | 1-537             
+packages/server test:coverage:   ...rLifecycle.ts |    92.5 |    88.88 |     100 |    92.5 | 28-30             
+packages/server test:coverage:  src/agents        |   89.75 |    74.62 |     100 |   89.75 |                   
+packages/server test:coverage:   ...ationAgent.ts |   89.75 |    74.62 |     100 |   89.75 | ...46-350,353-355 
+packages/server test:coverage:  src/auth          |    3.03 |      100 |       0 |    3.03 |                   
+packages/server test:coverage:   ...enProvider.ts |    3.03 |      100 |       0 |    3.03 | 18-50             
+packages/server test:coverage:  src/db            |   74.85 |    70.32 |   84.84 |   74.85 |                   
+packages/server test:coverage:   ...ssagesRepo.ts |       0 |      100 |     100 |       0 | 26-96             
+packages/server test:coverage:   ...gTasksRepo.ts |     100 |    78.94 |     100 |     100 | 68-70             
+packages/server test:coverage:   eventsRepo.ts    |   87.68 |     67.3 |   77.77 |   87.68 | ...13-214,233-247 
+packages/server test:coverage:   grantsRepo.ts    |       0 |      100 |     100 |       0 | 11-42             
+packages/server test:coverage:   ...ptionsRepo.ts |     100 |    66.66 |     100 |     100 | 39-42,68-69       
+packages/server test:coverage:   ...LedgerRepo.ts |     100 |    88.88 |     100 |     100 | 16                
+packages/server test:coverage:   pgAuditLog.ts    |       0 |        0 |       0 |       0 | 1-49              
+packages/server test:coverage:   ...seriesRepo.ts |   78.18 |      100 |   66.66 |   78.18 | 87-93,96-102      
+packages/server test:coverage:   pool.ts          |   84.61 |      100 |      50 |   84.61 | 31-32             
+packages/server test:coverage:   ...annelsRepo.ts |     100 |       75 |     100 |     100 | 41-43             
+packages/server test:coverage:   ...pientsRepo.ts |     100 |     37.5 |     100 |     100 | 25-31             
+packages/server test:coverage:   ...eryLogRepo.ts |   76.66 |       80 |      80 |   76.66 | 23-31             
+packages/server test:coverage:   ...pshotsRepo.ts |   89.83 |    53.33 |   85.71 |   89.83 | 59-65             
+packages/server test:coverage:   ...eportsRepo.ts |   70.17 |       80 |   66.66 |   70.17 | 40-50,76-84       
+packages/server test:coverage:  src/http          |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   app.ts           |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:  src/http/routes   |   90.39 |    75.55 |     100 |   90.39 |                   
+packages/server test:coverage:   codingTasks.ts   |   89.56 |    74.07 |     100 |   89.56 | ...19-220,260-269 
+packages/server test:coverage:   githubWebhook.ts |   96.22 |    73.33 |     100 |   96.22 | 51-52             
+packages/server test:coverage:   ...ifications.ts |   88.17 |    69.69 |     100 |   88.17 | 60-61,83-91       
+packages/server test:coverage:   health.ts        |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   metrics.ts       |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   reportIngest.ts  |   82.05 |    73.07 |     100 |   82.05 | 34-35,43-52,71-72 
+packages/server test:coverage:   webuiProxy.ts    |   84.61 |       50 |     100 |   84.61 | 34-35,41-42       
+packages/server test:coverage:   xlsxImport.ts    |   95.27 |    83.87 |     100 |   95.27 | ...08-109,138-139 
+packages/server test:coverage:  src/lib           |   95.06 |     86.3 |     100 |   95.06 |                   
+packages/server test:coverage:   ...horization.ts |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   confirmToken.ts  |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   ...rdDeepLink.ts |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   ...TextIntent.ts |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   ...ventRouter.ts |    95.7 |     82.5 |     100 |    95.7 | ...00,104,115-116 
+packages/server test:coverage:   ...cleHandler.ts |   86.11 |       75 |     100 |   86.11 | 27-36             
+packages/server test:coverage:   ...nValidator.ts |     100 |    94.44 |     100 |     100 | 42                
+packages/server test:coverage:   ...ulerPolicy.ts |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   ...leResolver.ts |   88.23 |    66.66 |     100 |   88.23 | 30-31             
+packages/server test:coverage:  src/observability |   95.96 |    89.28 |   86.66 |   95.96 |                   
+packages/server test:coverage:   logger.ts        |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   metrics.ts       |      96 |    91.66 |    90.9 |      96 | 85-88             
+packages/server test:coverage:   telemetry.ts     |      95 |    66.66 |   66.66 |      95 | 31                
+packages/server test:coverage:  src/scheduler     |     100 |    82.35 |     100 |     100 |                   
+packages/server test:coverage:   scheduler.ts     |     100 |    82.35 |     100 |     100 | 61-66,89          
+packages/server test:coverage:  ...cheduler/tasks |   99.42 |       80 |     100 |   99.42 |                   
+packages/server test:coverage:   ...ollingTask.ts |     100 |    77.77 |     100 |     100 | 85,103            
+packages/server test:coverage:   ...ollingTask.ts |     100 |    75.75 |     100 |     100 | 55-57,75,79,95-99 
+packages/server test:coverage:   ...hcheckTask.ts |     100 |      100 |     100 |     100 |                   
+packages/server test:coverage:   ...cationTask.ts |     100 |    66.66 |     100 |     100 | 25                
+packages/server test:coverage:   ...oncileTask.ts |     100 |    83.33 |     100 |     100 | 32,60             
+packages/server test:coverage:   ...liveryTask.ts |   98.42 |    74.41 |     100 |   98.42 | 85-86,92          
+packages/server test:coverage:   ...apshotTask.ts |     100 |    89.47 |     100 |     100 | 51,70             
+packages/server test:coverage:   ...enewalTask.ts |     100 |     87.5 |     100 |     100 | 68                
+packages/server test:coverage:  src/tools         |    55.1 |       50 |   66.66 |    55.1 |                   
+packages/server test:coverage:   ...bscription.ts |    55.1 |       50 |   66.66 |    55.1 | 30-31,46-60,63-67 
+packages/server test:coverage: -------------------|---------|----------|---------|---------|-------------------
+packages/server test:coverage: Done
+
+Exit status: 0

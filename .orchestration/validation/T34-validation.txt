@@ -1,0 +1,134 @@
+T34 VALIDATION EVIDENCE
+=======================
+
+Repository: /Users/mryfmo/Workspace/ai-ops-platform
+Revision: 21306d8
+Date: 2026-07-10
+
+1. Canonical audit validator
+Command:
+  node .orchestration/validation/T34-validate.mjs
+Result (exit 0):
+  T34 VALIDATOR PASS
+  checks=111
+  findings=11 (HIGH=8, MED=3); sequence=UFA-001..011
+  defect types=4/4; required finding fields=7 x 11
+  artifact coverage=18/18 (guides=3, references=4, Teams README=1, runbooks=10)
+  Excel knowledge inventory=13/13; node-ID and signed HTTP walkthroughs present
+  six groups=6/6; accepted-finding duplicates newly filed=0
+
+2. Excel template generation and structure
+Command:
+  pnpm exec tsx packages/shared/src/xlsxImport/generateTemplate.ts \
+    .orchestration/sandboxes/T34-aiops-import-template.xlsx
+First sandbox result:
+  exit 1, tsx IPC listen EPERM under the managed sandbox.
+Approved rerun result:
+  exit 0, wrote .orchestration/sandboxes/T34-aiops-import-template.xlsx
+
+Generated artifact:
+  SHA-256 34f9949c25fee7debb4387a5f2cc8638994a865577344d8683b46121839f6e3b
+  size 13 KiB
+  sheets=issues,project_items,milestones
+  rowCount=2 on every sheet; row 2 is populated example data
+  instruction sheets=0
+  data validations=0 on every sheet
+  header notes=required/optional + string/date/csv only
+
+3. Untouched template parse
+Command:
+  node --input-type=module -e '<load generated workbook with dist parser>'
+Result (exit 0):
+  rows=3, errors=0
+  issue: ISS-001 / 初期課題 / milestone v1
+  project_item: PVI-001 / PVT_kw... / I_kw... / PVTSSF_l... / text / Ready
+  milestone: MS-001 / v1 / 2026-08-31
+
+This proves the examples are executable payload and placeholder node IDs pass dry-run.
+
+4. Adversarial Excel probes
+
+Unknown field contract probe:
+  Input field_type=numbre, value=not-a-number.
+  Result: rows=1, errors=0 (exit 0).
+
+Corrupt workbook probe:
+  Input body="not xlsx".
+  Result: uncaught "Can't find end of central directory" exception.
+
+Remote-write/ledger-failure rerun probe:
+  First run: failed=1 after remote create, ledger markImported throws.
+  Second run: failed=1 and remote create runs again.
+  Result: remoteCreates=2.
+
+5. Focused tests
+Command:
+  pnpm --filter @aiops/shared exec vitest run tests/xlsxImport.test.ts
+Result:
+  1 file passed; 19 tests passed.
+
+Command:
+  pnpm --filter @aiops/server exec vitest run \
+    tests/xlsxImportRoutes.test.ts \
+    tests/reportIngestRoutes.test.ts \
+    tests/codingTaskRoutes.test.ts
+Result:
+  3 files passed; 31 tests passed.
+
+Interpretation: existing tests validate current implementation behavior; they do not prove
+that a new user can discover required values or complete the documented procedure.
+
+6. Operator-command walkthroughs
+
+Graph subscription command copied from docs:
+  node packages/server/dist/tools/createGraphSubscription.js \
+    --resource "/teams/example/channels/example/messages" \
+    --notificationUrl "https://aiops.example.com/webhooks/graph" \
+    --expiry "2026-07-09T06:00:00Z"
+Result (exit 1 before any external call):
+  E-CFG01: invalid server configuration: DATABASE_URL, GRAPH_CLIENT_STATE,
+  GITHUB_WEBHOOK_SECRET, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, GRAPH_TENANT_ID,
+  PUBLIC_BASE_URL, and CODING_TASK_CALLBACK_SECRET are required.
+
+The documented expiration is also before the audit time. Microsoft documents finite
+subscription lifetimes and renewal-before-expiry requirements.
+
+Local GitHub authentication prerequisite:
+  gh auth status
+Result:
+  active account token invalid; no live read/write API call performed.
+
+GitHub official documentation confirms `read:project` for read-only Project inspection,
+Project field/option IDs, and option-ID based single-select updates. Exact commands are in
+the canonical audit.
+
+7. Full artifact coverage
+- docs/guide: 3/3
+- docs/reference: 4/4
+- docs/teams-app/README.md: 1/1
+- runbooks: 10/10
+- route/error families: xlsxImport, reportIngest, codingTasks = 3/3
+- Excel template/parser/engine/route/tests: inspected and locally exercised
+
+8. Deduplication
+Existing roots retained as references only:
+  PRG-004, PRG-014, PRG-019, PRG-020, PRG-021, PRG-022, PRG-028, PRG-030,
+  PRG-031, PRG-032, PRG-043, PRG-047, SPC-009..015, SPC-025.
+Newly filed duplicate count: 0.
+
+9. Workspace integrity
+The traceability CLI walkthrough updated only a generated timestamp in
+packages/traceability/output/traceability_matrix.md; that self-generated change was
+immediately restored. Final command:
+  git diff --quiet -- . ':!.agents' ':!.orchestration'
+Expected/final result:
+  exit 0; no tracked product/docs/spec/schema/audit diff.
+  Pre-existing untracked .agents/ remains untouched.
+
+10. Network and real environment
+- No real LLM call.
+- No GitHub or Microsoft Graph write.
+- No live GitHub read because local auth was invalid.
+- Official GitHub Docs and Microsoft Learn were read as primary references.
+- No PostgreSQL or deployed server was required; unexecuted real-environment obligations
+  remain referenced to their accepted PRG findings.

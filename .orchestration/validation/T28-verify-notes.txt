@@ -1,0 +1,4 @@
+# T28 Verify Notes
+
+- Final validation is in `T28-validation.txt`.
+- Final `mise run ci` used default parallel task graph; `-j 1` was not used.

@@ -1,0 +1,45 @@
+$ mise run ci
+...
+[format] All matched files use Prettier code style!
+...
+[test:coverage] packages/server test:coverage:  Test Files  19 passed (19)
+[test:coverage] packages/server test:coverage:       Tests  130 passed (130)
+...
+[lint] packages/server lint: Done
+[lint] packages/web lint: Done
+...
+[build] packages/web build: Done
+[build] Finished in 25.34s
+Finished in 25.37s
+
+$ git show --stat HEAD
+commit e4cc11ee3b9ded1f08e1bcfd9c029da7695bc89b
+Author: mryfmo <mryfmo@gmail.com>
+Date:   Thu Jul 9 15:56:50 2026 +0900
+
+    fix(server): dispatch queued events and resolve Teams callers
+
+ .../server/src/agents/teamsConversationAgent.ts    | 32 ++++++---
+ packages/server/src/index.ts                       | 78 ++++++++++++++++++--
+ packages/server/src/lib/githubEventRouter.ts       | 83 ++++++++++++++++++++++
+ .../server/src/lib/stakeholderProfileResolver.ts   | 31 ++++++++
+ .../src/scheduler/tasks/eventsPollingTask.ts       | 25 +++++--
+ packages/server/tests/eventsPollingTask.test.ts    | 63 ++++++++++++++--
+ packages/server/tests/githubEventRouter.test.ts    | 83 ++++++++++++++++++++++
+ .../tests/stakeholderProfileResolver.test.ts       | 46 ++++++++++++
+ .../server/tests/teamsConversationAgent.test.ts    | 13 +++-
+ packages/traceability/src/verifyTraceability.ts    | 63 +++++++++-------
+ 10 files changed, 463 insertions(+), 54 deletions(-)
+
+$ gh pr view 1 --repo mryfmo/ai-ops-platform --json url,labels
+{"labels":[{"id":"LA_kwDOTSsiiM8AAAACq46VqQ","name":"ai-generated","description":"AI-generated changes","color":"ededed"}],"url":"https://github.com/mryfmo/ai-ops-platform/pull/1"}
+
+Additional focused checks:
+- `mise exec -- pnpm --filter @aiops/server run test` passed: 19 files, 130 tests.
+- `mise exec -- pnpm --filter @aiops/server run typecheck` passed.
+
+Install note:
+- `mise install` passed.
+- `mise run install` initially failed because registry access timed out through pnpm standalone Node 20.11.1.
+- `mise exec -- pnpm install --network-concurrency 1 --fetch-retries 5 --fetch-retry-mintimeout 20000 --fetch-timeout 120000` passed.
+

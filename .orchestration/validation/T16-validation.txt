@@ -1,0 +1,73 @@
+T16 validation
+==============
+
+Branch:
+- agent/T16
+
+Commit:
+- b0cf72f docs: add implementation reference docs
+
+PR:
+- https://github.com/mryfmo/ai-ops-platform/pull/12
+
+Created/updated committed docs:
+- README.md
+- docs/README.md
+- docs/spec/overview.md
+- docs/spec/data-model.md
+- docs/spec/spec-id-catalog.md
+- docs/spec/packages.md
+- docs/reference/http-api.md
+- docs/reference/cli.md
+- docs/reference/configuration.md
+- docs/reference/page-agent-tools.md
+- docs/guide/dashboard.md
+- docs/guide/reports.md
+- docs/guide/excel-import.md
+
+Implementation files read for consistency:
+- packages/devops/src/db/schema.sql
+- packages/server/src/config.ts
+- packages/server/src/http/app.ts
+- packages/server/src/http/routes/health.ts
+- packages/server/src/http/routes/graphNotifications.ts
+- packages/server/src/http/routes/githubWebhook.ts
+- packages/server/src/http/routes/codingTasks.ts
+- packages/server/src/http/routes/webuiProxy.ts
+- packages/server/src/http/routes/xlsxImport.ts
+- packages/web/src/server/config.ts
+- packages/web/src/auth.ts
+- packages/web/src/app/api/**/route.ts
+- packages/web/src/server/reportData/*Handler.ts
+- packages/web/src/server/chat/*.ts
+- packages/web/src/server/viewSpec.ts
+- packages/web/src/components/DashboardClient.tsx
+- packages/web/src/components/views/*.tsx
+- packages/shared/src/xlsxImport/*.ts
+- packages/shared/src/reporting/*.ts
+- packages/traceability/spec-ids/prjops.json
+- packages/traceability/spec-ids/devops.json
+- packages/*/package.json
+
+Commands:
+- pnpm run format
+  - first run failed due Prettier formatting in 9 new docs
+- pnpm exec prettier --write docs/README.md docs/spec/overview.md docs/spec/data-model.md docs/spec/spec-id-catalog.md docs/spec/packages.md docs/reference/http-api.md docs/reference/cli.md docs/reference/configuration.md docs/reference/page-agent-tools.md docs/guide/dashboard.md docs/guide/reports.md docs/guide/excel-import.md README.md
+  - passed
+- mise run ci
+  - passed
+  - covered lint, traceability, format, build, typecheck, test:coverage
+- pnpm -r --if-present run test -- --run --reporter=dot
+  - passed
+  - 740 tests passed
+
+Traceability output:
+- packages/traceability/output/traceability_matrix.md changed only by generated timestamp during ci.
+- The timestamp-only generated diff was restored and is not part of T16.
+
+Doc accuracy guard:
+- HTTP API docs only list routes present in server/web route files.
+- Config docs only list env vars parsed by server/web config modules.
+- Page-agent tool docs only list tools registered in packages/web/src/server/chat/tools.ts.
+- Excel guide follows shared xlsx import template/parser/engine behavior.
+- Dashboard/report guides reflect currently rendered view components and data handlers.

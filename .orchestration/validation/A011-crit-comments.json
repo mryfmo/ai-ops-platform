@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_c8692c",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A011 self-review finding: stable-subject UUID validation must enforce lowercase canonical shape without assuming RFC version/variant bits; owner approval must carry signature bytes and signing-key identity separately from ENV values. Addressed in the schemas and fixtures.",
+    "author": "Codex",
+    "created_at": "2026-07-18T01:43:49Z",
+    "updated_at": "2026-07-18T01:44:07Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_acbcb8",
+        "body": "Resolved: both schemas now accept any lowercase canonical UUID shape without unsupported version-bit constraints; owner_approval now requires signing_key_id and signature_base64 while environment remains a separate strict object. Fixture validation and golden-vector recomputation are green.",
+        "author": "Codex",
+        "created_at": "2026-07-18T01:44:07Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

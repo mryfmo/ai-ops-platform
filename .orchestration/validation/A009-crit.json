@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_b3f8da",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A009 self-review approval: reviewed the complete one-file diff against origin/main. The T09 fixture now slices through the explicit P010-F01-T09 record, CLI tests use the same bounded fixture, and the real manifest remains untouched. No P0, P1, or P2 findings.",
+    "author": "Codex",
+    "created_at": "2026-07-18T00:58:19Z",
+    "updated_at": "2026-07-18T00:58:30Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_86e7b4",
+        "body": "Approved after targeted 12/12, format, and full CI all passed; no code changes requested.",
+        "author": "Codex",
+        "created_at": "2026-07-18T00:58:30Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

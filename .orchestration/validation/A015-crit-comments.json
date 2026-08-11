@@ -1,0 +1,48 @@
+[
+  {
+    "scope": "line",
+    "path": "packages/devops/src/lib/recipientBackfill.ts",
+    "id": "c_df9a7a",
+    "start_line": 280,
+    "end_line": 280,
+    "body": "P1: The declared Ed25519/ES256 algorithm must be bound to the actual public-key type and, for ES256, the P-256 curve; otherwise an RSA key can be accepted under the ES256 label. Enforce key type/curve and add regression coverage.",
+    "anchor": "      (artifact.owner_approval.signature_algorithm === \"Ed25519\" && key.asymmetricKeyType !== \"ed25519\") ||",
+    "author": "Codex",
+    "created_at": "2026-07-18T23:27:22Z",
+    "updated_at": "2026-07-18T23:27:42Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_806b4b",
+        "body": "Fixed: createPublicKey metadata now requires Ed25519 or EC prime256v1 to match the declared algorithm; RSA-under-ES256 regression is covered.",
+        "author": "Codex",
+        "created_at": "2026-07-18T23:27:42Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/devops/src/tools/backfillRecipients.ts",
+    "id": "c_4b8996",
+    "start_line": 85,
+    "end_line": 85,
+    "body": "P1: Sandbox confirmation must reject URL query parameters because PostgreSQL connection options can override the visible localhost host/port. Require an empty query/fragment and cover the bypass attempt.",
+    "anchor": "    url.search !== \"\" ||",
+    "author": "Codex",
+    "created_at": "2026-07-18T23:27:08Z",
+    "updated_at": "2026-07-18T23:27:32Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_680859",
+        "body": "Fixed: sandbox validation rejects all query parameters and fragments before Pool construction; a host-override query regression is covered.",
+        "author": "Codex",
+        "created_at": "2026-07-18T23:27:32Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

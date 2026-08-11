@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "standard-report.v1",
+  "reportType": "manager-weekly",
+  "evidenceIds": ["REQ-040", "SPEC-INT-067", "SPEC-INT-082"],
+  "period": {
+    "label": "2026-W28",
+    "generatedAt": "2026-07-09T18:30:00+09:00"
+  },
+  "metrics": {
+    "completed": 3,
+    "blocked": 1
+  },
+  "slots": {
+    "conclusion": "進捗は計画内です。",
+    "riskSummary": "実環境必須項目を分離して管理します。",
+    "nextActions": "実環境E2Eの前提を整備します。"
+  }
+}

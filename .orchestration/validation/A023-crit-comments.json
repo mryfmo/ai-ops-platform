@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_e07b5f",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "A023 self-review approval: the diff stays within FA-T02 allowlist plus the instructed Planned-at line; the validator is stdlib-only, strict at every object boundary, fails closed on stale/unsafe/duplicate/unsigned mappings, and governance runs the focused RED-to-GREEN tests. No blocking finding.",
+    "author": "Codex",
+    "created_at": "2026-07-19T06:16:09Z",
+    "updated_at": "2026-07-19T06:16:14Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_81baef",
+        "body": "Resolved after focused negative-matrix review and full CI green.",
+        "author": "Codex",
+        "created_at": "2026-07-19T06:16:14Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
