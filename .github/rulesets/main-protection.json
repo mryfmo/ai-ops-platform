@@ -1,5 +1,5 @@
 {
-  "$comment": "根拠: FinalArch:INV-012 / FinalArch:GOV-001 / ADR-0027 / ADR-0006。P0-T02 の適用対象。ENV-DEC-011（GitHub Pro 化 or public 化）成立後に gh api repos/{owner}/{repo}/rulesets へ POST する。適用と負証明の手順は runbooks/production-gates.md。",
+  "$comment": "根拠: FinalArch:INV-012 / FinalArch:GOV-002 / ADR-0027 / ADR-0006。P0-T02 の適用対象。ENV-DEC-011（GitHub Pro 化 or public 化）成立後に gh api repos/{owner}/{repo}/rulesets へ POST する。適用と負証明の手順は runbooks/production-gates.md。",
   "name": "main-protection",
   "target": "branch",
   "enforcement": "active",
