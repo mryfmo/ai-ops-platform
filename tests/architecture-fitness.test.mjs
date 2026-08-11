@@ -76,7 +76,14 @@ function createCleanFixture() {
 
 test("FinalArch:INV-005/006/009/013/019 and GOV-005 reject every required negative fixture", () => {
   const codes = new Set(checkArchitectureFitness(negativeFixture).map(({ code }) => code));
-  for (const code of ["EGRESS", "GATEWAY_OVERLAP", "FORBIDDEN_PLATFORM", "MCP_TOOL", "FLAG_REGISTRY", "DUPLICATE_OWNER"]) {
+  for (const code of [
+    "EGRESS",
+    "GATEWAY_OVERLAP",
+    "FORBIDDEN_PLATFORM",
+    "MCP_TOOL",
+    "FLAG_REGISTRY",
+    "DUPLICATE_OWNER",
+  ]) {
     assert.ok(codes.has(code), `missing ${code}: ${[...codes].join(", ")}`);
   }
 });
