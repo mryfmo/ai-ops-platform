@@ -162,6 +162,28 @@ test("FinalArch:INV-019 scans root environment and infrastructure configuration"
   }
 });
 
+test("FinalArch:GOV-005 rejects adversarial WBS ownership bypasses", () => {
+  const cases = [
+    ["missing reviewer", "tasks:\n- id: T1\n  writer: codex-gpt56-sol-high\n"],
+    ["inline-comment equality", "tasks:\n- id: T1\n  writer: codex-x # writer\n  reviewer: codex-x\n"],
+    ["duplicate writer key override", "tasks:\n- id: T1\n  writer: claude-x\n  reviewer: codex-x\n  writer: codex-x\n"],
+    ["empty writer value", "tasks:\n- id: T1\n  writer:\n  reviewer: codex-x\n"],
+    ["no tasks parsed", "phases:\n- id: P0\n  name: fixture\n"],
+  ];
+  for (const [label, wbs] of cases) {
+    const root = createCleanFixture();
+    try {
+      write(root, "docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml", wbs);
+      assert.ok(
+        checkArchitectureFitness(root).some(({ code }) => code === "DUPLICATE_OWNER"),
+        `case not rejected: ${label}`,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test("FinalArch:INV-017 root focused-test scripts use Vitest 4 file filters directly", () => {
   const scripts = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).scripts;
   for (const name of ["verify:load", "verify:load:postgres"]) {

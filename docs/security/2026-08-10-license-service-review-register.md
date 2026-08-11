@@ -258,8 +258,12 @@ document supplied legal advice.
 
 ### Product-specific stop conditions
 
-- [ ] Temporal: production profile and, if Cloud, order/DPA/region/SLA are
-      approved.
+- [x] Temporal: production profile approved — ENV-DEC-001 (2026-08-10/11)
+      selected self-hosted OSS; no Cloud order, so Cloud order/DPA/region/SLA
+      review is not applicable.
+- [ ] Temporal (P3 residual): exact pinned server/SDK versions, separately
+      licensed dependency inventory, and retained license notices are evidenced
+      before P3 go-live.
 - [ ] LiteLLM: every enabled file/module/image feature is mapped to its
       controlling OSS or commercial license.
 - [ ] agentgateway and OPA: exact release, dependency licenses, Apache notices,

@@ -470,35 +470,65 @@ function checkInvariantMatrix(root, violations) {
   }
 }
 
+function stripInlineComment(value) {
+  return value.replace(/\s+#.*$/u, "").trim();
+}
+
 function checkWbsOwnership(root, violations) {
   const wbsPath = path.join(root, WBS_CONTRACT);
   if (!fs.existsSync(wbsPath)) {
     push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "WBS one-writer contract file is missing");
     return;
   }
-  const source = fs.readFileSync(wbsPath, "utf8");
+  const tasks = [];
+  let inTasks = false;
   let current = null;
-  for (const line of source.split("\n")) {
-    const id = line.match(/^\s*- id:\s*(\S+)\s*$/u);
+  for (const line of fs.readFileSync(wbsPath, "utf8").split("\n")) {
+    const section = line.match(/^([A-Za-z_][\w-]*):\s*$/u);
+    if (section) {
+      inTasks = section[1] === "tasks";
+      current = null;
+      continue;
+    }
+    if (!inTasks) continue;
+    const id = line.match(/^- id:(.*)$/u);
     if (id) {
-      current = { id: unquote(id[1]), writer: null, reviewer: null };
+      current = { id: unquote(stripInlineComment(id[1])), writers: [], reviewers: [] };
+      tasks.push(current);
       continue;
     }
     if (!current) continue;
-    const writer = line.match(/^\s*writer:\s*(\S+)\s*$/u);
-    if (writer) current.writer = unquote(writer[1]);
-    const reviewer = line.match(/^\s*reviewer:\s*(\S+)\s*$/u);
-    if (reviewer) current.reviewer = unquote(reviewer[1]);
-    if (current.writer && current.reviewer) {
-      if (current.writer === current.reviewer) {
-        push(
-          violations,
-          "DUPLICATE_OWNER",
-          WBS_CONTRACT,
-          `task ${current.id} assigns the same identity as writer and reviewer: ${current.writer}`,
-        );
-      }
-      current = null;
+    const field = line.match(/^ {2}(writer|reviewer):(.*)$/u);
+    if (!field) continue;
+    const value = unquote(stripInlineComment(field[2]));
+    (field[1] === "writer" ? current.writers : current.reviewers).push(value);
+  }
+  if (!tasks.length) {
+    push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "no tasks were parsed from the WBS contract");
+    return;
+  }
+  for (const task of tasks) {
+    if (task.writers.length !== 1 || !task.writers[0]) {
+      push(
+        violations,
+        "DUPLICATE_OWNER",
+        WBS_CONTRACT,
+        `task ${task.id} must declare exactly one nonempty writer (found ${task.writers.length})`,
+      );
+    } else if (task.reviewers.length !== 1 || !task.reviewers[0]) {
+      push(
+        violations,
+        "DUPLICATE_OWNER",
+        WBS_CONTRACT,
+        `task ${task.id} must declare exactly one nonempty reviewer (found ${task.reviewers.length})`,
+      );
+    } else if (task.writers[0] === task.reviewers[0]) {
+      push(
+        violations,
+        "DUPLICATE_OWNER",
+        WBS_CONTRACT,
+        `task ${task.id} assigns the same identity as writer and reviewer: ${task.writers[0]}`,
+      );
     }
   }
 }
