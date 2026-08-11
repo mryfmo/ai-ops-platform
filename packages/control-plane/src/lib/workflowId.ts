@@ -2,7 +2,7 @@
 // Workflow ID は business key から決定的に構築する（正典 component spec 01 の Workflow rules）。
 // 純粋関数のみ。時刻・乱数・I/O を使わない。
 
-import type { WorkflowKind } from "../contracts/index.js";
+import { WORKFLOW_KINDS, type WorkflowKind } from "../contracts/index.js";
 
 const BUSINESS_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
 
@@ -23,7 +23,11 @@ export function parseWorkflowId(workflowId: string): { kind: WorkflowKind; busin
   if (separator <= 0) {
     throw new RangeError(`workflow ID must be "<kind>/<businessKey>" (got ${JSON.stringify(workflowId)})`);
   }
-  const kind = workflowId.slice(0, separator) as WorkflowKind;
+  const prefix = workflowId.slice(0, separator);
+  if (!(WORKFLOW_KINDS as readonly string[]).includes(prefix)) {
+    throw new RangeError(`workflow ID has an unknown kind: ${JSON.stringify(workflowId)}`);
+  }
+  const kind = prefix as WorkflowKind;
   const businessKey = workflowId.slice(separator + 1);
   if (!BUSINESS_KEY_PATTERN.test(businessKey)) {
     throw new RangeError(`workflow ID has an invalid business key: ${JSON.stringify(workflowId)}`);

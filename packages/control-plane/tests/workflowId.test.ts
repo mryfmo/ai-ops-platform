@@ -24,10 +24,12 @@ describe("FinalArch:FR-CP-001 buildWorkflowId は business key から決定的�
     expect(buildWorkflowId("incident", "a".repeat(200))).toContain("incident/");
   });
 
-  it("parseWorkflowId は区切りなし・空 kind・不正 key を拒否する", () => {
+  it("parseWorkflowId は区切りなし・空 kind・不正 key・未知 kind を拒否する", () => {
     expect(() => parseWorkflowId("no-separator")).toThrow(RangeError);
     expect(() => parseWorkflowId("/only-key")).toThrow(RangeError);
     expect(() => parseWorkflowId("meeting/bad key")).toThrow(RangeError);
+    expect(() => parseWorkflowId("unknown-workflow/key-1")).toThrow(RangeError);
+    expect(() => parseWorkflowId("MEETING/key-1")).toThrow(RangeError);
   });
 
   it("defineWorkflow は kind を固定した ID 生成子を返す", () => {

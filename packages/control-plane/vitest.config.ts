@@ -1,3 +1,4 @@
+// 根拠: FinalArch:CON-001 / ADR-0020
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
