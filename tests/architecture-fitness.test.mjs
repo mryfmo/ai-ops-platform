@@ -66,12 +66,17 @@ function createCleanFixture() {
     "protocol: mcp\nserver: github\nllm_routing_enabled: false\ntools: [read]\n",
   );
   write(root, "docs/plans/2026-08-final-architecture/06_implementation/11_architecture_fitness_matrix.md", matrix());
+  write(
+    root,
+    "docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml",
+    "tasks:\n- id: FIX-T01\n  writer: claude-code-fable5-xhigh\n  reviewer: codex-gpt56-sol-high\n",
+  );
   return root;
 }
 
 test("FinalArch:INV-005/006/009/013/019 and GOV-005 reject every required negative fixture", () => {
   const codes = new Set(checkArchitectureFitness(negativeFixture).map(({ code }) => code));
-  for (const code of ["EGRESS", "GATEWAY_OVERLAP", "FORBIDDEN_PLATFORM", "MCP_TOOL", "FLAG_REGISTRY"]) {
+  for (const code of ["EGRESS", "GATEWAY_OVERLAP", "FORBIDDEN_PLATFORM", "MCP_TOOL", "FLAG_REGISTRY", "DUPLICATE_OWNER"]) {
     assert.ok(codes.has(code), `missing ${code}: ${[...codes].join(", ")}`);
   }
 });

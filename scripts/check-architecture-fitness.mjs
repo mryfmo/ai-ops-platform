@@ -8,6 +8,7 @@ const FLAG_REGISTRY = "packages/shared/src/migration/featureFlags.ts";
 const MCP_REGISTRY = "docs/plans/2026-08-final-architecture/05_contracts/mcp-registry-manifest.yaml";
 const TOOL_CATALOG = "docs/plans/2026-08-final-architecture/05_contracts/tool-risk-catalog.yaml";
 const INVARIANT_MATRIX = "docs/plans/2026-08-final-architecture/06_implementation/11_architecture_fitness_matrix.md";
+const WBS_CONTRACT = "docs/plans/2026-08-final-architecture/06_implementation/02_wbs.yaml";
 const EXTERNAL_ALLOWLIST = new Set(["api.anthropic.com", "api.github.com", "github.com", "graph.microsoft.com"]);
 const EXTERNAL_SDK_IMPORT = /from\s+["'](?:@anthropic-ai\/(?:sdk|claude-agent-sdk)|@azure\/msal-node)["']/gu;
 const GRANDFATHERED_EXTERNAL_CLIENTS = new Set([
@@ -469,6 +470,39 @@ function checkInvariantMatrix(root, violations) {
   }
 }
 
+function checkWbsOwnership(root, violations) {
+  const wbsPath = path.join(root, WBS_CONTRACT);
+  if (!fs.existsSync(wbsPath)) {
+    push(violations, "DUPLICATE_OWNER", WBS_CONTRACT, "WBS one-writer contract file is missing");
+    return;
+  }
+  const source = fs.readFileSync(wbsPath, "utf8");
+  let current = null;
+  for (const line of source.split("\n")) {
+    const id = line.match(/^\s*- id:\s*(\S+)\s*$/u);
+    if (id) {
+      current = { id: unquote(id[1]), writer: null, reviewer: null };
+      continue;
+    }
+    if (!current) continue;
+    const writer = line.match(/^\s*writer:\s*(\S+)\s*$/u);
+    if (writer) current.writer = unquote(writer[1]);
+    const reviewer = line.match(/^\s*reviewer:\s*(\S+)\s*$/u);
+    if (reviewer) current.reviewer = unquote(reviewer[1]);
+    if (current.writer && current.reviewer) {
+      if (current.writer === current.reviewer) {
+        push(
+          violations,
+          "DUPLICATE_OWNER",
+          WBS_CONTRACT,
+          `task ${current.id} assigns the same identity as writer and reviewer: ${current.writer}`,
+        );
+      }
+      current = null;
+    }
+  }
+}
+
 export function checkArchitectureFitness(root) {
   const resolvedRoot = path.resolve(root);
   const files = walk(resolvedRoot);
@@ -479,6 +513,7 @@ export function checkArchitectureFitness(root) {
   checkMcpTools(resolvedRoot, files, violations);
   checkFlagRegistry(resolvedRoot, violations);
   checkInvariantMatrix(resolvedRoot, violations);
+  checkWbsOwnership(resolvedRoot, violations);
   return violations.sort((left, right) =>
     `${left.code}:${left.path}:${left.message}`.localeCompare(`${right.code}:${right.path}:${right.message}`),
   );
