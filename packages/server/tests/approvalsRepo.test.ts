@@ -3,7 +3,6 @@
  *
  * 根拠: DevOps:SPEC-EXT-010 / DevOps:REQ-028 / AUD-OPM-001。
  */
-import { readFile } from "node:fs/promises";
 import { InMemoryAuditLog, type AuditLogWriter, type PgQueryable } from "@aiops/shared";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +12,7 @@ import {
   ApprovalsRepo,
   type ApprovalTransactionRunner,
 } from "../src/db/approvalsRepo.js";
+import { applySchemaSerialized } from "./pgTestSchema.js";
 
 const APPROVAL_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TENANT_ID = "11111111-1111-4111-8111-111111111111";
@@ -222,22 +222,18 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
   }
 
   beforeAll(async () => {
-    const schema = await readFile(new URL("../../devops/src/db/schema.sql", import.meta.url), "utf8");
-    const approvalsMigration = await readFile(
+    // P1-T05: 並行テストファイルとの schema 適用レース回避（advisory lock 直列化）
+    await applySchemaSerialized(realPool!, [
+      new URL("../../devops/src/db/schema.sql", import.meta.url),
       new URL("../../devops/src/db/migrations/202608080000_approvals.sql", import.meta.url),
-      "utf8",
-    );
-    const deployMigration = await readFile(
       new URL("../../devops/src/db/migrations/202608090001_agt_dep_runtime.sql", import.meta.url),
-      "utf8",
-    );
-    await realPool!.query(schema);
-    await realPool!.query(approvalsMigration);
-    await realPool!.query(deployMigration);
+    ]);
   });
 
   beforeEach(async () => {
-    await realPool!.query("TRUNCATE approvals");
+    // CASCADE は並行実行中の p1LedgerPg の FK 参照行まで消すため使わない。
+    // 本 suite の approvals 行は他 suite から参照されない（DELETE は FK 安全に成功する）
+    await realPool!.query("DELETE FROM approvals");
   });
 
   afterAll(async () => {
