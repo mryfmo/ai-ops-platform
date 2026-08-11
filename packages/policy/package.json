@@ -1,0 +1,22 @@
+{
+  "name": "@aiops/policy",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": "OPA policy contracts and default-deny bundle scaffold (FinalArch:CON-004/CON-005)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs",
+    "test:rego": "opa test policies"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  }
+}
