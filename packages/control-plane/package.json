@@ -1,0 +1,27 @@
+{
+  "name": "@aiops/control-plane",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": "制御プレーン scaffold: Temporal workflow/activity の分離構造、workflow ID 規約、versioned contracts（FinalArch:FR-CP-001 / ADR-0020）",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
+  }
+}
