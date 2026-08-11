@@ -20,25 +20,31 @@ export class IdMappingsRepo {
   constructor(private readonly db: PgQueryable) {}
 
   /**
-   * 新版を 1 文の CTE で原子的に追加する（同一 project スコープ論理キーの旧 active を
-   * 非活性化してから挿入。並行実行は idx_id_mappings_one_active の partial unique が
-   * 直列化し、敗者は unique violation で失敗する）。旧版は削除しない。
+   * 新版を 1 文の CTE で原子的に追加する（単調 version CAS）。
+   * 現 active 行の version >= 新 version の場合は何もせず false（stale 置換の拒否 —
+   * 現行 active は非活性化されない）。並行競合は idx_id_mappings_one_active が直列化。
+   * 旧版は削除しない。
    */
-  async addVersion(mapping: IdMapping): Promise<void> {
-    await this.db.query(
-      `WITH deactivated AS (
-         UPDATE id_mappings SET active = false, updated_at = now()
+  async addVersion(mapping: IdMapping): Promise<boolean> {
+    const result = await this.db.query(
+      `WITH current AS (
+         SELECT mapping_id, mapping_version FROM id_mappings
           WHERE project_id = $1 AND source_system = $2 AND source_object_id = $3
             AND target_system = $4 AND active = true
+       ),
+       deactivated AS (
+         UPDATE id_mappings m SET active = false, updated_at = now()
+           FROM current c
+          WHERE m.mapping_id = c.mapping_id AND c.mapping_version < $6
           RETURNING 1
        )
        INSERT INTO id_mappings (
          project_id, source_system, source_object_id, target_system, target_object_id,
          mapping_version, provenance, active
        )
-       -- CTE を参照して deactivate の完了後に挿入させる（未参照だと実行順が保証されない）
        SELECT $1, $2, $3, $4, $5, $6, $7, true
-        WHERE (SELECT count(*) FROM deactivated) IS NOT NULL`,
+        WHERE NOT EXISTS (SELECT 1 FROM current WHERE mapping_version >= $6)
+          AND (SELECT count(*) FROM deactivated) IS NOT NULL`,
       [
         mapping.projectId,
         mapping.sourceSystem,
@@ -49,6 +55,7 @@ export class IdMappingsRepo {
         JSON.stringify(mapping.provenance),
       ],
     );
+    return (result.rowCount ?? 0) === 1;
   }
 
   async findActive(

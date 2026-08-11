@@ -35,15 +35,26 @@ export class ActionLedgerRepo {
   constructor(private readonly db: PgQueryable) {}
 
   /**
-   * 操作の計画を冪等に記録する。既に同一冪等キーの行があれば挿入せず false を返す
-   * （呼び出し側は既存 operation の状態に合流する）。
+   * 操作の計画を冪等に記録する。true = 新規計画、false = 既存の同一冪等キーに合流。
+   * approval / deployment の authority 参照は workflow と同一 project のもののみ許す
+   * （cross-project anchor は挿入 0 行 → RangeError。NULL project は厳密一致のみ許可 =
+   * fail-closed）。
    */
   async plan(op: PlannedOperation): Promise<boolean> {
     const result = await this.db.query(
       `INSERT INTO action_ledger (
          operation_id, workflow_id, system, operation, resource_key,
          input_hash, status, approval_id, deployment_id, trace_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, 'planned', $7, $8, $9)
+       )
+       SELECT $1, w.workflow_id, $3, $4, $5, $6, 'planned', $7, $8, $9
+         FROM workflow_runs w
+        WHERE w.workflow_id = $2
+          AND ($7::uuid IS NULL OR EXISTS (
+                SELECT 1 FROM approvals a
+                 WHERE a.approval_id = $7 AND a.project_id IS NOT DISTINCT FROM w.project_id))
+          AND ($8::uuid IS NULL OR EXISTS (
+                SELECT 1 FROM deployments d
+                 WHERE d.deploy_id = $8 AND d.project_id IS NOT DISTINCT FROM w.project_id))
        ON CONFLICT (system, operation, resource_key, input_hash) DO NOTHING`,
       [
         op.operationId,
@@ -57,13 +68,19 @@ export class ActionLedgerRepo {
         op.traceId,
       ],
     );
-    return (result.rowCount ?? 0) === 1;
+    if ((result.rowCount ?? 0) === 1) return true;
+    const existing = await this.findByIdempotencyKey(op.system, op.operation, op.resourceKey, op.inputHash);
+    if (existing) return false;
+    throw new RangeError(
+      "action plan rejected: unknown workflow or cross-project authority reference (approval/deployment)",
+    );
   }
 
   /**
-   * 実行権の claim。planned/approved/unknown/failed の行を一撃の条件付き UPDATE で
-   * applying へ遷移させ、勝者だけが true を得る（重複 worker の同時実行を直列化。
-   * applying への遷移はこのメソッド以外から行えない）。
+   * 実行権の claim。planned/approved/failed の行を一撃の条件付き UPDATE で applying へ
+   * 遷移させ、勝者だけが true を得る（重複 worker の同時実行を直列化。applying への
+   * 遷移はこのメソッド以外から行えない）。unknown は claim 対象外 — 直前の
+   * 非冪等書き込みが成功していた可能性があるため、resolveUnknown による照合を経る。
    */
   async claimExecution(operationId: string): Promise<boolean> {
     const result = await this.db.query(
@@ -71,8 +88,24 @@ export class ActionLedgerRepo {
          status = 'applying',
          attempt_count = attempt_count + 1,
          updated_at = now()
-       WHERE operation_id = $1 AND status IN ('planned', 'approved', 'unknown', 'failed')`,
+       WHERE operation_id = $1 AND status IN ('planned', 'approved', 'failed')`,
       [operationId],
+    );
+    return (result.rowCount ?? 0) === 1;
+  }
+
+  /**
+   * unknown の照合結果の記録（reconciler / 運用者の明示操作専用）。
+   * 外部側の実結果を確認した上で applied / failed のどちらかへ確定させる。
+   */
+  async resolveUnknown(operationId: string, resolved: "applied" | "failed", evidenceNote: string): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE action_ledger SET
+         status = $2,
+         last_error_class = CASE WHEN $2 = 'failed' THEN $3 ELSE NULL END,
+         updated_at = now()
+       WHERE operation_id = $1 AND status = 'unknown'`,
+      [operationId, resolved, evidenceNote],
     );
     return (result.rowCount ?? 0) === 1;
   }

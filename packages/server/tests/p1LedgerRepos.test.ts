@@ -74,17 +74,22 @@ describe("ActionLedgerRepo [FinalArch:CON-003 / DELTA-03]", () => {
     traceId: "11111111-1111-1111-1111-111111111111",
   };
 
-  it("plan は冪等キーの一意制約で二重計画を防ぐ（重複時 false）", async () => {
+  it("plan は冪等キー重複で false、workflow/authority 不整合で RangeError", async () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ operation_id: "x" }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
     const repo = new ActionLedgerRepo({ query });
     await expect(repo.plan(op)).resolves.toBe(true);
     await expect(repo.plan(op)).resolves.toBe(false);
-    expect(String(query.mock.calls[0]![0])).toContain(
-      "ON CONFLICT (system, operation, resource_key, input_hash) DO NOTHING",
-    );
+    await expect(repo.plan(op)).rejects.toThrow(RangeError);
+    const sql = String(query.mock.calls[0]![0]);
+    expect(sql).toContain("ON CONFLICT (system, operation, resource_key, input_hash) DO NOTHING");
+    expect(sql).toContain("a.project_id IS NOT DISTINCT FROM w.project_id");
+    expect(sql).toContain("d.project_id IS NOT DISTINCT FROM w.project_id");
   });
 
   it("claimExecution は条件付き UPDATE で勝者のみ true（重複 worker 直列化）", async () => {
@@ -96,7 +101,7 @@ describe("ActionLedgerRepo [FinalArch:CON-003 / DELTA-03]", () => {
     await expect(repo.claimExecution(op.operationId)).resolves.toBe(true);
     await expect(repo.claimExecution(op.operationId)).resolves.toBe(false);
     const sql = String(query.mock.calls[0]![0]);
-    expect(sql).toContain("WHERE operation_id = $1 AND status IN ('planned', 'approved', 'unknown', 'failed')");
+    expect(sql).toContain("WHERE operation_id = $1 AND status IN ('planned', 'approved', 'failed')");
     expect(sql).toContain("attempt_count = attempt_count + 1");
   });
 
@@ -197,21 +202,37 @@ describe("証跡 ledger repos [FinalArch:CON-004 / FinalArch:CON-005 / FinalArch
 });
 
 describe("IdMappingsRepo [FinalArch:CON-002]", () => {
-  it("addVersion は project スコープの 1 文 CTE（非活性化 + 追記、削除なし）", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
-    await new IdMappingsRepo({ query }).addVersion({
-      projectId: "PJ-1",
-      sourceSystem: "github",
-      sourceObjectId: "issue-1",
-      targetSystem: "plane",
-      targetObjectId: "work-1",
-      mappingVersion: 2,
-      provenance: { by: "sync" },
-    });
-    expect(query).toHaveBeenCalledTimes(1);
+  it("addVersion は単調 version CAS つき 1 文 CTE（stale は false、削除なし）", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const repo = new IdMappingsRepo({ query });
+    await expect(
+      repo.addVersion({
+        projectId: "PJ-1",
+        sourceSystem: "github",
+        sourceObjectId: "issue-1",
+        targetSystem: "plane",
+        targetObjectId: "work-1",
+        mappingVersion: 2,
+        provenance: { by: "sync" },
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      repo.addVersion({
+        projectId: "PJ-1",
+        sourceSystem: "github",
+        sourceObjectId: "issue-1",
+        targetSystem: "plane",
+        targetObjectId: "work-1",
+        mappingVersion: 1,
+        provenance: { by: "stale" },
+      }),
+    ).resolves.toBe(false);
     const sql = String(query.mock.calls[0]![0]);
-    expect(sql).toContain("WITH deactivated AS");
-    expect(sql).toContain("WHERE project_id = $1");
+    expect(sql).toContain("c.mapping_version < $6");
+    expect(sql).toContain("NOT EXISTS (SELECT 1 FROM current WHERE mapping_version >= $6)");
     expect(sql).not.toContain("DELETE");
   });
 

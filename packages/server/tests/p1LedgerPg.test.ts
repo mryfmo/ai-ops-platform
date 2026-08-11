@@ -121,6 +121,55 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     expect([first, second].filter(Boolean)).toHaveLength(1);
     const row = await pool!.query("SELECT status, attempt_count FROM action_ledger WHERE operation_id = $1", [uuid(3)]);
     expect(row.rows[0]).toMatchObject({ status: "applying", attempt_count: 1 });
+
+    // unknown は claim できない（非冪等書き込みの再送防止）。resolveUnknown でのみ確定
+    await pool!.query("UPDATE action_ledger SET status = 'unknown' WHERE operation_id = $1", [uuid(3)]);
+    await expect(ledger.claimExecution(uuid(3))).resolves.toBe(false);
+    await expect(ledger.resolveUnknown(uuid(3), "applied", "external object confirmed")).resolves.toBe(true);
+    const resolved = await pool!.query("SELECT status FROM action_ledger WHERE operation_id = $1", [uuid(3)]);
+    expect(resolved.rows[0]).toMatchObject({ status: "applied" });
+  });
+
+  it("DELTA-03: cross-project の approval / deployment anchor は拒否される", async () => {
+    const runs = new WorkflowRunsRepo(pool!);
+    await startWorkflow(runs); // PJ-1
+    const ledger = new ActionLedgerRepo(pool!);
+    const approvalB = await pool!.query(
+      `INSERT INTO approvals (approval_type, target_id, project_id, requested_by)
+       VALUES ('change', 't-1', 'PJ-B', 'actor') RETURNING approval_id`,
+    );
+    await expect(
+      ledger.plan({
+        operationId: uuid(8),
+        workflowId: "incident/inc-1",
+        system: "github",
+        operation: "op",
+        resourceKey: "k1",
+        inputHash: "h8",
+        approvalId: String(approvalB.rows[0]!.approval_id),
+        deploymentId: null,
+        traceId: TRACE,
+      }),
+    ).rejects.toThrow(/cross-project/u);
+
+    const deployB = await pool!.query(
+      `INSERT INTO deployments (project_id, commit_sha, env, state, trace_id)
+       VALUES ('PJ-B', $1, 'prod', 'pending', $2) RETURNING deploy_id`,
+      ["b".repeat(40), TRACE],
+    );
+    await expect(
+      ledger.plan({
+        operationId: uuid(9),
+        workflowId: "incident/inc-1",
+        system: "deployments",
+        operation: "dispatch",
+        resourceKey: "k2",
+        inputHash: "h9",
+        approvalId: null,
+        deploymentId: String(deployB.rows[0]!.deploy_id),
+        traceId: TRACE,
+      }),
+    ).rejects.toThrow(/cross-project/u);
   });
 
   it("FinalArch:CON-002: active mapping は project スコープ論理キーごとに 1 行、cross-project は分離", async () => {
@@ -149,6 +198,11 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     expect(pj2).toMatchObject({ target_object_id: "work-1", mapping_version: "1" });
     const actives = await pool!.query("SELECT count(*)::int AS n FROM id_mappings WHERE active");
     expect(actives.rows[0]!.n).toBe(2);
+
+    // 単調 version CAS: stale 版（v1）は現行 active（v2）を置換も非活性化もしない
+    await expect(repo.addVersion({ ...base, projectId: "PJ-1", mappingVersion: 1 })).resolves.toBe(false);
+    const still = await repo.findActive("PJ-1", "github", "issue-1", "plane");
+    expect(still).toMatchObject({ target_object_id: "work-2", mapping_version: "2" });
   });
 
   it("replay 安全性: 同一 run は no-op、completed を退行させない。新 run は全状態リセット", async () => {
