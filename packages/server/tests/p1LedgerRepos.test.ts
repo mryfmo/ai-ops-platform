@@ -79,9 +79,15 @@ describe("ActionLedgerRepo [FinalArch:CON-003 / DELTA-03]", () => {
       .fn()
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [{ operation_id: "x" }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [{ workflow_id: "meeting/k", approval_id: null, deployment_id: null }],
+        rowCount: 1,
+      })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      .mockResolvedValueOnce({
+        rows: [{ workflow_id: "other/wf", approval_id: null, deployment_id: null }],
+        rowCount: 1,
+      });
     const repo = new ActionLedgerRepo({ query });
     await expect(repo.plan(op)).resolves.toBe(true);
     await expect(repo.plan(op)).resolves.toBe(false);
