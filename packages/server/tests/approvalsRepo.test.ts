@@ -237,7 +237,7 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
   });
 
   beforeEach(async () => {
-    await realPool!.query("TRUNCATE approvals");
+    await realPool!.query("TRUNCATE approvals CASCADE");
   });
 
   afterAll(async () => {
