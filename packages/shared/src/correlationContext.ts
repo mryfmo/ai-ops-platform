@@ -9,6 +9,7 @@
  * 本文が必要な境界では別途 sanitizeSecrets()/sanitizeForLlmInput() を適用する。
  */
 import { newTraceId } from "./ids.js";
+import { sanitizeSecrets } from "./secretSanitizer.js";
 
 export const TRACEPARENT_HEADER = "traceparent";
 export const CORRELATION_ID_HEADER = "x-correlation-id";
@@ -62,6 +63,20 @@ const STRING_FIELDS = [
   "sourceObjectId",
 ] as const;
 const KNOWN_FIELDS = new Set(["traceId", "correlationId", ...STRING_FIELDS, "pullRequestNumber"]);
+const OTEL_STRING_ATTRIBUTE_NAMES: Record<(typeof STRING_FIELDS)[number], `aiops.${string}`> = {
+  workflowId: "aiops.workflow.id",
+  runId: "aiops.run.id",
+  actorId: "aiops.actor.id",
+  projectId: "aiops.project.id",
+  repository: "aiops.repository",
+  agentTaskId: "aiops.agent.task.id",
+  meetingId: "aiops.meeting.id",
+  approvalId: "aiops.approval.id",
+  toolId: "aiops.tool.id",
+  modelId: "aiops.model.id",
+  sourceSystem: "aiops.source.system",
+  sourceObjectId: "aiops.source.object.id",
+};
 
 function uuid(value: unknown, field: "traceId" | "correlationId"): string {
   if (typeof value !== "string" || !UUID.test(value) || value.replaceAll("-", "") === ZERO_TRACE_ID) {
@@ -121,6 +136,28 @@ export function inheritCorrelationContext(
   const validatedParent = normalize(parent, true) as CorrelationContext;
   const validatedAttributes = normalize(attributes, false);
   return normalize({ ...validatedParent, ...validatedAttributes }, true) as CorrelationContext;
+}
+
+function safeOtelAttribute(value: string): string {
+  return sanitizeSecrets(value).sanitized.slice(0, CORRELATION_IDENTIFIER_MAX_LENGTH);
+}
+
+export function correlationContextToOtelAttributes(
+  context: CorrelationContext,
+): Readonly<Record<string, string | number>> {
+  const validated = normalize(context, true) as CorrelationContext;
+  const attributes: Record<string, string | number> = {
+    "aiops.trace.id": safeOtelAttribute(validated.traceId),
+    "aiops.correlation.id": safeOtelAttribute(validated.correlationId),
+  };
+  for (const field of STRING_FIELDS) {
+    const value = validated[field];
+    if (value !== undefined) attributes[OTEL_STRING_ATTRIBUTE_NAMES[field]] = safeOtelAttribute(value);
+  }
+  if (validated.pullRequestNumber !== undefined) {
+    attributes["aiops.pull_request.number"] = validated.pullRequestNumber;
+  }
+  return attributes;
 }
 
 function traceIdToHex(traceId: string): string {

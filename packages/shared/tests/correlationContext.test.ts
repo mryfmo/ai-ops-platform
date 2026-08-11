@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CORRELATION_ID_HEADER,
   TRACEPARENT_HEADER,
+  correlationContextToOtelAttributes,
   createCorrelationContext,
   inheritCorrelationContext,
   parseCorrelationHeaders,
@@ -112,5 +113,67 @@ describe("FinalArch:CON-001/CON-002 correlation context propagation", () => {
     expect(
       parseCorrelationHeaders({ Accept: "application/json", accept: "text/plain" }, {}, () => TRACE_ID).context,
     ).toEqual({ traceId: TRACE_ID, correlationId: TRACE_ID });
+  });
+
+  it("maps the bounded context to aiops-prefixed OTel attributes [FinalArch:CON-002/FR-OBS-001]", () => {
+    const context = createCorrelationContext({
+      traceId: TRACE_ID,
+      correlationId: CORRELATION_ID,
+      workflowId: "workflow-1",
+      runId: "run-1",
+      actorId: "actor-1",
+      projectId: "project-1",
+      repository: "mryfmo/ai-ops-platform",
+      agentTaskId: "P1-T07",
+      meetingId: "meeting-1",
+      approvalId: "approval-1",
+      toolId: "tool-1",
+      modelId: "model-1",
+      sourceSystem: "github",
+      sourceObjectId: "issue-177",
+      pullRequestNumber: 177,
+    });
+
+    expect(correlationContextToOtelAttributes(context)).toMatchInlineSnapshot(`
+      {
+        "aiops.actor.id": "actor-1",
+        "aiops.agent.task.id": "P1-T07",
+        "aiops.approval.id": "approval-1",
+        "aiops.correlation.id": "22222222-2222-4222-8222-222222222222",
+        "aiops.meeting.id": "meeting-1",
+        "aiops.model.id": "model-1",
+        "aiops.project.id": "project-1",
+        "aiops.pull_request.number": 177,
+        "aiops.repository": "mryfmo/ai-ops-platform",
+        "aiops.run.id": "run-1",
+        "aiops.source.object.id": "issue-177",
+        "aiops.source.system": "github",
+        "aiops.tool.id": "tool-1",
+        "aiops.trace.id": "11111111-1111-4111-8111-111111111111",
+        "aiops.workflow.id": "workflow-1",
+      }
+    `);
+  });
+
+  it("keeps prompt/document bodies absent and rejects unknown content fields [FinalArch:CON-002]", () => {
+    for (const field of ["prompt", "promptBody", "document", "documentBody", "transcript", "content", "body"]) {
+      expect(() =>
+        correlationContextToOtelAttributes({
+          traceId: TRACE_ID,
+          correlationId: CORRELATION_ID,
+          [field]: "must never reach a span",
+        } as never),
+      ).toThrow(/unknown field/u);
+    }
+  });
+
+  it("sanitizes and bounds every exported string attribute [FinalArch:CON-002]", () => {
+    const fakeSecret = ["ghp", "A".repeat(84)].join("_");
+    const attributes = correlationContextToOtelAttributes(
+      createCorrelationContext({ traceId: TRACE_ID, correlationId: CORRELATION_ID, repository: fakeSecret }),
+    );
+
+    expect(attributes["aiops.repository"]).toBe("***REDACTED:github_pat***");
+    expect(Object.values(attributes).every((value) => typeof value === "number" || value.length <= 512)).toBe(true);
   });
 });
