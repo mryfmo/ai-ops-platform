@@ -1,0 +1,14 @@
+{
+  "taskId": "P1-T04",
+  "reviewSurface": "codex-native",
+  "reviewer": "codex",
+  "outcome": "approved-after-fixes",
+  "resolved": [
+    { "severity": "P1", "finding": "WorkflowStatus allOf rejected extension fields", "resolution": "Closed the schema after composition." },
+    { "severity": "P1", "finding": "Security override additions/removals were missed", "resolution": "Compared either-side security and added mutations." },
+    { "severity": "P2", "finding": "Generated client dropped the server base path", "resolution": "Normalized and exercised the URL." },
+    { "severity": "P2", "finding": "Schema-valued additionalProperties was accepted", "resolution": "Detected it as a restriction." },
+    { "severity": "P3", "finding": "Object-valued const was accepted", "resolution": "Compared every JSON const value." }
+  ],
+  "verification": ["pnpm --dir contracts run check", "fresh-DB mise run ci"]
+}

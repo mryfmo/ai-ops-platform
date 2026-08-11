@@ -1,0 +1,39 @@
+{
+  "task_id": "P1-T06",
+  "review_surface": "codex-native-review",
+  "reviewer": "codex",
+  "reviewed_at": "2026-08-11T20:53:05+09:00",
+  "base": "aa5323aaa28be599386c01dd7bddc1c3d6bc7b01",
+  "outcome": "approved_after_fixes",
+  "records": [
+    {
+      "severity": "P2",
+      "finding": "FR-OBS-001 identifiers for run, repository, approval, tool, and model were absent",
+      "resolution": "Added bounded typed identifiers and boundary tests",
+      "status": "resolved"
+    },
+    {
+      "severity": "P2",
+      "finding": "Runtime callers could override inherited trace and correlation IDs",
+      "resolution": "Rejected identity overrides at the inheritance boundary and added tests",
+      "status": "resolved"
+    },
+    {
+      "severity": "P2",
+      "finding": "Undefined child attributes could erase inherited dimensions",
+      "resolution": "Normalized child attributes before merging so undefined values are omitted",
+      "status": "resolved"
+    },
+    {
+      "severity": "P2",
+      "finding": "Case-duplicate unrelated request headers could abort correlation parsing",
+      "resolution": "Restricted duplicate detection to traceparent and x-correlation-id",
+      "status": "resolved"
+    }
+  ],
+  "post_fix_checks": {
+    "focused_tests": "7/7 passed",
+    "shared_tests": "482/482 passed",
+    "fresh_db_ci": "exit 0"
+  }
+}
