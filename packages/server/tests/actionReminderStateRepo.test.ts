@@ -1,5 +1,4 @@
 /** 根拠: PrjOps:REQ-009 / PrjOps:SPEC-INT-025 */
-import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionReminderStateRepo } from "../src/db/actionReminderStateRepo.js";

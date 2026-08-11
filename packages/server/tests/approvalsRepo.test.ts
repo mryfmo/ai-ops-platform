@@ -3,7 +3,6 @@
  *
  * 根拠: DevOps:SPEC-EXT-010 / DevOps:REQ-028 / AUD-OPM-001。
  */
-import { readFile } from "node:fs/promises";
 import { InMemoryAuditLog, type AuditLogWriter, type PgQueryable } from "@aiops/shared";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
