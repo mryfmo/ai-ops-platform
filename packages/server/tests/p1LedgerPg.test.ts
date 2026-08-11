@@ -174,7 +174,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     ).rejects.toThrow(/cross-project/u);
   });
 
-  it("FinalArch:CON-002: active mapping は project スコープ論理キーごとに 1 行、cross-project は分離", async () => {
+  it("FinalArch:CON-002: head は project スコープ論理キーごとに 1 行、cross-project は分離", async () => {
     const repo = new IdMappingsRepo(pool!);
     const base = {
       sourceSystem: "github",
@@ -204,7 +204,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
     );
     expect(heads.rows[0]!.n).toBe(2);
 
-    // 単調 version CAS: stale 版（v1）は現行 active（v2）を置換も非活性化もしない
+    // 単調 version CAS: stale 版（v1）は現行 head（v2）を置換しない
     await expect(repo.addVersion({ ...base, projectId: "PJ-1", mappingVersion: 1 })).resolves.toBe(false);
     const still = await repo.findActive("PJ-1", "github", "issue-1", "plane");
     expect(still).toMatchObject({ target_object_id: "work-2", mapping_version: "2" });
@@ -249,7 +249,7 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
       targetSystem: "plane",
       provenance: { by: "race" },
     };
-    // 初回並行 v1/v1: 勝者 1、active 1 行
+    // 初回並行 v1/v1: 勝者 1、head 1 行
     const firstPair = await Promise.all([
       repo.addVersion({ ...base, targetObjectId: "w-a", mappingVersion: 1 }),
       repo.addVersion({ ...base, targetObjectId: "w-b", mappingVersion: 1 }),
@@ -289,7 +289,8 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
       const repoA = new IdMappingsRepo(clientA);
       const repoB = new IdMappingsRepo(clientB);
       await expect(repoA.addVersion({ ...base, targetObjectId: "w-v2", mappingVersion: 2 })).resolves.toBe(true);
-      // B は advisory xact lock で A の commit まで待たされる（エラーにならない）
+      // B は head 行の upsert 競合（speculative insertion / row lock）で A の commit まで
+      // 待たされ、EvalPlanQual が最新行と比較して収束する（エラーにならない）
       const pending = repoB.addVersion({ ...base, targetObjectId: "w-v3", mappingVersion: 3 });
       await new Promise((resolve) => setTimeout(resolve, 100));
       await clientA.query("COMMIT");
