@@ -29,9 +29,22 @@ describe.skipIf(!databaseUrl)("P1-T05 ledger real PostgreSQL constraints [FinalA
   });
 
   beforeEach(async () => {
-    await pool!.query(
-      "TRUNCATE workflow_runs, action_ledger, policy_decisions, model_invocations, tool_invocations, id_mappings, meeting_artifacts, agent_runs, deployments CASCADE",
-    );
+    // 並行テストファイルの行を巻き込む TRUNCATE CASCADE は使わない。
+    // 子→親の FK 順に本 suite のテーブルを空にし、共有テーブル deployments は
+    // 自 suite の trace_id 行だけを消す
+    for (const table of [
+      "tool_invocations",
+      "action_ledger",
+      "policy_decisions",
+      "model_invocations",
+      "meeting_artifacts",
+      "id_mappings",
+      "agent_runs",
+      "workflow_runs",
+    ]) {
+      await pool!.query(`DELETE FROM ${table}`);
+    }
+    await pool!.query("DELETE FROM deployments WHERE trace_id = $1", [TRACE]);
   });
 
   afterAll(async () => {

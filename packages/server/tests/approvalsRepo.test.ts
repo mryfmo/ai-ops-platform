@@ -231,7 +231,9 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
   });
 
   beforeEach(async () => {
-    await realPool!.query("TRUNCATE approvals CASCADE");
+    // CASCADE は並行実行中の p1LedgerPg の FK 参照行まで消すため使わない。
+    // 本 suite の approvals 行は他 suite から参照されない（DELETE は FK 安全に成功する）
+    await realPool!.query("DELETE FROM approvals");
   });
 
   afterAll(async () => {
