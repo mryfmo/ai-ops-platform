@@ -1,0 +1,78 @@
+# 根拠: FinalArch:CON-005, ADR-0023
+aiops:
+  tool_risk_catalog:
+    version: "1.0"
+    dispositions:
+      L0: allow
+      L1: allow_audit
+      L2: require_batch_approval
+      L3: require_explicit_approval
+      L4: runner_only
+      L5: not_registered
+      L6: not_registered
+    globally_forbidden:
+      - merge_pull_request
+      - deploy_production
+      - delete_project
+      - delete_space
+      - modify_permissions
+      - modify_retention
+      - execute_production_sql
+      - send_email_without_approval
+    tools:
+      - server: wispr
+        group: meeting-read
+        operation: search
+        risk: L1
+      - server: wispr
+        group: meeting-read
+        operation: read
+        risk: L1
+      - server: github
+        group: repo-investigation
+        operation: read
+        risk: L1
+      - server: github
+        group: repo-investigation
+        operation: search
+        risk: L1
+      - server: github
+        group: repo-investigation
+        operation: inspect_checks
+        risk: L1
+      - server: plane
+        group: work-items
+        operation: read
+        risk: L1
+      - server: plane
+        group: work-items
+        operation: search
+        risk: L1
+      - server: plane
+        group: draft-work-item
+        operation: draft
+        risk: L2
+      - server: confluence
+        group: knowledge-read
+        operation: read
+        risk: L1
+      - server: confluence
+        group: knowledge-read
+        operation: search
+        risk: L1
+      - server: confluence
+        group: draft-page
+        operation: draft
+        risk: L2
+      - server: work-iq
+        group: m365-intelligence
+        operation: fetch
+        risk: L1
+      - server: work-iq
+        group: m365-intelligence
+        operation: ask
+        risk: L1
+      - server: work-iq
+        group: m365-intelligence
+        operation: get_schema
+        risk: L1
