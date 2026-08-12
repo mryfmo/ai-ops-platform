@@ -6,7 +6,6 @@ dist/
 coverage/
 *.log
 .DS_Store
-.orchestration/
 
 # Machine-local agent state only. Provider assets such as .agents/skills/,
 # .codex/agents/, .codex/rules/ and .claude/hooks/ stay trackable because
