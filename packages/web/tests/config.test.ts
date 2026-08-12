@@ -4,7 +4,7 @@
  * 根拠: ADR-0005 / PrjOps:SPEC-INT-060（Web composition rootのLLMモデル設定）。
  */
 import { describe, expect, it } from "vitest";
-import { loadWebConfig } from "../src/server/config";
+import { loadWebConfig, WEB_GATEWAY_MODEL_ALIASES } from "../src/server/config";
 
 describe("loadWebConfig model configuration [PrjOps:SPEC-INT-060]", () => {
   const validEnv = {
@@ -16,14 +16,14 @@ describe("loadWebConfig model configuration [PrjOps:SPEC-INT-060]", () => {
     PUBLIC_BASE_URL: "https://example.invalid",
   };
 
-  it("ANTHROPIC_DEFAULT_MODELを任意設定できる [PrjOps:SPEC-INT-060]", () => {
+  it("gateway の logical alias と pricing を任意設定できる [PrjOps:SPEC-INT-060 / FinalArch:LLM-001]", () => {
     const config = loadWebConfig({
       ...validEnv,
-      ANTHROPIC_DEFAULT_MODEL: "  custom-sonnet  ",
-      ANTHROPIC_PRICING_USD_PER_MTOK: '{"custom-sonnet":{"input":2,"output":10}}',
+      ANTHROPIC_DEFAULT_MODEL: "  claude-fast  ",
+      ANTHROPIC_PRICING_USD_PER_MTOK: '{"claude-fast":{"input":2,"output":10}}',
     });
-    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("custom-sonnet");
-    expect(config.ANTHROPIC_PRICING_USD_PER_MTOK).toEqual({ "custom-sonnet": { input: 2, output: 10 } });
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-fast");
+    expect(config.ANTHROPIC_PRICING_USD_PER_MTOK).toEqual({ "claude-fast": { input: 2, output: 10 } });
   });
 
   it("モデルの空白のみを拒否する [PrjOps:SPEC-INT-060]", () => {
@@ -32,6 +32,64 @@ describe("loadWebConfig model configuration [PrjOps:SPEC-INT-060]", () => {
 
   it("モデルIDの長さ上限を超える値を拒否する [PrjOps:SPEC-INT-060]", () => {
     expect(() => loadWebConfig({ ...validEnv, ANTHROPIC_DEFAULT_MODEL: `m${"x".repeat(200)}` })).toThrow("E-CFG02");
+  });
+
+  it("gateway flag が off なら chat を fail-closed にし model 既定は logical alias にする [FinalArch:LLM-001]", () => {
+    const config = loadWebConfig(validEnv);
+    expect(config.LLM_GATEWAY_ENABLED).toBe(false);
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-standard");
+  });
+
+  it("gateway flag が有効なら URL と Web 専用 virtual key を必須にする [FinalArch:LLM-001]", () => {
+    const flagOn = { AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary" };
+    expect(() => loadWebConfig({ ...validEnv, ...flagOn })).toThrow(/E-CFG02.*LITELLM_BASE_URL/);
+    expect(() =>
+      loadWebConfig({ ...validEnv, ...flagOn, LITELLM_BASE_URL: "https://litellm.internal.example" }),
+    ).toThrow(/E-CFG02.*LITELLM_WEB_VIRTUAL_KEY/);
+    const config = loadWebConfig({
+      ...validEnv,
+      ...flagOn,
+      LITELLM_BASE_URL: "https://litellm.internal.example",
+      LITELLM_WEB_VIRTUAL_KEY: "  vk-web-test  ",
+    });
+    expect(config.LLM_GATEWAY_ENABLED).toBe(true);
+    expect(config.LITELLM_WEB_VIRTUAL_KEY).toBe("vk-web-test");
+  });
+
+  it("gateway model は正典 logical alias だけを受理する [FinalArch:LLM-001]", () => {
+    expect(WEB_GATEWAY_MODEL_ALIASES.has("claude-standard")).toBe(true);
+    expect(() => loadWebConfig({ ...validEnv, ANTHROPIC_DEFAULT_MODEL: "claude-sonnet-4-6" })).toThrow(
+      /E-CFG02.*logical alias/,
+    );
+  });
+
+  it("gateway URL の非 HTTP(S)・userinfo と空白 virtual key を fail-fast する [FinalArch:LLM-001]", () => {
+    const flagOn = { AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary", LITELLM_WEB_VIRTUAL_KEY: "vk-test" };
+    expect(() => loadWebConfig({ ...validEnv, ...flagOn, LITELLM_BASE_URL: "ftp://litellm.internal" })).toThrow(
+      "E-CFG02",
+    );
+    expect(() => loadWebConfig({ ...validEnv, ...flagOn, LITELLM_BASE_URL: "https://u:p@litellm.internal" })).toThrow(
+      "E-CFG02",
+    );
+    expect(() =>
+      loadWebConfig({
+        ...validEnv,
+        ...flagOn,
+        LITELLM_BASE_URL: "https://litellm.internal",
+        LITELLM_WEB_VIRTUAL_KEY: "   ",
+      }),
+    ).toThrow(/E-CFG02.*LITELLM_WEB_VIRTUAL_KEY/);
+  });
+
+  it("gateway kill switch は構成値があっても chat を強制 off にする [FinalArch:GOV-004]", () => {
+    const config = loadWebConfig({
+      ...validEnv,
+      AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary",
+      AIOPS_FLAG_INFERENCE_LITELLM_ENABLED_KILL: "1",
+      LITELLM_BASE_URL: "https://litellm.internal.example",
+      LITELLM_WEB_VIRTUAL_KEY: "vk-test",
+    });
+    expect(config.LLM_GATEWAY_ENABLED).toBe(false);
   });
 
   it("不正なpricing JSONを起動時に拒否する [PrjOps:SPEC-INT-060]", () => {

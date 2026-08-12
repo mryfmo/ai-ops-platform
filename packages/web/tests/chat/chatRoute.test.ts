@@ -5,7 +5,7 @@
  *   ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。POST /api/chat の
  *   handleChat（server/chat/chatHandler.ts）を、ai/test の MockLanguageModelV2 で
  *   tool call合成をモックしてテストする（ネットワーク不要）。
- *   未認証401・権限外403・ANTHROPIC_API_KEY未設定時503・コスト超過429を検証する。
+ *   未認証401・権限外403・gateway model未設定時503・コスト超過429を検証する。
  */
 import { describe, it, expect, vi } from "vitest";
 import type { Session } from "next-auth";
@@ -161,7 +161,7 @@ describe("handleChat（権限外403）", () => {
   });
 });
 
-describe("handleChat（ANTHROPIC_API_KEY未設定時503）", () => {
+describe("handleChat（gateway model未設定時503）", () => {
   it("languageModelがundefinedの場合503とチャット利用不可メッセージを返す", async () => {
     const res = await handleTestChat({
       getSession: sessionWithEmail,

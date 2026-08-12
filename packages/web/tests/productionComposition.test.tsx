@@ -44,7 +44,8 @@ vi.mock("../src/auth", () => ({ auth: mocks.auth }));
 vi.mock("../src/server/config", () => ({
   loadWebConfig: () => ({
     DATABASE_URL: "postgresql://composition-test",
-    ANTHROPIC_DEFAULT_MODEL: "claude-sonnet-4-6",
+    ANTHROPIC_DEFAULT_MODEL: "claude-standard",
+    LLM_GATEWAY_ENABLED: false,
     ANTHROPIC_PRICING_USD_PER_MTOK: {},
     PRJOPS_DATA_DIR: "/snapshot",
     PRJOPS_DATA_COMMIT_SHA: "a".repeat(40),
