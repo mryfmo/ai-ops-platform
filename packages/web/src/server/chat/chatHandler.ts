@@ -12,8 +12,7 @@
  *   costGuard.record()が一度も呼ばれておらず、llm_usageに実消費が記録されないため日次上限が
  *   実質機能していなかった。streamTextのonFinishでusageを受け取り記録するよう修正した
  *   T26ではreserve/reconcile方式にして、ストリーム途中エラーでも予約行が残るようにする。
- * 未設定時503: ANTHROPIC_API_KEY が無い場合はモデル呼び出し自体を行わず503を返す
- *   （呼び出し側route.tsがconfig.ANTHROPIC_API_KEYの有無を渡す）。
+ * gateway無効時503: languageModel が無い場合はモデル呼び出し自体を行わず503を返す。
  *
  * DIを引数で受け取る設計（getSession/resolver/languageModel/costGuard）にすることで、
  * route.ts（本番配線）と切り離してネットワーク・実DBなしでテストできる
@@ -47,7 +46,7 @@ const DEFAULT_CHAT_ESTIMATED_OUTPUT_TOKENS = 4096;
 export interface ChatHandlerDeps {
   getSession: () => Promise<Session | null>;
   resolver: PersonaResolver;
-  /** ANTHROPIC_API_KEY 未設定時は undefined を渡す（route.ts側の責務） */
+  /** LiteLLM gateway 無効時は undefined を渡す（route.ts側の責務） */
   languageModel: LanguageModel | undefined;
   costGuard: PgCostGuard;
   auditLog?: AuditLogWriter;

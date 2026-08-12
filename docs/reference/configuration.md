@@ -72,8 +72,9 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 | `AIOPS_SERVER_INTERNAL_URL`         | No       | `http://127.0.0.1:8080` | Internal Hono endpoint used only by the server-side Excel import proxy.               |
 | `XLSX_IMPORT_SECRET`                | No       | unset                   | HMAC key retained by server-side routes; if unset, Excel import returns 503.          |
 | `WEB_BFF_IDENTITY_SECRET`           | No       | unset                   | Dedicated Web BFF identity-envelope HMAC key; if unset, approvals return 503.         |
-| `ANTHROPIC_API_KEY`                 | No       | unset                   | If unset, `/app/api/chat` returns 503 and does not call a model.                      |
-| `ANTHROPIC_DEFAULT_MODEL`           | No       | `claude-sonnet-4-6`     | Model ID for chat calls; same format constraint as the server variable.               |
+| `LITELLM_BASE_URL`                  | No       | unset                   | LiteLLM gateway URL. Required when `inference.litellm.enabled` is not off.            |
+| `LITELLM_WEB_VIRTUAL_KEY`           | No       | unset                   | Web-only virtual key. Required with the gateway URL; never a provider key.            |
+| `ANTHROPIC_DEFAULT_MODEL`           | No       | `claude-standard`       | Logical alias for chat calls; provider model IDs fail startup with `E-CFG02`.         |
 | `ANTHROPIC_PRICING_USD_PER_MTOK`    | No       | unset                   | Model pricing JSON for `PgCostGuard`; malformed JSON fails with `E-CFG02`.            |
 | `PRJOPS_DATA_DIR`                   | No       | unset                   | Absolute path to the immutable PrjOps snapshot checkout. Relative paths fail startup. |
 | `PRJOPS_DATA_COMMIT_SHA`            | No       | unset                   | Owner-accepted 40-hex commit the pinned provider serves.                              |
@@ -84,9 +85,9 @@ Telemetry is pull-based for custom metrics: scrape `GET /metrics`. OpenTelemetry
 
 The four `PRJOPS_DATA_*` variables are all-or-none: configuring a subset fails startup, and leaving all four unset makes `createPinnedPrjopsReportDataProvider()` throw `PrjopsDataUnavailableError` rather than serving unpinned data.
 
-`loadWebConfig()` fails fast with `E-CFG02` when required values are missing or invalid. The module does not validate at import time, so `next build` does not need secrets.
+`loadWebConfig()` fails fast with `E-CFG02` when required values are missing or invalid. When `inference.litellm.enabled` is off, chat returns 503 without constructing a direct provider; the module does not validate at import time, so `next build` does not need secrets.
 
-The server and web tables above list every key in the two Zod schemas, and the repository-root `.env.example` carries the same union. `DATABASE_URL`, `PUBLIC_BASE_URL`, `XLSX_IMPORT_SECRET`, `ANTHROPIC_API_KEY`, `ANTHROPIC_DEFAULT_MODEL`, and `ANTHROPIC_PRICING_USD_PER_MTOK` appear in both schemas and so appear once in `.env.example`. This is enforced, not asserted: `configInventoryFailures()` in `packages/traceability/src/verifyTraceability.ts` diffs the schemas against both tables and `.env.example` in either direction, and `mise run traceability` — and therefore `mise run ci` — fails on any divergence, listing the offending keys under `Traceability Guards` in the generated matrix. Adding a key to either schema without adding it here and to `.env.example` breaks the build. Variables below are used by separate report-generation jobs and are not part of those two schemas.
+The server and web tables above list every key in the two Zod schemas, and the repository-root `.env.example` carries the same union. `DATABASE_URL`, `PUBLIC_BASE_URL`, `XLSX_IMPORT_SECRET`, `LITELLM_BASE_URL`, `ANTHROPIC_DEFAULT_MODEL`, and `ANTHROPIC_PRICING_USD_PER_MTOK` appear in both schemas and so appear once in `.env.example`. This is enforced, not asserted: `configInventoryFailures()` in `packages/traceability/src/verifyTraceability.ts` diffs the schemas against both tables and `.env.example` in either direction, and `mise run traceability` — and therefore `mise run ci` — fails on any divergence, listing the offending keys under `Traceability Guards` in the generated matrix. Adding a key to either schema without adding it here and to `.env.example` breaks the build. Variables below are used by separate report-generation jobs and are not part of those two schemas.
 
 ## Report Generation Environment
 

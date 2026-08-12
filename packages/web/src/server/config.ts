@@ -6,8 +6,8 @@
  *   - AUTH_SECRET / AUTH_MICROSOFT_ENTRA_ID_*: Auth.js v5 + Microsoft Entra ID SSO（本タスクの主題）
  *   - DATABASE_URL: DevOps正本DB（packages/server と同一PostgreSQL）。personaResolverが
  *     recipientsテーブルをリクエスト毎に照会するために使用する（キャッシュ禁止。CLAUDE.md設計原則6）。
- *   - ANTHROPIC_API_KEY: /api/chat（Vercel AI SDK + Claude）用。任意項目とし、未設定でも
- *     起動・ビルドを妨げない（/api/chat route.ts側が未設定を検知し503を返す。#14）。
+ *   - LITELLM_BASE_URL / LITELLM_WEB_VIRTUAL_KEY: /api/chat の LiteLLM gateway 構成。
+ *     inference.litellm.enabled が off の場合は未設定でも起動でき、chat は503で fail-closed。
  *
  * 注意: このモジュールを import しただけで即座に環境変数を要求しない（loadConfig()呼び出し時に
  * 初めて検証する）。next.config.mjs の方針（ビルド時に秘匿情報を要求しない）と整合させるため、
@@ -15,9 +15,29 @@
  */
 import { z } from "zod";
 import { isAbsolute } from "node:path";
-import { MAX_MODEL_ID_LENGTH, parseModelPricingUsdPerMtokJson, type ModelPricingUsdPerMtok } from "@aiops/shared";
+import {
+  MAX_MODEL_ID_LENGTH,
+  parseModelPricingUsdPerMtokJson,
+  resolveMigrationFlags,
+  type MigrationFlagStates,
+  type ModelPricingUsdPerMtok,
+} from "@aiops/shared";
 
-const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+export const WEB_GATEWAY_MODEL_ALIASES: ReadonlySet<string> = new Set([
+  "claude-governed",
+  "claude-standard",
+  "claude-native",
+  "claude-code",
+  "claude-fast",
+]);
+const DEFAULT_WEB_MODEL = "claude-standard";
+const LITELLM_FLAG_NAME = "inference.litellm.enabled";
+const optionalTrimmed = (schema: z.ZodType<string>) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, schema.optional());
 const modelIdSchema = z
   .string()
   .trim()
@@ -45,9 +65,20 @@ const webConfigSchema = z
     XLSX_IMPORT_SECRET: z.string().min(32).optional(),
     /** AUD-OPM-001: Auth.js検証済みEntra subjectをHonoへ署名伝搬する用途限定鍵。 */
     WEB_BFF_IDENTITY_SECRET: z.string().min(32).optional(),
-    /** Anthropic APIキー（/api/chat用。未設定時はチャット機能を503で無効化する） */
-    ANTHROPIC_API_KEY: z.string().optional(),
-    ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
+    /** LiteLLM gateway URL。flag 有効時のみ必須。 */
+    LITELLM_BASE_URL: optionalTrimmed(
+      z
+        .string()
+        .url()
+        .refine((value) => ["http:", "https:"].includes(new URL(value).protocol), "must use http(s)")
+        .refine((value) => {
+          const url = new URL(value);
+          return url.username === "" && url.password === "" && url.search === "" && url.hash === "";
+        }, "must not contain credentials, query, or fragment"),
+    ),
+    /** Web chat 専用 LiteLLM virtual key。server key と共有しない。 */
+    LITELLM_WEB_VIRTUAL_KEY: optionalTrimmed(z.string().min(1)),
+    ANTHROPIC_DEFAULT_MODEL: modelIdSchema.optional(),
     ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
     /** immutable prjops-data checkoutのabsolute export root。T08 compositionでfactoryへ渡す。 */
     PRJOPS_DATA_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
@@ -78,7 +109,7 @@ const webConfigSchema = z
         config.AUTH_SECRET,
         config.AUTH_MICROSOFT_ENTRA_ID_SECRET,
         config.XLSX_IMPORT_SECRET,
-        config.ANTHROPIC_API_KEY,
+        config.LITELLM_WEB_VIRTUAL_KEY,
       ].some((secret) => secret === config.WEB_BFF_IDENTITY_SECRET)
     ) {
       context.addIssue({
@@ -102,8 +133,11 @@ const webConfigSchema = z
   });
 
 type ParsedWebConfig = z.infer<typeof webConfigSchema>;
-export type WebConfig = Omit<ParsedWebConfig, "ANTHROPIC_PRICING_USD_PER_MTOK"> & {
+export type WebConfig = Omit<ParsedWebConfig, "ANTHROPIC_PRICING_USD_PER_MTOK" | "ANTHROPIC_DEFAULT_MODEL"> & {
   ANTHROPIC_PRICING_USD_PER_MTOK: ModelPricingUsdPerMtok;
+  ANTHROPIC_DEFAULT_MODEL: string;
+  LLM_GATEWAY_ENABLED: boolean;
+  MIGRATION_FLAGS: MigrationFlagStates;
 };
 
 /**
@@ -116,10 +150,29 @@ export function loadWebConfig(env: Record<string, string | undefined> = process.
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`E-CFG02: invalid web configuration: ${issues}`);
   }
+  const migrationFlags = resolveMigrationFlags(env);
+  if (migrationFlags.errors.length > 0) {
+    throw new Error(`E-CFG02: invalid web configuration: ${migrationFlags.errors.join("; ")}`);
+  }
+  const llmGatewayEnabled = (migrationFlags.states.get(LITELLM_FLAG_NAME) ?? "false") !== "false";
+  const defaultModel = parsed.data.ANTHROPIC_DEFAULT_MODEL ?? DEFAULT_WEB_MODEL;
+  if (!WEB_GATEWAY_MODEL_ALIASES.has(defaultModel)) {
+    throw new Error(
+      `E-CFG02: invalid web configuration: ANTHROPIC_DEFAULT_MODEL must be a LiteLLM logical alias (got ${defaultModel})`,
+    );
+  }
+  if (llmGatewayEnabled && (!parsed.data.LITELLM_BASE_URL || !parsed.data.LITELLM_WEB_VIRTUAL_KEY)) {
+    throw new Error(
+      `E-CFG02: invalid web configuration: ${LITELLM_FLAG_NAME} requires LITELLM_BASE_URL and LITELLM_WEB_VIRTUAL_KEY`,
+    );
+  }
   try {
     return {
       ...parsed.data,
       ANTHROPIC_PRICING_USD_PER_MTOK: parseModelPricingUsdPerMtokJson(parsed.data.ANTHROPIC_PRICING_USD_PER_MTOK),
+      ANTHROPIC_DEFAULT_MODEL: defaultModel,
+      LLM_GATEWAY_ENABLED: llmGatewayEnabled,
+      MIGRATION_FLAGS: migrationFlags.states,
     };
   } catch (error) {
     throw new Error(`E-CFG02: invalid web configuration: ${String(error)}`);
