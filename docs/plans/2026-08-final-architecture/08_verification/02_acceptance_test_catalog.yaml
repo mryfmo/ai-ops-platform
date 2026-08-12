@@ -487,12 +487,12 @@ gates:
   blocking: true
 - id: REL-001
   phase: P10
-  title: Azure IaC creates private managed baseline
+  title: AWS IaC creates private managed baseline
   required_evidence:
-  - Bicep validation
+  - Terraform validation
   - staging apply
   negative_test: null
-  environment: azure-staging
+  environment: aws-staging
   blocking: true
 - id: REL-002
   phase: P10
@@ -500,7 +500,7 @@ gates:
   required_evidence:
   - registry evidence
   negative_test: null
-  environment: azure-staging
+  environment: aws-staging
   blocking: true
 - id: REL-003
   phase: P10
@@ -508,7 +508,7 @@ gates:
   required_evidence:
   - traffic evidence
   negative_test: null
-  environment: azure-staging
+  environment: aws-staging
   blocking: true
 - id: REL-004
   phase: P10
@@ -516,7 +516,7 @@ gates:
   required_evidence:
   - restore/DR drill
   negative_test: null
-  environment: azure-dr
+  environment: aws-dr
   blocking: true
 - id: REL-005
   phase: P10
@@ -524,7 +524,7 @@ gates:
   required_evidence:
   - load report
   negative_test: null
-  environment: azure-staging
+  environment: aws-staging
   blocking: true
 - id: REL-006
   phase: P10
@@ -532,7 +532,7 @@ gates:
   required_evidence:
   - signed report
   negative_test: null
-  environment: azure-staging
+  environment: aws-staging
   blocking: true
 - id: REL-007
   phase: P10
