@@ -34,7 +34,7 @@ phases:
   exit_intent: Correlate telemetry, incident workflows, RCA and repair PRs.
 - id: P10
   name: Infrastructure and release
-  exit_intent: Implement Azure deployment, security, DR, load and go-live gates.
+  exit_intent: Implement AWS deployment, security, DR, load and go-live gates.
 tasks:
 - id: P0-T01
   title: Revalidate repository baseline
@@ -607,7 +607,7 @@ tasks:
   risk: medium
   allowed_paths:
   - deploy/litellm/**
-  - deploy/azure/**
+  - deploy/aws/**
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
@@ -639,7 +639,7 @@ tasks:
   - P2-T02
   risk: high
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   - docs/security/**
   - packages/integrations/**
   forbidden_paths:
@@ -667,7 +667,7 @@ tasks:
   - P2-T02
   risk: high
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   - docs/security/**
   forbidden_paths:
   - main direct push
@@ -833,7 +833,7 @@ tasks:
   - P2-T09
   risk: critical
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   - packages/server/src/config.ts
   - .env.example
   - runbooks/**
@@ -867,7 +867,7 @@ tasks:
   risk: medium
   allowed_paths:
   - deploy/temporal/**
-  - deploy/azure/**
+  - deploy/aws/**
   - packages/control-plane/**
   forbidden_paths:
   - main direct push
@@ -1234,7 +1234,7 @@ tasks:
   risk: medium
   allowed_paths:
   - deploy/agentgateway/**
-  - deploy/azure/**
+  - deploy/aws/**
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
@@ -1566,7 +1566,7 @@ tasks:
   risk: high
   allowed_paths:
   - docs/contracts/**
-  - deploy/azure/**
+  - deploy/aws/**
   - packages/integrations/src/workiq/**
   forbidden_paths:
   - main direct push
@@ -2883,7 +2883,7 @@ tasks:
   risk: medium
   allowed_paths:
   - packages/web/src/**
-  - deploy/azure/**
+  - deploy/aws/**
   - docs/guide/**
   - ops/azure-monitor-alerts/**
   forbidden_paths:
@@ -2936,7 +2936,7 @@ tasks:
   adr_refs:
   - ADR-0020
 - id: P10-T01
-  title: Implement Azure Bicep module structure
+  title: Implement AWS Terraform module structure
   writer: claude-code-fable5-xhigh
   reviewer: codex-gpt56-sol-high
   depends_on:
@@ -2944,17 +2944,17 @@ tasks:
   - P1-T08
   risk: medium
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - Front Door/WAF/ACA/ACR/PG/Key Vault/identity/network modules
+  - CloudFront/WAF/ALB/ECS Fargate/ECR/RDS/Secrets Manager/identity/network modules
   acceptance:
-  - what-if clean
+  - terraform plan clean
   - no portal-only required resource
   verification:
-  - bicep build/lint/what-if
+  - terraform fmt/validate/plan
   rollback: Revert the task PR and leave the previous path enabled.
   acceptance_gate_ids:
   - REL-001
@@ -2975,7 +2975,7 @@ tasks:
   - P4-T01
   risk: critical
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
@@ -3000,7 +3000,7 @@ tasks:
   - P0-T09
   risk: critical
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   - runbooks/**
   forbidden_paths:
   - main direct push
@@ -3026,7 +3026,7 @@ tasks:
   - P1-T05
   risk: medium
   allowed_paths:
-  - deploy/azure/**
+  - deploy/aws/**
   - packages/devops/src/db/**
   - runbooks/**
   forbidden_paths:

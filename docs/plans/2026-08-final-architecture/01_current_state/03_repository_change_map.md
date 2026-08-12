@@ -10,7 +10,7 @@ packages/
   channel-teams/       # OpenTag/CopilotKit Channels由来のTeams surface
 
 deploy/
-  azure/               # Bicep modules and environment parameters
+  aws/                 # Terraform modules and environment variables
   litellm/             # inference-only config and validation
   agentgateway/        # MCP/A2A-only config and registry generation
   temporal/            # namespace/worker/deployment profile

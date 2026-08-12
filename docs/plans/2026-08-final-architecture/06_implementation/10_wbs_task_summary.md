@@ -182,7 +182,7 @@ Total tasks: **113**
 
 | ID | Writer | Reviewer | Risk | Gates | Title |
 |---|---|---|---|---|---|
-| P10-T01 | claude-code-fable5-xhigh | codex-gpt56-sol-high | medium | REL-001 | Implement Azure Bicep module structure |
+| P10-T01 | claude-code-fable5-xhigh | codex-gpt56-sol-high | medium | REL-001 | Implement AWS Terraform module structure |
 | P10-T02 | claude-code-fable5-xhigh | codex-gpt56-sol-high | critical | REL-001, REL-002 | Implement private networking and egress policy |
 | P10-T03 | claude-code-fable5-xhigh | codex-gpt56-sol-high | critical | REL-001 | Implement identity and secret provisioning |
 | P10-T04 | codex-gpt56-sol-high | claude-code-fable5-xhigh | medium | REL-001 | Implement database roles/schemas/backups |
