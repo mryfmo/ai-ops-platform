@@ -5,7 +5,8 @@
  *   - ADR-0005: 常駐サーバの環境変数はzodで起動時にfail-fastパースする。
  *     GRAPH_CLIENT_STATE（Graph change notificationのclientState検証値）を新設し、
  *     graphClient.tsの固定値ハードコードを廃止する。
- *   - PrjOps:SPEC-INT-060: 外部通信allowlist（api.anthropic.com / graph.microsoft.com / api.github.com）。
+ *   - PrjOps:SPEC-INT-060: 外部通信allowlist（Anthropic API / graph.microsoft.com / api.github.com。
+ *     Anthropic の direct host 文字列は shared transport factory だけが知る — fitness test が強制）。
  *   - ADR-0006: CODING_TASK_CALLBACK_SECRETは.github/workflows/coding-task.ymlが
  *     POST /internal/coding-tasks/:taskId/callback を呼ぶ際のBearer認証シークレット。
  */
@@ -21,6 +22,34 @@ import {
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const DEFAULT_ANTHROPIC_ESCALATION_MODEL = "claude-opus-4-8";
+// 根拠: FinalArch:LLM-001 / ADR-0022（P2-T06）。gateway モードの model は LiteLLM の
+// logical alias のみ（正本: deploy/litellm/model-aliases.yaml application_aliases。
+// fitness test が正本との一致を機械検証する）。capability の実体は proxy 側の
+// *_MODEL_ID env binding が担う。
+export const GATEWAY_MODEL_ALIASES: ReadonlySet<string> = new Set([
+  "claude-governed",
+  "claude-standard",
+  "claude-native",
+  "claude-code",
+  "claude-fast",
+]);
+const DEFAULT_GATEWAY_MODEL = "claude-standard";
+// Owner 裁定（2026-08-12、P2-T06-REVIEW owner_decision）: claude-governed を構造化出力
+// 連続失敗時の正式な capability 昇格先とする。proxy 側 BEDROCK_CLAUDE_GOVERNED_MODEL_ID
+// には最上位 capability model（opus 相当）を bind する運用規約（deployment binding）。
+const DEFAULT_GATEWAY_ESCALATION_MODEL = "claude-governed";
+export const LITELLM_FLAG_NAME = "inference.litellm.enabled";
+// direct provider egress は security+ai-platform 所有の正典 flag が唯一のゲート
+// （requires: classification<=internal / explicit-provider-allow。kill switch 有効）。
+export const DIRECT_FALLBACK_FLAG_NAME = "inference.anthropic_direct_fallback.enabled";
+
+/** 空文字・空白のみを未設定と同一視する optional 文字列（.env.example の空値対策） */
+const optionalTrimmed = (schema: z.ZodType<string>) =>
+  z.preprocess((value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, schema.optional());
 const modelIdSchema = z
   .string()
   .trim()
@@ -89,11 +118,15 @@ const baseConfigSchema = z.object({
   ),
   /** 常駐コンテナの公開FQDN（Graph notificationUrl・WebUIディープリンクの生成に使用） */
   PUBLIC_BASE_URL: z.string().url(),
-  /** Anthropic APIキー（自由文意図解釈で使用。未設定時はLLMフォールバック無効） */
+  /** Anthropic APIキー（direct 移行期のみ。gateway モードでは不要・不使用） */
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_DEFAULT_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_MODEL),
-  ANTHROPIC_ESCALATION_MODEL: modelIdSchema.default(DEFAULT_ANTHROPIC_ESCALATION_MODEL),
+  ANTHROPIC_DEFAULT_MODEL: modelIdSchema.optional(),
+  ANTHROPIC_ESCALATION_MODEL: modelIdSchema.optional(),
   ANTHROPIC_PRICING_USD_PER_MTOK: z.string().optional(),
+  /** LiteLLM gateway（FinalArch:LLM-001 / ADR-0022）。inference.litellm.enabled が
+   * off 以外のとき必須。virtual key は Secrets 経由で注入する。空文字は未設定扱い。 */
+  LITELLM_BASE_URL: optionalTrimmed(z.string().url()),
+  LITELLM_VIRTUAL_KEY: optionalTrimmed(z.string().min(1)),
   /** PrjOps:REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
   STAKEHOLDERS_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
   /** A046 / DEC-SPEC-001: owner-pinned immutable PrjOps job data snapshot identity。 */
@@ -278,8 +311,18 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
 });
 
 type ParsedServerConfig = z.infer<typeof configSchema>;
-export type ServerConfig = Omit<ParsedServerConfig, "ANTHROPIC_PRICING_USD_PER_MTOK"> & {
+export type ServerConfig = Omit<
+  ParsedServerConfig,
+  "ANTHROPIC_PRICING_USD_PER_MTOK" | "ANTHROPIC_DEFAULT_MODEL" | "ANTHROPIC_ESCALATION_MODEL"
+> & {
   ANTHROPIC_PRICING_USD_PER_MTOK: ModelPricingUsdPerMtok;
+  /** mode 別既定を解決済み（gateway: logical alias / direct: provider model ID） */
+  ANTHROPIC_DEFAULT_MODEL: string;
+  ANTHROPIC_ESCALATION_MODEL: string;
+  /** 根拠: FinalArch:LLM-001（P2-T06）。inference.litellm.enabled が off 以外なら true */
+  LLM_GATEWAY_ENABLED: boolean;
+  /** 根拠: FinalArch:LLM-001。正典 direct fallback flag（kill switch 込み）の解決結果 */
+  LLM_DIRECT_FALLBACK_ENABLED: boolean;
   /** 根拠: FinalArch:FR-CP-008 / FinalArch:GOV-005。移行 flag 状態（fail closed で解決済み） */
   MIGRATION_FLAGS: MigrationFlagStates;
 };
@@ -304,10 +347,46 @@ export function loadConfig(
   if (migrationFlags.errors.length > 0) {
     throw new Error(`E-CFG01: invalid server configuration: ${migrationFlags.errors.join("; ")}`);
   }
+
+  // 根拠: FinalArch:LLM-001 / ADR-0022（P2-T06）。gateway が既定経路。
+  // flag が off 以外なら LiteLLM 構成を必須とし、model は logical alias に限定する。
+  const llmGatewayEnabled = (migrationFlags.states.get(LITELLM_FLAG_NAME) ?? "false") !== "false";
+  // direct provider egress は正典 flag の明示 enable が唯一の入口（kill switch は
+  // resolveMigrationFlags が反映済み）。provider key の存在だけでは有効化しない。
+  const llmDirectFallbackEnabled = (migrationFlags.states.get(DIRECT_FALLBACK_FLAG_NAME) ?? "false") !== "false";
+  let defaultModel = parsed.data.ANTHROPIC_DEFAULT_MODEL;
+  let escalationModel = parsed.data.ANTHROPIC_ESCALATION_MODEL;
+  if (llmGatewayEnabled) {
+    if (!parsed.data.LITELLM_BASE_URL || !parsed.data.LITELLM_VIRTUAL_KEY) {
+      throw new Error(
+        `E-CFG01: invalid server configuration: ${LITELLM_FLAG_NAME} requires LITELLM_BASE_URL and LITELLM_VIRTUAL_KEY`,
+      );
+    }
+    defaultModel ??= DEFAULT_GATEWAY_MODEL;
+    escalationModel ??= DEFAULT_GATEWAY_ESCALATION_MODEL;
+    for (const [field, model] of [
+      ["ANTHROPIC_DEFAULT_MODEL", defaultModel],
+      ["ANTHROPIC_ESCALATION_MODEL", escalationModel],
+    ] as const) {
+      if (!GATEWAY_MODEL_ALIASES.has(model)) {
+        throw new Error(
+          `E-CFG01: invalid server configuration: ${field} must be a LiteLLM logical alias in gateway mode (got ${model})`,
+        );
+      }
+    }
+  } else {
+    defaultModel ??= DEFAULT_ANTHROPIC_MODEL;
+    escalationModel ??= DEFAULT_ANTHROPIC_ESCALATION_MODEL;
+  }
+
   try {
     return {
       ...parsed.data,
       ANTHROPIC_PRICING_USD_PER_MTOK: parseModelPricingUsdPerMtokJson(parsed.data.ANTHROPIC_PRICING_USD_PER_MTOK),
+      ANTHROPIC_DEFAULT_MODEL: defaultModel,
+      ANTHROPIC_ESCALATION_MODEL: escalationModel,
+      LLM_GATEWAY_ENABLED: llmGatewayEnabled,
+      LLM_DIRECT_FALLBACK_ENABLED: llmDirectFallbackEnabled,
       MIGRATION_FLAGS: migrationFlags.states,
     };
   } catch (error) {

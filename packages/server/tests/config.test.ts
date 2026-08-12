@@ -408,3 +408,103 @@ describe("loadConfig (ADR-0005)", () => {
     ).toThrow("E-FLAG05");
   });
 });
+
+describe("LiteLLM gateway configuration [FinalArch:LLM-001 / ADR-0022 (P2-T06)]", () => {
+  const flagOn = { AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary" };
+  const gatewayEnv = {
+    ...flagOn,
+    LITELLM_BASE_URL: "https://litellm.internal.example:4000",
+    LITELLM_VIRTUAL_KEY: "vk-test",
+  };
+
+  it("flag が off 以外なら LITELLM_BASE_URL / LITELLM_VIRTUAL_KEY を必須にする [FinalArch:LLM-001]", () => {
+    expect(() => loadConfig({ ...validEnv, ...flagOn })).toThrow(/E-CFG01.*LITELLM_BASE_URL/);
+    expect(() =>
+      loadConfig({ ...validEnv, ...flagOn, LITELLM_BASE_URL: "https://litellm.internal.example:4000" }),
+    ).toThrow(/E-CFG01.*LITELLM_VIRTUAL_KEY/);
+    const config = loadConfig({ ...validEnv, ...gatewayEnv });
+    expect(config.LLM_GATEWAY_ENABLED).toBe(true);
+  });
+
+  it("gateway モードの model 既定は logical alias になる [FinalArch:LLM-001]", () => {
+    const config = loadConfig({ ...validEnv, ...gatewayEnv });
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-standard");
+    expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("claude-governed");
+  });
+
+  it("gateway モードで alias 以外の model 上書きは拒否する [FinalArch:LLM-001]", () => {
+    expect(() => loadConfig({ ...validEnv, ...gatewayEnv, ANTHROPIC_DEFAULT_MODEL: "claude-sonnet-4-6" })).toThrow(
+      /E-CFG01.*logical alias/,
+    );
+    expect(
+      loadConfig({ ...validEnv, ...gatewayEnv, ANTHROPIC_DEFAULT_MODEL: "claude-fast" }).ANTHROPIC_DEFAULT_MODEL,
+    ).toBe("claude-fast");
+  });
+
+  it("flag が off なら従来 direct 既定を維持し gateway env を要求しない [FinalArch:LLM-001]", () => {
+    const config = loadConfig(validEnv);
+    expect(config.LLM_GATEWAY_ENABLED).toBe(false);
+    expect(config.ANTHROPIC_DEFAULT_MODEL).toBe("claude-sonnet-4-6");
+    expect(config.ANTHROPIC_ESCALATION_MODEL).toBe("claude-opus-4-8");
+  });
+
+  it("kill switch は gateway を強制 off にする [FinalArch:GOV-004]", () => {
+    const config = loadConfig({ ...validEnv, ...gatewayEnv, AIOPS_FLAG_INFERENCE_LITELLM_ENABLED_KILL: "1" });
+    expect(config.LLM_GATEWAY_ENABLED).toBe(false);
+  });
+});
+
+describe("direct fallback flag gating [FinalArch:LLM-001 (P2-T06-001)]", () => {
+  it("direct fallback は正典 flag の明示 enable が唯一の入口になる [FinalArch:LLM-001]", () => {
+    expect(loadConfig(validEnv).LLM_DIRECT_FALLBACK_ENABLED).toBe(false);
+    expect(
+      loadConfig({ ...validEnv, AIOPS_FLAG_INFERENCE_ANTHROPIC_DIRECT_FALLBACK_ENABLED: "true" })
+        .LLM_DIRECT_FALLBACK_ENABLED,
+    ).toBe(true);
+  });
+
+  it("direct fallback の kill switch は強制 off にする [FinalArch:GOV-004]", () => {
+    const config = loadConfig({
+      ...validEnv,
+      AIOPS_FLAG_INFERENCE_ANTHROPIC_DIRECT_FALLBACK_ENABLED: "true",
+      AIOPS_FLAG_INFERENCE_ANTHROPIC_DIRECT_FALLBACK_ENABLED_KILL: "1",
+    });
+    expect(config.LLM_DIRECT_FALLBACK_ENABLED).toBe(false);
+  });
+
+  it("LiteLLM kill + direct flag off は両経路とも無効になる（silent direct の禁止） [FinalArch:LLM-001]", () => {
+    const config = loadConfig({
+      ...validEnv,
+      AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary",
+      AIOPS_FLAG_INFERENCE_LITELLM_ENABLED_KILL: "1",
+      ANTHROPIC_API_KEY: "sk-test-key",
+    });
+    expect(config.LLM_GATEWAY_ENABLED).toBe(false);
+    expect(config.LLM_DIRECT_FALLBACK_ENABLED).toBe(false);
+  });
+
+  it("gateway env の空文字・空白のみは未設定と同一視される [FinalArch:LLM-001 (P2-T06-005)]", () => {
+    expect(loadConfig({ ...validEnv, LITELLM_BASE_URL: "", LITELLM_VIRTUAL_KEY: "   " }).LITELLM_BASE_URL).toBe(
+      undefined,
+    );
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary",
+        LITELLM_BASE_URL: "https://litellm.internal.example:4000",
+        LITELLM_VIRTUAL_KEY: "   ",
+      }),
+    ).toThrow(/E-CFG01.*LITELLM_VIRTUAL_KEY/);
+  });
+
+  it("gateway モードは provider key なしで成立する [FinalArch:LLM-001]", () => {
+    const config = loadConfig({
+      ...validEnv,
+      AIOPS_FLAG_INFERENCE_LITELLM_ENABLED: "primary",
+      LITELLM_BASE_URL: "https://litellm.internal.example:4000",
+      LITELLM_VIRTUAL_KEY: "vk-test",
+    });
+    expect(config.ANTHROPIC_API_KEY).toBe(undefined);
+    expect(config.LLM_GATEWAY_ENABLED).toBe(true);
+  });
+});

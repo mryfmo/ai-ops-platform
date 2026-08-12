@@ -263,6 +263,33 @@ describe("AGT_BLD runtime wiring [DevOps:SPEC-INT-011 / DevOps:REQ-001 / DevOps:
     await expect(handler(noPrEvent, "trace-failure")).rejects.toThrow("GitHub unavailable");
   });
 
+  it("dependency/infra分類ではgenerate seamを呼ばず、fail-closed監査も出さない [DevOps:SPEC-INT-011 (P2-T06-008)]", async () => {
+    const auditLog = new InMemoryAuditLog();
+    const generate = vi.fn(async () => null);
+    const handler = createBuildEventHandler({
+      configured: true,
+      githubClient: {
+        getWorkflowRunFailureLog: vi.fn(async () => "dependency resolution failed"),
+        createIssueComment: vi.fn(async () => undefined),
+        createIssue: vi.fn(async () => ({ number: 1, htmlUrl: "https://github.com/acme/widget/issues/1" })),
+      },
+      auditLog,
+      classify: vi.fn(async () => ({
+        classification: "dependency" as const,
+        failed_job: "build",
+        failed_step: "install",
+        log_excerpt: "resolution failed",
+        confidence: 0.8,
+      })),
+      generate,
+      repoCheckoutPathFor: () => "/repo",
+    });
+
+    await handler(workflowFailure, "trace-dependency");
+    expect(generate).not.toHaveBeenCalled();
+    expect((await auditLog.readAll()).some((e) => e.action === "build_fix_suggestion_disabled")).toBe(false);
+  });
+
   it("LLMまたはGitHub未設定ではloud degraded監査だけ残す", async () => {
     const auditLog = new InMemoryAuditLog();
     const getWorkflowRunFailureLog = vi.fn();
