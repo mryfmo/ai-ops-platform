@@ -41,7 +41,7 @@ function messageResponse(): Response {
 }
 
 describe("createAnthropicTransport [FinalArch:LLM-001][FinalArch:LLM-004]", () => {
-  it("gateway モードは baseURL 必須で api.anthropic.com を拒否する [FinalArch:LLM-001]", () => {
+  it("gateway モードは baseURL 必須で api.anthropic.com（末尾ドット表記含む）を拒否する [FinalArch:LLM-001]", () => {
     const tokenProvider = staticTokens("vk");
     expect(() => createAnthropicTransport({ mode: "gateway", tokenProvider })).toThrow(/E-CFG05/);
     expect(() => createAnthropicTransport({ mode: "gateway", baseURL: "not a url", tokenProvider })).toThrow(/E-CFG05/);
@@ -49,6 +49,38 @@ describe("createAnthropicTransport [FinalArch:LLM-001][FinalArch:LLM-004]", () =
     expect(() =>
       createAnthropicTransport({ mode: "gateway", baseURL: "https://api.anthropic.com", tokenProvider }),
     ).toThrow(/E-CFG05/);
+    expect(() =>
+      createAnthropicTransport({ mode: "gateway", baseURL: "https://API.anthropic.com.", tokenProvider }),
+    ).toThrow(/E-CFG05/);
+  });
+
+  it("mode は実行時に検証され、未知値は direct 既定へ落ちない [FinalArch:LLM-001]", () => {
+    expect(() =>
+      createAnthropicTransport({
+        mode: "typo" as unknown as "gateway",
+        tokenProvider: staticTokens("vk"),
+      }),
+    ).toThrow(/E-CFG05: mode/);
+  });
+
+  it("gateway クライアントの絶対 URL 指定は構成外 origin としてトークン解決前に遮断される [FinalArch:LLM-001][FinalArch:LLM-004]", async () => {
+    const fetchMock = vi.fn(async () => messageResponse());
+    const getToken = vi.fn(async () => "vk-secret");
+    const client = createAnthropicTransport({
+      mode: "gateway",
+      baseURL: GATEWAY_URL,
+      tokenProvider: { getToken },
+      fetch: fetchMock,
+    });
+    await expect(
+      (client as unknown as { post: (path: string, opts: unknown) => Promise<unknown> }).post(
+        "https://api.anthropic.com/v1/messages",
+        { body: { model: "x", max_tokens: 1, messages: [] } },
+      ),
+    ).rejects.toThrow();
+    // virtual key は解決すらされず、実 fetch にも到達しない（漏えい経路の遮断）
+    expect(getToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("direct モードは移行フラグなし・baseURL 上書きを構成時に拒否する [FinalArch:LLM-001]", () => {
@@ -68,10 +100,15 @@ describe("createAnthropicTransport [FinalArch:LLM-001][FinalArch:LLM-004]", () =
   });
 
   it("gateway リクエストは注入 baseURL へ Bearer virtual key で送られ、リクエスト毎にトークンを解決する [FinalArch:LLM-004]", async () => {
-    const captured: Array<{ url: string; auth: string | null; apiKey: string | null }> = [];
+    const captured: Array<{ url: string; auth: string | null; apiKey: string | null; redirect: unknown }> = [];
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      captured.push({ url: input, auth: headers.get("authorization"), apiKey: headers.get("x-api-key") });
+      captured.push({
+        url: input,
+        auth: headers.get("authorization"),
+        apiKey: headers.get("x-api-key"),
+        redirect: init?.redirect,
+      });
       return messageResponse();
     });
     const client = createAnthropicTransport({
@@ -89,6 +126,8 @@ describe("createAnthropicTransport [FinalArch:LLM-001][FinalArch:LLM-004]", () =
     expect(captured[1].auth).toBe("Bearer vk-rotated");
     // SDK コンストラクタのプレースホルダ鍵はネットワークへ出ない
     expect(captured.every((c) => c.apiKey === null)).toBe(true);
+    // 認証付きリクエストの cross-origin リダイレクト再送は禁止
+    expect(captured.every((c) => c.redirect === "error")).toBe(true);
   });
 
   it("direct モードは x-api-key でトークンを送る（移行期のみ） [FinalArch:LLM-001]", async () => {
@@ -150,6 +189,40 @@ describe("normalizeAnthropicError [FinalArch:LLM-004]", () => {
       [new Error("fetch failed: ECONNREFUSED"), "model_temporarily_unavailable", true],
       [new Error("mystery"), "unknown", false],
       ["string error", "unknown", false],
+      // HTTP status が forbidden を示すとき、message の timeout 文言に負けない（P2-T05-002）
+      [withStatus(403, "policy evaluation timed out"), "policy_denied", false],
+      [withStatus(401, "authentication timed out"), "policy_denied", false],
+      [withStatus(400, "invalid timeout value"), "invalid_request", false],
+      // SDK 0.115 の接続エラーは cause 連鎖まで見て分類する（P2-T05-003）
+      [
+        Object.assign(new Error("Connection error.", { cause: new Error("read ECONNRESET") }), {
+          name: "APIConnectionError",
+        }),
+        "model_temporarily_unavailable",
+        true,
+      ],
+      [
+        Object.assign(new Error("Connection error.", { cause: new Error("getaddrinfo ETIMEDOUT litellm") }), {
+          name: "APIConnectionError",
+        }),
+        "timeout",
+        true,
+      ],
+      [Object.assign(new Error("Request timed out."), { name: "APIConnectionTimeoutError" }), "timeout", true],
+      [
+        Object.assign(new Error("Connection error."), { name: "APIConnectionError" }),
+        "model_temporarily_unavailable",
+        true,
+      ],
+      // fetch ラッパ由来の構成/トークン失敗は一過性ではない（fail-closed 維持）
+      [
+        Object.assign(
+          new Error("Connection error.", { cause: new Error("E-CFG05: token provider returned an empty token") }),
+          { name: "APIConnectionError" },
+        ),
+        "unknown",
+        false,
+      ],
     ];
     for (const [error, expectedClass, eligible] of cases) {
       const normalized = normalizeAnthropicError(error);
