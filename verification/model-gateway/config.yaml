@@ -1,0 +1,52 @@
+# 根拠: FinalArch:LLM-002 / FinalArch:LLM-004 / FinalArch:LLM-005 / ADR-0022
+# P2-T09-only LiteLLM config. Every response is synthetic; provider credentials are never used.
+schema_version: "1.0"
+provenance:
+  litellm_version: v1.96.2
+  image: ghcr.io/mryfmo/aiops-litellm-oss:v1.96.2-oss.3@sha256:2518a42798776da20d252f75e7672855c51de97dbc5d3e03fad47eff1fce97c4
+
+model_list:
+  - model_name: synthetic-bedrock
+    litellm_params: &bedrock_success
+      model: synthetic-bedrock-model
+      custom_llm_provider: bedrock
+      mock_response: synthetic conformance response
+  - model_name: synthetic-anthropic
+    litellm_params: &anthropic_success
+      model: synthetic-anthropic-model
+      custom_llm_provider: anthropic
+      api_key: os.environ/MODEL_GATEWAY_SYNTHETIC_PROVIDER_TOKEN
+      mock_response: synthetic conformance response
+  - model_name: synthetic-bedrock-rate
+    litellm_params:
+      <<: *bedrock_success
+      mock_response: litellm.RateLimitError
+  - model_name: synthetic-anthropic-rate
+    litellm_params:
+      <<: *anthropic_success
+      mock_response: litellm.RateLimitError
+  - model_name: synthetic-bedrock-internal
+    litellm_params:
+      <<: *bedrock_success
+      mock_response: litellm.InternalServerError
+  - model_name: synthetic-anthropic-internal
+    litellm_params:
+      <<: *anthropic_success
+      mock_response: litellm.InternalServerError
+  - model_name: synthetic-bedrock-context
+    litellm_params:
+      <<: *bedrock_success
+      mock_response: litellm.ContextWindowExceededError
+  - model_name: synthetic-anthropic-context
+    litellm_params:
+      <<: *anthropic_success
+      mock_response: litellm.ContextWindowExceededError
+
+litellm_settings:
+  telemetry: false
+
+general_settings:
+  master_key: os.environ/MODEL_GATEWAY_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+  store_model_in_db: false
+  supported_db_objects: []
