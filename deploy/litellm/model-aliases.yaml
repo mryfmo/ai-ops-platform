@@ -40,6 +40,7 @@ model_list:
     litellm_params:
       model: os.environ/ANTHROPIC_CLAUDE_STANDARD_MODEL_ID
       custom_llm_provider: anthropic
+      api_key: os.environ/LITELLM_ANTHROPIC_API_KEY
     model_info:
       access: internal_fallback
       data_classifications: *standard_classifications
@@ -47,6 +48,7 @@ model_list:
     litellm_params:
       model: os.environ/ANTHROPIC_CLAUDE_NATIVE_MODEL_ID
       custom_llm_provider: anthropic
+      api_key: os.environ/LITELLM_ANTHROPIC_API_KEY
     model_info:
       access: application
       data_classifications:
@@ -66,6 +68,7 @@ model_list:
     litellm_params:
       model: os.environ/ANTHROPIC_CLAUDE_CODE_MODEL_ID
       custom_llm_provider: anthropic
+      api_key: os.environ/LITELLM_ANTHROPIC_API_KEY
     model_info:
       access: internal_fallback
       data_classifications: *code_classifications
@@ -82,6 +85,7 @@ model_list:
     litellm_params:
       model: os.environ/ANTHROPIC_CLAUDE_FAST_MODEL_ID
       custom_llm_provider: anthropic
+      api_key: os.environ/LITELLM_ANTHROPIC_API_KEY
     model_info:
       access: internal_fallback
       data_classifications: *fast_classifications

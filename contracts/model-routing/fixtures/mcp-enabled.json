@@ -1,0 +1,5 @@
+{
+  "$comment": "根拠: FinalArch:LLM-001 / ADR-0022（MCP/A2A gateway 不使用）",
+  "key": "mcp_servers",
+  "value": {}
+}

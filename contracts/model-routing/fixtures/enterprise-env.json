@@ -1,0 +1,4 @@
+{
+  "$comment": "根拠: FinalArch:LLM-003 / Owner 裁定 2026-08-12（enterprise 有効化・import・env 禁止）",
+  "env": "LITELLM_LICENSE"
+}

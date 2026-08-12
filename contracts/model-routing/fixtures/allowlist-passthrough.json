@@ -1,0 +1,4 @@
+{
+  "$comment": "根拠: FinalArch:LLM-001 / ADR-0022（inference-only: passthrough/MCP/A2A の route を allowlist に開けてはならない）",
+  "forbidden": ["/anthropic", "/bedrock", "/vertex_ai", "/mcp", "/v1/mcp/server", "/v1/agents", "/a2a", "/gemini"]
+}

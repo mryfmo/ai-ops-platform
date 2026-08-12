@@ -1,0 +1,64 @@
+# 根拠: FinalArch:LLM-001 / FinalArch:LLM-003 / FinalArch:PRD-003 / FinalArch:FR-LLM-001..007 / ADR-0022 / ADR-0029
+# Inference-only LiteLLM proxy configuration (P2-T02).
+# MCP gateway, A2A gateway and arbitrary provider passthrough stay disabled:
+# none of their config keys may appear in this file. Enterprise modules stay
+# packaged-but-disabled per the Owner ruling recorded in
+# docs/security/2026-08-10-license-service-review-register.md. Both properties
+# are machine-enforced by contracts/model-routing/check-service-config.mjs.
+schema_version: "1.0"
+provenance:
+  litellm_version: v1.96.2
+  # OSS-only derived image (Owner ruling 2026-08-12, option B): built by
+  # deploy/litellm/Dockerfile from base_image with the proprietary
+  # litellm-enterprise package and /app/enterprise tree removed.
+  image: ghcr.io/mryfmo/aiops-litellm-oss:v1.96.2-oss.3@sha256:2518a42798776da20d252f75e7672855c51de97dbc5d3e03fad47eff1fce97c4
+  base_image: ghcr.io/berriai/litellm:v1.96.2@sha256:154e23bb5f31b1f10e16392a8ef299bd2cde08de3a64a6849002cfcc25ce3c63
+  dockerfile: deploy/litellm/Dockerfile
+  model_manifest: deploy/litellm/model-aliases.yaml
+  license_register: docs/security/2026-08-10-license-service-review-register.md
+
+# The governed alias manifest (P2-T01) is the only model source.
+include:
+  - model-aliases.yaml
+
+litellm_settings:
+  telemetry: false
+  # Metrics and traces leave the proxy only through the OSS OTel callback
+  # (ADR-0029: CloudWatch + OTel Collector is the observability canon).
+  # Enterprise-gated callbacks are forbidden.
+  callbacks:
+    - otel
+
+general_settings:
+  # Secrets are resolved from the runtime environment only; the ECS task role
+  # provides AWS credentials (no long-lived key, P2-T03) and Secrets Manager
+  # injects the values below. No literal secret may appear in this file.
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+  # The model list is config-owned and governed; runtime model registration
+  # through the DB/UI would bypass the alias contract.
+  store_model_in_db: false
+  # v1.96.2 loads every DB-backed object type (mcp, agents,
+  # pass_through_endpoints, prompts, ...) when this is unset. The empty list
+  # fail-closes all of them; virtual keys/teams are not governed by it.
+  supported_db_objects: []
+
+# Platform deployment contract (not read by LiteLLM; validated by
+# check-service-config.mjs and consumed by the P10-T01 IaC task).
+aiops_deployment:
+  private_ingress: true
+  public_endpoints: []
+  database:
+    # Dedicated logical DB and role (names only — never credentials).
+    name: litellm
+    role: litellm_app
+  health_endpoints:
+    - /health/liveliness
+    - /health/readiness
+  metrics_path: otel-collector
+  # Runtime route boundary baked into the image (sitecustomize default-deny
+  # middleware). The allowlist below is the single source shared with the
+  # contracts validator; anything else answers 403 before LiteLLM auth.
+  route_boundary:
+    enforcement: sitecustomize-asgi-middleware
+    allowlist: route-allowlist.json
