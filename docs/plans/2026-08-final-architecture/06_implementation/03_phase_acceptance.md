@@ -14,7 +14,7 @@
 | P7 | Control API stable、Teams environment | Teams thread continuity、HITL、Workbench capability isolation、mobile/Japanese E2E | UIがSoR化、tenant-wide ambient access、stale approval |
 | P8 | branch protection、runner isolation、gateway credentials | Claude and Droid PR-only、one writer lock、Codex independent review、negative secret tests | main push/auto merge、shared provider key、Droid unpinned |
 | P9 | OTel semantic conventions/correlation contract | incident workflow、RCA evidence links、repair PR、no auto production mutation | telemetry gaps、AI-only severity、unapproved remediation |
-| P10 | all prior exits | Azure IaC、canary、restore/DR、load/security、release board approval | mock-only evidence、rollback untested、unowned alerts/budget |
+| P10 | all prior exits | AWS Terraform IaC、canary、restore/DR、load/security、release board approval | mock-only evidence、rollback untested、unowned alerts/budget |
 
 
 ## 証跡の保存規則
