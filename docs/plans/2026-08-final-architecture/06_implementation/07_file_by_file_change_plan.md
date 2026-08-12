@@ -68,10 +68,10 @@ packages/
 
 ```text
 deploy/
-  azure/
-    main.bicep
+  aws/
+    main.tf
     modules/
-    parameters/
+    envs/
   temporal/
   litellm/
   agentgateway/

@@ -1,0 +1,15 @@
+{
+  "$comment": "根拠: FinalArch:LLM-001 / 04_component_specs/02_litellm.md（inference-only: Anthropic Messages 互換 + 必要内部向け OpenAI 互換 + health/metrics/alias lookup + virtual key/team/budget 管理のみ）。sitecustomize.py の default-deny middleware と contracts/model-routing/check-service-config.mjs が共有する単一ソース。",
+  "allowed_route_prefixes": [
+    "/health",
+    "/v1/models",
+    "/model/info",
+    "/v1/chat/completions",
+    "/chat/completions",
+    "/v1/messages",
+    "/key",
+    "/team",
+    "/budget",
+    "/spend"
+  ]
+}

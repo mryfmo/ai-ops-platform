@@ -143,7 +143,11 @@
               "type": "string",
               "pattern": "^os\\.environ/[A-Z][A-Z0-9_]*_MODEL_ID$"
             },
-            "custom_llm_provider": { "enum": ["bedrock", "anthropic"] }
+            "custom_llm_provider": { "enum": ["bedrock", "anthropic"] },
+            "api_key": {
+              "type": "string",
+              "pattern": "^os\\.environ/(?!ANTHROPIC_API_KEY$)[A-Z][A-Z0-9_]*$"
+            }
           }
         },
         "model_info": {
