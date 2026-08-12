@@ -42,3 +42,4 @@ ENV-DEC-001、ADR-0029、WBS P3-T01、P0-T09 資格マトリクスの間では�
 | Azure Front Door + WAF | CloudFront + WAF → ALB | ECS origin と RDS endpoint は非公開 |
 | Azure Database for PostgreSQL | Amazon RDS for PostgreSQL | private subnet、PITR / cross-region snapshot |
 | Azure Container Registry | Amazon ECR | SBOM / provenance 付き immutable digest |
+| P2-ENTRY | 06_implementation/02_wbs.yaml / SHA256SUMS | Owner 裁定（LiteLLM enterprise 同梱受容・無効化拘束、2026-08-12）を binding にするため P2-T02 の acceptance/verification へ enterprise 無効・telemetry off の証明を追加 |
