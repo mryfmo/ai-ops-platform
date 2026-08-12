@@ -10,7 +10,12 @@
  *   - DevOps:SPEC-INT-070: LLMへの入力からシークレットパターンを除去するサニタイザを共通ライブラリとして実装。
  *   - PrjOps:REQ-035 データ所在: 外部送信されるデータは Anthropic API・Microsoft Graph・GitHub に限定する
  *     （外部通信allowlist: api.anthropic.com, graph.microsoft.com, github.com/api.github.com のみ。
- *     PrjOps:SPEC-INT-060）。本クライアントが通信するホストは api.anthropic.com のみであり、この制約に従う。
+ *     PrjOps:SPEC-INT-060）。
+ *   - FinalArch:LLM-001 / FinalArch:LLM-004 / ADR-0022（P2-T05）: inference は LiteLLM gateway の
+ *     logical alias 経由が正。本クライアントの transport は注入された gateway baseURL
+ *     （private な LiteLLM endpoint）を既定とし、api.anthropic.com への direct mode は
+ *     移行期の明示フラグ（allowDirectModeMigration）の背後にのみ残す。egress の最終遮断は
+ *     P2-T07 cutover が正典（このファイルは構成時 fail-closed を担う）。
  *
  * 実装方式: Anthropic Messages APIの「ツール強制（tool_choice: {type: "tool", name}）」パターンで
  * 構造化JSON出力を保証する。これはAnthropic公式SDK（@anthropic-ai/sdk）が現在サポートする
@@ -18,8 +23,9 @@
  * 出力は呼び出し側のzodスキーマで再検証してから使用する（二重検証によりE-ING03/LLM出力スキーマ不適合を防ぐ）。
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { sanitizeForLlmInput } from "../secretSanitizer.js";
+import { sanitizeForLlmInput, sanitizeSecrets } from "../secretSanitizer.js";
 import type { AuditLogWriter } from "../auditLog.js";
+import type { FetchLike } from "./fetchPolicy.js";
 
 export const MAX_MODEL_ID_LENGTH = 200;
 const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -444,4 +450,183 @@ export class AnthropicStructuredClient {
 
 export function shouldSendTemperature(model: string, escalationModel: string): boolean {
   return model !== escalationModel;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Gateway transport（P2-T05、FinalArch:LLM-001 / FinalArch:LLM-004 / ADR-0022）
+ *
+ * 全 inference は LiteLLM gateway の logical alias 経由が正。共有クライアントは
+ * baseURL と virtual key を注入された gateway transport を既定とし、
+ * api.anthropic.com への direct mode は移行期の明示フラグの背後にのみ残す。
+ * ------------------------------------------------------------------------- */
+
+/** virtual key（gateway）/ API key（direct 移行期のみ）を呼び出し毎に解決する。 */
+export interface AnthropicTokenProvider {
+  getToken(): Promise<string>;
+}
+
+export type AnthropicTransportMode = "gateway" | "direct";
+
+export interface AnthropicTransportOptions {
+  mode: AnthropicTransportMode;
+  /** gateway: LiteLLM の URL（必須）。direct: 指定不可（SDK 既定 api.anthropic.com）。 */
+  baseURL?: string;
+  tokenProvider: AnthropicTokenProvider;
+  /** direct mode は移行期のみ。明示 true がない direct 構成は構成時に失敗する。 */
+  allowDirectModeMigration?: boolean;
+  /** テスト・ポリシー注入用。既定は globalThis.fetch。 */
+  fetch?: FetchLike;
+  /** リクエストタイムアウト(ms)。既定は SDK 既定に委譲。 */
+  timeoutMs?: number;
+}
+
+const DIRECT_ANTHROPIC_HOST = "api.anthropic.com";
+
+function validateGatewayBaseUrl(baseURL: string | undefined): string {
+  if (!baseURL) throw new Error("E-CFG05: gateway mode requires baseURL (LiteLLM endpoint)");
+  let parsed: URL;
+  try {
+    parsed = new URL(baseURL);
+  } catch {
+    throw new Error("E-CFG05: gateway baseURL must be a valid URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("E-CFG05: gateway baseURL must be http(s)");
+  }
+  if (parsed.hostname === DIRECT_ANTHROPIC_HOST) {
+    throw new Error(
+      "E-CFG05: gateway mode must not target api.anthropic.com (use direct mode behind the migration flag)",
+    );
+  }
+  return baseURL;
+}
+
+/**
+ * gateway 既定の Anthropic SDK クライアントを構築する。トークンは注入された
+ * TokenProvider からリクエスト毎に解決し（rotation/expiry 対応）、fetch ラッパで
+ * 認証ヘッダを差し替えるため、SDK コンストラクタへ実キーは渡らない。
+ */
+export function createAnthropicTransport(options: AnthropicTransportOptions): Anthropic {
+  const { mode, tokenProvider } = options;
+  if (mode === "direct") {
+    if (options.allowDirectModeMigration !== true) {
+      throw new Error("E-CFG05: direct mode is migration-only and requires allowDirectModeMigration=true");
+    }
+    if (options.baseURL !== undefined) {
+      throw new Error("E-CFG05: direct mode must not override baseURL");
+    }
+  }
+  const baseURL = mode === "gateway" ? validateGatewayBaseUrl(options.baseURL) : undefined;
+  const inner: FetchLike = options.fetch ?? (fetch as unknown as FetchLike);
+
+  const authenticatedFetch = async (input: unknown, init: RequestInit = {}): Promise<Response> => {
+    const token = await tokenProvider.getToken();
+    if (typeof token !== "string" || token.trim().length === 0) {
+      throw new Error("E-CFG05: token provider returned an empty token");
+    }
+    const headers = new Headers(init.headers);
+    if (mode === "gateway") {
+      // LiteLLM virtual key。x-api-key(SDK 既定のプレースホルダ)は送らない。
+      headers.set("authorization", `Bearer ${token}`);
+      headers.delete("x-api-key");
+    } else {
+      headers.set("x-api-key", token);
+    }
+    return inner(String(input), { ...init, headers });
+  };
+
+  return new Anthropic({
+    // 実キーはヘッダ差し替えで供給される。この値がネットワークへ出ることはない。
+    apiKey: "managed-by-token-provider",
+    ...(baseURL ? { baseURL } : {}),
+    ...(options.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+    fetch: authenticatedFetch as unknown as NonNullable<ConstructorParameters<typeof Anthropic>[0]>["fetch"],
+  });
+}
+
+/* ------------------------------------------------------------------------- *
+ * Error normalization（P2-T05、FinalArch:LLM-004）
+ *
+ * 語彙は正典 model-routing 契約（deploy/litellm/model-aliases.yaml の
+ * aiops_settings.on_errors / fallback_forbidden_errors）と同一。fallback 適格性は
+ * この語彙で機械判定し、forbidden class での failover を構造的に不可能にする。
+ * ------------------------------------------------------------------------- */
+
+export const FALLBACK_ALLOWED_ERROR_CLASSES = [
+  "timeout",
+  "rate_limited",
+  "provider_5xx",
+  "regional_unavailable",
+  "model_temporarily_unavailable",
+] as const;
+
+export const FALLBACK_FORBIDDEN_ERROR_CLASSES = [
+  "safety_refusal",
+  "policy_denied",
+  "classification_denied",
+  "prompt_injection",
+  "invalid_request",
+  "context_limit",
+] as const;
+
+export type LlmErrorClass =
+  (typeof FALLBACK_ALLOWED_ERROR_CLASSES)[number] | (typeof FALLBACK_FORBIDDEN_ERROR_CLASSES)[number] | "unknown";
+
+export interface NormalizedLlmError {
+  errorClass: LlmErrorClass;
+  /** 正典 on_errors に含まれる class のみ true。unknown は fail-closed で false。 */
+  fallbackEligible: boolean;
+  httpStatus?: number;
+  /** secretSanitizer 済み・512 文字上限のログ安全メッセージ。 */
+  message: string;
+}
+
+const MAX_NORMALIZED_MESSAGE_LENGTH = 512;
+const CONTEXT_LIMIT_PATTERN = /context|prompt is too long|max_tokens|token limit/iu;
+
+function extractHttpStatus(error: unknown): number | undefined {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === "number" && Number.isInteger(status)) return status;
+  }
+  return undefined;
+}
+
+function safeMessage(error: unknown): string {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return sanitizeSecrets(raw).sanitized.slice(0, MAX_NORMALIZED_MESSAGE_LENGTH);
+}
+
+export function normalizeAnthropicError(error: unknown): NormalizedLlmError {
+  const message = safeMessage(error);
+  const httpStatus = extractHttpStatus(error);
+  const classify = (): LlmErrorClass => {
+    if (error instanceof AnthropicRefusalError) return "safety_refusal";
+    if (error instanceof DailyCostLimitExceededError) return "policy_denied";
+    if (error instanceof DOMException && error.name === "AbortError") return "timeout";
+    if (error instanceof Error && /timeout|timed out/iu.test(error.message)) return "timeout";
+    if (httpStatus !== undefined) {
+      if (httpStatus === 408) return "timeout";
+      if (httpStatus === 429) return "rate_limited";
+      if (httpStatus === 529) return "model_temporarily_unavailable";
+      if (httpStatus >= 500) return "provider_5xx";
+      if (httpStatus === 401 || httpStatus === 403) return "policy_denied";
+      if (httpStatus === 400 || httpStatus === 404 || httpStatus === 422) {
+        return CONTEXT_LIMIT_PATTERN.test(message) ? "context_limit" : "invalid_request";
+      }
+      return "unknown";
+    }
+    // status なし = 接続層の失敗（DNS/RST 等）。一過性 transport として扱う。
+    if (error instanceof Error && /fetch failed|network|ECONNREFUSED|ECONNRESET|EAI_AGAIN|socket/iu.test(message)) {
+      return "model_temporarily_unavailable";
+    }
+    return "unknown";
+  };
+  const errorClass = classify();
+  return {
+    errorClass,
+    fallbackEligible: (FALLBACK_ALLOWED_ERROR_CLASSES as readonly string[]).includes(errorClass),
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+    message,
+  };
 }
