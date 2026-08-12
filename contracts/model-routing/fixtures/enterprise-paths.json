@@ -1,0 +1,11 @@
+{
+  "$comment": "根拠: FinalArch:LLM-003 / Owner 裁定 2026-08-12（register の enterprise パス名 + 禁止 env）",
+  "markers": [
+    "cloudformation_stack",
+    "dist",
+    "enterprise_hooks",
+    "enterprise_ui",
+    "litellm_enterprise",
+    "LITELLM_LICENSE"
+  ]
+}

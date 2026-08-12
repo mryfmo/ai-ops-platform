@@ -1,0 +1,4 @@
+{
+  "$comment": "根拠: FinalArch:LLM-001 / ADR-0022（A2A gateway 不使用。v1.96.2 の実サーフェスは agents/agent_list）",
+  "keys": ["agents", "agent_list"]
+}
