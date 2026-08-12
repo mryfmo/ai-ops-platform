@@ -355,7 +355,9 @@ export function createBuildEventHandler(deps: BuildHandlerDeps): DevopsEventHand
         detail: { reason: "No explicit local checkout mapping exists for the event repository" },
         at: new Date().toISOString(),
       });
-    } else if (repoCheckoutPath) {
+    } else if (needsFixSuggestion && repoCheckoutPath) {
+      // 修正案の適用対象（test_failure/compile_error）のみ generate seam を呼ぶ。
+      // dependency/infra_timeout で fail-closed 監査 warn を誤発報しない（P2-T06-008）。
       suggestion = await deps.generate(classification, repoCheckoutPath, agentDeps);
     }
     const runUrl = typeof workflowRun["html_url"] === "string" ? workflowRun["html_url"] : "unavailable";

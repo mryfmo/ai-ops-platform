@@ -27,6 +27,7 @@ import { serve } from "@hono/node-server";
 import {
   GraphClient,
   AnthropicStructuredClient,
+  createAnthropicTransport,
   PgCostGuard,
   buildHolidayCalendarFromYaml,
   type HolidayEntry,
@@ -41,12 +42,10 @@ import {
   classifyBuildFailure,
   classifyIncident,
   executeProdDeploy,
-  generateFixSuggestionIfApplicable,
   monitorAndRollbackIfNeeded,
   promoteToStagingIfEligible,
   triageAndNotify,
 } from "@aiops/devops";
-import Anthropic from "@anthropic-ai/sdk";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { PgAuditLog } from "./db/pgAuditLog.js";
@@ -326,10 +325,24 @@ export async function main(
   const { client: githubClient, mode: githubAuthMode } = await createGitHubClientForConfig(config, devopsAuditLog);
   const githubPolicy = githubCompositionPolicy(githubAuthMode);
 
-  // ANTHROPIC_API_KEY未設定時はTeams自由文フォールバックを無効化する（config.tsのコメント通り）
-  const llmClient = config.ANTHROPIC_API_KEY
+  // 根拠: FinalArch:LLM-001 / ADR-0022（P2-T06）。server の inference transport は
+  // LiteLLM gateway のみ。direct fallback flag の requires
+  // （classification<=internal / explicit-provider-allow）は per-call の政策境界を
+  // 要求するが、server の consumer（build ログ・incident・change diff・PrjOps・
+  // Teams 自由文）は呼び出し単位の分類情報を持たないため、その境界が実装される
+  // まで direct transport は構成しない（fail-closed。direct 全面遮断の正典タスクは
+  // WBS P2-T10）。flag + key で direct の意図が示された場合は下で監査に顕在化させる。
+  const llmTransport = config.LLM_GATEWAY_ENABLED
+    ? createAnthropicTransport({
+        mode: "gateway",
+        baseURL: config.LITELLM_BASE_URL!,
+        tokenProvider: { getToken: async () => config.LITELLM_VIRTUAL_KEY! },
+        timeoutMs: 600_000,
+      })
+    : undefined;
+  const llmClient = llmTransport
     ? new AnthropicStructuredClient(
-        new Anthropic({ apiKey: config.ANTHROPIC_API_KEY, timeout: 600_000, maxRetries: 2 }),
+        llmTransport,
         new PgCostGuard(pool, { perAgentDailyLimitUsd: { SERVER: 10 }, perAgentRequestLimitUsd: { SERVER: 1 } }),
         {
           defaultModel: config.ANTHROPIC_DEFAULT_MODEL,
@@ -340,6 +353,39 @@ export async function main(
         },
       )
     : undefined;
+  if (llmTransport) {
+    // route metadata の監査記録（FinalArch:LLM-006。トークン・キーは記録しない）
+    await prjopsAuditLog.append({
+      trace_id: randomUUID(),
+      actor: "SERVER",
+      action: "llm_transport_configured",
+      basis: "FinalArch:LLM-001",
+      detail: {
+        mode: "gateway",
+        gateway_host: new URL(config.LITELLM_BASE_URL!).host,
+        default_model: config.ANTHROPIC_DEFAULT_MODEL,
+        escalation_model: config.ANTHROPIC_ESCALATION_MODEL,
+      },
+      at: new Date().toISOString(),
+    });
+  } else if (config.LLM_DIRECT_FALLBACK_ENABLED && config.ANTHROPIC_API_KEY) {
+    // 意図された break-glass を黙殺しない: flag は enable でも、per-call の
+    // classification / explicit-provider-allow 境界が server に無いため fail-closed。
+    await prjopsAuditLog.append({
+      trace_id: randomUUID(),
+      actor: "SERVER",
+      action: "llm_direct_fallback_unavailable",
+      basis: "FinalArch:LLM-001",
+      detail: {
+        severity: "warn",
+        reason:
+          "direct fallback flag is enabled but the server has no per-call classification/provider-allow boundary; direct transport stays disabled (canonical direct-egress denial is WBS P2-T10)",
+        direct_fallback_flag: "inference.anthropic_direct_fallback.enabled",
+        declared_prerequisites: ["classification<=internal", "explicit-provider-allow"],
+      },
+      at: new Date().toISOString(),
+    });
+  }
 
   const similarIncidents = createRecencySimilarIncidentsProvider(async ({ since, limit }) => {
     const result = await pool.query<{ at: Date; detail: unknown }>(
@@ -368,7 +414,7 @@ export async function main(
         configured: buildTriageConfigured,
         disabledReason: !githubPolicy.enabled
           ? "GitHub authentication is not configured"
-          : "ANTHROPIC_API_KEY is not configured",
+          : "LLM transport is not configured (LiteLLM gateway or direct fallback)",
         githubClient,
         auditLog: devopsAuditLog,
         repoCheckoutPathFor: (repositoryFullName) =>
@@ -378,11 +424,25 @@ export async function main(
             ? configuredCheckoutPath
             : null,
         classify: (evidence, deps) => classifyBuildFailure(evidence, { ...deps, llmClient: llmClient! }),
-        generate: (classification, repoCheckoutPath, deps) =>
-          generateFixSuggestionIfApplicable(classification, repoCheckoutPath, {
-            ...deps,
-            llmClient: llmClient!,
-          }),
+        // P2-T06-007 fail-closed: 修正案生成は provider-native の Claude Agent SDK 経路
+        // （ANTHROPIC_API_KEY 直・gateway alias / PgCostGuard / route 監査を迂回）のため、
+        // gateway 経由の専用移行（Claude Code scoped virtual key — ADR-0022 / WBS P8）まで
+        // server からは配線しない。要求が来た事実は監査へ顕在化する。
+        generate: async (_classification, _repoCheckoutPath, deps) => {
+          await deps.auditLog.append({
+            trace_id: deps.traceId,
+            actor: "AGT-BLD",
+            action: "build_fix_suggestion_disabled",
+            basis: "FinalArch:LLM-001 / ADR-0022",
+            detail: {
+              severity: "warn",
+              reason:
+                "fix-suggestion generation stays disabled pending its gateway migration; the provider-native Agent SDK path bypasses LiteLLM aliases, PgCostGuard and route audit",
+            },
+            at: new Date().toISOString(),
+          });
+          return null;
+        },
       }),
       AGT_DEP: createDeployEventHandler({
         configured: githubPolicy.enabled && defaultIncidentChannel !== undefined,
@@ -423,7 +483,7 @@ export async function main(
         disabledReason: !githubPolicy.enabled
           ? "GitHub authentication is not configured"
           : !llmClient
-            ? "ANTHROPIC_API_KEY is not configured"
+            ? "LLM transport is not configured (LiteLLM gateway or direct fallback)"
             : "Default Teams channel is not configured",
         channel: defaultIncidentChannel,
         metricsSnapshot: () => metrics.renderPrometheus(),
@@ -510,7 +570,7 @@ export async function main(
       reportIngestConfigured: Boolean(config.REPORT_INGEST_SECRET),
       xlsxImportConfigured: Boolean(config.XLSX_IMPORT_SECRET),
       teamsPersonaConfigured: Boolean(config.STAKEHOLDERS_DIR),
-      llmFreeTextConfigured: Boolean(config.ANTHROPIC_API_KEY),
+      llmFreeTextConfigured: llmClient !== undefined,
       githubConfigured: githubPolicy.enabled,
       githubProjectConfigured: Boolean(config.GITHUB_PROJECT_NODE_ID),
       sevenKeysSnapshotConfigured: false,

@@ -3,8 +3,11 @@
  *
  * 根拠: DevOps:REQ-001 ビルド失敗の自動一次調査 / DevOps:REQ-002 修正案の自動生成 / SPEC-INT-011
  *
- * 注意: 本ファイルは @anthropic-ai/sdk（分類）と @anthropic-ai/claude-agent-sdk（診断修正案生成）に
- * 依存するため、ネットワーク遮断のオフライン検証環境では実行できない（README参照）。
+ * 注意: 本ファイルは注入された AnthropicStructuredClient（分類。transport は shared の
+ * gateway factory 経由 — FinalArch:LLM-001）と Claude Agent SDK（shared の
+ * claudeAgentClient 経由の診断修正案生成。provider-native 経路のため server 側は
+ * P2-T06-007 で fail-closed — gateway 移行まで配線されない）に依存するため、
+ * ネットワーク遮断のオフライン検証環境では実行できない（README参照）。
  * 分類のconfidence閾値処理（手順6）はLLM出力後の決定的な後処理であり、それ単体はテスト可能。
  */
 import type { AnthropicStructuredClient } from "@aiops/shared/clients/anthropicClient.js";
