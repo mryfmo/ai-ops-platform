@@ -25,6 +25,7 @@
 | — | 10_wbs_task_summary.md / SHA256SUMS | 再生成 |
 | PACK-IMPORT-006 | 10_adrs/0028-no-cloudflare-artifacts-azure.md / SHA256SUMS | ADR-0029（Owner 再裁定 AWS、PR #160）による Azure 維持条項の一部 supersession 注記を Status へ追記、当該行の SHA256 更新 |
 | P0-T07a | 06_implementation/02_wbs.yaml / docs/security/2026-08-10-secret-identity-migration-plan.md / SHA256SUMS | ENV-DEC-001 / ADR-0029 の実装帰結として P3-T01 を Fargate セルフホスト構成へ改訂し、P0-T09 資格マトリクスと pack 内 Azure 固有語を下表の AWS 等価へ読み替え |
+| P2-ENTRY | 06_implementation/02_wbs.yaml / SHA256SUMS | Owner 裁定（LiteLLM enterprise 同梱受容・無効化拘束、2026-08-12）を binding にするため P2-T02 の acceptance/verification へ enterprise 無効・telemetry off の証明を追加 |
 
 ## P0-T07a: ADR-0029 AWS 読み替え規則
 
@@ -42,4 +43,3 @@ ENV-DEC-001、ADR-0029、WBS P3-T01、P0-T09 資格マトリクスの間では�
 | Azure Front Door + WAF | CloudFront + WAF → ALB | ECS origin と RDS endpoint は非公開 |
 | Azure Database for PostgreSQL | Amazon RDS for PostgreSQL | private subnet、PITR / cross-region snapshot |
 | Azure Container Registry | Amazon ECR | SBOM / provenance 付き immutable digest |
-| P2-ENTRY | 06_implementation/02_wbs.yaml / SHA256SUMS | Owner 裁定（LiteLLM enterprise 同梱受容・無効化拘束、2026-08-12）を binding にするため P2-T02 の acceptance/verification へ enterprise 無効・telemetry off の証明を追加 |
