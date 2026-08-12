@@ -22,13 +22,15 @@
 #     渡すと、この値から任意taskIdの確認トークンを再計算して人間クリック無しでdispatchできる。
 #   - AIOPS_PR_TOKEN: PR作成/branch push用。GitHub App installation token または専用PAT。
 #     contents:write / pull-requests:write / issues:write が必要。未設定なら明示失敗する。
-#   - ANTHROPIC_API_KEY: run-coding-agent の input として渡す（ADR-0006影響節）。
-#     step env にすると composite action の全ステップが継承するため input 経由にしている。
+#   - LITELLM_BASE_URL (Repository/Organization variable): LiteLLM gateway URL。
+#   - LITELLM_CODING_VIRTUAL_KEY: Claude Code専用virtual key。LiteLLM側でmodelを
+#     claude-code aliasのみに制限し、budget上限とexpiryを設定してOwnerが登録・更新する。
+#     input経由にしてCLI導入ステップへvirtual keyを継承させない。
 #     FACTORY_API_KEY は agent=droid が ADR-0006 の残課題で無効のため現時点では未使用。
 #
 # 検証状況: 本ワークフローはworkflow_dispatchでのみ起動される。静的検証（actionlint）は
 #   green で、CLIはバージョン固定して導入するため `command not found` では落ちない。
-#   ただし実際のディスパッチ実行（実 ANTHROPIC_API_KEY / AIOPS_PR_TOKEN でのエージェント
+#   ただし実際のディスパッチ実行（実 LiteLLM virtual key / AIOPS_PR_TOKEN でのエージェント
 #   実行・push・PR作成・callback）は未実施であり、go-live 前に1周する必要がある。
 #   agent=droid は ADR-0006 の残課題のため明示的に失敗する。
 name: coding-task
@@ -122,14 +124,15 @@ jobs:
           # 仕込まれるとトークン付きpushの宛先を差し替えられるため、push直前に戻す。
           cp .git/config "${RUNNER_TEMP}/git-config.trusted"
 
-      # 秘密はstep envではなくinputで渡す。step envにするとcomposite action内の
+      # gateway URLとvirtual keyはstep envではなくinputで渡す。step envにするとcomposite action内の
       # 全ステップ（CLI導入を含む）が継承し、依存のlifecycle scriptから見えてしまう。
       - name: Run coding agent (ADR-0006 composite action)
         uses: ./.github/actions/run-coding-agent
         with:
           agent: ${{ inputs.agent }}
           instruction: ${{ inputs.instruction }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          litellm_base_url: ${{ vars.LITELLM_BASE_URL }}
+          litellm_coding_virtual_key: ${{ secrets.LITELLM_CODING_VIRTUAL_KEY }}
 
       - name: Detect changes
         id: detect

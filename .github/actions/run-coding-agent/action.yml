@@ -16,30 +16,35 @@ inputs:
   instruction:
     description: "コーディング指示内容（coding_tasks.instruction由来。sanitizeSecrets済みの想定）"
     required: true
-  anthropic_api_key:
-    description: "agent=claude-code 実行用のAPIキー。CLI導入ステップには渡さない（inputで受けて実行ステップのenvにのみ展開する）"
+  litellm_base_url:
+    description: "agent=claude-code 実行用のLiteLLM gateway URL"
+    required: false
+    default: ""
+  litellm_coding_virtual_key:
+    description: "agent=claude-code 専用のLiteLLM virtual key。CLI導入ステップには渡さない"
     required: false
     default: ""
 
 runs:
   using: "composite"
   steps:
-    - name: Require Anthropic credentials (agent=claude-code)
+    - name: Require LiteLLM gateway credentials (agent=claude-code)
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
       env:
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_BASE_URL: ${{ inputs.litellm_base_url }}
+        ANTHROPIC_AUTH_TOKEN: ${{ inputs.litellm_coding_virtual_key }}
       run: |
         set -euo pipefail
-        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-          echo "::error::ANTHROPIC_API_KEY is required for agent=claude-code. See ADR-0006 影響節（secrets登録）."
+        if [ -z "${ANTHROPIC_BASE_URL:-}" ] || [ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
+          echo "::error::LITELLM_BASE_URL and LITELLM_CODING_VIRTUAL_KEY are required for agent=claude-code."
           exit 1
         fi
 
     # AGENTS.md「npmコマンドは使用しない」に従い pnpm で導入する。バージョンは
     # リポジトリの他の依存と同様に exact pin し、更新はレビュー付きの明示的なPRで行う。
-    # このステップにはプロバイダの秘密を渡さない: 依存のlifecycle scriptが動く可能性が
-    # あるため、APIキーは実行ステップのenvにのみ展開する。
+    # このステップにはgateway資格情報を渡さない: 依存のlifecycle scriptが動く可能性が
+    # あるため、virtual keyは実行ステップのenvにのみ展開する。
     - name: Install Claude Code CLI (agent=claude-code)
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
@@ -58,15 +63,20 @@ runs:
       shell: bash
       env:
         CODING_INSTRUCTION: ${{ inputs.instruction }}
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_BASE_URL: ${{ inputs.litellm_base_url }}
+        ANTHROPIC_AUTH_TOKEN: ${{ inputs.litellm_coding_virtual_key }}
+        ANTHROPIC_MODEL: "claude-code"
+        ANTHROPIC_SMALL_FAST_MODEL: "claude-code"
       run: |
         set -euo pipefail
         echo "[run-coding-agent] launching claude-code CLI"
+        # virtual keyはLiteLLM側でclaude-code aliasだけを許可し、budget上限とexpiryを
+        # 必ず設定する。provider credentialはrunnerへ渡さない。
         # --permission-mode acceptEdits はコード編集を自動承認するが、git commit/push・
         # PR作成はcoding-task.yml側のステップが別途行う（AC-002b: 自動マージはしない）。
         # 呼び出し側は checkout の persist-credentials: false と core.hooksPath=/dev/null で
         # 資格情報の残留とフック実行を封じている。
-        claude -p "${CODING_INSTRUCTION}" --permission-mode acceptEdits
+        claude -p "${CODING_INSTRUCTION}" --model "${ANTHROPIC_MODEL}" --permission-mode acceptEdits
 
     # ADR-0006「影響」節の残課題: Droid実行ステップはFactory側のCI実行方式が
     # 確定するまで有効化しない。動かない経路を動くように見せず、明示的に失敗させる
