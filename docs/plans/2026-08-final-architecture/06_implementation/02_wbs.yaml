@@ -673,7 +673,7 @@ tasks:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - Key Vault secret and rotation runbook
+  - Secrets Manager secret and rotation runbook
   acceptance:
   - only LiteLLM can read secret
   - rotation tested
@@ -3006,7 +3006,7 @@ tasks:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - managed identities/federation/Key Vault RBAC
+  - IAM task roles/federation/Secrets Manager (KMS) resource policies
   acceptance:
   - environment separation
   - rotation/break-glass
