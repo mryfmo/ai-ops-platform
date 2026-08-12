@@ -6,6 +6,7 @@
  * error normalization（正典 model-routing 語彙）を検証する。
  */
 import { readFileSync } from "node:fs";
+import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 import {
   AnthropicRefusalError,
@@ -193,36 +194,23 @@ describe("normalizeAnthropicError [FinalArch:LLM-004]", () => {
       [withStatus(403, "policy evaluation timed out"), "policy_denied", false],
       [withStatus(401, "authentication timed out"), "policy_denied", false],
       [withStatus(400, "invalid timeout value"), "invalid_request", false],
-      // SDK 0.115 の接続エラーは cause 連鎖まで見て分類する（P2-T05-003）
+      // SDK 0.115 の実接続エラー（instanceof 判定）と cause 連鎖分類（P2-T05-003/004）
       [
-        Object.assign(new Error("Connection error.", { cause: new Error("read ECONNRESET") }), {
-          name: "APIConnectionError",
-        }),
+        new Anthropic.APIConnectionError({ cause: new Error("read ECONNRESET") }),
         "model_temporarily_unavailable",
         true,
       ],
-      [
-        Object.assign(new Error("Connection error.", { cause: new Error("getaddrinfo ETIMEDOUT litellm") }), {
-          name: "APIConnectionError",
-        }),
-        "timeout",
-        true,
-      ],
-      [Object.assign(new Error("Request timed out."), { name: "APIConnectionTimeoutError" }), "timeout", true],
-      [
-        Object.assign(new Error("Connection error."), { name: "APIConnectionError" }),
-        "model_temporarily_unavailable",
-        true,
-      ],
+      [new Anthropic.APIConnectionError({ cause: new Error("getaddrinfo ETIMEDOUT litellm") }), "timeout", true],
+      [new Anthropic.APIConnectionTimeoutError(), "timeout", true],
+      [new Anthropic.APIConnectionError({}), "model_temporarily_unavailable", true],
       // fetch ラッパ由来の構成/トークン失敗は一過性ではない（fail-closed 維持）
       [
-        Object.assign(
-          new Error("Connection error.", { cause: new Error("E-CFG05: token provider returned an empty token") }),
-          { name: "APIConnectionError" },
-        ),
+        new Anthropic.APIConnectionError({ cause: new Error("E-CFG05: token provider returned an empty token") }),
         "unknown",
         false,
       ],
+      // Error.name の文字列偽装では fallback 適格にならない（P2-T05-004）
+      [Object.assign(new Error("invalid local request"), { name: "APIConnectionError" }), "unknown", false],
     ];
     for (const [error, expectedClass, eligible] of cases) {
       const normalized = normalizeAnthropicError(error);

@@ -669,8 +669,10 @@ export function normalizeAnthropicError(error: unknown): NormalizedLlmError {
     const chain = errorChainText(error);
     // fetch ラッパ由来の構成・トークン失敗は一過性ではない。fail-closed を維持する。
     if (chain.includes("E-CFG05")) return "unknown";
-    if (TIMEOUT_SIGNAL_PATTERN.test(chain) || error.name === "APIConnectionTimeoutError") return "timeout";
-    if (NETWORK_SIGNAL_PATTERN.test(chain) || error.name === "APIConnectionError") {
+    if (TIMEOUT_SIGNAL_PATTERN.test(chain) || error instanceof Anthropic.APIConnectionTimeoutError) return "timeout";
+    // SDK の接続エラーは instanceof で判定する（Error.name は可変で偽装可能なため
+    // 文字列比較は使わない。P2-T05-004）。
+    if (NETWORK_SIGNAL_PATTERN.test(chain) || error instanceof Anthropic.APIConnectionError) {
       return "model_temporarily_unavailable";
     }
     return "unknown";
