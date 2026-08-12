@@ -1,0 +1,139 @@
+# 根拠: FinalArch:LLM-002 / FinalArch:PRD-003 / FinalArch:FR-LLM-001..007 / ADR-0022
+schema_version: "1.0"
+provenance:
+  canonical_path: docs/plans/2026-08-final-architecture/05_contracts/model-routing.yaml
+  canonical_sha256: 904c4e7c07254c696ca76c0c689f999b31eba875abef6ff702b8cc6907649e83
+  litellm_version: v1.96.2
+
+# These are the only model identifiers exposed to application virtual keys.
+application_aliases:
+  - claude-governed
+  - claude-standard
+  - claude-native
+  - claude-code
+  - claude-fast
+
+# LiteLLM v1.96.2 model_list shape. Concrete provider model IDs are resolved
+# only inside the proxy from its deployment environment.
+model_list:
+  - model_name: claude-governed
+    litellm_params:
+      model: os.environ/BEDROCK_CLAUDE_GOVERNED_MODEL_ID
+      custom_llm_provider: bedrock
+    model_info:
+      access: application
+      data_classifications: &governed_classifications
+        - public
+        - internal
+        - confidential
+        - customer-confidential
+  - model_name: claude-standard
+    litellm_params:
+      model: os.environ/BEDROCK_CLAUDE_STANDARD_MODEL_ID
+      custom_llm_provider: bedrock
+    model_info:
+      access: application
+      data_classifications: &standard_classifications
+        - public
+        - internal
+  - model_name: claude-standard-fallback
+    litellm_params:
+      model: os.environ/ANTHROPIC_CLAUDE_STANDARD_MODEL_ID
+      custom_llm_provider: anthropic
+    model_info:
+      access: internal_fallback
+      data_classifications: *standard_classifications
+  - model_name: claude-native
+    litellm_params:
+      model: os.environ/ANTHROPIC_CLAUDE_NATIVE_MODEL_ID
+      custom_llm_provider: anthropic
+    model_info:
+      access: application
+      data_classifications:
+        - public
+        - internal
+  - model_name: claude-code
+    litellm_params:
+      model: os.environ/BEDROCK_CLAUDE_CODE_MODEL_ID
+      custom_llm_provider: bedrock
+    model_info:
+      access: application
+      data_classifications: &code_classifications
+        - public
+        - internal
+        - confidential
+  - model_name: claude-code-fallback
+    litellm_params:
+      model: os.environ/ANTHROPIC_CLAUDE_CODE_MODEL_ID
+      custom_llm_provider: anthropic
+    model_info:
+      access: internal_fallback
+      data_classifications: *code_classifications
+  - model_name: claude-fast
+    litellm_params:
+      model: os.environ/BEDROCK_CLAUDE_FAST_MODEL_ID
+      custom_llm_provider: bedrock
+    model_info:
+      access: application
+      data_classifications: &fast_classifications
+        - public
+        - internal
+  - model_name: claude-fast-fallback
+    litellm_params:
+      model: os.environ/ANTHROPIC_CLAUDE_FAST_MODEL_ID
+      custom_llm_provider: anthropic
+    model_info:
+      access: internal_fallback
+      data_classifications: *fast_classifications
+
+# LiteLLM v1.96.2 native fallbacks cannot express the canonical error allowlist.
+# Keep them disabled; P2-T02 must enforce aiops_settings before selecting a target.
+router_settings:
+  fallbacks: []
+  context_window_fallbacks: []
+  content_policy_fallbacks: []
+
+# Platform fallback policy. The validation contract requires the source and
+# target to preserve the same data classifications.
+aiops_settings:
+  unknown_fallback_action: fail_closed
+  fallbacks:
+    - source_alias: claude-standard
+      target_alias: claude-standard-fallback
+      data_classifications: *standard_classifications
+      on_errors: &allowed_fallback_errors
+        - timeout
+        - rate_limited
+        - provider_5xx
+        - regional_unavailable
+        - model_temporarily_unavailable
+    - source_alias: claude-code
+      target_alias: claude-code-fallback
+      data_classifications: *code_classifications
+      on_errors: *allowed_fallback_errors
+    - source_alias: claude-fast
+      target_alias: claude-fast-fallback
+      data_classifications: *fast_classifications
+      on_errors: *allowed_fallback_errors
+  fallback_forbidden_errors:
+    - safety_refusal
+    - policy_denied
+    - classification_denied
+    - prompt_injection
+    - invalid_request
+    - context_limit
+  disabled_litellm_features:
+    - mcp_gateway
+    - a2a_gateway
+    - arbitrary_provider_passthrough
+  compatibility_requirements:
+    - anthropic_messages
+    - tool_use_forced_schema
+    - extended_adaptive_thinking_headers
+    - prompt_caching
+    - streaming
+    - error_mapping
+    - context_1m_when_allowed
+    - claude_code
+    - bedrock_anthropic_behavior
+  pricing_revision_env: LITELLM_PRICING_REVISION

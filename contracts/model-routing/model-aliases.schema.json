@@ -1,0 +1,187 @@
+{
+  "$comment": "根拠: FinalArch:LLM-002 / FinalArch:PRD-003 / FinalArch:FR-LLM-001..007 / ADR-0022",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.example/contracts/model-routing/model-aliases/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provenance",
+    "application_aliases",
+    "model_list",
+    "router_settings",
+    "aiops_settings"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_path", "canonical_sha256", "litellm_version"],
+      "properties": {
+        "canonical_path": {
+          "const": "docs/plans/2026-08-final-architecture/05_contracts/model-routing.yaml"
+        },
+        "canonical_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "litellm_version": { "const": "v1.96.2" }
+      }
+    },
+    "application_aliases": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/alias" }
+    },
+    "model_list": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/modelBinding" }
+    },
+    "router_settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fallbacks", "context_window_fallbacks", "content_policy_fallbacks"],
+      "properties": {
+        "fallbacks": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "context_window_fallbacks": { "type": "array", "maxItems": 0 },
+        "content_policy_fallbacks": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "aiops_settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unknown_fallback_action",
+        "fallbacks",
+        "fallback_forbidden_errors",
+        "disabled_litellm_features",
+        "compatibility_requirements",
+        "pricing_revision_env"
+      ],
+      "properties": {
+        "unknown_fallback_action": { "const": "fail_closed" },
+        "fallbacks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fallback" }
+        },
+        "fallback_forbidden_errors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/forbiddenError" }
+        },
+        "disabled_litellm_features": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["mcp_gateway", "a2a_gateway", "arbitrary_provider_passthrough"]
+          }
+        },
+        "compatibility_requirements": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "anthropic_messages",
+              "tool_use_forced_schema",
+              "extended_adaptive_thinking_headers",
+              "prompt_caching",
+              "streaming",
+              "error_mapping",
+              "context_1m_when_allowed",
+              "claude_code",
+              "bedrock_anthropic_behavior"
+            ]
+          }
+        },
+        "pricing_revision_env": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*_REVISION$"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "alias": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "classification": {
+      "enum": ["public", "internal", "confidential", "customer-confidential"]
+    },
+    "allowedError": {
+      "enum": ["timeout", "rate_limited", "provider_5xx", "regional_unavailable", "model_temporarily_unavailable"]
+    },
+    "forbiddenError": {
+      "enum": [
+        "safety_refusal",
+        "policy_denied",
+        "classification_denied",
+        "prompt_injection",
+        "invalid_request",
+        "context_limit"
+      ]
+    },
+    "modelBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_name", "litellm_params", "model_info"],
+      "properties": {
+        "model_name": { "$ref": "#/$defs/alias" },
+        "litellm_params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "custom_llm_provider"],
+          "properties": {
+            "model": {
+              "type": "string",
+              "pattern": "^os\\.environ/[A-Z][A-Z0-9_]*_MODEL_ID$"
+            },
+            "custom_llm_provider": { "enum": ["bedrock", "anthropic"] }
+          }
+        },
+        "model_info": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["access", "data_classifications"],
+          "properties": {
+            "access": { "enum": ["application", "internal_fallback"] },
+            "data_classifications": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/classification" }
+            }
+          }
+        }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_alias", "target_alias", "data_classifications", "on_errors"],
+      "properties": {
+        "source_alias": { "$ref": "#/$defs/alias" },
+        "target_alias": { "$ref": "#/$defs/alias" },
+        "data_classifications": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/classification" }
+        },
+        "on_errors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/allowedError" }
+        }
+      }
+    }
+  }
+}
