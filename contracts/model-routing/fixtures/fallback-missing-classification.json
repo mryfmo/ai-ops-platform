@@ -1,0 +1,4 @@
+{
+  "$comment": "根拠: FinalArch:LLM-002 / ADR-0022",
+  "remove": "data_classifications"
+}
