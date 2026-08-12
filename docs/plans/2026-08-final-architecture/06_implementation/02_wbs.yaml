@@ -617,9 +617,14 @@ tasks:
   - MCP/A2A disabled
   - private ingress
   - immutable image digest
+  # P2-ENTRY correction (2026-08-12): Owner ruling accepts the packaged /app/enterprise
+  # tree in the pinned image; these proofs are BINDING per the license register.
+  - enterprise modules/imports/env absent in the deployed config (packaged-but-disabled proof)
+  - telemetry disabled
   verification:
   - config validation
   - container smoke
+  - enterprise-disable and telemetry-off config inspection evidence
   rollback: Revert the task PR and leave the previous path enabled.
   acceptance_gate_ids:
   - LLM-001
