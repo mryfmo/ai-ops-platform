@@ -45,6 +45,29 @@ variable "task_role_arn" {
 variable "temporal_image" {
   type        = string
   description = "Temporal server image（immutable digest で pin。ADR-0029）"
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.temporal_image))
+    error_message = "temporal_image must be pinned by immutable digest (@sha256:<64 hex>)."
+  }
+}
+
+variable "jwks_sidecar_image" {
+  type        = string
+  description = "JWKS 配信 sidecar image（busybox 系 httpd。immutable digest で pin）"
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.jwks_sidecar_image))
+    error_message = "jwks_sidecar_image must be pinned by immutable digest (@sha256:<64 hex>)."
+  }
+}
+
+variable "rds_security_group_id" {
+  type        = string
+  description = "baseline RDS の security group（5432 の相互穴あけ対象）"
+}
+
+variable "vpc_endpoints_security_group_id" {
+  type        = string
+  description = "Secrets Manager / ECR / CloudWatch VPC endpoint 群の security group"
 }
 
 variable "db_host" {

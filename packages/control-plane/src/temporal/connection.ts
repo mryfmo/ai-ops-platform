@@ -21,6 +21,10 @@ export interface TemporalMtlsCredentials {
   clientKeyPem: string;
   /** 環境別 CA（PEM）。server 検証用 */
   serverRootCaPem: string;
+  /** プラットフォーム内部発行の認可トークン（RS256 JWT。ENV-DEC-001 + Owner 裁定
+   * 2026-08-13 — server 側 authorizer が namespace スコープ + 非 admin を強制する。
+   * Entra / 外部 IdP は関与しない）。 */
+  authorizationToken: string;
 }
 
 export type TemporalConnectFn = (options: ConnectionOptions) => Promise<Connection>;
@@ -38,8 +42,12 @@ export async function createTemporalConnection(
 ): Promise<Connection> {
   const identity = parseWorkerCertificateIdentity(credentials.clientCertPem, now());
   assertCertificateMatchesProfile(profile, identity);
+  if (typeof credentials.authorizationToken !== "string" || credentials.authorizationToken.trim() === "") {
+    throw new Error("E-TMP01: authorization token is required (server-side authorizer is mandatory)");
+  }
   return connectImpl({
     address: profile.address,
+    apiKey: credentials.authorizationToken,
     tls: {
       serverRootCACertificate: Buffer.from(credentials.serverRootCaPem),
       clientCertPair: {

@@ -46,26 +46,44 @@ export interface TemporalConnectionProfile {
   /** gRPC frontend（VPC 内部 / dev はローカル）。`host:port` 形式。 */
   address: string;
   namespace: string;
-  taskQueues: readonly string[];
+  /** ENV-DEC-001 + Owner 裁定 2026-08-13: worker は単一 task queue にスコープ
+   * （queue 粒度は worker 構成 + client guard 担保。server 側は namespace + 非 admin を
+   * 内部発行 JWT の authorizer が強制）。 */
+  taskQueue: string;
+  /** worker 個体名（JWT sub / 監査 identity。英数と - _ のみ、最大 64 文字）。 */
+  workerName: string;
   /** Temporal client identity 文字列（監査・可観測性用。秘密ではない）。 */
   workerIdentity: string;
 }
 
 const ADDRESS_PATTERN = /^[A-Za-z0-9.-]+(?::\d{1,5})$/u;
 
-export function buildConnectionProfile(environment: TemporalEnvironment, address: string): TemporalConnectionProfile {
+const WORKER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u;
+
+export function buildConnectionProfile(
+  environment: TemporalEnvironment,
+  address: string,
+  options: { workerName: string; taskQueue: WorkflowKind },
+): TemporalConnectionProfile {
   if (!isTemporalEnvironment(environment)) {
     throw new Error(`E-TMP01: unknown Temporal environment: ${String(environment)}`);
   }
   if (!ADDRESS_PATTERN.test(address)) {
     throw new Error("E-TMP01: Temporal address must be host:port");
   }
+  if (!WORKER_NAME_PATTERN.test(options.workerName)) {
+    throw new Error("E-TMP01: workerName must be alphanumeric with - or _ (max 64 chars)");
+  }
+  if (!(WORKFLOW_KINDS as readonly string[]).includes(options.taskQueue)) {
+    throw new Error(`E-TMP01: taskQueue must be a canonical workflow kind (got ${String(options.taskQueue)})`);
+  }
   return {
     environment,
     address,
     namespace: namespaceFor(environment),
-    taskQueues: allTaskQueues(),
-    workerIdentity: `${WORKER_CN_PREFIX}.${environment}`,
+    taskQueue: taskQueueFor(options.taskQueue),
+    workerName: options.workerName,
+    workerIdentity: `${WORKER_CN_PREFIX}.${environment}.${options.workerName}`,
   };
 }
 
@@ -127,9 +145,8 @@ export function assertCertificateMatchesProfile(
       `E-TMP01: certificate environment ${identity.environment} does not match profile ${profile.environment}`,
     );
   }
-  if (identity.commonName !== profile.workerIdentity) {
-    throw new Error(
-      `E-TMP01: certificate CN ${identity.commonName} does not match worker identity ${profile.workerIdentity}`,
-    );
+  const expectedCn = `${WORKER_CN_PREFIX}.${profile.environment}`;
+  if (identity.commonName !== expectedCn) {
+    throw new Error(`E-TMP01: certificate CN ${identity.commonName} does not match ${expectedCn}`);
   }
 }

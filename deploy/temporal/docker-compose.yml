@@ -21,7 +21,16 @@ services:
       POSTGRES_USER: temporal
       POSTGRES_PWD: temporal-dev-only
       POSTGRES_SEEDS: temporal-postgres
-      DEFAULT_NAMESPACE: aiops-dev
+      # authorizer 有効時の namespace 初期化は operator identity で行う（RUNBOOK 参照）
+      SKIP_DEFAULT_NAMESPACE_CREATION: "true"
+      SKIP_ADD_CUSTOM_SEARCH_ATTRIBUTES: "true"
+      # 内部 system worker は internal-frontend 経由で authorizer を迂回する（正規構成）
+      USE_INTERNAL_FRONTEND: "true"
+      SERVICES: frontend,internal-frontend,history,matching,worker
+      # server 側認可（内部発行 JWT — ENV-DEC-001 + Owner 裁定 2026-08-13。Entra 不関与）
+      TEMPORAL_AUTH_AUTHORIZER: default
+      TEMPORAL_AUTH_CLAIM_MAPPER: default
+      TEMPORAL_JWT_KEY_SOURCE1: http://temporal-jwks/jwks.json
       # mTLS（per-env CA。別 env の証明書は handshake で拒否される）
       TEMPORAL_TLS_REQUIRE_CLIENT_AUTH: "true"
       TEMPORAL_TLS_SERVER_CA_CERT: /etc/temporal/certs/ca.crt
@@ -43,6 +52,13 @@ services:
       - ./certs/out/dev:/etc/temporal/certs:ro
     networks: [temporal]
     # gRPC 7233 は compose ネットワーク内部のみ（ホスト公開しない）
+
+  temporal-jwks:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./authz/out/dev/public:/usr/share/nginx/html:ro
+    networks: [temporal]
+    # JWKS（公開鍵のみ）を内部配信。署名鍵は public/ に置かれず配信されない
 
   temporal-ui:
     image: temporalio/ui:2.31.2@sha256:28bb3ea5a6ea3e09f16b521f32ab727c96470f7f1e420c66a6cbfb02001a8aa2

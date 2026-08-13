@@ -26,13 +26,23 @@
   ENV-DEC-001 の可用性受入と同枠で計画する）
 - 証明書実体は git 管理外（`certs/out/` は gitignore。staging/prod は Secrets Manager
   `aiops-temporal-<env>/tls/*`）
-- **既知の制約（P3 帯 follow-up）**: OSS Temporal の設定のみでは mTLS identity →
-  claim（namespace / task queue / 非 admin）の server 側強制ができない
-  （custom claim mapper = Go 拡張が必要）。現段階の担保は
-  (1) per-env CA による環境スコープの server 強制、
-  (2) `@aiops/control-plane` の接続前 fail-closed guard（E-TMP01）、
-  (3) operator 資格の別 identity 運用。server 側 claim 強制（claim mapper 同梱の
-  派生 image）は P3 帯の専用タスクとして起票する
+
+## server 側認可（内部発行 JWT — Owner 裁定 2026-08-13）
+
+- mTLS は transport 層の identity。**認可は Temporal 標準の authorizer/claim mapper
+  （default）が、プラットフォーム内部発行の RS256 JWT で server 側強制する**
+  （Entra / 外部 IdP は不関与 — Entra は M365 専用のまま。ENV-DEC-001 改訂）
+- 資材: `./authz/gen-authz.sh <env>`（署名鍵 + JWKS。配信面は `out/<env>/public/` のみ —
+  署名鍵は配信されない）。JWKS は dev では nginx sidecar、Fargate では同一タスク内
+  sidecar が `http://…/jwks.json` で server に供給する
+- トークン発行: `node authz/mint-token.mjs <env> worker <name>`（`aiops-<env>:write` のみ・
+  非 admin）/ `... operator <name>`（admin。運用者別 identity）。既定 TTL 12h
+- **強制粒度**: environment = per-env CA（TLS 拒否）、namespace + 非 admin = JWT
+  authorizer（server 拒否）、task queue = worker 構成 + `@aiops/control-plane` の
+  接続前 guard（Temporal の認可モデルに queue 粒度は存在しないため — Owner 裁定で
+  この分担を確定）
+- authorizer 有効時は auto-setup の namespace 自動登録を SKIP し、operator token で
+  `registerNamespace` する（smoke-client / 本 runbook の初期化手順）
 
 ## dev 起動（docker compose）
 
@@ -51,9 +61,8 @@ KEEP=1 ./deploy/temporal/smoke.sh   # 検証後も起動したままにする
 
 ## namespace / task queue 初期化
 
-- `DEFAULT_NAMESPACE=aiops-<env>` により auto-setup が namespace を作成する
-  （retention 既定 3 日 — 変更は operator identity で
-  `temporal operator namespace update`）
+- authorizer 有効のため namespace は operator identity（admin JWT + operator cert）で
+  登録する（retention 既定 3 日）。dev では smoke が `aiops-dev` / `aiops-shadow` を初期化
 - task queue は worker が polling を開始した時点で自動作成されるため事前登録不要。
   queue 名は `WORKFLOW_KINDS`（meeting / coding-task / incident / report /
   plane-sync / graph-subscription / knowledge-publication）以外を使わない

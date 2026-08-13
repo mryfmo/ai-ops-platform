@@ -94,19 +94,27 @@ function issueWorkerCert(env: string, options: { caCn?: string; cn?: string; day
 }
 
 describe("Temporal connection profile [FinalArch:TMP-001][FinalArch:FR-CP-001]", () => {
-  it("namespace は environment 単位、task queue は正典 workflow kind と 1:1 [FinalArch:FR-CP-001]", () => {
-    const profile = buildConnectionProfile("dev", "127.0.0.1:7233");
+  it("namespace は environment 単位、worker は単一 task queue + 個体名にスコープ [FinalArch:FR-CP-001]", () => {
+    const profile = buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "w1", taskQueue: "incident" });
     expect(profile.namespace).toBe("aiops-dev");
     expect(namespaceFor("prod")).toBe("aiops-prod");
-    expect(profile.taskQueues).toEqual([...WORKFLOW_KINDS]);
+    expect(profile.taskQueue).toBe("incident");
+    expect(profile.workerName).toBe("w1");
+    expect(profile.workerIdentity).toBe("aiops-temporal-worker.dev.w1");
     expect(allTaskQueues()).toEqual(WORKFLOW_KINDS.map(taskQueueFor));
-    expect(profile.workerIdentity).toBe("aiops-temporal-worker.dev");
   });
 
-  it("不正な environment / address は E-TMP01 で拒否する [FinalArch:TMP-001]", () => {
-    expect(() => buildConnectionProfile("qa" as never, "127.0.0.1:7233")).toThrow(/E-TMP01/);
-    expect(() => buildConnectionProfile("dev", "not a host")).toThrow(/E-TMP01/);
-    expect(() => buildConnectionProfile("dev", "http://x:7233")).toThrow(/E-TMP01/);
+  it("不正な environment / address / workerName / taskQueue は E-TMP01 で拒否する [FinalArch:TMP-001]", () => {
+    const opts = { workerName: "w1", taskQueue: "incident" as const };
+    expect(() => buildConnectionProfile("qa" as never, "127.0.0.1:7233", opts)).toThrow(/E-TMP01/);
+    expect(() => buildConnectionProfile("dev", "not a host", opts)).toThrow(/E-TMP01/);
+    expect(() => buildConnectionProfile("dev", "http://x:7233", opts)).toThrow(/E-TMP01/);
+    expect(() =>
+      buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "bad name", taskQueue: "incident" }),
+    ).toThrow(/workerName/);
+    expect(() =>
+      buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "w1", taskQueue: "not-a-kind" as never }),
+    ).toThrow(/taskQueue/);
   });
 });
 
@@ -138,7 +146,7 @@ describe("worker certificate identity [FinalArch:TMP-001 / ENV-DEC-001]", () => 
   it("profile と証明書 environment の不整合は接続前に拒否する（client 側 fail-closed）", () => {
     const staging = issueWorkerCert("staging");
     const identity = parseWorkerCertificateIdentity(staging.certPem, now);
-    const devProfile = buildConnectionProfile("dev", "127.0.0.1:7233");
+    const devProfile = buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "w1", taskQueue: "incident" });
     expect(() => assertCertificateMatchesProfile(devProfile, identity)).toThrow(/does not match profile/);
   });
 });
@@ -146,12 +154,17 @@ describe("worker certificate identity [FinalArch:TMP-001 / ENV-DEC-001]", () => 
 describe("createTemporalConnection [FinalArch:TMP-001]", () => {
   it("guard 通過後に mTLS 資格と identity metadata を connect へ渡す", async () => {
     const issued = issueWorkerCert("dev");
-    const profile = buildConnectionProfile("dev", "127.0.0.1:7233");
+    const profile = buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "w1", taskQueue: "incident" });
     const calls: unknown[] = [];
     const fake = { fake: true } as never;
     const connection = await createTemporalConnection(
       profile,
-      { clientCertPem: issued.certPem, clientKeyPem: issued.keyPem, serverRootCaPem: issued.caPem },
+      {
+        clientCertPem: issued.certPem,
+        clientKeyPem: issued.keyPem,
+        serverRootCaPem: issued.caPem,
+        authorizationToken: "header.payload.signature",
+      },
       async (options) => {
         calls.push(options);
         return fake;
@@ -161,28 +174,44 @@ describe("createTemporalConnection [FinalArch:TMP-001]", () => {
     expect(calls).toHaveLength(1);
     const options = calls[0] as {
       address: string;
+      apiKey: string;
       tls: { serverRootCACertificate: Buffer; clientCertPair: { crt: Buffer; key: Buffer } };
       metadata: Record<string, string>;
     };
     expect(options.address).toBe("127.0.0.1:7233");
+    expect(options.apiKey).toBe("header.payload.signature");
     expect(options.tls.clientCertPair.crt.toString()).toBe(issued.certPem);
-    expect(options.metadata["aiops-worker-identity"]).toBe("aiops-temporal-worker.dev");
+    expect(options.metadata["aiops-worker-identity"]).toBe("aiops-temporal-worker.dev.w1");
   });
 
-  it("environment 不整合の資格では connect を呼ばずに拒否する", async () => {
+  it("environment 不整合の資格・トークン欠落は connect を呼ばずに拒否する", async () => {
     const staging = issueWorkerCert("staging");
-    const profile = buildConnectionProfile("dev", "127.0.0.1:7233");
+    const dev = issueWorkerCert("dev");
+    const profile = buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "w1", taskQueue: "incident" });
     let called = 0;
+    const noCall = async () => {
+      called += 1;
+      return {} as never;
+    };
     await expect(
       createTemporalConnection(
         profile,
-        { clientCertPem: staging.certPem, clientKeyPem: staging.keyPem, serverRootCaPem: staging.caPem },
-        async () => {
-          called += 1;
-          return {} as never;
+        {
+          clientCertPem: staging.certPem,
+          clientKeyPem: staging.keyPem,
+          serverRootCaPem: staging.caPem,
+          authorizationToken: "t",
         },
+        noCall,
       ),
     ).rejects.toThrow(/E-TMP01/);
+    await expect(
+      createTemporalConnection(
+        profile,
+        { clientCertPem: dev.certPem, clientKeyPem: dev.keyPem, serverRootCaPem: dev.caPem, authorizationToken: " " },
+        noCall,
+      ),
+    ).rejects.toThrow(/authorization token/);
     expect(called).toBe(0);
   });
 });
