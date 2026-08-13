@@ -11,6 +11,7 @@ overrides:
   "ip-address@10": "^10.3.1"
   "sharp@0.34": "^0.35.0"
   "@auth/core@0": "^0.41.3"
+  "nanoid@3": "^3.3.18"
 
 # These exact versions were reviewed and merged before pnpm 11 enabled its
 # 24-hour supply-chain hold. Future versions remain subject to the hold.
