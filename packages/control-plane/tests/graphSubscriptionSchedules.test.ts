@@ -1,4 +1,5 @@
 // 根拠: FinalArch:FR-CP-004 / TMP-003 / ADR-0021
+import { ScheduleAlreadyRunning } from "@temporalio/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -47,5 +48,23 @@ describe("FinalArch:FR-CP-004 Graph subscription Temporal schedules", () => {
     const create = vi.fn(async () => undefined);
     await registerGraphSubscriptionSchedules({ create }, registration);
     expect(create).toHaveBeenCalledTimes(3);
+  });
+
+  it("既存 schedule ID は登録済みとして成功扱いにする", async () => {
+    let calls = 0;
+    const create = vi.fn(async (schedule: { scheduleId: string }) => {
+      calls += 1;
+      if (calls === 1) throw new ScheduleAlreadyRunning("already exists", schedule.scheduleId);
+    });
+    await expect(registerGraphSubscriptionSchedules({ create }, registration)).resolves.toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(3);
+  });
+
+  it("ScheduleAlreadyRunning 以外の登録失敗は伝播する", async () => {
+    const failure = new Error("Temporal unavailable");
+    const create = vi.fn(async () => {
+      throw failure;
+    });
+    await expect(registerGraphSubscriptionSchedules({ create }, registration)).rejects.toBe(failure);
   });
 });

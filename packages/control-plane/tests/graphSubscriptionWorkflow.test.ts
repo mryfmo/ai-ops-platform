@@ -305,6 +305,30 @@ describe("TMP-003 GraphSubscriptionWorkflow shadow idempotency", () => {
     expect((fallbackInput as { payload: Record<string, unknown> }).payload).not.toHaveProperty("expiresAtMs");
   });
 
+  it("malformed renewal receipt は contract failure で終了し polling fallback を実行しない", async () => {
+    const now = await env.currentTimeMs();
+    let fallbackWrites = 0;
+    const error = await execute(
+      renewalInput(now, 0),
+      activities({
+        async renewGraphSubscription() {},
+        async fallbackGraphSubscriptionToPolling() {
+          fallbackWrites += 1;
+          return receipt("renewal", "polling-backfill");
+        },
+      }),
+      "malformed-renewal-result",
+    ).catch((failure: unknown) => failure);
+    expect(error).toMatchObject({
+      cause: {
+        message: "graph subscription activity receipt must use schemaVersion 1 with an object payload",
+        type: "E-CP-CONTRACT",
+        nonRetryable: true,
+      },
+    });
+    expect(fallbackWrites).toBe(0);
+  });
+
   it("activity の malformed result を成功として扱わず non-retryable failure で終了する", async () => {
     const now = await env.currentTimeMs();
     const error = await execute(

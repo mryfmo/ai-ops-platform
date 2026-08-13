@@ -29,3 +29,17 @@ The final independent re-review found two timeout-policy gaps. Renewal and delta
 A subsequent clean re-review found three cutover gaps and all were resolved: an injected registrar now creates the three recurring Temporal Schedules, unresolved renewal writes preserve the legacy polling/backfill availability transition, and the renewal activity contract no longer carries a stale original expiry on later Schedule fires. Runtime registration remains in P3-T09's explicit shadow-wiring scope.
 
 The last review found four schedule-boundary gaps and all were resolved: interval offsets now anchor recurring fires to the computed first start, renewal catch-up retains the six-hour safety margin, shadow reconcile still performs its read-only authority check, and ScheduleClient I/O moved out of `src/lib` into the orchestration layer. The shadow-reconcile VM branch has a narrow V8 ignore because Temporal executes it in an isolated bundle; the time-skipping test covers that exact path.
+
+## P2 bot finding revision
+
+- test-first red: the two new regressions failed before implementation—malformed renewal output incorrectly entered polling fallback, and `ScheduleAlreadyRunning` rejected registration
+- renewal boundary: `runExternalSideEffect` now receives raw execute/reconcile results and the selected result is validated afterward; malformed output fails non-retryably as `E-CP-CONTRACT` and does not invoke polling fallback
+- idempotent registration: each create absorbs only Temporal's `ScheduleAlreadyRunning`; unrelated errors still propagate
+- focused: `pnpm --filter @aiops/control-plane exec vitest run tests/graphSubscriptionState.test.ts tests/graphSubscriptionSchedules.test.ts tests/graphSubscriptionWorkflow.test.ts tests/graphSubscriptionReplay.test.ts tests/workflow-activity-separation.test.ts --maxWorkers=1 --reporter=dot` → 5 files / 40 tests green
+- package: `pnpm --filter @aiops/control-plane exec vitest run --maxWorkers=1 --reporter=dot` → 16 files / 120 tests green
+- package build/typecheck/lint and repository format: green
+- recorded history: all four P3-T05 fixtures replayed in the focused suite and `git diff --exit-code HEAD -- packages/control-plane/tests/fixtures` → exit 0; fixtures remain byte-identical
+- dependency surface: no package manifest or lockfile diff; no new dependency
+- fresh-DB full CI: `aiops_test`, `aiops_load_test`, and `aiops_p001` dropped/recreated immediately before same-shell `VITEST_MAX_WORKERS=1 mise run ci` → exit 0
+- control-plane coverage: statements 85.17%, branches 91.87%, functions 85.24%, lines 85.71%
+- repository review gate: `make require-crit-review` remains unavailable (`No rule to make target`); the two bot findings were independently adjudicated valid before this revision

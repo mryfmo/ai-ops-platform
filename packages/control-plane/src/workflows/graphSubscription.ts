@@ -166,13 +166,12 @@ export async function graphSubscriptionWorkflow(input: unknown): Promise<Version
         targetExpiresAtMs: fireAtMs + GRAPH_SUBSCRIPTION_TARGET_LIFETIME_MS,
       },
     };
-    const reconcile = async (key: string): Promise<GraphSubscriptionReceipt | null> =>
-      validatedOptionalReceipt(
-        await reads.findGraphSubscriptionRenewal(renewal, key),
-        request.subscriptionId,
-        request.operation,
-      );
-    const existing = await reconcile(idempotencyKey);
+    const reconcile = async (key: string): Promise<unknown> => reads.findGraphSubscriptionRenewal(renewal, key);
+    const existing = validatedOptionalReceipt(
+      await reconcile(idempotencyKey),
+      request.subscriptionId,
+      request.operation,
+    );
     if (existing !== null) return result(request, workflowId, "reconciled", existing);
     if (request.executionMode === "shadow") return result(request, workflowId, "shadowed", null);
 
@@ -180,17 +179,18 @@ export async function graphSubscriptionWorkflow(input: unknown): Promise<Version
       const outcome = await runExternalSideEffect(
         {
           execute: async (renewal, key) =>
-            validatedReceipt(
-              await externalWrites.renewGraphSubscription({ schemaVersion: 1, payload: renewal }, key),
-              request.subscriptionId,
-              request.operation,
-            ),
+            externalWrites.renewGraphSubscription({ schemaVersion: 1, payload: renewal }, key),
           reconcile,
         },
         renewal.payload,
         idempotencyKey,
       );
-      return result(request, workflowId, outcome.outcome, outcome.result);
+      return result(
+        request,
+        workflowId,
+        outcome.outcome,
+        validatedReceipt(outcome.result, request.subscriptionId, request.operation),
+      );
     } catch (error) {
       if (!(error instanceof ExternalSideEffectUnresolvedError)) throw error;
       const fallback = validatedReceipt(
