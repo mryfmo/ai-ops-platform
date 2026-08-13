@@ -5,3 +5,4 @@
 export { cancellationProbeWorkflow, replayProbeWorkflow } from "./replayProbe.js";
 export { approvalWorkflow } from "./approval.js";
 export { codingTaskWorkflow } from "./codingTask.js";
+export { graphSubscriptionWorkflow } from "./graphSubscription.js";

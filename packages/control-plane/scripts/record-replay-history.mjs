@@ -438,6 +438,80 @@ try {
       },
     });
   }
+
+  // --- P3-T05 GraphSubscriptionWorkflow fixtures（TMP-003） ---
+  const graphInput = (subscriptionId, operation, observedAtMs, executionMode) => ({
+    schemaVersion: 1,
+    payload:
+      operation === "renewal"
+        ? {
+            subscriptionId,
+            operation,
+            executionMode,
+            sequence: 0,
+            observedAtMs,
+            expiresAtMs: observedAtMs + 6 * 60 * 60_000,
+          }
+        : { subscriptionId, operation, executionMode, sequence: 0, observedAtMs },
+  });
+
+  function makeGraphActivities({ subscriptionId, preexisting = false, loseResponse = false }) {
+    const renewals = new Map();
+    const receipt = (operation, checkpoint) => ({
+      schemaVersion: 1,
+      payload: { subscriptionId, operation, checkpoint },
+    });
+    return {
+      async findGraphSubscriptionRenewal(_input, idempotencyKey) {
+        if (preexisting) return receipt("renewal", "legacy-scheduler-write");
+        return renewals.has(idempotencyKey) ? receipt("renewal", renewals.get(idempotencyKey)) : null;
+      },
+      async renewGraphSubscription(_input, idempotencyKey) {
+        renewals.set(idempotencyKey, idempotencyKey);
+        if (loseResponse) throw new Error("synthetic response loss after Graph renewal");
+        return receipt("renewal", idempotencyKey);
+      },
+      async fallbackGraphSubscriptionToPolling() {
+        return receipt("renewal", "polling-backfill");
+      },
+      async runGraphSubscriptionDelta() {
+        return receipt("delta", "delta-link-2");
+      },
+      async reconcileGraphSubscription() {
+        return receipt("reconcile", "etag-2");
+      },
+    };
+  }
+
+  const recordGraphSubscription = async (name, subscriptionId, operation, activityOptions = {}) => {
+    const observedAtMs = await env.currentTimeMs();
+    const taskQueue = `graph-subscription-${name}`;
+    const workflowId = `graph-subscription/${operation}:${subscriptionId}:0`;
+    const worker = await Worker.create({
+      connection: env.nativeConnection,
+      taskQueue,
+      workflowsPath,
+      activities: makeGraphActivities({ subscriptionId, ...activityOptions }),
+    });
+    const result = await worker.runUntil(
+      env.client.workflow.execute("graphSubscriptionWorkflow", {
+        taskQueue,
+        workflowId,
+        args: [graphInput(subscriptionId, operation, observedAtMs, name.startsWith("shadow-") ? "shadow" : "active")],
+      }),
+    );
+    await saveHistory(workflowId, `graph-subscription.${name}.history.json`);
+    console.log(`recorded graph-subscription.${name}.history.json (${result.payload.outcome})`);
+  };
+
+  await recordGraphSubscription("renewal-lost-response", "fixture-subscription-1", "renewal", {
+    loseResponse: true,
+  });
+  await recordGraphSubscription("shadow-no-duplicate", "fixture-subscription-2", "renewal", {
+    preexisting: true,
+  });
+  await recordGraphSubscription("delta", "fixture-subscription-3", "delta");
+  await recordGraphSubscription("reconcile", "fixture-subscription-4", "reconcile");
 } finally {
   await env.teardown();
 }

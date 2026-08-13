@@ -46,6 +46,28 @@ export {
   codingTaskWorkflow,
 } from "./workflows/codingTask.js";
 export type { CodingTaskActivities, CodingTaskRequest, CodingTaskResult } from "./workflows/codingTask.js";
+export {
+  GRAPH_SUBSCRIPTION_DELTA_INTERVAL_MS,
+  GRAPH_SUBSCRIPTION_RECONCILE_INTERVAL_MS,
+  GRAPH_SUBSCRIPTION_RENEWAL_MARGIN_MS,
+  GRAPH_SUBSCRIPTION_TARGET_LIFETIME_MS,
+  assertGraphSubscriptionRequest,
+  graphSubscriptionScheduleDelayMs,
+  parseGraphSubscriptionReceipt,
+} from "./lib/graphSubscriptionState.js";
+export { buildGraphSubscriptionSchedules } from "./lib/graphSubscriptionSchedules.js";
+export type { GraphSubscriptionScheduleRegistration } from "./lib/graphSubscriptionSchedules.js";
+export { registerGraphSubscriptionSchedules } from "./workflows/graphSubscriptionScheduleRegistration.js";
+export type {
+  GraphSubscriptionOperation,
+  GraphSubscriptionReceipt,
+  GraphSubscriptionRequest,
+  GraphSubscriptionRenewalActivityInput,
+  GraphSubscriptionRenewalRequest,
+  GraphSubscriptionScheduledRequest,
+} from "./lib/graphSubscriptionState.js";
+export { buildGraphSubscriptionWorkflowId, graphSubscriptionWorkflow } from "./workflows/graphSubscription.js";
+export type { GraphSubscriptionActivities, GraphSubscriptionResult } from "./workflows/graphSubscription.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";
