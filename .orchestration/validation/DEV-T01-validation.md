@@ -72,3 +72,5 @@ All cases stopped before the Docker check and printed only the rejected variable
   `codex review --commit 048a291` → P2 unregistered replacement ID. The note now
   uses task-scoped `DEV-T01` rather than allocating in the canonical `ENV-DEC-*`
   namespace, whose register is outside this task's allowed paths.
+- `codex review --commit d139395` → no findings; the task-scoped rename is
+  consistent, leaves no tracked old-path references, and preserves ADR provenance.
