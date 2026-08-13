@@ -1,4 +1,4 @@
-# 根拠: DEV-T01 / ADR-0029 / ENV-DEC-015 — Floci-only synthetic values, never AWS credentials.
+# 根拠: DEV-T01 / ADR-0029 — Floci-only synthetic values, never AWS credentials.
 environment                     = "dev"
 aws_region                      = "ap-northeast-1"
 vpc_id                          = "vpc-00000000000000000"

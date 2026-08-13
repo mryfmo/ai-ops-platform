@@ -1,4 +1,4 @@
-# 根拠: DEV-T01 / ADR-0029 / ENV-DEC-015 — dev-only Terraform pre-validation.
+# 根拠: DEV-T01 / ADR-0029 — dev-only Terraform pre-validation.
 services:
   floci:
     image: floci/floci:1.6.0@sha256:eab36252ea43a4a73928423f0372219052c5c6f87207f6c4754db14b91d6ed30
