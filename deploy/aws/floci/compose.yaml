@@ -1,0 +1,13 @@
+# 根拠: DEV-T01 / ADR-0029 — dev-only Terraform pre-validation.
+services:
+  floci:
+    image: floci/floci:1.6.0@sha256:eab36252ea43a4a73928423f0372219052c5c6f87207f6c4754db14b91d6ed30
+    user: "0:0"
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      FLOCI_DEFAULT_ACCOUNT_ID: "000000000000"
+      FLOCI_DEFAULT_REGION: ap-northeast-1
+      FLOCI_STORAGE_MODE: memory
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
