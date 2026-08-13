@@ -176,15 +176,16 @@ export function parseHealthEvaluationReceipt(value: unknown, observedAtMs: numbe
   }
   const stateIsConsistent = receipt.healthy
     ? receipt.consecutiveFailures === 0 && receipt.decision !== "activate_failsafe"
-    : receipt.consecutiveFailures > 0 &&
-      (receipt.consecutiveFailures >= 3 ? receipt.decision === "activate_failsafe" : receipt.decision === "none");
+    : receipt.consecutiveFailures > 0 && (receipt.consecutiveFailures >= 3 || receipt.decision === "none");
   if (!stateIsConsistent) {
     throw new RangeError("health evaluation receipt has an inconsistent decision");
   }
+  const decision =
+    !receipt.healthy && receipt.consecutiveFailures >= 3 ? "activate_failsafe" : (receipt.decision as HealthDecision);
   return {
     observedAtMs,
     healthy: receipt.healthy,
     consecutiveFailures: receipt.consecutiveFailures,
-    decision: receipt.decision as HealthDecision,
+    decision,
   };
 }

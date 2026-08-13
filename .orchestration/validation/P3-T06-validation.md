@@ -4,13 +4,14 @@
   - contract/schedule/workflow suites initially failed because the P3-T06 modules did not exist
   - replay suite initially failed with `ENOENT` before the three histories were recorded
   - health persistence regression initially failed when an active `none` decision skipped the state update; active evaluation now applies every observation
-  - independent Codex review found that an inconsistent unhealthy receipt (`consecutiveFailures >= 3`, `decision: none`) could suppress failsafe application; three parser cases and one workflow assertion failed before the shared parser boundary was fixed
+  - first independent Codex review found that an inconsistent unhealthy receipt (`consecutiveFailures >= 3`, `decision: none`) could suppress failsafe application; three parser cases and one workflow assertion failed before the shared parser boundary was hardened
+  - fix-commit re-review found that rejecting that receipt still exited before the required safety write; the corrected parser/workflow assertions failed twice before the boundary normalized three-or-more failures to `activate_failsafe`
 - focused state/schedule/workflow tests: 3 files / 30 tests green
-- review-fix state/workflow tests: 2 files / 27 tests green after the four-test red run
+- review-fix state/workflow tests: 2 files / 27 tests green after the four-test and two-test red runs
 - recorded-history replay: 1 file / 6 tests green
 - complete control-plane package: 20 files / 156 tests green
 - reused DevOps authority: `agtSec.test.ts` and `agtOrch.test.ts`, 2 files / 19 tests green
-- control-plane coverage: statements 85.64%, branches 90.90%, functions 86.66%, lines 86.06%; all configured thresholds passed
+- control-plane coverage: statements 85.68%, branches 90.74%, functions 86.66%, lines 86.09%; all configured thresholds passed
 - TMP-003:
   - lost-response history schedules `revokeExpiredGrant` once and `findJitRevocation` before and after the lost response
   - revoke activity retry policy has `maximumAttempts=1`

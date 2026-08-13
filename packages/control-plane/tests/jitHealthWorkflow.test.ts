@@ -298,10 +298,11 @@ describe("DevOps:SPEC-INT-040 HealthEvaluationWorkflow", () => {
     expect(writes).toBe(0);
   });
 
-  it("3回失敗を none とする evaluation は E-CP-CONTRACT で終了し apply しない", async () => {
+  it("3回失敗を none とする evaluation は安全側へ正規化して apply する", async () => {
     const now = await env.currentTimeMs();
     let writes = 0;
-    const errorPromise = execute(
+    let applied: unknown;
+    const resultPromise = execute(
       "healthEvaluationWorkflow",
       request("health", now, "active"),
       activities({
@@ -316,14 +317,19 @@ describe("DevOps:SPEC-INT-040 HealthEvaluationWorkflow", () => {
             },
           };
         },
-        async applyHealthDecision() {
+        async applyHealthDecision(input: unknown) {
           writes += 1;
+          applied = input;
+          return input;
         },
       }),
       "health-suppressed-failsafe",
-    ).catch((failure: unknown) => failure);
+    );
     await env.sleep(HEALTH_EVALUATION_INTERVAL_MS);
-    await expect(errorPromise).resolves.toMatchObject({ cause: { type: "E-CP-CONTRACT", nonRetryable: true } });
-    expect(writes).toBe(0);
+    await expect(resultPromise).resolves.toMatchObject({
+      payload: { outcome: "applied", decision: "activate_failsafe" },
+    });
+    expect(applied).toMatchObject({ payload: { decision: "activate_failsafe" } });
+    expect(writes).toBe(1);
   });
 });
