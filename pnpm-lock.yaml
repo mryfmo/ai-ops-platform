@@ -65,7 +65,22 @@ importers:
       '@temporalio/worker':
         specifier: 1.22.0
         version: 1.22.0(esbuild@0.28.1)
+      '@temporalio/workflow':
+        specifier: 1.22.0
+        version: 1.22.0
     devDependencies:
+      '@temporalio/activity':
+        specifier: 1.22.0
+        version: 1.22.0
+      '@temporalio/common':
+        specifier: 1.22.0
+        version: 1.22.0
+      '@temporalio/proto':
+        specifier: 1.22.0
+        version: 1.22.0
+      '@temporalio/testing':
+        specifier: 1.22.0
+        version: 1.22.0(esbuild@0.28.1)
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -2013,6 +2028,10 @@ packages:
 
   '@temporalio/proto@1.22.0':
     resolution: {integrity: sha512-X7NVa0Z6HK3l9irZR48FKwZ9w9YXetCdF2z2KCIRr0W7Kul64Wt9o5hwvSXShAtrZuCEEHH8WO/ffHTXxJieLg==}
+    engines: {node: '>= 20.3.0'}
+
+  '@temporalio/testing@1.22.0':
+    resolution: {integrity: sha512-LWIVkJZHLKsuuXLeTZ9VuN6Sjt79BJTl9KKTQ84dOysPj+tMGTET8TEZasBhCuocS0qFGrh00c5e4RzXjfnLLA==}
     engines: {node: '>= 20.3.0'}
 
   '@temporalio/worker@1.22.0':
@@ -6234,6 +6253,30 @@ snapshots:
     dependencies:
       long: 5.3.2
       protobufjs: 7.6.5
+
+  '@temporalio/testing@1.22.0(esbuild@0.28.1)':
+    dependencies:
+      '@temporalio/activity': 1.22.0
+      '@temporalio/client': 1.22.0
+      '@temporalio/common': 1.22.0
+      '@temporalio/core-bridge': 1.22.0
+      '@temporalio/proto': 1.22.0
+      '@temporalio/worker': 1.22.0(esbuild@0.28.1)
+      '@temporalio/workflow': 1.22.0
+    transitivePeerDependencies:
+      - '@minify-html/node'
+      - '@swc/css'
+      - '@swc/helpers'
+      - '@swc/html'
+      - clean-css
+      - cssnano
+      - csso
+      - esbuild
+      - html-minifier-terser
+      - lightningcss
+      - postcss
+      - uglify-js
+      - webpack-cli
 
   '@temporalio/worker@1.22.0(esbuild@0.28.1)':
     dependencies:
