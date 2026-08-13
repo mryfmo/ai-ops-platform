@@ -125,6 +125,8 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 export AWS_EC2_METADATA_DISABLED=true
 export AWS_CONFIG_FILE=/dev/null
 export AWS_SHARED_CREDENTIALS_FILE=/dev/null
+export NO_PROXY="127.0.0.1,localhost${NO_PROXY:+,$NO_PROXY}"
+export no_proxy="127.0.0.1,localhost${no_proxy:+,$no_proxy}"
 
 if ! docker compose -p aiops-floci -f "$floci_dir/compose.yaml" pull; then
   echo "SKIP: digest-pinned Floci image could not be pulled; network access may be unavailable."

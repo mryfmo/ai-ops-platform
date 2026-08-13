@@ -47,7 +47,8 @@ This target-applies the task definition, its secret/log dependencies, per-worker
 token secrets, and Cloud Map, then inspects them through the AWS CLI and destroys
 them. It deliberately does not create the ECS service or RDS and therefore does
 not pull or run the synthetic task images. `KEEP_FLOCI=1` keeps only the emulator
-container after cleanup.
+container after successful cleanup. If destroy fails, the script retains the
+temporary Terraform state and prints its path so cleanup can be retried.
 
 The script rejects ambient profiles, session/role credentials, non-dummy access
 keys, service-specific endpoints, and non-loopback base endpoints before Docker
