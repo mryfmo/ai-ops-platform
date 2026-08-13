@@ -113,3 +113,21 @@ ENV-DEC-001 の正典必須承認者は Owner / Security / Ops / Procurement
 - 日付: 2026-08-10
 - 備考: 2026-08-10 の Owner 追裁定「AzureではなくAWSとする」により本番基盤は ADR-0029
   （AWS、ADR-0016 を置換）で確定。役割兼任は owner-role-consolidation.md に記録
+
+## 改訂 2026-08-13（Owner 裁定 — P3-T01 実装帰結）
+
+P3-T01 の独立レビュー（P3-T01-001）を受け、worker 認可の実装形を次のとおり確定する
+（Owner 裁定、セッション記録。Entra / 外部 IdP は不関与 — Entra は M365 専用資格の
+まま維持し、この境界を再確認した）:
+
+| 統制                          | 強制点                     | 実装                                                                                                                                                                   |
+| ----------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| environment スコープ          | **server（TLS）**          | per-env CA。越境証明書は handshake 拒否                                                                                                                                |
+| namespace スコープ + 非 admin | **server（authorizer）**   | Temporal 標準 authorizer/claim mapper（default）+ プラットフォーム内部発行 RS256 JWT（per-worker sub、`aiops-<env>:write` のみ。admin は operator 別 identity）        |
+| task queue スコープ           | worker 構成 + client guard | Temporal の認可モデルに task-queue 粒度は存在しないため、worker デプロイ構成（単一 queue プロファイル）と `@aiops/control-plane` の接続前 fail-closed guard で担保する |
+
+- 本文「Temporal authorizer/claim mapper で environment + namespace + task-queue
+  スコープの非 admin 権限に制限する」は上表の分担に読み替える（task-queue の
+  server 強制は要求しない）。custom claim mapper（Go 拡張・派生 image）は不採用
+- 署名鍵 / JWKS / トークン発行は `deploy/temporal/authz/`（dev）と Secrets Manager
+  （staging/prod）で管理。検証証跡: P3-T01 smoke の許可/拒否マトリクス
