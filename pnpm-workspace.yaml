@@ -30,3 +30,4 @@ allowBuilds:
   sharp: true
   msw: false
   protobufjs: false
+  "@swc/core": false
