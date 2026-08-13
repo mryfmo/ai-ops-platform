@@ -3,11 +3,11 @@
 // （retry class / idempotency / versioning / cancellation）を 1 本の決定的
 // workflow で行使し、recorded history に対する replay test の被験体とする。
 
-import { proxyActivities, sleep, workflowInfo } from "@temporalio/workflow";
+import { isCancellation, proxyActivities, sleep, workflowInfo } from "@temporalio/workflow";
 
 import { buildIdempotencyKey } from "../lib/idempotency.js";
 import { toTemporalRetryPolicy } from "../lib/retryPolicies.js";
-import { guardSideEffectDispatch } from "./cancellation.js";
+import { guardSideEffectDispatch, runCleanup } from "./cancellation.js";
 import { runExternalSideEffect } from "./sideEffect.js";
 import { isPatchActive } from "./versioning.js";
 
@@ -42,4 +42,32 @@ export async function replayProbeWorkflow(name: string): Promise<string> {
   await sleep(1_000);
   const version = isPatchActive("p3-t02-replay-probe") ? "v2" : "v1";
   return `${version}:${created.outcome}:${created.result}`;
+}
+
+/**
+ * cancellation acceptance（「未開始の副作用を停止」）の probe。cancel 要求を
+ * 受けた後に副作用を dispatch しようとすると guardSideEffectDispatch が止め、
+ * non-cancellable cleanup を実行してから cancellation として終了する。
+ * recorded history には createExternalObject の ActivityTaskScheduled が
+ * 一切現れないことを replay test がデータ検証する。
+ */
+export async function cancellationProbeWorkflow(name: string): Promise<string> {
+  const key = buildIdempotencyKey(workflowInfo().workflowId, "createExternalObject", 0);
+  try {
+    // cancel 要求はこの timer 待機中に届く想定。
+    await sleep(600_000);
+  } catch (error) {
+    if (!isCancellation(error)) throw error;
+  }
+  try {
+    guardSideEffectDispatch("createExternalObject");
+    // cancel 済みならここには到達しない。
+    const result = await sideEffects.createExternalObject({ name }, key);
+    return `dispatched:${result}`;
+  } catch (error) {
+    if (!isCancellation(error)) throw error;
+    // 後始末は non-cancellable で実行し、workflow 自体は cancellation として終える。
+    await runCleanup(async () => reads.findExternalObject(key));
+    throw error;
+  }
 }

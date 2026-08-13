@@ -58,6 +58,36 @@ try {
     fs.writeFileSync(file, `${JSON.stringify(history.toJSON(), null, 2)}\n`);
     console.log(`recorded ${fixtureName} (workflow result: ${result})`);
   }
+
+  // cancellation acceptance: cancel 要求後は createExternalObject を一切 schedule しない。
+  {
+    const taskQueue = "replay-probe-cancelled";
+    const workflowId = `replay-probe/${taskQueue}`;
+    const worker = await Worker.create({
+      connection: env.nativeConnection,
+      taskQueue,
+      workflowsPath,
+      activities: makeActivities({ loseResponse: false }),
+    });
+    const outcome = await worker.runUntil(async () => {
+      const handle = await env.client.workflow.start("cancellationProbeWorkflow", {
+        taskQueue,
+        workflowId,
+        args: ["fixture"],
+      });
+      await handle.cancel();
+      return handle.result().then(
+        (r) => `unexpected-completion:${r}`,
+        (e) => `cancelled:${e.name}`,
+      );
+    });
+    const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    fs.writeFileSync(
+      path.join(fixturesDir, "replay-probe.cancelled.history.json"),
+      `${JSON.stringify(history.toJSON(), null, 2)}\n`,
+    );
+    console.log(`recorded replay-probe.cancelled.history.json (outcome: ${outcome})`);
+  }
 } finally {
   await env.teardown();
 }
