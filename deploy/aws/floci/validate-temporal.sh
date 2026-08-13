@@ -47,7 +47,7 @@ guard_aws_environment() {
   esac
 
   local name value
-  for name in AWS_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_ROLE_ARN \
+  for name in AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_ROLE_ARN \
     AWS_WEB_IDENTITY_TOKEN_FILE AWS_CONTAINER_CREDENTIALS_FULL_URI \
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI; do
     value="${!name-}"
@@ -139,21 +139,21 @@ terraform -chdir="$floci_workdir" plan -input=false -lock=false \
   -var-file="$floci_dir/temporal.dev.tfvars" -out="$floci_workdir/temporal.plan"
 terraform -chdir="$floci_workdir" show -json "$floci_workdir/temporal.plan" | jq -r '
   [.resource_changes[]?.change.actions] as $actions |
-  "PLAN PASS: create=\($actions | map(select(. == [\"create\"])) | length) " +
-  "update=\($actions | map(select(. == [\"update\"])) | length) " +
-  "delete=\($actions | map(select(. == [\"delete\"])) | length)"'
+  "PLAN PASS: create=\($actions | map(select(. == ["create"])) | length) " +
+  "update=\($actions | map(select(. == ["update"])) | length) " +
+  "delete=\($actions | map(select(. == ["delete"])) | length)"'
 
 if [ "$floci_apply" = "0" ]; then
   echo "FLOCI PASS: init/validate/plan completed; apply/smoke/destroy not requested."
   exit 0
 fi
 
+floci_applied=1
 terraform -chdir="$floci_workdir" apply -auto-approve -input=false -lock=false \
   -var-file="$floci_dir/temporal.dev.tfvars" \
   -target=aws_ecs_task_definition.temporal \
   -target=aws_secretsmanager_secret.worker_token \
   -target=aws_service_discovery_service.temporal
-floci_applied=1
 
 task_definition="$(aws --endpoint-url "$floci_endpoint" ecs describe-task-definition \
   --task-definition aiops-temporal-dev --output json)"

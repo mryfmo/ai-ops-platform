@@ -36,3 +36,15 @@ All cases stopped before the Docker check and printed only the rejected variable
 - the full local all-ref scan additionally found two pre-existing false-positive fixtures
   in a deleted remote branch; current-path scans are clean and the authoritative PR
   full-history job remains required before acceptance.
+
+## Independent review
+
+- `codex review --commit b6c3760` → 3 actionable findings:
+  - P1 invalid jq string escaping
+  - P2 cleanup armed only after targeted apply
+  - P2 `AWS_DEFAULT_PROFILE` guard omission
+- all three were fixed and revalidated before push:
+  - mocked Docker/Terraform default path → plan summary + `FLOCI PASS`
+  - mocked targeted apply exit 42 with `KEEP_FLOCI=1` → cleanup invoked destroy and
+    preserved exit 42
+  - `AWS_DEFAULT_PROFILE=production` → rejected before Docker
