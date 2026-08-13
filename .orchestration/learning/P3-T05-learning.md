@@ -45,3 +45,9 @@ A Temporal interval's `every` value does not encode the intended first fire by i
 ## L-P3T05-11: shadow suppresses writes, not observation
 
 Shadow mode must keep authoritative reconcile reads active so parity can be measured. Suppress only mutation activities, and keep ScheduleClient registration I/O outside the pure `src/lib` schedule-option builder.
+
+## L-P3T05-orch-01: AI PR は必ず App token author で作成する（worker 逸脱の検出）
+worker が自前の gh 認証（= Owner 本人）で PR を作成すると、CODEOWNERS 必須
+レビューを Owner が self-approve できず merge 不能になる。AGMSG-TASK の指示
+どおり AIOPS_PR_TOKEN（aiops-pr-bot）を使うか、blocked-auth で orchestrator に
+委譲する。orchestrator は acceptance 前に PR author を検分項目に加える。
