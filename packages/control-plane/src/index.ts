@@ -2,6 +2,13 @@
 export { WORKFLOW_KINDS } from "./contracts/index.js";
 export type { WorkflowKind, VersionedPayload, OperationClass } from "./contracts/index.js";
 export { buildWorkflowId, parseWorkflowId } from "./lib/workflowId.js";
+export { retryPolicyFor, toTemporalRetryPolicy } from "./lib/retryPolicies.js";
+export type { FixedRetryPolicy } from "./lib/retryPolicies.js";
+export { buildIdempotencyKey, parseIdempotencyKey } from "./lib/idempotency.js";
+export { runExternalSideEffect, ExternalSideEffectUnresolvedError } from "./workflows/sideEffect.js";
+export type { ExternalSideEffectPorts, ExternalSideEffectOutcome } from "./workflows/sideEffect.js";
+export { isPatchActive, retirePatch } from "./workflows/versioning.js";
+export { guardSideEffectDispatch, runCleanup } from "./workflows/cancellation.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";
