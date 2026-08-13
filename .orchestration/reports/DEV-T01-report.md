@@ -8,7 +8,7 @@
   - opt-in bounded task-definition/secrets/Cloud Map apply → AWS CLI smoke → destroy
   - production Temporal Terraform is unchanged; its provider override is inert as
     `floci_override.tf.example` and is activated only in an ephemeral copy
-  - ENV-DEC-002 records that this is optional dev-only evidence, never a CI or
+  - ENV-DEC-003 records that this is optional dev-only evidence, never a CI or
     acceptance gate
 - runtime result: this Apple-container development machine has no Docker CLI/socket,
   so the Floci-backed run correctly returned explicit `SKIP`. No runtime was installed.

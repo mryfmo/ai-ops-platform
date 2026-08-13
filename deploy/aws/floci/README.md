@@ -1,4 +1,4 @@
-<!-- 根拠: DEV-T01 / ADR-0029 / ENV-DEC-002 -->
+<!-- 根拠: DEV-T01 / ADR-0029 / ENV-DEC-003 -->
 
 # Floci dev-only Terraform pre-validation
 

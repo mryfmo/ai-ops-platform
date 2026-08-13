@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 根拠: ADR-0029 / DEV-T01 / ENV-DEC-003 — dev-only Terraform pre-validation.
 # @file deploy/aws/floci/validate-temporal.sh
 # @brief Pre-validate the Temporal Terraform module against local Floci only.
 # @description
@@ -72,6 +73,7 @@ guard_aws_environment() {
 # @description Destroy bounded local resources and stop Floci without masking the original exit code.
 cleanup() {
   local exit_code=$?
+  local down_failed=0
   local destroy_failed=0
   set +e
   if [ "$floci_applied" = "1" ] && [ -n "$floci_workdir" ]; then
@@ -79,7 +81,7 @@ cleanup() {
       -var-file="$floci_dir/temporal.dev.tfvars" >/dev/null || destroy_failed=1
   fi
   if [ "$floci_started" = "1" ] && [ "$keep_floci" != "1" ]; then
-    docker compose -p aiops-floci -f "$floci_dir/compose.yaml" down --remove-orphans >/dev/null
+    docker compose -p aiops-floci -f "$floci_dir/compose.yaml" down --remove-orphans >/dev/null || down_failed=1
   fi
   if [ -n "$floci_workdir" ]; then
     if [ "$destroy_failed" = "1" ] && [ "$keep_floci" = "1" ]; then
@@ -87,6 +89,10 @@ cleanup() {
     else
       rm -rf -- "$floci_workdir"
     fi
+  fi
+  if [ "$down_failed" = "1" ]; then
+    echo "ERROR: failed to stop the privileged Floci container" >&2
+    [ "$exit_code" != "0" ] || exit_code=1
   fi
   exit "$exit_code"
 }
@@ -98,8 +104,12 @@ if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>
   echo "SKIP: Docker with the Compose plugin is required; Apple container is not a Docker socket runtime."
   exit 0
 fi
-docker_endpoint="${DOCKER_HOST:-}"
-if [ -z "$docker_endpoint" ]; then
+docker_endpoint=""
+if [ -n "${DOCKER_CONTEXT:-}" ]; then
+  docker_endpoint="$(docker context inspect "$DOCKER_CONTEXT" --format '{{.Endpoints.docker.Host}}')"
+elif [ -n "${DOCKER_HOST:-}" ]; then
+  docker_endpoint="$DOCKER_HOST"
+else
   docker_endpoint="$(docker context inspect "$(docker context show)" --format '{{.Endpoints.docker.Host}}')"
 fi
 case "$docker_endpoint" in
@@ -136,12 +146,12 @@ floci_started=1
 docker compose -p aiops-floci -f "$floci_dir/compose.yaml" up -d
 
 for _ in $(seq 1 30); do
-  if curl -fsS "$floci_endpoint/_localstack/health" >/dev/null; then
+  if curl -fsS --connect-timeout 1 --max-time 2 "$floci_endpoint/_localstack/health" >/dev/null; then
     break
   fi
   sleep 1
 done
-curl -fsS "$floci_endpoint/_localstack/health" >/dev/null || fail "Floci did not become ready"
+curl -fsS --connect-timeout 1 --max-time 2 "$floci_endpoint/_localstack/health" >/dev/null || fail "Floci did not become ready"
 
 floci_workdir="$(mktemp -d "${TMPDIR:-/tmp}/aiops-floci-temporal.XXXXXX")"
 cp "$temporal_dir"/*.tf "$floci_workdir/"

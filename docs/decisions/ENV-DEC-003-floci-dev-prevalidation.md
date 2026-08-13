@@ -1,8 +1,8 @@
 <!-- 根拠: DEV-T01 / ADR-0029 / FinalArch:GOV-004 -->
 
-# ENV-DEC-002: Floci は dev-only Terraform 事前検証に限定する
+# ENV-DEC-003: Floci は dev-only Terraform 事前検証に限定する
 
-- 決定 ID: ENV-DEC-002 / Task: DEV-T01
+- 決定 ID: ENV-DEC-003 / Task: DEV-T01
 - 状態: **採用（dev-only、2026-08-13 Owner 指示）**
 - 対象: `deploy/aws/temporal/` と、将来明示的に追加される AWS Terraform module
 

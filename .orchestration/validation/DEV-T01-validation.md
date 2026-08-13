@@ -56,3 +56,7 @@ All cases stopped before the Docker check and printed only the rejected variable
   - remote `DOCKER_HOST=tcp://...` → rejected before daemon access
   - mocked partial Compose up failure → cleanup invoked `down`
   - mocked destroy exit 42 with `KEEP_FLOCI=1` → exit 42 preserved and state retained
+- `codex review --base origin/main` round 3 → 5 actionable findings: effective
+  Docker-context precedence, duplicate ENV-DEC ID, unbounded health calls, ignored
+  Compose-down failure, and missing shell evidence header. All were fixed before push;
+  the Floci decision moved from conflicting ENV-DEC-002 to unused ENV-DEC-003.
