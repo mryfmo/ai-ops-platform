@@ -22,17 +22,20 @@ export type { ApprovalOutcome, ApprovalRequest } from "./workflows/approval.js";
 export {
   assertCodingTaskRequest,
   evaluateCallbackSignal,
+  evaluateReviewDecision,
   evaluateReviewSignal,
   phaseAfterCallback,
   CODING_TASK_PHASES,
 } from "./lib/codingTaskState.js";
 export type {
+  AcceptedCallback,
   CallbackEvaluation,
   CallbackOutcome,
   CallbackRejectReason,
   CodingTaskCallbackPayload,
   CodingTaskPhase,
   CodingTaskReviewPayload,
+  ReviewDecisionEvaluation,
   ReviewEvaluation,
   ReviewRejectReason,
 } from "./lib/codingTaskState.js";
