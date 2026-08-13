@@ -60,3 +60,11 @@ All cases stopped before the Docker check and printed only the rejected variable
   Docker-context precedence, duplicate ENV-DEC ID, unbounded health calls, ignored
   Compose-down failure, and missing shell evidence header. All were fixed before push;
   the Floci decision moved from conflicting ENV-DEC-002 to unused ENV-DEC-003.
+- `codex review --base origin/main` round 4 → 3 actionable findings: inherited
+  `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS`, inherited `TF_CLI_ARGS*`, and state removal
+  after a failed destroy. All were fixed and revalidated before push:
+  - endpoint-ignore is forced off before Terraform/AWS CLI execution
+  - `TF_CLI_ARGS*` is rejected before Docker access
+  - failed destroy retains the temporary state even when Compose shutdown also fails
+  - mocked default path passed; mocked apply/destroy/down failures retained state and
+    preserved the original exit 42

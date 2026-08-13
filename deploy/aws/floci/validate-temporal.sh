@@ -66,6 +66,7 @@ guard_aws_environment() {
   while IFS='=' read -r name _; do
     case "$name" in
       AWS_ENDPOINT_URL_*) fail "$name must be unset; one loopback Floci endpoint is required" ;;
+      TF_CLI_ARGS | TF_CLI_ARGS_*) fail "$name must be unset; Terraform arguments are fixed by this script" ;;
     esac
   done < <(env)
 }
@@ -84,7 +85,7 @@ cleanup() {
     docker compose -p aiops-floci -f "$floci_dir/compose.yaml" down --remove-orphans >/dev/null || down_failed=1
   fi
   if [ -n "$floci_workdir" ]; then
-    if [ "$destroy_failed" = "1" ] && [ "$keep_floci" = "1" ]; then
+    if [ "$destroy_failed" = "1" ]; then
       echo "ERROR: Floci destroy failed; Terraform state retained at $floci_workdir" >&2
     else
       rm -rf -- "$floci_workdir"
@@ -133,6 +134,7 @@ export AWS_ENDPOINT_URL="$floci_endpoint"
 export AWS_REGION="ap-northeast-1"
 export AWS_DEFAULT_REGION="$AWS_REGION"
 export AWS_EC2_METADATA_DISABLED=true
+export AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=false
 export AWS_CONFIG_FILE=/dev/null
 export AWS_SHARED_CREDENTIALS_FILE=/dev/null
 export NO_PROXY="127.0.0.1,localhost${NO_PROXY:+,$NO_PROXY}"
