@@ -74,17 +74,48 @@ KEEP=1 ./deploy/temporal/smoke.sh   # 検証後も起動したままにする
 ## worker 接続（packages/control-plane）
 
 ```ts
-import { buildConnectionProfile, createTemporalConnection } from "@aiops/control-plane";
-const profile = buildConnectionProfile("dev", "127.0.0.1:7233");
-const connection = await createTemporalConnection(profile, {
-  clientCertPem,
-  clientKeyPem,
-  serverRootCaPem, // Secrets Manager / certs/out から注入
+import { buildConnectionProfile, createScopedWorker, refreshWorkerAuthorization } from "@aiops/control-plane";
+
+const profile = buildConnectionProfile("dev", "temporal.dev.aiops.internal:7233", {
+  workerName: "incident-w1",
+  taskQueue: "incident", // 正典 workflow kind と 1:1。profile が唯一の出所
 });
+const credentials = {
+  clientCertPem, // Secrets Manager（staging/prod）/ certs/out（dev）から注入
+  clientKeyPem,
+  serverRootCaPem,
+  // worker-token secret の現在値を返す（renewal 後は新トークンを返すだけでよい）
+  authorizationTokenProvider: () => readFileSync(workerTokenPath, "utf8").trim(),
+};
+const { worker, connection } = await createScopedWorker(profile, credentials, {
+  activities, // P3-T02 以降で実体を登録
+});
+
+// token renewal ループ（TTL 12h に対し 4h 間隔で反映。client Connection は RPC 毎に
+// 検証付き provider が評価されるためループ不要 — Worker の NativeConnection のみ必要）
+const refresh = setInterval(
+  () => void refreshWorkerAuthorization(profile, connection, credentials).catch(reportAndAlert),
+  4 * 60 * 60 * 1000,
+);
+try {
+  await worker.run();
+} finally {
+  clearInterval(refresh);
+  await connection.close();
+}
 ```
 
-- 接続前に証明書 CN / issuer / 期限 / environment 整合が検証される（E-TMP01 fail-closed）
-- worker identity は gRPC metadata `aiops-worker-identity` として送出（監査用）
+- 接続前に (1) 証明書 CN/issuer/期限/environment (2) token sub = worker 個体 identity
+  (3) permissions = 自 namespace write のみ、を検証（E-TMP01 fail-closed）。
+  client Connection の `apiKey` は**検証付き wrapper**で、rotation 後のトークンも
+  RPC 毎に同じ束縛検証を通過しないと送信されない
+- Worker の namespace / taskQueue / identity は profile 由来のみ（上書きは実行時拒否）
+- **token の所有権**: 発行（署名鍵 + mint-token.mjs）は運用 pipeline のみ。
+  発行済みトークンは Secrets Manager の `aiops-temporal-<env>/authz/worker-token/<name>`
+  （Terraform が per-worker に作成）へ格納し、worker ホストへはファイル/env として
+  マウント配布する。worker は provider がその現在値を読み、上記 refresh ループが
+  期限（12h）より十分前（4h 間隔）に `refreshWorkerAuthorization()` を呼ぶ。
+  署名鍵が worker に渡ることはない
 
 ## staging / prod bootstrap（Terraform apply 後の初期投入）
 
@@ -102,8 +133,9 @@ const connection = await createTemporalConnection(profile, {
 5. namespace 初期化: operator token（`mint-token.mjs <env> operator <name>`）で
    `registerNamespace`（実行主体は運用者。worker token では拒否される）
 6. worker token 発行・配布: `mint-token.mjs <env> worker <name>`（TTL 12h）を
-   運用 pipeline で定期 mint し Secrets Manager の worker-token へ格納。
-   署名鍵は worker に配布しない
+   運用 pipeline で **4h 毎に定期 mint** し
+   `aiops-temporal-<env>/authz/worker-token/<name>`（Terraform 管理）へ put する。
+   worker 側は上記 refresh ループが新値を取り込む。署名鍵は worker に配布しない
 
 ## 障害時
 

@@ -256,7 +256,7 @@ describe("authorization token binding [FinalArch:TMP-001 / ENV-DEC-001 改訂]",
     expect(() => decodeAuthorizationToken("not-a-jwt", now)).toThrow(/must be a JWT/);
   });
 
-  it("provider の rotation は再接続なしで反映される（callback 受け渡し）", async () => {
+  it("rotation 後のトークンも RPC 毎に検証され、束縛違反は SDK に渡らない（P3-T01-010）", async () => {
     const issued = issueWorkerCert("dev");
     let current = testToken("aiops-temporal-worker.dev.w1", ["aiops-dev:write"]);
     const captured: Array<() => string> = [];
@@ -273,9 +273,22 @@ describe("authorization token binding [FinalArch:TMP-001 / ENV-DEC-001 改訂]",
         return {} as never;
       },
     );
+    const apiKey = captured[0]!;
+    // 正常 rotation（同一 sub・同一権限）は新値が通る
     const rotated = testToken("aiops-temporal-worker.dev.w1", ["aiops-dev:write"], 7200);
     current = rotated;
-    expect(captured[0]!()).toBe(rotated);
+    expect(apiKey()).toBe(rotated);
+    // 束縛違反 rotation はすべて SDK に渡る前に E-TMP01 で遮断される
+    current = testToken("aiops-temporal-worker.dev.w2", ["aiops-dev:write"]);
+    expect(() => apiKey()).toThrow(/sub/);
+    current = testToken("aiops-temporal-worker.dev.w1", ["aiops-dev:write", "temporal-system:admin"]);
+    expect(() => apiKey()).toThrow(/permissions/);
+    current = testToken("aiops-temporal-worker.dev.w1", ["aiops-shadow:write"]);
+    expect(() => apiKey()).toThrow(/permissions/);
+    current = testToken("aiops-temporal-worker.dev.w1", ["aiops-dev:write"], -10);
+    expect(() => apiKey()).toThrow(/expired/);
+    current = " ";
+    expect(() => apiKey()).toThrow(/empty token/);
   });
 });
 

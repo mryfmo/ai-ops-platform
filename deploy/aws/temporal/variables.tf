@@ -96,3 +96,9 @@ variable "task_memory" {
   type    = string
   default = "2048"
 }
+
+variable "worker_names" {
+  type        = list(string)
+  description = "worker 個体名（per-worker token secret を作成。例: [\"incident-w1\"]）"
+  default     = []
+}

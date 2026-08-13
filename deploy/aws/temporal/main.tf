@@ -74,6 +74,14 @@ resource "aws_secretsmanager_secret" "authz" {
   description = "Temporal internal JWT authorization material (${each.key}) for ${var.environment}"
 }
 
+# per-worker の配布用トークン置き場（運用 pipeline が 4h 毎に mint して put。
+# 署名鍵とは分離 — worker はこの secret のみ読める）
+resource "aws_secretsmanager_secret" "worker_token" {
+  for_each    = toset(var.worker_names)
+  name        = "${local.name}/authz/worker-token/${each.key}"
+  description = "Temporal worker authorization token (12h TTL, refreshed every 4h) for ${each.key}"
+}
+
 resource "aws_secretsmanager_secret" "db_password" {
   name        = "${local.name}/db-password"
   description = "Temporal PostgreSQL password for ${var.environment}"

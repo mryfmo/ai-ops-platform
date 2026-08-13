@@ -45,12 +45,13 @@ export async function createTemporalConnection(
 ): Promise<Connection> {
   const identity = parseWorkerCertificateIdentity(credentials.clientCertPem, now());
   assertCertificateMatchesProfile(profile, identity);
-  const initialToken = validateTokenProvider(profile, credentials, now);
-  void initialToken;
+  validateTokenProvider(profile, credentials, now);
   return connectImpl({
     address: profile.address,
-    // provider callback を渡す: SDK が RPC 毎に評価するため rotation が再接続なしで効く
-    apiKey: credentials.authorizationTokenProvider,
+    // 検証付き wrapper を渡す: SDK が RPC 毎に評価するため rotation が再接続なしで
+    // 効き、rotation 後のトークンも毎回 profile 束縛（sub / permissions / 期限）を
+    // 通過しないと SDK に渡らない（P3-T01-010 fail-closed）
+    apiKey: () => validateTokenProvider(profile, credentials, now),
     tls: {
       serverRootCACertificate: Buffer.from(credentials.serverRootCaPem),
       clientCertPair: {
