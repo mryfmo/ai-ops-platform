@@ -10,3 +10,4 @@ docs/spec/prjops/
 docs/spec/devops/
 references/
 docs/plans/2026-08-final-architecture/
+**/.terraform/

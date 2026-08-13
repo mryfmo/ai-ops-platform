@@ -5,3 +5,27 @@ export { buildWorkflowId, parseWorkflowId } from "./lib/workflowId.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";
+export {
+  TEMPORAL_ENVIRONMENTS,
+  WORKER_CN_PREFIX,
+  CA_CN_PREFIX,
+  isTemporalEnvironment,
+  namespaceFor,
+  taskQueueFor,
+  allTaskQueues,
+  buildConnectionProfile,
+  parseWorkerCertificateIdentity,
+  assertCertificateMatchesProfile,
+} from "./lib/temporalProfile.js";
+export type {
+  TemporalEnvironment,
+  TemporalConnectionProfile,
+  WorkerCertificateIdentity,
+} from "./lib/temporalProfile.js";
+export { createTemporalConnection } from "./temporal/connection.js";
+export type { TemporalMtlsCredentials, TemporalConnectFn } from "./temporal/connection.js";
+export { decodeAuthorizationToken, assertTokenMatchesProfile } from "./lib/temporalProfile.js";
+export type { AuthorizationTokenPayload } from "./lib/temporalProfile.js";
+export { validateTokenProvider } from "./temporal/connection.js";
+export { createScopedWorker, refreshWorkerAuthorization } from "./temporal/worker.js";
+export type { ScopedWorker, ScopedWorkerOptions, NativeConnectFn, WorkerCreateFn } from "./temporal/worker.js";

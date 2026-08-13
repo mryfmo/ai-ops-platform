@@ -1,0 +1,82 @@
+# 根拠: FinalArch:TMP-001 / ADR-0021 / ENV-DEC-001（案 B'）— dev 専用単一ノード。
+# 本番形態ではない（staging/prod は deploy/aws/temporal の ECS Fargate + RDS）。
+# mTLS は dev でも既定（信頼境界の dev/本番乖離を作らない — ENV-DEC-001）。
+# 事前に ../certs/gen-certs.sh dev を実行して certs/out/dev を生成すること。
+services:
+  temporal-postgres:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal-dev-only
+    volumes:
+      - temporal-pg:/var/lib/postgresql/data
+    networks: [temporal]
+
+  temporal:
+    image: temporalio/auto-setup:1.25.2@sha256:b1edc1e20002d958c8182f2ae08dee877a125083683a627a44917683419ba6a8
+    depends_on: [temporal-postgres]
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal-dev-only
+      POSTGRES_SEEDS: temporal-postgres
+      # authorizer 有効時の namespace 初期化は operator identity で行う（RUNBOOK 参照）
+      SKIP_DEFAULT_NAMESPACE_CREATION: "true"
+      SKIP_ADD_CUSTOM_SEARCH_ATTRIBUTES: "true"
+      # 内部 system worker は internal-frontend 経由で authorizer を迂回する（正規構成）
+      USE_INTERNAL_FRONTEND: "true"
+      SERVICES: frontend,internal-frontend,history,matching,worker
+      # server 側認可（内部発行 JWT — ENV-DEC-001 + Owner 裁定 2026-08-13。Entra 不関与）
+      TEMPORAL_AUTH_AUTHORIZER: default
+      TEMPORAL_AUTH_CLAIM_MAPPER: default
+      TEMPORAL_JWT_KEY_SOURCE1: http://temporal-jwks/jwks.json
+      # mTLS（per-env CA。別 env の証明書は handshake で拒否される）
+      TEMPORAL_TLS_REQUIRE_CLIENT_AUTH: "true"
+      TEMPORAL_TLS_SERVER_CA_CERT: /etc/temporal/certs/ca.crt
+      TEMPORAL_TLS_SERVER_CERT: /etc/temporal/certs/server.crt
+      TEMPORAL_TLS_SERVER_KEY: /etc/temporal/certs/server.key
+      TEMPORAL_TLS_INTERNODE_SERVER_NAME: aiops-temporal-frontend.dev
+      TEMPORAL_TLS_FRONTEND_SERVER_NAME: aiops-temporal-frontend.dev
+      TEMPORAL_TLS_FRONTEND_CERT: /etc/temporal/certs/server.crt
+      TEMPORAL_TLS_FRONTEND_KEY: /etc/temporal/certs/server.key
+      TEMPORAL_TLS_CLIENT1_CA_CERT: /etc/temporal/certs/ca.crt
+      TEMPORAL_TLS_INTERNODE_DISABLE_HOST_VERIFICATION: "false"
+      # 新 temporal CLI（auto-setup の namespace 登録）用（server template と衝突しない名前）
+      TEMPORAL_TLS_CA: /etc/temporal/certs/ca.crt
+      TEMPORAL_TLS_CERT: /etc/temporal/certs/operator.crt
+      TEMPORAL_TLS_KEY: /etc/temporal/certs/operator.key
+      TEMPORAL_TLS_SERVER_NAME: aiops-temporal-frontend.dev
+      TEMPORAL_TLS_FRONTEND_DISABLE_HOST_VERIFICATION: "false"
+    volumes:
+      - ./certs/out/dev:/etc/temporal/certs:ro
+    networks: [temporal]
+    # gRPC 7233 は compose ネットワーク内部のみ（ホスト公開しない）
+
+  temporal-jwks:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./authz/out/dev/public:/usr/share/nginx/html:ro
+    networks: [temporal]
+    # JWKS（公開鍵のみ）を内部配信。署名鍵は public/ に置かれず配信されない
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2@sha256:28bb3ea5a6ea3e09f16b521f32ab727c96470f7f1e420c66a6cbfb02001a8aa2
+    depends_on: [temporal]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_UI_PORT: "8233"
+      TEMPORAL_TLS_CA: /etc/temporal/certs/ca.crt
+      TEMPORAL_TLS_CERT: /etc/temporal/certs/operator.crt
+      TEMPORAL_TLS_KEY: /etc/temporal/certs/operator.key
+      TEMPORAL_TLS_SERVER_NAME: aiops-temporal-frontend.dev
+    volumes:
+      - ./certs/out/dev:/etc/temporal/certs:ro
+    networks: [temporal]
+    # UI は運用者ローカル利用のみ。公開する場合も internal に限定（ENV-DEC-001）
+
+networks:
+  temporal: {}
+
+volumes:
+  temporal-pg: {}
