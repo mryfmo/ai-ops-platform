@@ -169,6 +169,7 @@ try {
       taskQueue,
       workflowsPath,
       maxCachedWorkflows: 0,
+      stickyQueueScheduleToStartTimeout: "1 second",
     });
     const result = await worker.runUntil(async () => {
       const handle = await env.client.workflow.start("approvalWorkflow", {
@@ -183,6 +184,259 @@ try {
     });
     await saveHistory(workflowId, "approval.restart.history.json");
     console.log(`recorded approval.restart.history.json (${result.payload.status} with per-task history rebuild)`);
+  }
+  // --- P3-T04 CodingTaskWorkflow fixtures（TMP-003/TMP-004） ---
+  // fixture 毎に一意の taskId を使う（同一 ID を再利用すると getHandle が
+  // 旧 run（worker のいない task queue）へ query を route し、RPC が無期限 block する）。
+  const taskIdFor = (index) => `3f6f2f6a-9f2e-4e6d-8a4b-2b8f6f2f6a9${index}`;
+  const codingInput = (taskId, overrides = {}) => ({
+    schemaVersion: 1,
+    payload: {
+      taskId,
+      approvalId: APPROVAL_ID,
+      approvalVersion: 3,
+      approvalExpiryMs: 3_600_000,
+      callbackTimeoutMs: 3_600_000,
+      repository: { owner: "mryfmo", repo: "ai-ops-platform", ref: "main" },
+      requestedBy: "fixture",
+      ...overrides,
+    },
+  });
+  // 相関 ID = dispatch の決定的 idempotency key（activity schedule 前に確定）。
+  const correlationFor = (taskId) => `coding-task/${taskId}#dispatchCodingTask#0`;
+  const callbackFor = (taskId, overrides = {}) => ({
+    taskId,
+    dispatchId: correlationFor(taskId),
+    outcome: "pr_created",
+    runId: "run-1",
+    prNumber: 41,
+    ...overrides,
+  });
+  const reviewFor = (taskId) => ({ taskId, verdict: "complete", reviewerObjectId: "reviewer-1" });
+  const completeDecision = (taskId) => ({ taskId, status: "complete", reviewerObjectId: "reviewer-1" });
+  const pendingDecision = (taskId) => ({ taskId, status: "pending", reviewerObjectId: "" });
+
+  /** 非冪等 dispatch + review 決定 read の代役 store。loseResponse で応答喪失を再現。
+   *  reviewDecisions は DB 正本の代役 queue: 先頭から消費し、最後の要素は繰り返す。
+   *  pending を先頭に積めば「signal だけでは完了しない」経路を記録できる。 */
+  function makeCodingActivities({ loseResponse, reviewDecisions = [], dispatchDelayMs = 0 }) {
+    const store = new Map();
+    const decisions = [...reviewDecisions];
+    return {
+      async dispatchCodingTask(input, idempotencyKey) {
+        const value = `dispatch:${input.taskId}`;
+        store.set(idempotencyKey, value);
+        if (dispatchDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, dispatchDelayMs));
+        if (loseResponse) throw new Error("synthetic lost response after dispatch");
+        return value;
+      },
+      async findCodingTaskDispatch(idempotencyKey) {
+        return store.get(idempotencyKey) ?? null;
+      },
+      async readReviewDecision() {
+        return (decisions.length > 1 ? decisions.shift() : decisions[0]) ?? null;
+      },
+    };
+  }
+
+  const waitQuery = async (handle, queryName, predicate, label) => {
+    // cache 無効 worker では query 毎に full replay + sticky timeout が挟まるため、
+    // poll は粗く・全体予算は広く取る。
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const value = await handle.query(queryName).catch(() => undefined);
+      if (value !== undefined && predicate(value)) return value;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error(`fixture wait timed out: ${label}`);
+  };
+
+  const approveChild = async (taskId) => {
+    const child = env.client.workflow.getHandle(`coding-task/${taskId}/approval`);
+    await waitQuery(child, "approvalState", (s) => s.decided === false, "child approval waiting");
+    await child.signal("approvalDecision", validSignal);
+  };
+
+  const recordCodingTask = async (
+    name,
+    { taskId, loseResponse, reviewDecisions, dispatchDelayMs, workerOptions = {}, drive },
+  ) => {
+    const taskQueue = `coding-task-${name}`;
+    const workflowId = `coding-task/${taskId}`;
+    const worker = await Worker.create({
+      connection: env.nativeConnection,
+      taskQueue,
+      workflowsPath,
+      activities: makeCodingActivities({ loseResponse, reviewDecisions, dispatchDelayMs }),
+      ...workerOptions,
+    });
+    const result = await worker.runUntil(async () => {
+      const handle = await env.client.workflow.start("codingTaskWorkflow", {
+        taskQueue,
+        workflowId,
+        args: [drive.input],
+      });
+      return drive.run(handle);
+    });
+    const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    fs.writeFileSync(
+      path.join(fixturesDir, `coding-task.${name}.history.json`),
+      `${JSON.stringify(history.toJSON(), null, 2)}\n`,
+    );
+    console.log(`recorded coding-task.${name}.history.json (${result.payload.phase}/${result.payload.failureReason})`);
+    return result;
+  };
+
+  // complete: 成功経路 + adversarial callback（早期 wrong-phase / malformed /
+  // 受理後 duplicate・conflicting）をすべて拒否記録して complete まで到達。
+  {
+    const taskId = taskIdFor(0);
+    await recordCodingTask("complete", {
+      taskId,
+      loseResponse: false,
+      // 1 回目の wake は pending（signal 単独では完了しない）、2 回目で complete。
+      reviewDecisions: [pendingDecision(taskId), completeDecision(taskId)],
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          await handle.signal("codingTaskCallback", callbackFor(taskId)); // 早期 → dispatch-mismatch（dispatch 前）
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "running", "phase running");
+          await handle.signal("codingTaskCallback", null); // malformed
+          await handle.signal("codingTaskCallback", callbackFor(taskId, { dispatchId: "dispatch:forged" })); // dispatch-mismatch
+          await handle.signal("codingTaskCallback", callbackFor(taskId)); // 受理
+          await handle.signal("codingTaskCallback", callbackFor(taskId)); // exact replay → duplicate
+          await handle.signal("codingTaskCallback", callbackFor(taskId, { runId: "run-2" })); // 別 run → conflicting
+          await handle.signal("codingTaskCallback", callbackFor(taskId, { prNumber: 42 })); // 別 PR → conflicting
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "review_pending", "phase review_pending");
+          await handle.signal("codingTaskReview", reviewFor(taskId)); // wake 1 → pending → unconfirmed
+          await handle.signal("codingTaskReview", reviewFor(taskId)); // wake 2 → complete
+          return handle.result();
+        },
+      },
+    });
+  }
+
+  // dispatch-reconciled: 応答喪失でも dispatch は 1 回だけ・reconcile 回収（TMP-003）。
+  {
+    const taskId = taskIdFor(1);
+    await recordCodingTask("dispatch-reconciled", {
+      taskId,
+      loseResponse: true,
+      reviewDecisions: [completeDecision(taskId)],
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "running", "phase running");
+          await handle.signal("codingTaskCallback", callbackFor(taskId));
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "review_pending", "phase review_pending");
+          await handle.signal("codingTaskReview", reviewFor(taskId));
+          return handle.result();
+        },
+      },
+    });
+  }
+
+  // approval-rejected: 承認なしでは dispatch が一切 schedule されない。
+  {
+    const taskId = taskIdFor(2);
+    await recordCodingTask("approval-rejected", {
+      taskId,
+      loseResponse: false,
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          const child = env.client.workflow.getHandle(`coding-task/${taskId}/approval`);
+          await waitQuery(child, "approvalState", (s) => s.decided === false, "child approval waiting");
+          await child.signal("approvalDecision", { ...validSignal, decision: "rejected" });
+          return handle.result();
+        },
+      },
+    });
+  }
+
+  // callback-timeout: callback 不達は complete へ自動遷移せず failed 終端。
+  {
+    const taskId = taskIdFor(3);
+    await recordCodingTask("callback-timeout", {
+      taskId,
+      loseResponse: false,
+      drive: {
+        input: codingInput(taskId, { callbackTimeoutMs: 5_000 }),
+        run: async (handle) => {
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "running", "phase running before timeout");
+          // result() 待ちの auto-skip は test server 側で不安定なため、明示的に期限を跨ぐ。
+          await env.sleep(10_000);
+          return handle.result();
+        },
+      },
+    });
+  }
+
+  // crash-resume（TMP-004）: per-task history 再構築（maxCachedWorkflows=0）でも
+  // 全遷移が durable に再開され complete まで到達する。
+  // in-flight race（P3-T04-005）: dispatch activity 実行中に正規 callback が届いても
+  // 棄却されず、activity 完了後そのまま前進して complete する。
+  {
+    const taskId = taskIdFor(6);
+    await recordCodingTask("inflight-callback", {
+      taskId,
+      loseResponse: false,
+      reviewDecisions: [completeDecision(taskId)],
+      dispatchDelayMs: 4_000,
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "queued", "phase queued (dispatch in flight)");
+          await handle.signal("codingTaskCallback", callbackFor(taskId)); // activity 実行中に到着
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "review_pending", "phase review_pending");
+          await handle.signal("codingTaskReview", reviewFor(taskId));
+          return handle.result();
+        },
+      },
+    });
+  }
+
+  // no-change: レビュー対象 PR が存在しない正当な no-op は review なしで complete。
+  {
+    const taskId = taskIdFor(5);
+    await recordCodingTask("no-change", {
+      taskId,
+      loseResponse: false,
+      reviewDecisions: [],
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "running", "phase running");
+          await handle.signal("codingTaskCallback", callbackFor(taskId, { outcome: "no_change", prNumber: undefined }));
+          return handle.result();
+        },
+      },
+    });
+  }
+
+  {
+    const taskId = taskIdFor(4);
+    await recordCodingTask("crash-resume", {
+      taskId,
+      loseResponse: false,
+      reviewDecisions: [completeDecision(taskId)],
+      workerOptions: { maxCachedWorkflows: 0, stickyQueueScheduleToStartTimeout: "1 second" },
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "running", "phase running");
+          await handle.signal("codingTaskCallback", callbackFor(taskId));
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "review_pending", "phase review_pending");
+          await handle.signal("codingTaskReview", reviewFor(taskId));
+          return handle.result();
+        },
+      },
+    });
   }
 } finally {
   await env.teardown();

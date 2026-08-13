@@ -19,6 +19,33 @@ export type {
 } from "./lib/approvalDecision.js";
 export { approvalDecisionSignal, approvalStateQuery, approvalWorkflow } from "./workflows/approval.js";
 export type { ApprovalOutcome, ApprovalRequest } from "./workflows/approval.js";
+export {
+  assertCodingTaskRequest,
+  evaluateCallbackSignal,
+  evaluateReviewDecision,
+  evaluateReviewSignal,
+  phaseAfterCallback,
+  CODING_TASK_PHASES,
+} from "./lib/codingTaskState.js";
+export type {
+  AcceptedCallback,
+  CallbackEvaluation,
+  CallbackOutcome,
+  CallbackRejectReason,
+  CodingTaskCallbackPayload,
+  CodingTaskPhase,
+  CodingTaskReviewPayload,
+  ReviewDecisionEvaluation,
+  ReviewEvaluation,
+  ReviewRejectReason,
+} from "./lib/codingTaskState.js";
+export {
+  codingTaskCallbackSignal,
+  codingTaskPhaseQuery,
+  codingTaskReviewSignal,
+  codingTaskWorkflow,
+} from "./workflows/codingTask.js";
+export type { CodingTaskActivities, CodingTaskRequest, CodingTaskResult } from "./workflows/codingTask.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";

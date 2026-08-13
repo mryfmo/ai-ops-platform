@@ -12,7 +12,12 @@ export default defineConfig({
       // 以下は workflow sandbox（webpack bundle）内でのみ実行され、V8 coverage に
       // 計上されない。行使は tests/replay.test.ts・tests/approvalReplay.test.ts の
       // recorded-history replay が保証する（純粋判定は lib/ 側で直接テスト済み）。
-      exclude: ["src/workflows/replayProbe.ts", "src/workflows/approval.ts", "src/workflows/entry.ts"],
+      exclude: [
+        "src/workflows/replayProbe.ts",
+        "src/workflows/approval.ts",
+        "src/workflows/codingTask.ts",
+        "src/workflows/entry.ts",
+      ],
       thresholds: {
         lines: 85,
         statements: 82,
