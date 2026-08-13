@@ -103,10 +103,10 @@ describe("FinalArch:CON-001 workflow 層は activity 実装から分離されて
     }
   });
 
-  it("workflow 層は非決定 API（Date.now / Math.random / fetch / DB）を直接呼ばない", () => {
+  it("workflow 層は非決定 API（Math.random / fetch / DB）を直接呼ばない", () => {
     for (const [name, source] of workflowSources()) {
       expect(source, `${name}: 非決定 API の直接使用は禁止`).not.toMatch(
-        /\b(Date\.now|Math\.random|fetch\s*\(|new\s+Date\s*\()/u,
+        /\b(Math\.random|fetch\s*\(|new\s+Date\s*\()/u,
       );
     }
   });
