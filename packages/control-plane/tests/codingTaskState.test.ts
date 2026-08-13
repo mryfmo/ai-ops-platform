@@ -91,16 +91,23 @@ describe("ADR-0006 callback signal は dispatch 束縛で replay/duplicate safe"
     }
   });
 
-  it("taskId 不一致・running 以外の phase は拒否", () => {
+  it("taskId 不一致・queued/running 以外の phase は拒否", () => {
     expect(
       evaluateCallbackSignal(RUNNING, { ...VALID_CALLBACK, taskId: "11111111-2222-4333-8444-555555555555" }),
     ).toEqual({ accepted: false, reason: "task-id-mismatch" });
-    for (const phase of ["requested", "approval_pending", "queued", "review_pending", "complete"] as const) {
+    for (const phase of ["requested", "approval_pending", "review_pending", "complete"] as const) {
       expect(evaluateCallbackSignal({ ...RUNNING, phase }, VALID_CALLBACK)).toEqual({
         accepted: false,
         reason: "wrong-phase",
       });
     }
+  });
+
+  it("P3-T04-005: dispatch in-flight（queued + 相関確定済み）中の正規 callback は受理される", () => {
+    expect(evaluateCallbackSignal({ ...RUNNING, phase: "queued" }, VALID_CALLBACK)).toEqual({
+      accepted: true,
+      callback: { outcome: "pr_created", runId: "run-1", prNumber: 41 },
+    });
   });
 
   it("callback outcome → phase は正典の分岐（failed のみ failed 終端）", () => {

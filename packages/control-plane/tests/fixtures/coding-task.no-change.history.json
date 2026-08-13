@@ -3,8 +3,8 @@
     {
       "eventId": "1",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 454000000
+        "seconds": "3994140333",
+        "nanos": 33000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
       "workflowExecutionStartedEventAttributes": {
@@ -34,9 +34,9 @@
         "workflowTaskTimeout": {
           "seconds": "10"
         },
-        "originalExecutionRunId": "305ab800-9f03-451e-8c30-24e423475405",
-        "identity": "76565@MacBook-Air.local",
-        "firstExecutionRunId": "305ab800-9f03-451e-8c30-24e423475405",
+        "originalExecutionRunId": "092a5a25-0caf-452b-a3f6-a6186829dab6",
+        "identity": "89427@MacBook-Air.local",
+        "firstExecutionRunId": "092a5a25-0caf-452b-a3f6-a6186829dab6",
         "attempt": 1,
         "firstWorkflowTaskBackoff": {},
         "header": {}
@@ -45,8 +45,8 @@
     {
       "eventId": "2",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 454000000
+        "seconds": "3994140333",
+        "nanos": 33000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
       "workflowTaskScheduledEventAttributes": {
@@ -63,27 +63,27 @@
     {
       "eventId": "3",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 454000000
+        "seconds": "3994140333",
+        "nanos": 33000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "2",
-        "identity": "76565@MacBook-Air.local",
-        "historySizeBytes": "587"
+        "identity": "89427@MacBook-Air.local",
+        "historySizeBytes": "585"
       }
     },
     {
       "eventId": "4",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 472000000
+        "seconds": "3994140333",
+        "nanos": 50000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "2",
-        "identity": "76565@MacBook-Air.local",
-        "binaryChecksum": "@temporalio/worker@1.22.0+b2d0b72ba9a3d63b5eaec3f9989fdebda8e6ea7e065cd7ee82bd5efec3d8c3dc",
+        "identity": "89427@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+5380d2ff82a1f27976acb69f22ce41b6e4614344b77a738a094714aadca08585",
         "sdkMetadata": {
           "coreUsedFlags": [1, 2, 3],
           "sdkName": "temporal-typescript",
@@ -95,8 +95,8 @@
     {
       "eventId": "5",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 472000000
+        "seconds": "3994140333",
+        "nanos": 50000000
       },
       "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
       "startChildWorkflowExecutionInitiatedEventAttributes": {
@@ -132,8 +132,8 @@
     {
       "eventId": "6",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 472000000
+        "seconds": "3994140333",
+        "nanos": 50000000
       },
       "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
       "childWorkflowExecutionStartedEventAttributes": {
@@ -141,7 +141,7 @@
         "initiatedEventId": "5",
         "workflowExecution": {
           "workflowId": "coding-task/3f6f2f6a-9f2e-4e6d-8a4b-2b8f6f2f6a95/approval",
-          "runId": "ff86e9b5-558d-4a63-ba1e-120e6f1d3d75"
+          "runId": "c7c1bf4d-cce8-4e21-b887-963eb8e1e51c"
         },
         "workflowType": {
           "name": "approvalWorkflow"
@@ -151,8 +151,8 @@
     {
       "eventId": "7",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 472000000
+        "seconds": "3994140333",
+        "nanos": 50000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
       "workflowTaskScheduledEventAttributes": {
@@ -169,27 +169,27 @@
     {
       "eventId": "8",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 472000000
+        "seconds": "3994140333",
+        "nanos": 50000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "7",
-        "identity": "76565@MacBook-Air.local",
-        "historySizeBytes": "1343"
+        "identity": "89427@MacBook-Air.local",
+        "historySizeBytes": "1336"
       }
     },
     {
       "eventId": "9",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 478000000
+        "seconds": "3994140333",
+        "nanos": 56000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "7",
-        "identity": "76565@MacBook-Air.local",
-        "binaryChecksum": "@temporalio/worker@1.22.0+b2d0b72ba9a3d63b5eaec3f9989fdebda8e6ea7e065cd7ee82bd5efec3d8c3dc",
+        "identity": "89427@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+5380d2ff82a1f27976acb69f22ce41b6e4614344b77a738a094714aadca08585",
         "sdkMetadata": {},
         "meteringMetadata": {}
       }
@@ -197,8 +197,8 @@
     {
       "eventId": "10",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 725000000
+        "seconds": "3994140333",
+        "nanos": 309000000
       },
       "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
       "childWorkflowExecutionCompletedEventAttributes": {
@@ -215,7 +215,7 @@
         "namespace": "default",
         "workflowExecution": {
           "workflowId": "coding-task/3f6f2f6a-9f2e-4e6d-8a4b-2b8f6f2f6a95/approval",
-          "runId": "ff86e9b5-558d-4a63-ba1e-120e6f1d3d75"
+          "runId": "c7c1bf4d-cce8-4e21-b887-963eb8e1e51c"
         },
         "workflowType": {
           "name": "approvalWorkflow"
@@ -227,8 +227,8 @@
     {
       "eventId": "11",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 725000000
+        "seconds": "3994140333",
+        "nanos": 309000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
       "workflowTaskScheduledEventAttributes": {
@@ -245,27 +245,27 @@
     {
       "eventId": "12",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 725000000
+        "seconds": "3994140333",
+        "nanos": 309000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "11",
-        "identity": "76565@MacBook-Air.local",
-        "historySizeBytes": "2098"
+        "identity": "89427@MacBook-Air.local",
+        "historySizeBytes": "2089"
       }
     },
     {
       "eventId": "13",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 731000000
+        "seconds": "3994140333",
+        "nanos": 314000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "11",
-        "identity": "76565@MacBook-Air.local",
-        "binaryChecksum": "@temporalio/worker@1.22.0+b2d0b72ba9a3d63b5eaec3f9989fdebda8e6ea7e065cd7ee82bd5efec3d8c3dc",
+        "identity": "89427@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+5380d2ff82a1f27976acb69f22ce41b6e4614344b77a738a094714aadca08585",
         "sdkMetadata": {},
         "meteringMetadata": {}
       }
@@ -273,8 +273,8 @@
     {
       "eventId": "14",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 731000000
+        "seconds": "3994140333",
+        "nanos": 314000000
       },
       "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
       "activityTaskScheduledEventAttributes": {
@@ -330,21 +330,21 @@
     {
       "eventId": "15",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 731000000
+        "seconds": "3994140333",
+        "nanos": 314000000
       },
       "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
       "activityTaskStartedEventAttributes": {
         "scheduledEventId": "14",
-        "identity": "76565@MacBook-Air.local",
+        "identity": "89427@MacBook-Air.local",
         "attempt": 1
       }
     },
     {
       "eventId": "16",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 732000000
+        "seconds": "3994140333",
+        "nanos": 315000000
       },
       "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
       "activityTaskCompletedEventAttributes": {
@@ -360,14 +360,14 @@
         },
         "scheduledEventId": "14",
         "startedEventId": "15",
-        "identity": "76565@MacBook-Air.local"
+        "identity": "89427@MacBook-Air.local"
       }
     },
     {
       "eventId": "17",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 732000000
+        "seconds": "3994140333",
+        "nanos": 315000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
       "workflowTaskScheduledEventAttributes": {
@@ -384,27 +384,27 @@
     {
       "eventId": "18",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 732000000
+        "seconds": "3994140333",
+        "nanos": 315000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "17",
-        "identity": "76565@MacBook-Air.local",
-        "historySizeBytes": "2914"
+        "identity": "89427@MacBook-Air.local",
+        "historySizeBytes": "2905"
       }
     },
     {
       "eventId": "19",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 735000000
+        "seconds": "3994140333",
+        "nanos": 318000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "17",
-        "identity": "76565@MacBook-Air.local",
-        "binaryChecksum": "@temporalio/worker@1.22.0+b2d0b72ba9a3d63b5eaec3f9989fdebda8e6ea7e065cd7ee82bd5efec3d8c3dc",
+        "identity": "89427@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+5380d2ff82a1f27976acb69f22ce41b6e4614344b77a738a094714aadca08585",
         "sdkMetadata": {},
         "meteringMetadata": {}
       }
@@ -412,8 +412,8 @@
     {
       "eventId": "20",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 735000000
+        "seconds": "3994140333",
+        "nanos": 318000000
       },
       "eventType": "EVENT_TYPE_TIMER_STARTED",
       "timerStartedEventAttributes": {
@@ -427,8 +427,8 @@
     {
       "eventId": "21",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 987000000
+        "seconds": "3994140333",
+        "nanos": 572000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED",
       "workflowExecutionSignaledEventAttributes": {
@@ -439,18 +439,18 @@
               "metadata": {
                 "encoding": "anNvbi9wbGFpbg=="
               },
-              "data": "eyJ0YXNrSWQiOiIzZjZmMmY2YS05ZjJlLTRlNmQtOGE0Yi0yYjhmNmYyZjZhOTUiLCJkaXNwYXRjaElkIjoiZGlzcGF0Y2g6M2Y2ZjJmNmEtOWYyZS00ZTZkLThhNGItMmI4ZjZmMmY2YTk1Iiwib3V0Y29tZSI6Im5vX2NoYW5nZSIsInJ1bklkIjoicnVuLTEifQ=="
+              "data": "eyJ0YXNrSWQiOiIzZjZmMmY2YS05ZjJlLTRlNmQtOGE0Yi0yYjhmNmYyZjZhOTUiLCJkaXNwYXRjaElkIjoiY29kaW5nLXRhc2svM2Y2ZjJmNmEtOWYyZS00ZTZkLThhNGItMmI4ZjZmMmY2YTk1I2Rpc3BhdGNoQ29kaW5nVGFzayMwIiwib3V0Y29tZSI6Im5vX2NoYW5nZSIsInJ1bklkIjoicnVuLTEifQ=="
             }
           ]
         },
-        "identity": "76565@MacBook-Air.local"
+        "identity": "89427@MacBook-Air.local"
       }
     },
     {
       "eventId": "22",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 987000000
+        "seconds": "3994140333",
+        "nanos": 572000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
       "workflowTaskScheduledEventAttributes": {
@@ -467,27 +467,27 @@
     {
       "eventId": "23",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 987000000
+        "seconds": "3994140333",
+        "nanos": 572000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
       "workflowTaskStartedEventAttributes": {
         "scheduledEventId": "22",
-        "identity": "76565@MacBook-Air.local",
-        "historySizeBytes": "3439"
+        "identity": "89427@MacBook-Air.local",
+        "historySizeBytes": "3454"
       }
     },
     {
       "eventId": "24",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 993000000
+        "seconds": "3994140333",
+        "nanos": 578000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
       "workflowTaskCompletedEventAttributes": {
         "scheduledEventId": "22",
-        "identity": "76565@MacBook-Air.local",
-        "binaryChecksum": "@temporalio/worker@1.22.0+b2d0b72ba9a3d63b5eaec3f9989fdebda8e6ea7e065cd7ee82bd5efec3d8c3dc",
+        "identity": "89427@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+5380d2ff82a1f27976acb69f22ce41b6e4614344b77a738a094714aadca08585",
         "sdkMetadata": {
           "langUsedFlags": [2]
         },
@@ -497,8 +497,8 @@
     {
       "eventId": "25",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 993000000
+        "seconds": "3994140333",
+        "nanos": 578000000
       },
       "eventType": "EVENT_TYPE_TIMER_CANCELED",
       "timerCanceledEventAttributes": {
@@ -510,8 +510,8 @@
     {
       "eventId": "26",
       "eventTime": {
-        "seconds": "3678779515",
-        "nanos": 993000000
+        "seconds": "3994140333",
+        "nanos": 578000000
       },
       "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
       "workflowExecutionCompletedEventAttributes": {

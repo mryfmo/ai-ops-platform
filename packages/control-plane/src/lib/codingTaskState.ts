@@ -23,7 +23,9 @@ export type CodingTaskPhase = (typeof CODING_TASK_PHASES)[number];
 
 export type CallbackOutcome = "pr_created" | "no_change" | "failed";
 
-/** GitHub Actions callback signal の payload。dispatchId で発火済み dispatch に束縛する。 */
+/** GitHub Actions callback signal の payload。dispatchId（= dispatch の決定的
+ * idempotency key。activity schedule 前に確定し、dispatch 入力として run へ
+ * 伝播、callback が echo する）で当該 dispatch に束縛する。 */
 export interface CodingTaskCallbackPayload {
   readonly taskId: string;
   readonly dispatchId: string;
@@ -173,7 +175,11 @@ export function evaluateCallbackSignal(
       (prNumber ?? null) === state.accepted.prNumber;
     return { accepted: false, reason: exactReplay ? "duplicate-callback" : "conflicting-callback" };
   }
-  if (state.phase !== "running") return { accepted: false, reason: "wrong-phase" };
+  // queued も受理する（P3-T04-005）: dispatch の HTTP 応答が失われても外部 run は
+  // 完走し得るため、activity in-flight 中に届いた正規 callback を棄却しない。
+  if (state.phase !== "queued" && state.phase !== "running") {
+    return { accepted: false, reason: "wrong-phase" };
+  }
   return {
     accepted: true,
     callback: { outcome: candidate.outcome as CallbackOutcome, runId: candidate.runId, prNumber: prNumber ?? null },

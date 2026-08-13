@@ -107,6 +107,22 @@ describe("ADR-0006 CodingTaskWorkflow の recorded history", () => {
     expect(scheduledActivityNames(history)).not.toContain("readReviewDecision");
   });
 
+  it("P3-T04-005: dispatch activity 実行中に届いた正規 callback は棄却されず complete まで前進する", () => {
+    const history = loadHistory("coding-task.inflight-callback.history.json");
+    const result = decodeResult(history);
+    expect(result.payload.phase).toBe("complete");
+    expect(result.payload.failureReason).toBeNull();
+    expect(result.payload.callback).toEqual({ outcome: "pr_created", runId: "run-1", prNumber: 41 });
+    // in-flight 中の正規 callback は拒否記録されない（dispatch-mismatch 0）。
+    expect(result.payload.rejectedCallbacks["dispatch-mismatch"]).toBe(0);
+    // signal 到着が activity 完了より先であることを history 順で確認する。
+    const signalIndex = history.events.findIndex((e) => e.workflowExecutionSignaledEventAttributes != null);
+    const dispatchCompletedIndex = history.events.findIndex((e) => e.activityTaskCompletedEventAttributes != null);
+    expect(signalIndex).toBeGreaterThan(-1);
+    expect(dispatchCompletedIndex).toBeGreaterThan(-1);
+    expect(signalIndex).toBeLessThan(dispatchCompletedIndex);
+  });
+
   it("TMP-004: per-task history 再構築（crash-resume proxy）でも全遷移が保持され complete する", () => {
     const history = loadHistory("coding-task.crash-resume.history.json");
     const result = decodeResult(history);
@@ -119,6 +135,7 @@ describe("ADR-0006 CodingTaskWorkflow の recorded history", () => {
     "coding-task.dispatch-reconciled.history.json",
     "coding-task.approval-rejected.history.json",
     "coding-task.callback-timeout.history.json",
+    "coding-task.inflight-callback.history.json",
     "coding-task.no-change.history.json",
     "coding-task.crash-resume.history.json",
   ]) {

@@ -202,9 +202,11 @@ try {
       ...overrides,
     },
   });
+  // 相関 ID = dispatch の決定的 idempotency key（activity schedule 前に確定）。
+  const correlationFor = (taskId) => `coding-task/${taskId}#dispatchCodingTask#0`;
   const callbackFor = (taskId, overrides = {}) => ({
     taskId,
-    dispatchId: `dispatch:${taskId}`,
+    dispatchId: correlationFor(taskId),
     outcome: "pr_created",
     runId: "run-1",
     prNumber: 41,
@@ -217,13 +219,14 @@ try {
   /** 非冪等 dispatch + review 決定 read の代役 store。loseResponse で応答喪失を再現。
    *  reviewDecisions は DB 正本の代役 queue: 先頭から消費し、最後の要素は繰り返す。
    *  pending を先頭に積めば「signal だけでは完了しない」経路を記録できる。 */
-  function makeCodingActivities({ loseResponse, reviewDecisions = [] }) {
+  function makeCodingActivities({ loseResponse, reviewDecisions = [], dispatchDelayMs = 0 }) {
     const store = new Map();
     const decisions = [...reviewDecisions];
     return {
       async dispatchCodingTask(input, idempotencyKey) {
         const value = `dispatch:${input.taskId}`;
         store.set(idempotencyKey, value);
+        if (dispatchDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, dispatchDelayMs));
         if (loseResponse) throw new Error("synthetic lost response after dispatch");
         return value;
       },
@@ -253,14 +256,17 @@ try {
     await child.signal("approvalDecision", validSignal);
   };
 
-  const recordCodingTask = async (name, { taskId, loseResponse, reviewDecisions, workerOptions = {}, drive }) => {
+  const recordCodingTask = async (
+    name,
+    { taskId, loseResponse, reviewDecisions, dispatchDelayMs, workerOptions = {}, drive },
+  ) => {
     const taskQueue = `coding-task-${name}`;
     const workflowId = `coding-task/${taskId}`;
     const worker = await Worker.create({
       connection: env.nativeConnection,
       taskQueue,
       workflowsPath,
-      activities: makeCodingActivities({ loseResponse, reviewDecisions }),
+      activities: makeCodingActivities({ loseResponse, reviewDecisions, dispatchDelayMs }),
       ...workerOptions,
     });
     const result = await worker.runUntil(async () => {
@@ -370,6 +376,29 @@ try {
 
   // crash-resume（TMP-004）: per-task history 再構築（maxCachedWorkflows=0）でも
   // 全遷移が durable に再開され complete まで到達する。
+  // in-flight race（P3-T04-005）: dispatch activity 実行中に正規 callback が届いても
+  // 棄却されず、activity 完了後そのまま前進して complete する。
+  {
+    const taskId = taskIdFor(6);
+    await recordCodingTask("inflight-callback", {
+      taskId,
+      loseResponse: false,
+      reviewDecisions: [completeDecision(taskId)],
+      dispatchDelayMs: 4_000,
+      drive: {
+        input: codingInput(taskId),
+        run: async (handle) => {
+          await approveChild(taskId);
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "queued", "phase queued (dispatch in flight)");
+          await handle.signal("codingTaskCallback", callbackFor(taskId)); // activity 実行中に到着
+          await waitQuery(handle, "codingTaskPhase", (p) => p === "review_pending", "phase review_pending");
+          await handle.signal("codingTaskReview", reviewFor(taskId));
+          return handle.result();
+        },
+      },
+    });
+  }
+
   // no-change: レビュー対象 PR が存在しない正当な no-op は review なしで complete。
   {
     const taskId = taskIdFor(5);

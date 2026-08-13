@@ -27,7 +27,9 @@ import type { VersionedPayload } from "../contracts/index.js";
 
 /** workflow が要求する activity 契約（実装は worker 側 DI。実 GitHub 呼び出しはしない）。 */
 export interface CodingTaskActivities {
-  /** workflow_dispatch の発火（非冪等）。戻り値は dispatch 相関識別子。 */
+  /** workflow_dispatch の発火（非冪等）。idempotencyKey は相関 ID として dispatch
+   *  入力に含めて run へ伝播させる契約（callback は同じ値を echo する）。
+   *  戻り値は provider 側識別子（相関には使わない）。 */
   dispatchCodingTask(
     input: { taskId: string; owner: string; repo: string; ref: string },
     idempotencyKey: string,
@@ -85,6 +87,9 @@ export async function codingTaskWorkflow(
   const request = input.payload;
 
   let phase: CodingTaskPhase = "requested";
+  // 相関 ID は activity schedule 前に決定的に確定する（P3-T04-005: in-flight 中の
+  // 正規 callback を dispatch-mismatch で失わない）。受理時機は phase guard が握る。
+  const dispatchCorrelationId = buildIdempotencyKey(`coding-task/${request.taskId}`, "dispatchCodingTask", 0);
   let dispatchId: string | null = null;
   let acceptedCallback: AcceptedCallback | null = null;
   let reviewWakes = 0;
@@ -167,7 +172,7 @@ export async function codingTaskWorkflow(
   // queued → running: dispatch は 1 回だけ（TMP-003）。応答喪失は reconcile で回収。
   // 相関識別子を保持し、callback はこの dispatch にのみ束縛される（P3-T04-002）。
   phase = "queued";
-  const idempotencyKey = buildIdempotencyKey(`coding-task/${request.taskId}`, "dispatchCodingTask", 0);
+  dispatchId = dispatchCorrelationId;
   let dispatchOutcome: "executed" | "reconciled";
   try {
     const dispatched = await runExternalSideEffect<
@@ -179,17 +184,17 @@ export async function codingTaskWorkflow(
         reconcile: async (key) => reads.findCodingTaskDispatch(key),
       },
       { taskId: request.taskId, ...request.repository },
-      idempotencyKey,
+      dispatchCorrelationId,
     );
     dispatchOutcome = dispatched.outcome;
-    dispatchId = dispatched.result;
   } catch (error) {
     if (!(error instanceof ExternalSideEffectUnresolvedError)) throw error;
     phase = "failed";
     return finish("dispatch-unresolved", null);
   }
 
-  // running → pr_created|no_change|failed（callback signal、期限付き）
+  // running → pr_created|no_change|failed（callback signal、期限付き。queued 中に
+  // 受理済みの callback があればそのまま前進する）
   phase = "running";
   const callbackArrived = await condition(() => acceptedCallback !== null, request.callbackTimeoutMs);
   if (!callbackArrived || acceptedCallback === null) {
