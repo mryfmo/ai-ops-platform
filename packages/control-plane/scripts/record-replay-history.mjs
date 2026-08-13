@@ -106,38 +106,53 @@ try {
     fs.writeFileSync(path.join(fixturesDir, fixtureName), `${JSON.stringify(history.toJSON(), null, 2)}\n`);
   };
 
-  // approved: stale/mismatch signal を拒否したうえで valid signal だけが決定する。
+  // approved: 完全な adversarial matrix（stale 双方向・id 不一致・不正 decision・
+  // 無記名・malformed null・受理後 duplicate）を拒否したうえで valid signal だけが
+  // 決定する。signal は worker 起動前に積み、単一 workflow task で順番に処理させる
+  // （順序を決定的にし、受理後 duplicate が完了前に必ず届くようにする）。
   {
     const taskQueue = "approval-approved";
     const workflowId = `approval/${taskQueue}`;
-    const worker = await Worker.create({ connection: env.nativeConnection, taskQueue, workflowsPath });
-    const result = await worker.runUntil(async () => {
-      const handle = await env.client.workflow.start("approvalWorkflow", {
-        taskQueue,
-        workflowId,
-        args: [approvalInput(3_600_000)],
-      });
-      await handle.signal("approvalDecision", { ...validSignal, version: 2 }); // stale
-      await handle.signal("approvalDecision", { ...validSignal, approvalId: "11111111-2222-4333-8444-555555555555" });
-      await handle.signal("approvalDecision", validSignal);
-      return handle.result();
+    const handle = await env.client.workflow.start("approvalWorkflow", {
+      taskQueue,
+      workflowId,
+      args: [approvalInput(3_600_000)],
     });
+    await handle.signal("approvalDecision", { ...validSignal, version: 2 }); // stale（過去）
+    await handle.signal("approvalDecision", { ...validSignal, version: 4 }); // stale（未来）
+    await handle.signal("approvalDecision", { ...validSignal, approvalId: "11111111-2222-4333-8444-555555555555" });
+    await handle.signal("approvalDecision", { ...validSignal, decision: "auto-approve" });
+    await handle.signal("approvalDecision", { ...validSignal, approverObjectId: "   " });
+    await handle.signal("approvalDecision", null); // malformed
+    await handle.signal("approvalDecision", validSignal);
+    await handle.signal("approvalDecision", { ...validSignal, decision: "rejected" }); // 受理後 duplicate
+    const worker = await Worker.create({ connection: env.nativeConnection, taskQueue, workflowsPath });
+    const result = await worker.runUntil(handle.result());
     await saveHistory(workflowId, "approval.approved.history.json");
     console.log(
       `recorded approval.approved.history.json (${result.payload.status}, rejected: ${JSON.stringify(result.payload.rejectedSignals)})`,
     );
   }
 
-  // expired: signal なしで期限超過 → expired（自動承認なし）。
+  // expired: 不正 signal（malformed / stale）だけを受けた待機は、どれだけ拒否を
+  // 積んでも approved にならず、期限超過で expired 終了する（P3-T03-001 の回帰証跡:
+  // malformed signal が workflow を wedge させない）。
   {
     const taskQueue = "approval-expired";
     const workflowId = `approval/${taskQueue}`;
+    const handle = await env.client.workflow.start("approvalWorkflow", {
+      taskQueue,
+      workflowId,
+      args: [approvalInput(5_000)],
+    });
+    await handle.signal("approvalDecision", null); // malformed
+    await handle.signal("approvalDecision", { ...validSignal, version: 2 }); // stale
     const worker = await Worker.create({ connection: env.nativeConnection, taskQueue, workflowsPath });
-    const result = await worker.runUntil(
-      env.client.workflow.execute("approvalWorkflow", { taskQueue, workflowId, args: [approvalInput(5_000)] }),
-    );
+    const result = await worker.runUntil(handle.result());
     await saveHistory(workflowId, "approval.expired.history.json");
-    console.log(`recorded approval.expired.history.json (${result.payload.status})`);
+    console.log(
+      `recorded approval.expired.history.json (${result.payload.status}, rejected: ${JSON.stringify(result.payload.rejectedSignals)})`,
+    );
   }
 
   // restart-safe: maxCachedWorkflows=0 で sticky cache を無効化し、workflow task 毎に

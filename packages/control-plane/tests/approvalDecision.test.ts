@@ -65,6 +65,24 @@ describe("TMP-002 decision signal は version CAS でのみ受理される", () 
     }
   });
 
+  it("P3-T03-001: malformed payload（null/非 object/欠損 field）は throw せず理由付き拒否", () => {
+    for (const malformed of [
+      null,
+      undefined,
+      "approve",
+      42,
+      [],
+      {},
+      { approvalId: APPROVAL_ID },
+      { ...VALID, version: "3" },
+    ]) {
+      expect(evaluateDecisionSignal(WAITING, malformed), JSON.stringify(malformed) ?? "undefined").toEqual({
+        accepted: false,
+        reason: "malformed-payload",
+      });
+    }
+  });
+
   it("境界: 不正な approval 要求は E-CP-CONTRACT 相当の RangeError", () => {
     expect(() => assertApprovalRequest({ approvalId: APPROVAL_ID, version: 1, expiryMs: 1 })).not.toThrow();
     expect(() => assertApprovalRequest({ approvalId: "not-a-uuid", version: 1, expiryMs: 1 })).toThrow(RangeError);

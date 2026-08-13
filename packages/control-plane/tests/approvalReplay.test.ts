@@ -33,23 +33,34 @@ function decodeResultPayload(history: proto.temporal.api.history.v1.History): {
 }
 
 describe("TMP-002 approval workflow の recorded history", () => {
-  it("approved fixture: stale/mismatch signal は拒否記録され、valid signal だけが approved を確定する", () => {
+  it("approved fixture: 全 adversarial matrix を拒否記録し、valid signal だけが approved を確定する", () => {
     const history = loadHistory("approval.approved.history.json");
     const signals = history.events.filter((e) => e.workflowExecutionSignaledEventAttributes != null);
-    expect(signals).toHaveLength(3);
+    expect(signals).toHaveLength(8);
     const result = decodeResultPayload(history);
     expect(result.payload.status).toBe("approved");
-    expect(result.payload.rejectedSignals["stale-version"]).toBe(1);
-    expect(result.payload.rejectedSignals["approval-id-mismatch"]).toBe(1);
+    // stale 双方向 2 / id 不一致 1 / 不正 decision 1 / 無記名 1 / malformed(null) 1 /
+    // 受理後 duplicate（rejected への上書き試行）1 — すべて拒否され、決定は覆らない。
+    expect(result.payload.rejectedSignals).toEqual({
+      "malformed-payload": 1,
+      "already-decided": 1,
+      "approval-id-mismatch": 1,
+      "stale-version": 2,
+      "invalid-decision": 1,
+      "missing-approver": 1,
+    });
   });
 
-  it("expired fixture: signal なしの期限超過は expired で完了し approved には到達しない（no auto-approval）", () => {
+  it("expired fixture: malformed/stale signal を受けても wedge せず期限超過で expired 終了する（P3-T03-001 回帰 + no auto-approval）", () => {
     const history = loadHistory("approval.expired.history.json");
     const names = eventNames(history);
     expect(names).toContain("EVENT_TYPE_TIMER_STARTED");
     expect(names).toContain("EVENT_TYPE_TIMER_FIRED");
-    expect(history.events.some((e) => e.workflowExecutionSignaledEventAttributes != null)).toBe(false);
-    expect(decodeResultPayload(history).payload.status).toBe("expired");
+    expect(history.events.filter((e) => e.workflowExecutionSignaledEventAttributes != null)).toHaveLength(2);
+    const result = decodeResultPayload(history);
+    expect(result.payload.status).toBe("expired");
+    expect(result.payload.rejectedSignals["malformed-payload"]).toBe(1);
+    expect(result.payload.rejectedSignals["stale-version"]).toBe(1);
   });
 
   it("restart fixture: sticky cache 無効（task 毎に history から再構築）でも signal が処理され approved で完了する（restart-safe）", () => {

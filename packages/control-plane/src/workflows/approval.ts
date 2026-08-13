@@ -46,6 +46,7 @@ export async function approvalWorkflow(
   assertApprovalRequest(request);
 
   const rejectedSignals: Record<SignalRejectReason, number> = {
+    "malformed-payload": 0,
     "already-decided": 0,
     "approval-id-mismatch": 0,
     "stale-version": 0,

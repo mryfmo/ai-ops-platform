@@ -23,7 +23,12 @@ export interface ApprovalDecisionSignalPayload {
 }
 
 export type SignalRejectReason =
-  "already-decided" | "approval-id-mismatch" | "stale-version" | "invalid-decision" | "missing-approver";
+  | "malformed-payload"
+  | "already-decided"
+  | "approval-id-mismatch"
+  | "stale-version"
+  | "invalid-decision"
+  | "missing-approver";
 
 export type SignalEvaluation =
   | { readonly accepted: true; readonly decision: ApprovalDecision }
@@ -48,19 +53,27 @@ export function assertApprovalRequest(input: { approvalId: string; version: numb
  * decision signal の受理可否。受理は「未決 かつ approvalId 一致 かつ version 完全一致
  * （CAS） かつ decision が approved|rejected かつ approver 記名あり」のときのみ。
  * それ以外はすべて拒否理由付きで stale 扱い（自動承認への転落経路を作らない）。
+ *
+ * defineSignal の型は transport 境界を保証しないため、入力は unknown として
+ * 参照前に形を検証する（P3-T03-001: null 等の不正 payload が handler を throw
+ * させると workflow task が無限 retry になり expiry まで到達できない）。
  */
-export function evaluateDecisionSignal(
-  state: ApprovalWaitState,
-  signal: ApprovalDecisionSignalPayload,
-): SignalEvaluation {
+export function evaluateDecisionSignal(state: ApprovalWaitState, signal: unknown): SignalEvaluation {
+  if (typeof signal !== "object" || signal === null || Array.isArray(signal)) {
+    return { accepted: false, reason: "malformed-payload" };
+  }
+  const candidate = signal as Partial<ApprovalDecisionSignalPayload>;
+  if (typeof candidate.approvalId !== "string" || typeof candidate.version !== "number") {
+    return { accepted: false, reason: "malformed-payload" };
+  }
   if (state.decided) return { accepted: false, reason: "already-decided" };
-  if (signal.approvalId !== state.approvalId) return { accepted: false, reason: "approval-id-mismatch" };
-  if (signal.version !== state.version) return { accepted: false, reason: "stale-version" };
-  if (signal.decision !== "approved" && signal.decision !== "rejected") {
+  if (candidate.approvalId !== state.approvalId) return { accepted: false, reason: "approval-id-mismatch" };
+  if (candidate.version !== state.version) return { accepted: false, reason: "stale-version" };
+  if (candidate.decision !== "approved" && candidate.decision !== "rejected") {
     return { accepted: false, reason: "invalid-decision" };
   }
-  if (typeof signal.approverObjectId !== "string" || signal.approverObjectId.trim().length === 0) {
+  if (typeof candidate.approverObjectId !== "string" || candidate.approverObjectId.trim().length === 0) {
     return { accepted: false, reason: "missing-approver" };
   }
-  return { accepted: true, decision: signal.decision };
+  return { accepted: true, decision: candidate.decision };
 }
