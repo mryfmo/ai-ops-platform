@@ -4,3 +4,4 @@
 
 export { cancellationProbeWorkflow, replayProbeWorkflow } from "./replayProbe.js";
 export { approvalWorkflow } from "./approval.js";
+export { codingTaskWorkflow } from "./codingTask.js";
