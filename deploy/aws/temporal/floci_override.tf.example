@@ -1,0 +1,10 @@
+# 根拠: DEV-T01 / ADR-0029 / ENV-DEC-002 — dev-only; Terraform ignores *.tf.example.
+# validate-temporal.sh alone copies this file to an ephemeral module as floci_override.tf.
+provider "aws" {
+  region                      = var.aws_region
+  access_key                  = "000000000000"
+  secret_key                  = "floci"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+}
