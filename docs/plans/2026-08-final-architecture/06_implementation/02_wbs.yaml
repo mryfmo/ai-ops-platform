@@ -879,7 +879,7 @@ tasks:
   - worker identity scoped
   verification:
   - Temporal connection smoke
-  - mTLS worker certificate denial outside environment/namespace/task-queue scope and for admin/operator APIs
+  - environment-scope denial via per-env CA mTLS; namespace and admin/operator-API denial via internal-JWT authorizer; task-queue scope via worker deployment config and client-side guard (ENV-DEC-001 rev. 2026-08-13)
   rollback: Revert the task PR and leave the previous path enabled.
   acceptance_gate_ids:
   - TMP-001
