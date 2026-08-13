@@ -14,7 +14,7 @@ import { DeterminismViolationError } from "@temporalio/workflow";
 import { describe, expect, it } from "vitest";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workflowsPath = path.join(packageRoot, "src", "workflows", "replayProbe.ts");
+const workflowsPath = path.join(packageRoot, "src", "workflows", "entry.ts");
 
 function loadHistory(fixture: string): proto.temporal.api.history.v1.History {
   const raw = fs.readFileSync(path.join(packageRoot, "tests", "fixtures", fixture), "utf8");

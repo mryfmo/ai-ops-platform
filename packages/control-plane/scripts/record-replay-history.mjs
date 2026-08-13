@@ -14,7 +14,7 @@ import { Worker } from "@temporalio/worker";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesDir = path.join(packageRoot, "tests", "fixtures");
-const workflowsPath = path.join(packageRoot, "src", "workflows", "replayProbe.ts");
+const workflowsPath = path.join(packageRoot, "src", "workflows", "entry.ts");
 
 /** 外部 store の代役。lost-response 経路では書き込み成立後に応答を失う。 */
 function makeActivities({ loseResponse }) {
@@ -87,6 +87,87 @@ try {
       `${JSON.stringify(history.toJSON(), null, 2)}\n`,
     );
     console.log(`recorded replay-probe.cancelled.history.json (outcome: ${outcome})`);
+  }
+  // --- P3-T03 approval child workflow fixtures（TMP-002） ---
+  const APPROVAL_ID = "0f6f2f6a-9f2e-4e6d-8a4b-2b8f6f2f6a9f";
+  const approvalInput = (expiryMs) => ({
+    schemaVersion: 1,
+    payload: { approvalId: APPROVAL_ID, version: 3, expiryMs, requestedBy: "fixture" },
+  });
+  const validSignal = {
+    approvalId: APPROVAL_ID,
+    version: 3,
+    decision: "approved",
+    approverObjectId: "approver-1",
+    reason: "fixture approval",
+  };
+  const saveHistory = async (workflowId, fixtureName) => {
+    const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
+    fs.writeFileSync(path.join(fixturesDir, fixtureName), `${JSON.stringify(history.toJSON(), null, 2)}\n`);
+  };
+
+  // approved: stale/mismatch signal を拒否したうえで valid signal だけが決定する。
+  {
+    const taskQueue = "approval-approved";
+    const workflowId = `approval/${taskQueue}`;
+    const worker = await Worker.create({ connection: env.nativeConnection, taskQueue, workflowsPath });
+    const result = await worker.runUntil(async () => {
+      const handle = await env.client.workflow.start("approvalWorkflow", {
+        taskQueue,
+        workflowId,
+        args: [approvalInput(3_600_000)],
+      });
+      await handle.signal("approvalDecision", { ...validSignal, version: 2 }); // stale
+      await handle.signal("approvalDecision", { ...validSignal, approvalId: "11111111-2222-4333-8444-555555555555" });
+      await handle.signal("approvalDecision", validSignal);
+      return handle.result();
+    });
+    await saveHistory(workflowId, "approval.approved.history.json");
+    console.log(
+      `recorded approval.approved.history.json (${result.payload.status}, rejected: ${JSON.stringify(result.payload.rejectedSignals)})`,
+    );
+  }
+
+  // expired: signal なしで期限超過 → expired（自動承認なし）。
+  {
+    const taskQueue = "approval-expired";
+    const workflowId = `approval/${taskQueue}`;
+    const worker = await Worker.create({ connection: env.nativeConnection, taskQueue, workflowsPath });
+    const result = await worker.runUntil(
+      env.client.workflow.execute("approvalWorkflow", { taskQueue, workflowId, args: [approvalInput(5_000)] }),
+    );
+    await saveHistory(workflowId, "approval.expired.history.json");
+    console.log(`recorded approval.expired.history.json (${result.payload.status})`);
+  }
+
+  // restart-safe: maxCachedWorkflows=0 で sticky cache を無効化し、workflow task 毎に
+  // durable history から状態を完全再構築させる（= 各 task の間に worker が再起動した
+  // 場合と同一の resume 経路）。待機 → 状態確認 → signal の各 task がすべて
+  // 再構築後に正しく処理され approved で完了することを記録する。
+  // （2 worker の交代方式は time-skipping env で graceful shutdown が drain せず
+  //   hang するため不採用。実 worker プロセスの再起動 E2E は deploy/temporal smoke 側。）
+  {
+    const taskQueue = "approval-restart";
+    const workflowId = `approval/${taskQueue}`;
+    const worker = await Worker.create({
+      connection: env.nativeConnection,
+      taskQueue,
+      workflowsPath,
+      maxCachedWorkflows: 0,
+    });
+    const result = await worker.runUntil(async () => {
+      const handle = await env.client.workflow.start("approvalWorkflow", {
+        taskQueue,
+        workflowId,
+        args: [approvalInput(3_600_000)],
+      });
+      const state = await handle.query("approvalState");
+      if (state.decided !== false) throw new Error("approval fixture: unexpected pre-decided state");
+      await handle.signal("approvalDecision", validSignal);
+      return handle.result();
+    });
+    await saveHistory(workflowId, "approval.restart.history.json");
+    console.log(`recorded approval.restart.history.json (${result.payload.status} with per-task history rebuild)`);
   }
 } finally {
   await env.teardown();

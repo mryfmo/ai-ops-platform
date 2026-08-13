@@ -9,6 +9,16 @@ export { runExternalSideEffect, ExternalSideEffectUnresolvedError } from "./work
 export type { ExternalSideEffectPorts, ExternalSideEffectOutcome } from "./workflows/sideEffect.js";
 export { isPatchActive, retirePatch } from "./workflows/versioning.js";
 export { guardSideEffectDispatch, runCleanup } from "./workflows/cancellation.js";
+export { assertApprovalRequest, evaluateDecisionSignal } from "./lib/approvalDecision.js";
+export type {
+  ApprovalDecision,
+  ApprovalDecisionSignalPayload,
+  ApprovalWaitState,
+  SignalEvaluation,
+  SignalRejectReason,
+} from "./lib/approvalDecision.js";
+export { approvalDecisionSignal, approvalStateQuery, approvalWorkflow } from "./workflows/approval.js";
+export type { ApprovalOutcome, ApprovalRequest } from "./workflows/approval.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";
