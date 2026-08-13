@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 根拠: ADR-0029 / DEV-T01 / ENV-DEC-003 — dev-only Terraform pre-validation.
+# 根拠: ADR-0029 / DEV-T01 / ENV-DEC-015 — dev-only Terraform pre-validation.
 # @file deploy/aws/floci/validate-temporal.sh
 # @brief Pre-validate the Temporal Terraform module against local Floci only.
 # @description
