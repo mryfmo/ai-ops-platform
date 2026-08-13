@@ -332,4 +332,34 @@ describe("DevOps:SPEC-INT-040 HealthEvaluationWorkflow", () => {
     expect(applied).toMatchObject({ payload: { decision: "activate_failsafe" } });
     expect(writes).toBe(1);
   });
+
+  it("apply receipt が正規化済み failsafe decision を確認しなければ成功扱いしない", async () => {
+    const now = await env.currentTimeMs();
+    let writes = 0;
+    const errorPromise = execute(
+      "healthEvaluationWorkflow",
+      request("health", now, "active"),
+      activities({
+        async evaluateHealth(input: { payload: { observedAtMs: number } }) {
+          return health(input.payload.observedAtMs, "activate_failsafe");
+        },
+        async applyHealthDecision(input: { payload: { observedAtMs: number } }) {
+          writes += 1;
+          return {
+            schemaVersion: 1,
+            payload: {
+              observedAtMs: input.payload.observedAtMs,
+              healthy: false,
+              consecutiveFailures: 3,
+              decision: "none",
+            },
+          };
+        },
+      }),
+      "health-unconfirmed-failsafe",
+    ).catch((failure: unknown) => failure);
+    await env.sleep(HEALTH_EVALUATION_INTERVAL_MS);
+    await expect(errorPromise).resolves.toMatchObject({ cause: { type: "E-CP-CONTRACT", nonRetryable: true } });
+    expect(writes).toBe(1);
+  });
 });

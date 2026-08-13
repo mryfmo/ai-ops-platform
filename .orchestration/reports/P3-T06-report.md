@@ -8,7 +8,7 @@
   - JIT candidates come from an authoritative read whose activity contract requires the existing `isGrantExpired` / `AGT_SEC.revokeExpiredGrants` authority
   - active JIT revoke uses the existing `runExternalSideEffect` single-attempt boundary plus preflight and lost-response reconciliation
   - health evaluation activity contract requires the existing pure `AGT_ORCH.evaluateFailsafe`; active application persists every observation, including `none`, so consecutive-failure state is not lost
-  - unknown transport inputs and activity receipts are validated before use; three-or-more failures are normalized to `activate_failsafe` so an inconsistent activity decision cannot suppress the safety write, while malformed contracts terminate non-retryably as `E-CP-CONTRACT`
+  - unknown transport inputs and activity receipts are validated before use; evaluation results with three-or-more failures are normalized to `activate_failsafe`, while the subsequent write receipt is validated strictly so neither suppression nor false application can be reported; malformed contracts terminate non-retryably as `E-CP-CONTRACT`
   - unresolved external revocation terminates non-retryably as `E-CP-EXTERNAL-UNRESOLVED` and is never blindly retried
 - shadow coexistence:
   - existing server scheduler paths remain byte-unchanged

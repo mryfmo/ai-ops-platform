@@ -6,12 +6,13 @@
   - health persistence regression initially failed when an active `none` decision skipped the state update; active evaluation now applies every observation
   - first independent Codex review found that an inconsistent unhealthy receipt (`consecutiveFailures >= 3`, `decision: none`) could suppress failsafe application; three parser cases and one workflow assertion failed before the shared parser boundary was hardened
   - fix-commit re-review found that rejecting that receipt still exited before the required safety write; the corrected parser/workflow assertions failed twice before the boundary normalized three-or-more failures to `activate_failsafe`
-- focused state/schedule/workflow tests: 3 files / 30 tests green
-- review-fix state/workflow tests: 2 files / 27 tests green after the four-test and two-test red runs
+  - safety-normalization re-review found that reusing normalization for the write receipt could falsely confirm an unapplied failsafe; parser and workflow assertions failed twice before evaluation normalization and strict application confirmation were separated
+- focused state/schedule/workflow tests: 3 files / 32 tests green
+- review-fix state/workflow tests: 2 files / 29 tests green after red runs of four, two, and two tests
 - recorded-history replay: 1 file / 6 tests green
-- complete control-plane package: 20 files / 156 tests green
+- complete control-plane package: 20 files / 158 tests green
 - reused DevOps authority: `agtSec.test.ts` and `agtOrch.test.ts`, 2 files / 19 tests green
-- control-plane coverage: statements 85.68%, branches 90.74%, functions 86.66%, lines 86.09%; all configured thresholds passed
+- control-plane coverage: statements 85.74%, branches 90.82%, functions 87.01%, lines 86.16%; all configured thresholds passed
 - TMP-003:
   - lost-response history schedules `revokeExpiredGrant` once and `findJitRevocation` before and after the lost response
   - revoke activity retry policy has `maximumAttempts=1`

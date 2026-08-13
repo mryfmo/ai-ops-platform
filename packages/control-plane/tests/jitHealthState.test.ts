@@ -6,6 +6,7 @@ import {
   JIT_EXPIRY_INTERVAL_MS,
   assertJitHealthRequest,
   jitHealthScheduleDelayMs,
+  parseHealthApplicationReceipt,
   parseHealthEvaluationReceipt,
   parseJitRevocationCandidates,
   parseJitRevocationReceipt,
@@ -145,5 +146,17 @@ describe("DevOps:SPEC-INT-032/040 JIT・health transport boundary", () => {
         10,
       ),
     ).toEqual({ observedAtMs: 10, healthy: false, consecutiveFailures: 3, decision: "activate_failsafe" });
+  });
+
+  it("apply receipt は failsafe decision を正規化せず厳密検証する", () => {
+    expect(() =>
+      parseHealthApplicationReceipt(
+        {
+          schemaVersion: 1,
+          payload: { observedAtMs: 10, healthy: false, consecutiveFailures: 3, decision: "none" },
+        },
+        10,
+      ),
+    ).toThrow(RangeError);
   });
 });

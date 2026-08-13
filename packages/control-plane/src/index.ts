@@ -75,6 +75,7 @@ export {
   buildHealthEvaluationWorkflowId,
   buildJitExpiryWorkflowId,
   jitHealthScheduleDelayMs,
+  parseHealthApplicationReceipt,
   parseHealthEvaluationReceipt,
   parseJitRevocationCandidates,
   parseJitRevocationReceipt,

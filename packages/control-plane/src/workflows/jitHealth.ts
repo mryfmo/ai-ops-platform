@@ -10,6 +10,7 @@ import {
   buildHealthEvaluationWorkflowId,
   buildJitExpiryWorkflowId,
   jitHealthScheduleDelayMs,
+  parseHealthApplicationReceipt,
   parseHealthEvaluationReceipt,
   parseJitRevocationCandidates,
   parseJitRevocationReceipt,
@@ -109,6 +110,14 @@ function validatedOptionalRevocation(
 function validatedHealth(value: unknown, observedAtMs: number): HealthEvaluationReceipt {
   try {
     return parseHealthEvaluationReceipt(value, observedAtMs);
+  } catch (error) {
+    return contractFailure(error);
+  }
+}
+
+function validatedAppliedHealth(value: unknown, observedAtMs: number): HealthEvaluationReceipt {
+  try {
+    return parseHealthApplicationReceipt(value, observedAtMs);
   } catch (error) {
     return contractFailure(error);
   }
@@ -228,7 +237,7 @@ export async function healthEvaluationWorkflow(input: unknown): Promise<Versione
       { schemaVersion: 1, payload: evaluation },
       idempotencyKey,
     );
-    const appliedEvaluation = validatedHealth(applied, observedAtMs);
+    const appliedEvaluation = validatedAppliedHealth(applied, observedAtMs);
     if (
       appliedEvaluation.healthy !== evaluation.healthy ||
       appliedEvaluation.consecutiveFailures !== evaluation.consecutiveFailures ||

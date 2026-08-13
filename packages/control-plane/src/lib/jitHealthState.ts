@@ -156,7 +156,7 @@ export function parseOptionalJitRevocationReceipt(
   return value === null ? null : parseJitRevocationReceipt(value, grantId, idempotencyKey);
 }
 
-export function parseHealthEvaluationReceipt(value: unknown, observedAtMs: number): HealthEvaluationReceipt {
+function parseHealthReceipt(value: unknown, observedAtMs: number, normalizeFailsafe: boolean): HealthEvaluationReceipt {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new RangeError("health evaluation receipt must use schemaVersion 1 with an object payload");
   }
@@ -176,16 +176,29 @@ export function parseHealthEvaluationReceipt(value: unknown, observedAtMs: numbe
   }
   const stateIsConsistent = receipt.healthy
     ? receipt.consecutiveFailures === 0 && receipt.decision !== "activate_failsafe"
-    : receipt.consecutiveFailures > 0 && (receipt.consecutiveFailures >= 3 || receipt.decision === "none");
+    : receipt.consecutiveFailures > 0 &&
+      (receipt.consecutiveFailures >= 3
+        ? normalizeFailsafe || receipt.decision === "activate_failsafe"
+        : receipt.decision === "none");
   if (!stateIsConsistent) {
     throw new RangeError("health evaluation receipt has an inconsistent decision");
   }
   const decision =
-    !receipt.healthy && receipt.consecutiveFailures >= 3 ? "activate_failsafe" : (receipt.decision as HealthDecision);
+    normalizeFailsafe && !receipt.healthy && receipt.consecutiveFailures >= 3
+      ? "activate_failsafe"
+      : (receipt.decision as HealthDecision);
   return {
     observedAtMs,
     healthy: receipt.healthy,
     consecutiveFailures: receipt.consecutiveFailures,
     decision,
   };
+}
+
+export function parseHealthEvaluationReceipt(value: unknown, observedAtMs: number): HealthEvaluationReceipt {
+  return parseHealthReceipt(value, observedAtMs, true);
+}
+
+export function parseHealthApplicationReceipt(value: unknown, observedAtMs: number): HealthEvaluationReceipt {
+  return parseHealthReceipt(value, observedAtMs, false);
 }
