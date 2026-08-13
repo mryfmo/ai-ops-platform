@@ -297,4 +297,33 @@ describe("DevOps:SPEC-INT-040 HealthEvaluationWorkflow", () => {
     await expect(errorPromise).resolves.toMatchObject({ cause: { type: "E-CP-CONTRACT", nonRetryable: true } });
     expect(writes).toBe(0);
   });
+
+  it("3回失敗を none とする evaluation は E-CP-CONTRACT で終了し apply しない", async () => {
+    const now = await env.currentTimeMs();
+    let writes = 0;
+    const errorPromise = execute(
+      "healthEvaluationWorkflow",
+      request("health", now, "active"),
+      activities({
+        async evaluateHealth(input: { payload: { observedAtMs: number } }) {
+          return {
+            schemaVersion: 1,
+            payload: {
+              observedAtMs: input.payload.observedAtMs,
+              healthy: false,
+              consecutiveFailures: 3,
+              decision: "none",
+            },
+          };
+        },
+        async applyHealthDecision() {
+          writes += 1;
+        },
+      }),
+      "health-suppressed-failsafe",
+    ).catch((failure: unknown) => failure);
+    await env.sleep(HEALTH_EVALUATION_INTERVAL_MS);
+    await expect(errorPromise).resolves.toMatchObject({ cause: { type: "E-CP-CONTRACT", nonRetryable: true } });
+    expect(writes).toBe(0);
+  });
 });

@@ -174,10 +174,11 @@ export function parseHealthEvaluationReceipt(value: unknown, observedAtMs: numbe
   ) {
     throw new RangeError("health evaluation receipt does not match workflow logical time");
   }
-  if (
-    (receipt.decision === "activate_failsafe" && (receipt.healthy || receipt.consecutiveFailures < 3)) ||
-    (receipt.decision === "recover" && (!receipt.healthy || receipt.consecutiveFailures !== 0))
-  ) {
+  const stateIsConsistent = receipt.healthy
+    ? receipt.consecutiveFailures === 0 && receipt.decision !== "activate_failsafe"
+    : receipt.consecutiveFailures > 0 &&
+      (receipt.consecutiveFailures >= 3 ? receipt.decision === "activate_failsafe" : receipt.decision === "none");
+  if (!stateIsConsistent) {
     throw new RangeError("health evaluation receipt has an inconsistent decision");
   }
   return {

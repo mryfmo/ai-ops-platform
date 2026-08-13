@@ -125,4 +125,14 @@ describe("DevOps:SPEC-INT-032/040 JIT・health transport boundary", () => {
       ),
     ).toThrow(RangeError);
   });
+
+  it.each([
+    { healthy: false, consecutiveFailures: 0, decision: "none" },
+    { healthy: false, consecutiveFailures: 3, decision: "none" },
+    { healthy: true, consecutiveFailures: 1, decision: "none" },
+  ])("不整合な health state を拒否する: %j", (payload) => {
+    expect(() =>
+      parseHealthEvaluationReceipt({ schemaVersion: 1, payload: { observedAtMs: 10, ...payload } }, 10),
+    ).toThrow(RangeError);
+  });
 });
