@@ -48,7 +48,11 @@
 
 ```bash
 ./deploy/temporal/certs/gen-certs.sh dev
+./deploy/temporal/authz/gen-authz.sh dev   # 署名鍵 + JWKS（authorizer の必須入力）
 docker compose -f deploy/temporal/docker-compose.yml up -d
+# authorizer 有効のため namespace は operator token で登録する:
+#   TOKEN=$(node deploy/temporal/authz/mint-token.mjs dev operator ops1)
+#   （smoke-client の registerNamespace と同処理。dev は smoke.sh が一括実行）
 ```
 
 ## dev 起動（Apple container CLI — この開発機の標準）
@@ -81,6 +85,25 @@ const connection = await createTemporalConnection(profile, {
 
 - 接続前に証明書 CN / issuer / 期限 / environment 整合が検証される（E-TMP01 fail-closed）
 - worker identity は gRPC metadata `aiops-worker-identity` として送出（監査用）
+
+## staging / prod bootstrap（Terraform apply 後の初期投入）
+
+1. 資材生成: `certs/gen-certs.sh <env>`（`SERVER_SAN` を Cloud Map 名に合わせ上書き:
+   `DNS:aiops-temporal-frontend.<env>,DNS:temporal.<env>.aiops.internal`）+
+   `authz/gen-authz.sh <env>`
+2. Secrets Manager へ投入（`aws secretsmanager put-secret-value`）:
+   `aiops-temporal-<env>/tls/{ca,server-cert,server-key,worker-cert,worker-key,operator-cert,operator-key}`、
+   `aiops-temporal-<env>/authz/{jwt-signing-key,jwks}`、`.../db-password`
+3. image: ADR-0029 に従い temporal / jwks sidecar image を **ECR へミラー**し
+   digest pin で `temporal_image` / `jwks_sidecar_image` に渡す（Terraform が
+   ECR + digest 形式を validation で強制）
+4. RDS に `temporal` / `temporal_visibility` DB と `temporal` role を作成
+   （schema は auto-setup が初期化）
+5. namespace 初期化: operator token（`mint-token.mjs <env> operator <name>`）で
+   `registerNamespace`（実行主体は運用者。worker token では拒否される）
+6. worker token 発行・配布: `mint-token.mjs <env> worker <name>`（TTL 12h）を
+   運用 pipeline で定期 mint し Secrets Manager の worker-token へ格納。
+   署名鍵は worker に配布しない
 
 ## 障害時
 

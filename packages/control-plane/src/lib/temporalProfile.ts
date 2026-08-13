@@ -150,3 +150,48 @@ export function assertCertificateMatchesProfile(
     throw new Error(`E-TMP01: certificate CN ${identity.commonName} does not match ${expectedCn}`);
   }
 }
+
+export interface AuthorizationTokenPayload {
+  sub: string;
+  exp: number;
+  permissions: readonly string[];
+}
+
+/** 内部発行 JWT の payload を復号する（署名検証は server の責務。ここでは worker 個体
+ * identity との束縛と期限の client 側 fail-closed のみを行う）。 */
+export function decodeAuthorizationToken(token: string, now: Date): AuthorizationTokenPayload {
+  const parts = token.split(".");
+  const payloadSegment = parts.length === 3 ? parts[1] : undefined;
+  if (!payloadSegment) throw new Error("E-TMP01: authorization token must be a JWT");
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8"));
+  } catch {
+    throw new Error("E-TMP01: authorization token payload is not valid JSON");
+  }
+  const { sub, exp, permissions } = payload as { sub?: unknown; exp?: unknown; permissions?: unknown };
+  if (typeof sub !== "string" || typeof exp !== "number" || !Array.isArray(permissions)) {
+    throw new Error("E-TMP01: authorization token must carry sub/exp/permissions");
+  }
+  if (exp * 1000 <= now.getTime()) {
+    throw new Error("E-TMP01: authorization token is expired");
+  }
+  return { sub, exp, permissions: permissions.map(String) };
+}
+
+/** token の sub と permissions を profile（worker 個体 + 自 namespace write のみ）へ束縛する。 */
+export function assertTokenMatchesProfile(
+  profile: TemporalConnectionProfile,
+  payload: AuthorizationTokenPayload,
+): void {
+  if (payload.sub !== profile.workerIdentity) {
+    throw new Error(`E-TMP01: token sub ${payload.sub} does not match worker identity ${profile.workerIdentity}`);
+  }
+  const allowed = `${profile.namespace}:write`;
+  const foreign = payload.permissions.filter((permission) => permission !== allowed);
+  if (!payload.permissions.includes(allowed) || foreign.length > 0) {
+    throw new Error(
+      `E-TMP01: worker token permissions must be exactly [${allowed}] (got ${payload.permissions.join(",")})`,
+    );
+  }
+}

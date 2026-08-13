@@ -113,6 +113,16 @@ resource "aws_security_group" "temporal" {
   }
 }
 
+# VPC endpoints 側の受け入れ（egress 相当の ingress を両方向で確立 — P3-T01-008）
+resource "aws_vpc_security_group_ingress_rule" "endpoints_from_temporal" {
+  security_group_id            = var.vpc_endpoints_security_group_id
+  referenced_security_group_id = aws_security_group.temporal.id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
+  description                  = "Temporal task to VPC endpoints (Secrets Manager / ECR / CloudWatch)"
+}
+
 # RDS 側の受け入れ（baseline の RDS SG へ本モジュールが片方向で穴を開ける）
 resource "aws_vpc_security_group_ingress_rule" "rds_from_temporal" {
   security_group_id            = var.rds_security_group_id

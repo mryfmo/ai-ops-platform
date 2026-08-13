@@ -24,3 +24,8 @@ export type {
 } from "./lib/temporalProfile.js";
 export { createTemporalConnection } from "./temporal/connection.js";
 export type { TemporalMtlsCredentials, TemporalConnectFn } from "./temporal/connection.js";
+export { decodeAuthorizationToken, assertTokenMatchesProfile } from "./lib/temporalProfile.js";
+export type { AuthorizationTokenPayload } from "./lib/temporalProfile.js";
+export { validateTokenProvider } from "./temporal/connection.js";
+export { createScopedWorker, refreshWorkerAuthorization } from "./temporal/worker.js";
+export type { ScopedWorker, ScopedWorkerOptions, NativeConnectFn, WorkerCreateFn } from "./temporal/worker.js";

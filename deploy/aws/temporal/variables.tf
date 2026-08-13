@@ -46,8 +46,10 @@ variable "temporal_image" {
   type        = string
   description = "Temporal server image（immutable digest で pin。ADR-0029）"
   validation {
-    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.temporal_image))
-    error_message = "temporal_image must be pinned by immutable digest (@sha256:<64 hex>)."
+    # ADR-0029: 本番 image は ECR ミラー + immutable digest（任意レジストリは endpoint
+    # 限定 egress で到達不能でもある）
+    condition     = can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/.+@sha256:[0-9a-f]{64}$", var.temporal_image))
+    error_message = "temporal_image must be an ECR-mirrored reference pinned by immutable digest."
   }
 }
 
@@ -55,8 +57,8 @@ variable "jwks_sidecar_image" {
   type        = string
   description = "JWKS 配信 sidecar image（busybox 系 httpd。immutable digest で pin）"
   validation {
-    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.jwks_sidecar_image))
-    error_message = "jwks_sidecar_image must be pinned by immutable digest (@sha256:<64 hex>)."
+    condition     = can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/.+@sha256:[0-9a-f]{64}$", var.jwks_sidecar_image))
+    error_message = "jwks_sidecar_image must be an ECR-mirrored reference pinned by immutable digest."
   }
 }
 

@@ -10,6 +10,8 @@
 import { Connection, type ConnectionOptions } from "@temporalio/client";
 import {
   assertCertificateMatchesProfile,
+  assertTokenMatchesProfile,
+  decodeAuthorizationToken,
   parseWorkerCertificateIdentity,
   type TemporalConnectionProfile,
 } from "../lib/temporalProfile.js";
@@ -21,10 +23,11 @@ export interface TemporalMtlsCredentials {
   clientKeyPem: string;
   /** 環境別 CA（PEM）。server 検証用 */
   serverRootCaPem: string;
-  /** プラットフォーム内部発行の認可トークン（RS256 JWT。ENV-DEC-001 + Owner 裁定
-   * 2026-08-13 — server 側 authorizer が namespace スコープ + 非 admin を強制する。
+  /** プラットフォーム内部発行の認可トークン（RS256 JWT）を返す provider。
+   * client Connection では各 RPC で評価されるため、renewal 済みトークンを返せば
+   * 再接続なしで認可が継続する（ENV-DEC-001 + Owner 裁定 2026-08-13。
    * Entra / 外部 IdP は関与しない）。 */
-  authorizationToken: string;
+  authorizationTokenProvider: () => string;
 }
 
 export type TemporalConnectFn = (options: ConnectionOptions) => Promise<Connection>;
@@ -42,12 +45,12 @@ export async function createTemporalConnection(
 ): Promise<Connection> {
   const identity = parseWorkerCertificateIdentity(credentials.clientCertPem, now());
   assertCertificateMatchesProfile(profile, identity);
-  if (typeof credentials.authorizationToken !== "string" || credentials.authorizationToken.trim() === "") {
-    throw new Error("E-TMP01: authorization token is required (server-side authorizer is mandatory)");
-  }
+  const initialToken = validateTokenProvider(profile, credentials, now);
+  void initialToken;
   return connectImpl({
     address: profile.address,
-    apiKey: credentials.authorizationToken,
+    // provider callback を渡す: SDK が RPC 毎に評価するため rotation が再接続なしで効く
+    apiKey: credentials.authorizationTokenProvider,
     tls: {
       serverRootCACertificate: Buffer.from(credentials.serverRootCaPem),
       clientCertPair: {
@@ -59,4 +62,21 @@ export async function createTemporalConnection(
     },
     metadata: { "aiops-worker-identity": profile.workerIdentity },
   });
+}
+
+/** provider の存在・初期トークンの形式/束縛を接続前に検証する（fail-closed）。 */
+export function validateTokenProvider(
+  profile: TemporalConnectionProfile,
+  credentials: Pick<TemporalMtlsCredentials, "authorizationTokenProvider">,
+  now: () => Date = () => new Date(),
+): string {
+  if (typeof credentials.authorizationTokenProvider !== "function") {
+    throw new Error("E-TMP01: authorization token provider is required (server-side authorizer is mandatory)");
+  }
+  const token = credentials.authorizationTokenProvider();
+  if (typeof token !== "string" || token.trim() === "") {
+    throw new Error("E-TMP01: authorization token provider returned an empty token");
+  }
+  assertTokenMatchesProfile(profile, decodeAuthorizationToken(token, now()));
+  return token;
 }

@@ -25,6 +25,7 @@
     "vitest": "4.1.10"
   },
   "dependencies": {
-    "@temporalio/client": "1.22.0"
+    "@temporalio/client": "1.22.0",
+    "@temporalio/worker": "1.22.0"
   }
 }

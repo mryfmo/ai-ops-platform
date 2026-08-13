@@ -5,7 +5,11 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { buildConnectionProfile, createTemporalConnection } from "../../packages/control-plane/dist/index.js";
+import {
+  buildConnectionProfile,
+  createScopedWorker,
+  createTemporalConnection,
+} from "../../packages/control-plane/dist/index.js";
 
 // @temporalio/client は control-plane の依存として解決する（root には置かない）
 const requireFromControlPlane = createRequire(new URL("../../packages/control-plane/package.json", import.meta.url));
@@ -29,7 +33,7 @@ const creds = (env, token) => ({
   clientCertPem: readFileSync(join(certDir, env, "worker.crt"), "utf8"),
   clientKeyPem: readFileSync(join(certDir, env, "worker.key"), "utf8"),
   serverRootCaPem: readFileSync(join(certDir, env, "ca.crt"), "utf8"),
-  authorizationToken: token,
+  authorizationTokenProvider: () => token,
 });
 
 const operatorTls = {
@@ -170,6 +174,35 @@ try {
   if (!String(error).includes("E-TMP01") || guardCalls !== 0) throw error;
 }
 console.log("OK: staging cert rejected by client guard before connect (E-TMP01)");
+
+// 8) token sub と profile 個体の不整合は接続前に拒否（P3-T01-006 の identity 束縛）
+const w2token = mint("dev", "worker", "w2");
+let subGuardCalls = 0;
+try {
+  await createTemporalConnection(profile, creds("dev", w2token), async () => {
+    subGuardCalls += 1;
+    return worker;
+  });
+  throw new Error("sub guard did not reject mismatched worker token");
+} catch (error) {
+  if (!String(error).includes("E-TMP01") || subGuardCalls !== 0) throw error;
+}
+console.log("OK: token sub mismatch rejected before connect (worker identity binding)");
+
+// 9) scoped Worker が profile の単一 task queue を実際に polling する（実効 guard）
+const scoped = await createScopedWorker(profile, creds("dev", workerToken), {
+  activities: { smokeNoop: async () => "ok" },
+});
+if (scoped.worker.options.taskQueue !== "incident" || scoped.worker.options.namespace !== "aiops-dev") {
+  throw new Error("scoped worker options drifted from profile");
+}
+const runPromise = scoped.worker.run();
+await new Promise((resolve) => setTimeout(resolve, 4000));
+if (scoped.worker.getState() !== "RUNNING") throw new Error(`worker state: ${scoped.worker.getState()}`);
+scoped.worker.shutdown();
+await runPromise;
+await scoped.connection.close();
+console.log("OK: scoped worker polled its single profile task queue (incident) under mTLS + JWT");
 
 await worker.close();
 await operator.close();
