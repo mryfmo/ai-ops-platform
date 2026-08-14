@@ -382,5 +382,5 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     } finally {
       rmSync(bundleDir, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 });

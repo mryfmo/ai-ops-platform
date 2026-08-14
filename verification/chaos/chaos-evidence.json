@@ -1,0 +1,515 @@
+{
+  "schemaVersion": 1,
+  "taskId": "P3-T11",
+  "deterministic": true,
+  "workflows": [
+    "replayProbeWorkflow",
+    "cancellationProbeWorkflow",
+    "approvalWorkflow",
+    "codingTaskWorkflow",
+    "graphSubscriptionWorkflow:renewal",
+    "graphSubscriptionWorkflow:delta",
+    "graphSubscriptionWorkflow:reconcile",
+    "jitExpiryWorkflow",
+    "healthEvaluationWorkflow",
+    "reportDeliveryWorkflow",
+    "planeSyncWorkflow",
+    "planeProjectionWorkflow",
+    "planeEventWorkflow",
+    "planePromotionWorkflow"
+  ],
+  "matrix": {
+    "restart": [
+      {
+        "workflow": "replayProbeWorkflow",
+        "classification": "recovered",
+        "terminal": "v2:executed:obj:restart",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "cancellationProbeWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "cancelled",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "approvalWorkflow",
+        "classification": "recovered",
+        "terminal": "approved",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "codingTaskWorkflow",
+        "classification": "recovered",
+        "terminal": "complete",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:renewal",
+        "classification": "recovered",
+        "terminal": "executed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:delta",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:reconcile",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "jitExpiryWorkflow",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "healthEvaluationWorkflow",
+        "classification": "recovered",
+        "terminal": "applied",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "reportDeliveryWorkflow",
+        "classification": "recovered",
+        "terminal": "complete",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeSyncWorkflow",
+        "classification": "recovered",
+        "terminal": "complete",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 3,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeProjectionWorkflow",
+        "classification": "recovered",
+        "terminal": "executed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeEventWorkflow",
+        "classification": "recovered",
+        "terminal": "executed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planePromotionWorkflow",
+        "classification": "recovered",
+        "terminal": "executed",
+        "probe": "maxCachedWorkflows=0;workflowTasks>=2",
+        "externalWrites": 1,
+        "duplicateSideEffects": 0
+      }
+    ],
+    "timeout": [
+      {
+        "workflow": "replayProbeWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "completed",
+        "probe": "replay-probe.reconciled.history.json:live-start-to-close-timeout-E-CP-EXTERNAL-UNRESOLVED",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "cancellationProbeWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "cancelled",
+        "probe": "replay-probe.cancelled.history.json:cancelled",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "approvalWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "completed",
+        "probe": "approval.expired.history.json:condition-expired",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "codingTaskWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "completed",
+        "probe": "coding-task.callback-timeout.history.json:callback-timeout",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:renewal",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "graph-subscription.renewal-lost-response.history.json:single-attempt-reconciled",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:delta",
+        "classification": "explicit-fail",
+        "terminal": "completed",
+        "probe": "graph-subscription.delta.history.json:live-heartbeat-timeout-explicit-fail-after-5-attempts",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:reconcile",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "graph-subscription.reconcile.history.json:bounded-read-completed",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "jitExpiryWorkflow",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "jit-health.jit-lost-response.history.json:single-attempt-reconciled",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "healthEvaluationWorkflow",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "jit-health.health.history.json:bounded-idempotent-write",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "reportDeliveryWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "failed",
+        "probe": "report-delivery.delivery-unresolved.history.json:E-CP-EXTERNAL-UNRESOLVED",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeSyncWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "failed",
+        "probe": "plane-sync.pending-no-redispatch.history.json:E-CP-EXTERNAL-UNRESOLVED",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeProjectionWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "failed",
+        "probe": "plane-sync.pending-no-redispatch.projection.history.json:E-CP-EXTERNAL-UNRESOLVED",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeEventWorkflow",
+        "classification": "recovered",
+        "terminal": "completed",
+        "probe": "plane-sync.complete.event.history.json:single-attempt-completed",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planePromotionWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "failed",
+        "probe": "plane-sync.promotion-stale-contract.promotion.history.json:E-CP-CONTRACT",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      }
+    ],
+    "duplicate": [
+      {
+        "workflow": "replayProbeWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "cancellationProbeWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "approvalWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "codingTaskWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:renewal",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:delta",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:reconcile",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "jitExpiryWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "healthEvaluationWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "reportDeliveryWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeSyncWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeProjectionWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeEventWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planePromotionWorkflow",
+        "classification": "recovered",
+        "terminal": "duplicate-start-rejected",
+        "probe": "concurrent same-workflow-id start",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      }
+    ],
+    "approval": [
+      {
+        "workflow": "replayProbeWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "cancellationProbeWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "approvalWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "no-auto-approval",
+        "probe": "approval.expired.history.json:malformed+stale flood expires",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "codingTaskWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "no-auto-approval",
+        "probe": "codingTaskWorkflow:P3-T03 child rejection blocks external write",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:renewal",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:delta",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "graphSubscriptionWorkflow:reconcile",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "jitExpiryWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "healthEvaluationWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "reportDeliveryWorkflow",
+        "classification": "explicit-fail",
+        "terminal": "no-auto-approval",
+        "probe": "reportDeliveryWorkflow:P3-T03 child rejection blocks external write",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeSyncWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeProjectionWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planeEventWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      },
+      {
+        "workflow": "planePromotionWorkflow",
+        "classification": "recovered",
+        "terminal": "no-approval-surface",
+        "probe": "workflow has no P3-T03 approval child",
+        "externalWrites": 0,
+        "duplicateSideEffects": 0
+      }
+    ]
+  },
+  "replayFixtures": [
+    "replay-probe.reconciled.history.json",
+    "replay-probe.cancelled.history.json",
+    "approval.approved.history.json",
+    "approval.expired.history.json",
+    "approval.restart.history.json",
+    "coding-task.complete.history.json",
+    "coding-task.dispatch-reconciled.history.json",
+    "coding-task.approval-rejected.history.json",
+    "coding-task.callback-timeout.history.json",
+    "graph-subscription.renewal-lost-response.history.json",
+    "graph-subscription.shadow-no-duplicate.history.json",
+    "graph-subscription.delta.history.json",
+    "graph-subscription.reconcile.history.json",
+    "jit-health.jit-lost-response.history.json",
+    "jit-health.jit-shadow-no-duplicate.history.json",
+    "jit-health.health.history.json",
+    "report-delivery.delivery-unresolved.history.json",
+    "report-delivery.approval-rejected.history.json",
+    "report-delivery.pending-no-resend.history.json",
+    "plane-sync.pending-no-redispatch.history.json",
+    "plane-sync.pending-no-redispatch.projection.history.json",
+    "plane-sync.unknown-write-reconciled.history.json",
+    "plane-sync.unknown-write-reconciled.projection.history.json",
+    "plane-sync.complete.event.history.json",
+    "plane-sync.promotion-stale-contract.promotion.history.json"
+  ],
+  "summary": {
+    "workflows": 14,
+    "scenarios": 56,
+    "recovered": 43,
+    "explicitFailures": 13,
+    "duplicateSideEffects": 0,
+    "runningWedges": 0,
+    "silentSuccesses": 0
+  }
+}
