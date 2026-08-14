@@ -1,6 +1,12 @@
-// 根拠: FinalArch:MCP-001 / FinalArch:MCP-002 / FinalArch:CON-003..005 / ADR-0023 / WBS P4-T04
-import { describe, expect, it, vi } from "vitest";
+// 根拠: FinalArch:MCP-001 / FinalArch:MCP-002 / FinalArch:MCP-006 / FinalArch:CON-003..005 / ADR-0023 / WBS P4-T04 / P4-T10
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  BOUNDED_INVOCATION_PROFILES,
+  deriveInvocationContext,
+  jsonResultByteLength,
+  resolveInvocationProfile,
+} from "../src/lib/invocationProfile.js";
 import { buildMcpPolicyInput } from "../src/lib/mcpPolicy.js";
 import {
   GovernedMcpToolCaller,
@@ -15,6 +21,8 @@ const TRACE_ID = "33333333-3333-4333-8333-333333333333";
 const FALLBACK_DECISION_ID = "44444444-4444-4444-8444-444444444444";
 const DECISION_ID = "55555555-5555-4555-8555-555555555555";
 const APPROVAL_ID = "66666666-6666-4666-8666-666666666666";
+
+afterEach(() => vi.useRealTimers());
 
 const request: GovernedMcpToolCallRequest = {
   operationId: OPERATION_ID,
@@ -49,6 +57,7 @@ const request: GovernedMcpToolCallRequest = {
     scope: { repository: "mryfmo/ai-ops-platform" },
   },
   context: { purpose: "repository investigation", environment: "dev" },
+  invocation: { depth: 0, ancestorOperationIds: [] },
   approval: { version: 1, expiryMs: 60_000 },
   input: { query: "open pull requests" },
 };
@@ -87,6 +96,7 @@ const approvalRequest = (risk: "L2" | "L3"): GovernedMcpToolCallRequest => ({
 function harness(
   policyDecision: ToolPolicyDecision | Error,
   authorityStatus: "pending" | "approved" | "rejected" = "pending",
+  now?: () => number,
 ) {
   const events: string[] = [];
   const execute = vi.fn(async () => {
@@ -146,10 +156,12 @@ function harness(
     execute,
     fallbackDecisionId: () => FALLBACK_DECISION_ID,
     policyBundleVersion: "0.1.0",
-    now: (() => {
-      let value = 100;
-      return () => (value += 10);
-    })(),
+    now:
+      now ??
+      (() => {
+        let value = 100;
+        return () => (value += 10);
+      })(),
   };
   return { caller: new GovernedMcpToolCaller(dependencies), dependencies, events, execute, recordReceipt };
 }
@@ -329,5 +341,131 @@ describe("P4-T04 governed MCP tool calls [FinalArch:MCP-001]", () => {
     });
     expect(h.execute).not.toHaveBeenCalled();
     expect(h.events).toEqual(["decide", "decision-record", "plan", "status:rejected", "receipt"]);
+  });
+});
+
+describe("P4-T10 bounded invocation profile [FinalArch:MCP-006]", () => {
+  it("uses deterministic risk profiles and the stricter policy result-size obligation", () => {
+    expect(BOUNDED_INVOCATION_PROFILES.L1).toEqual({
+      maxResultBytes: 524_288,
+      timeoutMs: 20_000,
+      maxDepth: 3,
+      maxChainLength: 6,
+    });
+    expect(resolveInvocationProfile("L1", 1_024).maxResultBytes).toBe(1_024);
+    expect(resolveInvocationProfile("L1", 999_999).maxResultBytes).toBe(524_288);
+    expect(jsonResultByteLength("é")).toBe(4);
+    expect(deriveInvocationContext(request)).toEqual({ depth: 1, ancestorOperationIds: [OPERATION_ID] });
+  });
+
+  it("discards an oversized result and records a fully correlated failed receipt", async () => {
+    const h = harness(decision("allow"));
+    h.execute.mockResolvedValueOnce({ payload: "x".repeat(524_288) });
+
+    const receipt = await h.caller.invoke(request);
+    expect(receipt).toMatchObject({
+      status: "failed",
+      errorCode: "E-TOOL-OVERSIZED",
+      correlation: {
+        traceId: TRACE_ID,
+        actorId: "user-1",
+        tool: { serverId: "github-read", serverVersion: "pinned", name: "read" },
+        resource: { id: "mryfmo/ai-ops-platform", projectId: "PJ-1" },
+        result: { status: "failed", errorCode: "E-TOOL-OVERSIZED" },
+      },
+    });
+    expect(receipt).not.toHaveProperty("result");
+    expect(h.dependencies.actionLedger.updateStatus).toHaveBeenLastCalledWith(OPERATION_ID, "failed", {
+      lastErrorClass: "E-TOOL-OVERSIZED",
+    });
+  });
+
+  it("times out deterministically and ignores a later successful result", async () => {
+    vi.useFakeTimers();
+    const h = harness(decision("allow"));
+    h.execute.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ late: true }), 20_001);
+        }),
+    );
+
+    const pending = h.caller.invoke(request);
+    await vi.advanceTimersByTimeAsync(20_000);
+    const receipt = await pending;
+    expect(receipt).toMatchObject({
+      status: "failed",
+      errorCode: "E-TOOL-TIMEOUT",
+    });
+    expect(receipt).not.toHaveProperty("result");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.events).not.toContain("status:applied");
+    expect(h.recordReceipt).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the wall-clock limit after synchronous result processing", async () => {
+    const timestamps = [0, 100, 20_100, 20_101];
+    const h = harness(decision("allow"), "pending", () => timestamps.shift() ?? 20_101);
+
+    await expect(h.caller.invoke(request)).resolves.toMatchObject({
+      status: "failed",
+      errorCode: "E-TOOL-TIMEOUT",
+    });
+    expect(h.events).not.toContain("status:applied");
+  });
+
+  it.each([
+    ["missing context", undefined, "E-TOOL-DEPTH"],
+    ["depth", { depth: 4, ancestorOperationIds: [] }, "E-TOOL-DEPTH"],
+    [
+      "chain",
+      { depth: 1, ancestorOperationIds: Array.from({ length: 6 }, (_, index) => `ancestor-${index}`) },
+      "E-TOOL-DEPTH",
+    ],
+    ["recursion", deriveInvocationContext(request), "E-TOOL-RECURSION"],
+  ] as const)("blocks %s before tool execution and records the limit result", async (_case, invocation, errorCode) => {
+    const h = harness(decision("allow"));
+    const boundedRequest = { ...request, invocation } as unknown as GovernedMcpToolCallRequest;
+
+    const receipt = await h.caller.invoke(boundedRequest);
+    expect(receipt).toMatchObject({
+      status: "failed",
+      errorCode,
+      correlation: { result: { status: "failed", errorCode } },
+    });
+    expect(receipt).not.toHaveProperty("result");
+    expect(h.execute).not.toHaveBeenCalled();
+    expect(h.recordReceipt).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a stricter OPA maxResultBytes obligation override the risk profile", async () => {
+    const h = harness(
+      decision("allow", {
+        obligations: { allowedProvider: "none", requireHumanApproval: false, maxResultBytes: 8 },
+      }),
+    );
+    h.execute.mockResolvedValueOnce({ ok: true });
+
+    const receipt = await h.caller.invoke(request);
+    expect(receipt).toMatchObject({
+      status: "failed",
+      errorCode: "E-TOOL-OVERSIZED",
+    });
+    expect(receipt).not.toHaveProperty("result");
+  });
+
+  it("normalizes a non-positive maxResultBytes obligation to malformed deny", async () => {
+    const h = harness(
+      decision("allow", {
+        obligations: { allowedProvider: "none", requireHumanApproval: false, maxResultBytes: 0 },
+      }),
+    );
+
+    await expect(h.caller.invoke(request)).resolves.toMatchObject({
+      status: "blocked",
+      decision: "deny",
+      errorCode: "E-OPA-MALFORMED",
+    });
+    expect(h.execute).not.toHaveBeenCalled();
   });
 });
