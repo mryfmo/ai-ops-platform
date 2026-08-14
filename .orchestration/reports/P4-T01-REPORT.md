@@ -1,11 +1,27 @@
 # P4-T01 Report — Deploy agentgateway in MCP/A2A-only mode
 
-- task_id: P4-T01 / writer: claude-code-fable5-xhigh / date: 2026-08-14
-- branch: agent/P4-T01-agentgateway-deploy
+- task_id: P4-T01 / writer: claude-code-fable5-xhigh / date: 2026-08-14（Round 3: 2026-08-15）
+- branch: agent/P4-T01-agentgateway-deploy / PR #228
 - gates: MCP-001（default deny tool policy / unknown tool denied）
 - refs: PRD-003 / PRD-005 / FR-MCP-001..007 / ADR-0023
 
-## 成果物
+## 現況 summary（Round 3 head `8428e7a` — こちらが正）
+
+- 本成果物は **non-enabled preparatory configuration**: license register の
+  agentgateway 行（SBOM/依存 license/NOTICE/承認 role）は **OPEN** で、
+  P4 entry と runtime 有効化は Owner/Security の binding ruling 待ち。
+  license 表記は upstream OCI label の申告値に限る
+- contracts は**許可形 allowlist 方式**（禁止キー blocklist ではない）:
+  レビュー済み構成形・deny-all sentinel `["false"]`・canonical JWT identity・
+  運用値（OTLP/ports/A2A body）・deployment 台帳整合・smoke fixture endpoint を
+  すべて完全一致で pin。focused **11 tests** / contracts 全体 **42 tests** green
+- smoke は 2 phase: 認証前面（401/404/ui 404）+ 認証済み probe
+  （per-run nonce + target counter で同一 process 証明、tools/list filter、
+  vendor 厳密形 400/-32602 denial、target 未到達）
+- codex adversarial review 3 巡: findings 001-003, 005-008 resolved。
+  残 004（Owner 裁定のみ）と 009（本 report 冒頭の陳腐化 → 本節で是正）
+
+## 成果物（初回提出時点の記述 — superseded。現況は上記 summary と Round 2/3 節が正）
 
 1. `deploy/agentgateway/config.yaml` — agentgateway v1.4.1 の推奨（非 deprecated）
    config 形（`gateways` + top-level `mcp` + `routes`）による本番形:
@@ -43,10 +59,11 @@
 - **deploy/aws/** 未使用\*\*: IaC 本体は P10-T01 管轄・AWS env は Owner 待ち。
   検証は WBS の verification（config/container smoke）を実 binary で充足
 
-## 検証
+## 検証（superseded — 現況は冒頭 summary のとおり 11 focused / 42 contracts）
 
-`.orchestration/validation/P4-T01-VALIDATION.md`（smoke 全 OK / contracts 37 pass /
-fresh-DB `mise run ci`）。
+`.orchestration/validation/P4-T01-VALIDATION.md`（Round 1..3 の全証跡。
+最新は Round 3 節: smoke 2 phase 全 OK / contracts 42 pass / fresh-DB
+`mise run ci` exit 0）。
 
 ## 残課題（後続タスクへ）
 
