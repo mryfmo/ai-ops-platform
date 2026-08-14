@@ -608,6 +608,110 @@ try {
     sequence: 13,
     executionMode: "active",
   });
+  // --- P3-T07 report delivery fixtures（TMP-003 / recipient idempotency） ---
+  {
+    const deliveryKey = (reportId, recipientId) => `report/delivery:${reportId}:${recipientId}#deliverReport#0`;
+    const makeReportActivities = ({ reportId, valid = true, preexisting = [], loseFor = [] }) => {
+      const log = new Map();
+      for (const recipientId of preexisting) log.set(recipientId, deliveryKey(reportId, recipientId));
+      return {
+        async generateReport(input) {
+          return { schemaVersion: 1, payload: { reportId: input.payload.reportId, contentChecksum: "checksum-1" } };
+        },
+        async validateReport(input) {
+          return {
+            schemaVersion: 1,
+            payload: { reportId: input.payload.reportId, valid, reason: valid ? null : "numbers missing" },
+          };
+        },
+        async findReportDelivery(input, idempotencyKey) {
+          const found = log.get(input.payload.recipientId);
+          if (found === undefined) return null;
+          return {
+            schemaVersion: 1,
+            payload: { reportId: input.payload.reportId, recipientId: input.payload.recipientId, idempotencyKey },
+          };
+        },
+        async deliverReport(input, idempotencyKey) {
+          log.set(input.payload.recipientId, idempotencyKey);
+          if (loseFor.includes(input.payload.recipientId)) {
+            throw new Error("synthetic lost response after delivery");
+          }
+          return {
+            schemaVersion: 1,
+            payload: { reportId: input.payload.reportId, recipientId: input.payload.recipientId, idempotencyKey },
+          };
+        },
+      };
+    };
+    const reportInput = (reportId, overrides = {}) => ({
+      schemaVersion: 1,
+      payload: {
+        reportId,
+        approvalId: APPROVAL_ID,
+        approvalVersion: 3,
+        approvalExpiryMs: 3_600_000,
+        executionMode: "active",
+        recipients: [{ recipientId: "user-1" }, { recipientId: "user-2" }],
+        requestedBy: "fixture",
+        ...overrides,
+      },
+    });
+    const recordReportDelivery = async (
+      name,
+      reportId,
+      activityOptions,
+      { approve = true, driveApproval = true, input } = {},
+    ) => {
+      const taskQueue = `report-delivery-${name}`;
+      const workflowId = `report/delivery:${reportId}`;
+      const worker = await Worker.create({
+        connection: env.nativeConnection,
+        taskQueue,
+        workflowsPath,
+        activities: makeReportActivities({ reportId, ...activityOptions }),
+      });
+      const result = await worker.runUntil(async () => {
+        const handle = await env.client.workflow.start("reportDeliveryWorkflow", {
+          taskQueue,
+          workflowId,
+          args: [input ?? reportInput(reportId)],
+        });
+        if (driveApproval) {
+          const child = env.client.workflow.getHandle(`${workflowId}/approval`);
+          await waitQuery(child, "approvalState", (st) => st.decided === false, "report approval waiting");
+          await child.signal("approvalDecision", {
+            ...validSignal,
+            decision: approve ? "approved" : "rejected",
+          });
+        }
+        return handle.result();
+      });
+      await saveHistory(workflowId, `report-delivery.${name}.history.json`);
+      console.log(
+        `recorded report-delivery.${name}.history.json (${result.payload.phase}/${result.payload.failureReason})`,
+      );
+    };
+
+    // complete: user-1 は既配信（authority read で reconciled、deliverReport 不発火）、
+    // user-2 のみ executed（recipient idempotency の混在証跡）。
+    await recordReportDelivery("complete", "fixture-report-1", { preexisting: ["user-1"] });
+    // delivery-lost-response: user-1 の配信応答喪失 → schedule 1 回 + reconcile 回収。
+    await recordReportDelivery("delivery-lost-response", "fixture-report-2", { loseFor: ["user-1"] });
+    // approval-rejected: 配信 activity は一切 schedule されない。
+    await recordReportDelivery("approval-rejected", "fixture-report-3", {}, { approve: false });
+    // validation-failed: approval child すら起動しない。
+    await recordReportDelivery("validation-failed", "fixture-report-4", { valid: false }, { driveApproval: false });
+    // shadow: 未配信 recipient への delivery write が構造的に発生しない。
+    await recordReportDelivery(
+      "shadow",
+      "fixture-report-5",
+      {},
+      {
+        input: reportInput("fixture-report-5", { executionMode: "shadow" }),
+      },
+    );
+  }
 } finally {
   await env.teardown();
 }

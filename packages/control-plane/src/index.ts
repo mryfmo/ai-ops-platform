@@ -124,3 +124,19 @@ export type { AuthorizationTokenPayload } from "./lib/temporalProfile.js";
 export { validateTokenProvider } from "./temporal/connection.js";
 export { createScopedWorker, refreshWorkerAuthorization } from "./temporal/worker.js";
 export type { ScopedWorker, ScopedWorkerOptions, NativeConnectFn, WorkerCreateFn } from "./temporal/worker.js";
+export {
+  assertReportDeliveryRequest,
+  parseOptionalReportDeliveryReceipt,
+  parseReportDeliveryReceipt,
+  parseReportGenerationReceipt,
+  parseReportValidationReceipt,
+} from "./lib/reportDeliveryState.js";
+export type {
+  ReportDeliveryReceipt,
+  ReportDeliveryRequest,
+  ReportGenerationReceipt,
+  ReportRecipient,
+  ReportValidationReceipt,
+} from "./lib/reportDeliveryState.js";
+export { buildReportDeliveryWorkflowId, reportDeliveryWorkflow } from "./workflows/reportDelivery.js";
+export type { ReportDeliveryActivities, ReportDeliveryResult } from "./workflows/reportDelivery.js";
