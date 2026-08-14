@@ -529,6 +529,23 @@ export async function main(
       traceIdProvider: () => randomUUID(),
     });
   const observedTask = (task: ScheduledTask): ScheduledTask => instrumentScheduledTask(task, metrics);
+  // 根拠: FinalArch:FR-CP-008 / WBS P3-T10。per-workflow cutover の実行ガード。
+  // 登録自体は維持し run() のみ抑止する（restart で常に旧経路へ復元可能 = soak 中の
+  // old path 可用性）。抑止集合は config（resolveTemporalCutover — kill switch 反映済み）。
+  const cutoverSuppressed = config.TEMPORAL_CUTOVER_SUPPRESSED;
+  if (config.TEMPORAL_KILL_SWITCH_ACTIVE) {
+    // P3-T10-006: KILL は server 側 legacy 復元のみ。Temporal 側 schedule が
+    // active のままだと overlap 窓で両 writer になる — runbook の順序
+    // （pause → KILL）を守ること。冪等台帳が最終防壁だが、依存しない運用が正。
+    logger.warn(
+      "temporal kill switch active: verify Temporal schedules are paused/shadowed (runbooks/temporal-cutover.md)",
+    );
+  }
+  if (cutoverSuppressed.size > 0) {
+    logger.info(`temporal cutover: legacy execution suppressed for ${[...cutoverSuppressed].sort().join(", ")}`);
+  }
+  const cutover = (registration: string, task: ScheduledTask): ScheduledTask =>
+    cutoverSuppressed.has(registration as never) ? { ...task, run: async (): Promise<void> => {} } : task;
   const pmSnapshotClient =
     githubPolicy.enabled && config.GITHUB_PROJECT_NODE_ID
       ? {
@@ -598,104 +615,126 @@ export async function main(
 
   // 根拠: FinalArch:FR-CP-008。resolveMigrationFlags は legacy scheduler を正本 default=true で
   // 解決する。cutover（temporal primary + legacy false）ではこの in-process scheduler を起動しない。
-  const legacySchedulerEnabled = config.MIGRATION_FLAGS.get("control.legacy_scheduler.enabled") !== "false";
+  // P3-T10-001/006: server 側 legacy-writer 制約（zero-writer 拒否 + kill での
+  // legacy 復元）は config 側 resolveLegacySchedulerEffective に集約。Temporal 側
+  // writer は制御対象外 — rollback は runbook の pause 先行手順に従う。
+  const legacySchedulerEnabled = config.LEGACY_SCHEDULER_EFFECTIVE;
   const scheduler = !legacySchedulerEnabled
     ? null
     : startScheduler(
         [
           observedTask(
-            createHealthcheckTask({
-              checkTargets: async () => {
-                await pool.query("SELECT 1");
-                metrics.setDbPool({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount });
-                return true;
-              },
-              activateFailsafe: async () => {},
-              isFailsafeActive: () => failsafeActive,
-              setFailsafeActive: (v) => {
-                failsafeActive = v;
-              },
-              auditLog: devopsAuditLog,
-              traceIdProvider: () => randomUUID(),
-            }),
-          ),
-          observedTask({
-            name: "capability-metrics-refresh-30s",
-            intervalMs: 30_000,
-            async run(now): Promise<void> {
-              // /metrics は同期描画のまま保ち、DBを毎scrapeせず、既存スケジューラで購読状態を更新する。
-              // coverage残日数は壁時計で減るため、長期稼働中も同じ30秒taskで閾値 crossing を反映する。
-              updateCalendarCoverageMetric(metrics, jpHolidayCalendar.entries, now);
-              await refreshSubscriptionPresence();
-              publishCapabilities();
-            },
-          }),
-          // Read-only monitoring must continue during failsafe, so this task is intentionally not guardFailsafeTask-wrapped.
-          observedTask(createReportDeliveryMetricsTask({ provider: reportDeliveryMetricsRepo, metrics })),
-          observedTask(
-            guardTask(
-              createApprovedDeployTask({
-                approvalsRepo,
-                deploymentsRepo,
-                workflowExists: (owner, repo) =>
-                  githubPolicy.enabled
-                    ? githubClient.workflowExists(owner, repo, "deploy-prod.yml")
-                    : Promise.resolve(false),
-                execute: (owner, repo, commitSha, traceId) =>
-                  executeProdDeploy("approved", owner, repo, commitSha, {
-                    githubClient,
-                    graphClient,
-                    auditLog: devopsAuditLog,
-                    traceId,
-                    cal: jpHolidayCalendar,
-                  }),
+            cutover(
+              "createHealthcheckTask",
+              createHealthcheckTask({
+                checkTargets: async () => {
+                  await pool.query("SELECT 1");
+                  metrics.setDbPool({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount });
+                  return true;
+                },
+                activateFailsafe: async () => {},
+                isFailsafeActive: () => failsafeActive,
+                setFailsafeActive: (v) => {
+                  failsafeActive = v;
+                },
                 auditLog: devopsAuditLog,
                 traceIdProvider: () => randomUUID(),
               }),
-              devopsAuditLog,
             ),
           ),
           observedTask(
-            guardTask(
-              createProdMonitorTask({
-                deploymentsRepo,
-                // A048 exposes rolling aggregates but not the complete TH-003 windows/baseline contract yet (D-04).
-                metricsProvider: { read: async () => null },
-                stableVersionsProvider: { read: async () => null },
-                workflowExists: (owner, repo) =>
-                  githubPolicy.enabled
-                    ? githubClient.workflowExists(owner, repo, "deploy-prod.yml")
-                    : Promise.resolve(false),
-                evaluate: (input, stableVersions, target, channel, traceId) =>
-                  monitorAndRollbackIfNeeded(
-                    input,
-                    stableVersions,
-                    target.owner,
-                    target.repo,
-                    target.projectId,
-                    channel,
-                    {
+            cutover("inline:capability-metrics-refresh-30s", {
+              name: "capability-metrics-refresh-30s",
+              intervalMs: 30_000,
+              async run(now): Promise<void> {
+                // /metrics は同期描画のまま保ち、DBを毎scrapeせず、既存スケジューラで購読状態を更新する。
+                // coverage残日数は壁時計で減るため、長期稼働中も同じ30秒taskで閾値 crossing を反映する。
+                updateCalendarCoverageMetric(metrics, jpHolidayCalendar.entries, now);
+                await refreshSubscriptionPresence();
+                publishCapabilities();
+              },
+            }),
+          ),
+          // Read-only monitoring must continue during failsafe, so this task is intentionally not guardFailsafeTask-wrapped.
+          observedTask(
+            cutover(
+              "createReportDeliveryMetricsTask",
+              createReportDeliveryMetricsTask({ provider: reportDeliveryMetricsRepo, metrics }),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createApprovedDeployTask",
+              guardTask(
+                createApprovedDeployTask({
+                  approvalsRepo,
+                  deploymentsRepo,
+                  workflowExists: (owner, repo) =>
+                    githubPolicy.enabled
+                      ? githubClient.workflowExists(owner, repo, "deploy-prod.yml")
+                      : Promise.resolve(false),
+                  execute: (owner, repo, commitSha, traceId) =>
+                    executeProdDeploy("approved", owner, repo, commitSha, {
                       githubClient,
                       graphClient,
                       auditLog: devopsAuditLog,
                       traceId,
                       cal: jpHolidayCalendar,
-                    },
-                  ),
-                auditLog: devopsAuditLog,
-                traceIdProvider: () => randomUUID(),
-              }),
-              devopsAuditLog,
+                    }),
+                  auditLog: devopsAuditLog,
+                  traceIdProvider: () => randomUUID(),
+                }),
+                devopsAuditLog,
+              ),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createProdMonitorTask",
+              guardTask(
+                createProdMonitorTask({
+                  deploymentsRepo,
+                  // A048 exposes rolling aggregates but not the complete TH-003 windows/baseline contract yet (D-04).
+                  metricsProvider: { read: async () => null },
+                  stableVersionsProvider: { read: async () => null },
+                  workflowExists: (owner, repo) =>
+                    githubPolicy.enabled
+                      ? githubClient.workflowExists(owner, repo, "deploy-prod.yml")
+                      : Promise.resolve(false),
+                  evaluate: (input, stableVersions, target, channel, traceId) =>
+                    monitorAndRollbackIfNeeded(
+                      input,
+                      stableVersions,
+                      target.owner,
+                      target.repo,
+                      target.projectId,
+                      channel,
+                      {
+                        githubClient,
+                        graphClient,
+                        auditLog: devopsAuditLog,
+                        traceId,
+                        cal: jpHolidayCalendar,
+                      },
+                    ),
+                  auditLog: devopsAuditLog,
+                  traceIdProvider: () => randomUUID(),
+                }),
+                devopsAuditLog,
+              ),
             ),
           ),
           ...(githubPolicy.enabled
             ? [
                 observedTask(
-                  createJitRevocationTask({
-                    grantsRepo,
-                    secDeps: { githubClient, auditLog: devopsAuditLog },
-                    traceIdProvider: () => randomUUID(),
-                  }),
+                  cutover(
+                    "createJitRevocationTask",
+                    createJitRevocationTask({
+                      grantsRepo,
+                      secDeps: { githubClient, auditLog: devopsAuditLog },
+                      traceIdProvider: () => randomUUID(),
+                    }),
+                  ),
                 ),
               ]
             : []),
@@ -703,154 +742,181 @@ export async function main(
           // 実行状態を観測してから判断するため GitHub クライアントを渡す。認証が無効なときは
           // タスク自身が「観測不能」として回収を見送り、理由を監査に残す。
           observedTask(
-            createCodingTaskReaperTask({
-              codingTasksRepo,
-              auditLog: devopsAuditLog,
-              traceIdProvider: () => randomUUID(),
-              githubClient: githubPolicy.enabled ? githubClient : undefined,
-            }),
-          ),
-          observedTask(
-            createSubscriptionRenewalTask({
-              graphSubscriptionsRepo,
-              graphClient,
-              auditLog: devopsAuditLog,
-              traceIdProvider: () => randomUUID(),
-              backfillSubscription: async (sub, now) => {
-                await backfillGraphSubscription(
-                  sub,
-                  {
-                    graphSubscriptionsRepo,
-                    projectChannelsRepo,
-                    channelMessagesRepo,
-                    graphClient,
-                    auditLog: prjopsAuditLog,
-                    traceIdProvider: () => randomUUID(),
-                  },
-                  now,
-                );
-              },
-            }),
-          ),
-          observedTask(
-            createChannelPollingTask({
-              graphSubscriptionsRepo,
-              projectChannelsRepo,
-              channelMessagesRepo,
-              graphClient,
-              auditLog: prjopsAuditLog,
-              traceIdProvider: () => randomUUID(),
-              recovery: {
-                notificationUrl: new URL("/webhooks/graph", config.PUBLIC_BASE_URL).toString(),
-                clientState: config.GRAPH_CLIENT_STATE,
-              },
-            }),
-          ),
-          observedTask(
-            guardTask(
-              createEventsPollingTask({
-                eventsRepo,
+            cutover(
+              "createCodingTaskReaperTask",
+              createCodingTaskReaperTask({
+                codingTasksRepo,
                 auditLog: devopsAuditLog,
-                dispatchInboundNotification: (payload, traceId) =>
-                  teamsConversationAgent.handleNotification(payload, traceId),
-                dispatchGithubEvent: (payload, traceId) =>
-                  dispatchGithubWebhookEvent(payload, traceId, {
-                    auditLog: devopsAuditLog,
-                    handlers: devopsEventHandlers,
-                    pmRepo: pmTimeseriesRepo,
-                  }),
-                dispatchMonitorEvent: async (payload, traceId) => {
-                  await devopsAuditLog.append({
-                    trace_id: traceId,
-                    actor: "AGT-DEP",
-                    action: "monitor_event_received",
-                    basis: "DevOps:SPEC-INT-020",
-                    detail: { hasPayload: payload !== null && payload !== undefined },
-                    at: new Date().toISOString(),
-                  });
+                traceIdProvider: () => randomUUID(),
+                githubClient: githubPolicy.enabled ? githubClient : undefined,
+              }),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createSubscriptionRenewalTask",
+              createSubscriptionRenewalTask({
+                graphSubscriptionsRepo,
+                graphClient,
+                auditLog: devopsAuditLog,
+                traceIdProvider: () => randomUUID(),
+                backfillSubscription: async (sub, now) => {
+                  await backfillGraphSubscription(
+                    sub,
+                    {
+                      graphSubscriptionsRepo,
+                      projectChannelsRepo,
+                      channelMessagesRepo,
+                      graphClient,
+                      auditLog: prjopsAuditLog,
+                      traceIdProvider: () => randomUUID(),
+                    },
+                    now,
+                  );
                 },
-                traceIdProvider: () => randomUUID(),
-                logger,
-                metrics,
               }),
-              devopsAuditLog,
             ),
           ),
           observedTask(
-            guardTask(
-              createPmSnapshotReconcileTask({
-                repo: pmTimeseriesRepo,
-                client: pmSnapshotClient,
-                auditLog: prjopsAuditLog,
-                traceIdProvider: () => randomUUID(),
-              }),
-              prjopsAuditLog,
-            ),
-          ),
-          observedTask(
-            guardTask(
-              createSevenKeysMonthlySnapshotTask({
-                repo: sevenKeysSnapshotsRepo,
-                disabledReason: "PrjOps report data provider is not configured",
-                auditLog: prjopsAuditLog,
-                calendar: jpHolidayCalendar,
-                traceIdProvider: () => randomUUID(),
-              }),
-              prjopsAuditLog,
-            ),
-          ),
-          observedTask(
-            guardTask(
-              createPrjopsWeeklyAnalyzeTask({
-                provider: prjopsJobDataProvider,
-                auditLog: prjopsAuditLog,
-                traceIdProvider: () => randomUUID(),
+            cutover(
+              "createChannelPollingTask",
+              createChannelPollingTask({
+                graphSubscriptionsRepo,
+                projectChannelsRepo,
+                channelMessagesRepo,
                 graphClient,
-                pmoNotifyMailbox: config.PMO_NOTIFY_MAILBOX,
-                fromMailbox: config.FROM_MAILBOX,
+                auditLog: prjopsAuditLog,
+                traceIdProvider: () => randomUUID(),
+                recovery: {
+                  notificationUrl: new URL("/webhooks/graph", config.PUBLIC_BASE_URL).toString(),
+                  clientState: config.GRAPH_CLIENT_STATE,
+                },
               }),
-              prjopsAuditLog,
             ),
           ),
           observedTask(
-            guardTask(
-              createPrjopsDailyTrackerTask({
-                provider: prjopsJobDataProvider,
-                stateRepo: actionReminderStateRepo,
-                graphClient,
-                fromMailbox: config.FROM_MAILBOX,
-                pmoNotifyMailbox: config.PMO_NOTIFY_MAILBOX,
-                calendar: jpHolidayCalendar,
-                auditLog: prjopsAuditLog,
-                traceIdProvider: () => randomUUID(),
-              }),
-              prjopsAuditLog,
+            cutover(
+              "createEventsPollingTask",
+              guardTask(
+                createEventsPollingTask({
+                  eventsRepo,
+                  auditLog: devopsAuditLog,
+                  dispatchInboundNotification: (payload, traceId) =>
+                    teamsConversationAgent.handleNotification(payload, traceId),
+                  dispatchGithubEvent: (payload, traceId) =>
+                    dispatchGithubWebhookEvent(payload, traceId, {
+                      auditLog: devopsAuditLog,
+                      handlers: devopsEventHandlers,
+                      pmRepo: pmTimeseriesRepo,
+                    }),
+                  dispatchMonitorEvent: async (payload, traceId) => {
+                    await devopsAuditLog.append({
+                      trace_id: traceId,
+                      actor: "AGT-DEP",
+                      action: "monitor_event_received",
+                      basis: "DevOps:SPEC-INT-020",
+                      detail: { hasPayload: payload !== null && payload !== undefined },
+                      at: new Date().toISOString(),
+                    });
+                  },
+                  traceIdProvider: () => randomUUID(),
+                  logger,
+                  metrics,
+                }),
+                devopsAuditLog,
+              ),
             ),
           ),
           observedTask(
-            guardTask(
-              createReportDeliveryTask({
-                enabled: config.REPORT_DELIVERY_ENABLED,
-                fromMailbox: config.FROM_MAILBOX,
-                defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
-                defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
-                publicBaseUrl: config.PUBLIC_BASE_URL,
-                calendar: jpHolidayCalendar,
-                recipientsRepo,
-                standardReportsRepo,
-                graphClient,
-                deliveryLogStore: reportDeliveryLogRepo,
-                auditLog: prjopsAuditLog,
-                personalNamesProvider,
-                stakeholderEmailsProvider,
-                verificationSnapshotProvider,
-                internalTermsProvider,
-                traceIdProvider: () => randomUUID(),
-                heartbeatUrl: config.HEARTBEAT_URL,
-                logger,
-                metrics,
-              }),
-              prjopsAuditLog,
+            cutover(
+              "createPmSnapshotReconcileTask",
+              guardTask(
+                createPmSnapshotReconcileTask({
+                  repo: pmTimeseriesRepo,
+                  client: pmSnapshotClient,
+                  auditLog: prjopsAuditLog,
+                  traceIdProvider: () => randomUUID(),
+                }),
+                prjopsAuditLog,
+              ),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createSevenKeysMonthlySnapshotTask",
+              guardTask(
+                createSevenKeysMonthlySnapshotTask({
+                  repo: sevenKeysSnapshotsRepo,
+                  disabledReason: "PrjOps report data provider is not configured",
+                  auditLog: prjopsAuditLog,
+                  calendar: jpHolidayCalendar,
+                  traceIdProvider: () => randomUUID(),
+                }),
+                prjopsAuditLog,
+              ),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createPrjopsWeeklyAnalyzeTask",
+              guardTask(
+                createPrjopsWeeklyAnalyzeTask({
+                  provider: prjopsJobDataProvider,
+                  auditLog: prjopsAuditLog,
+                  traceIdProvider: () => randomUUID(),
+                  graphClient,
+                  pmoNotifyMailbox: config.PMO_NOTIFY_MAILBOX,
+                  fromMailbox: config.FROM_MAILBOX,
+                }),
+                prjopsAuditLog,
+              ),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createPrjopsDailyTrackerTask",
+              guardTask(
+                createPrjopsDailyTrackerTask({
+                  provider: prjopsJobDataProvider,
+                  stateRepo: actionReminderStateRepo,
+                  graphClient,
+                  fromMailbox: config.FROM_MAILBOX,
+                  pmoNotifyMailbox: config.PMO_NOTIFY_MAILBOX,
+                  calendar: jpHolidayCalendar,
+                  auditLog: prjopsAuditLog,
+                  traceIdProvider: () => randomUUID(),
+                }),
+                prjopsAuditLog,
+              ),
+            ),
+          ),
+          observedTask(
+            cutover(
+              "createReportDeliveryTask",
+              guardTask(
+                createReportDeliveryTask({
+                  enabled: config.REPORT_DELIVERY_ENABLED,
+                  fromMailbox: config.FROM_MAILBOX,
+                  defaultTeamsTeamId: config.DEFAULT_TEAMS_TEAM_ID,
+                  defaultTeamsChannelId: config.DEFAULT_TEAMS_CHANNEL_ID,
+                  publicBaseUrl: config.PUBLIC_BASE_URL,
+                  calendar: jpHolidayCalendar,
+                  recipientsRepo,
+                  standardReportsRepo,
+                  graphClient,
+                  deliveryLogStore: reportDeliveryLogRepo,
+                  auditLog: prjopsAuditLog,
+                  personalNamesProvider,
+                  stakeholderEmailsProvider,
+                  verificationSnapshotProvider,
+                  internalTermsProvider,
+                  traceIdProvider: () => randomUUID(),
+                  heartbeatUrl: config.HEARTBEAT_URL,
+                  logger,
+                  metrics,
+                }),
+                prjopsAuditLog,
+              ),
             ),
           ),
         ],

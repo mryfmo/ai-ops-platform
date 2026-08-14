@@ -50,6 +50,64 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     );
   });
 
+  it("P3-T10-002: cutover wrapper の欠落・二重・鍵不一致・鍵重複・非 literal を fail-closed で拒否する", () => {
+    const synth = (elements: string) => `startScheduler([${elements}], () => {});`;
+    const ok = 'observedTask(cutover("createHealthcheckTask", createHealthcheckTask({})))';
+    expect(extractSchedulerRegistrations(synth(ok), SHADOW_LEGACY_CONDITIONS)).toEqual(["createHealthcheckTask"]);
+    expect(() =>
+      extractSchedulerRegistrations(synth("observedTask(createHealthcheckTask({}))"), SHADOW_LEGACY_CONDITIONS),
+    ).toThrow(/must be a two-argument cutover/u);
+    // 旧合成順（metrics を迂回する cutover(observedTask(...))）は拒否される（P3-T10-007）。
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth('cutover("createHealthcheckTask", observedTask(createHealthcheckTask({})))'),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/must be observedTask\(cutover/u);
+    // 二重 cutover は拒否される。
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth(
+          'observedTask(cutover("createHealthcheckTask", cutover("createHealthcheckTask", createHealthcheckTask({}))))',
+        ),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/exactly one cutover wrapper and one observedTask/u);
+    // decoy: 分類対象 task が cutover の外にあり、別の無関係 task が包まれている形は
+    // 第 2 引数 subtree 分類により登録不整合として検出される。
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth('observedTask(cutover("createHealthcheckTask", pair(noop, createReportDeliveryTask({}))))'),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/does not match the registered task/u);
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth('observedTask(cutover("createReportDeliveryTask", createHealthcheckTask({})))'),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/does not match the registered task/u);
+    expect(() => extractSchedulerRegistrations(synth(`${ok}, ${ok}`), SHADOW_LEGACY_CONDITIONS)).toThrow(
+      /duplicate cutover registration key/u,
+    );
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth("observedTask(cutover(name, createHealthcheckTask({})))"),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/string literal registration key/u);
+    // 実ソース経路: healthcheck の wrapper 鍵だけを別 task 名へ差し替えると拒否される。
+    const schedulerSource = source("packages/server/src/index.ts");
+    const wrongKey = schedulerSource.replace(
+      /cutover\(\s*"createHealthcheckTask",/u,
+      'cutover("createReportDeliveryTask",',
+    );
+    expect(wrongKey).not.toBe(schedulerSource);
+    expect(() => extractSchedulerRegistrations(wrongKey, SHADOW_LEGACY_CONDITIONS)).toThrow(
+      /does not match the registered task/u,
+    );
+  });
+
   it("scheduler task の追加・欠落を fail-closed で拒否する", () => {
     expect(() =>
       compareSchedulerInventory(EXPECTED_SCHEDULER_REGISTRATIONS.slice(1), EXPECTED_SCHEDULER_REGISTRATIONS),
@@ -68,7 +126,7 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     );
     expect(unknownEntry).not.toBe(schedulerSource);
     expect(() => extractSchedulerRegistrations(unknownEntry, SHADOW_LEGACY_CONDITIONS)).toThrow(
-      /exactly one recognized task/u,
+      /must be observedTask\(cutover/u,
     );
     const secondScheduler = `startScheduler([{ name: "future-task", intervalMs: 1, async run() {} }], () => {});\n${schedulerSource}`;
     expect(() => extractSchedulerRegistrations(secondScheduler, SHADOW_LEGACY_CONDITIONS)).toThrow(
@@ -76,22 +134,22 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     );
 
     const changedInlineAction = schedulerSource.replace(
-      "              await refreshSubscriptionPresence();\n              publishCapabilities();",
+      "                await refreshSubscriptionPresence();\n                publishCapabilities();",
       "              void now;",
     );
     expect(changedInlineAction).not.toBe(schedulerSource);
     expect(() => runTemporalShadowComparison(shadowInput(changedInlineAction))).toThrow(/legacy action call mismatch/u);
 
     const changedInterval = schedulerSource.replace(
-      'name: "capability-metrics-refresh-30s",\n            intervalMs: 30_000',
-      'name: "capability-metrics-refresh-30s",\n            intervalMs: 999_000',
+      'name: "capability-metrics-refresh-30s",\n              intervalMs: 30_000',
+      'name: "capability-metrics-refresh-30s",\n              intervalMs: 999_000',
     );
     expect(changedInterval).not.toBe(schedulerSource);
     expect(() => runTemporalShadowComparison(shadowInput(changedInterval))).toThrow(/unreasoned plan difference/u);
 
     const changedFactoryOverride = schedulerSource.replace(
-      "createPmSnapshotReconcileTask({\n                repo:",
-      "createPmSnapshotReconcileTask({\n                intervalMs: 123_000,\n                repo:",
+      "createPmSnapshotReconcileTask({\n                  repo:",
+      "createPmSnapshotReconcileTask({\n                  intervalMs: 123_000,\n                  repo:",
     );
     expect(changedFactoryOverride).not.toBe(schedulerSource);
     expect(() => runTemporalShadowComparison(shadowInput(changedFactoryOverride))).toThrow(
