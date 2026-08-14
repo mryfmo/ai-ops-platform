@@ -76,22 +76,22 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     );
 
     const changedInlineAction = schedulerSource.replace(
-      "              await refreshSubscriptionPresence();\n              publishCapabilities();",
+      "                await refreshSubscriptionPresence();\n                publishCapabilities();",
       "              void now;",
     );
     expect(changedInlineAction).not.toBe(schedulerSource);
     expect(() => runTemporalShadowComparison(shadowInput(changedInlineAction))).toThrow(/legacy action call mismatch/u);
 
     const changedInterval = schedulerSource.replace(
-      'name: "capability-metrics-refresh-30s",\n            intervalMs: 30_000',
-      'name: "capability-metrics-refresh-30s",\n            intervalMs: 999_000',
+      'name: "capability-metrics-refresh-30s",\n              intervalMs: 30_000',
+      'name: "capability-metrics-refresh-30s",\n              intervalMs: 999_000',
     );
     expect(changedInterval).not.toBe(schedulerSource);
     expect(() => runTemporalShadowComparison(shadowInput(changedInterval))).toThrow(/unreasoned plan difference/u);
 
     const changedFactoryOverride = schedulerSource.replace(
-      "createPmSnapshotReconcileTask({\n                repo:",
-      "createPmSnapshotReconcileTask({\n                intervalMs: 123_000,\n                repo:",
+      "createPmSnapshotReconcileTask({\n                  repo:",
+      "createPmSnapshotReconcileTask({\n                  intervalMs: 123_000,\n                  repo:",
     );
     expect(changedFactoryOverride).not.toBe(schedulerSource);
     expect(() => runTemporalShadowComparison(shadowInput(changedFactoryOverride))).toThrow(

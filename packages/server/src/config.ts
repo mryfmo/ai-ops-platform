@@ -43,6 +43,84 @@ export const LITELLM_FLAG_NAME = "inference.litellm.enabled";
 // （requires: classification<=internal / explicit-provider-allow。kill switch 有効）。
 export const DIRECT_FALLBACK_FLAG_NAME = "inference.anthropic_direct_fallback.enabled";
 
+// 根拠: FinalArch:FR-CP-008 / WBS P3-T10。Temporal への段階的 cutover。
+export const TEMPORAL_FLAG_NAME = "control.temporal.enabled";
+export const LEGACY_SCHEDULER_FLAG_NAME = "control.legacy_scheduler.enabled";
+
+/**
+ * legacy scheduler の 15 登録名（P3-T09 shadow harness の
+ * EXPECTED_SCHEDULER_REGISTRATIONS と CI テストで完全一致を強制する正本鏡）。
+ * 追加・削除は harness 側と同一 PR で行うこと。
+ */
+export const TEMPORAL_CUTOVER_TASK_NAMES = [
+  "createHealthcheckTask",
+  "inline:capability-metrics-refresh-30s",
+  "createReportDeliveryMetricsTask",
+  "createApprovedDeployTask",
+  "createProdMonitorTask",
+  "createJitRevocationTask",
+  "createCodingTaskReaperTask",
+  "createSubscriptionRenewalTask",
+  "createChannelPollingTask",
+  "createEventsPollingTask",
+  "createPmSnapshotReconcileTask",
+  "createSevenKeysMonthlySnapshotTask",
+  "createPrjopsWeeklyAnalyzeTask",
+  "createPrjopsDailyTrackerTask",
+  "createReportDeliveryTask",
+] as const;
+
+export type TemporalCutoverTaskName = (typeof TEMPORAL_CUTOVER_TASK_NAMES)[number];
+
+/**
+ * per-workflow cutover の決定的 selector（WBS P3-T10）。
+ * - temporal が false/shadow: 抑止なし（旧経路完全維持）。cutover list は不活性として
+ *   無視する — kill switch（stage→false）が env 1 つで全復帰になることを優先
+ * - limited: list 記載 task のみ legacy 実行を抑止（残りは soak として legacy 継続）。
+ *   list 空・未知名・重複は E-CFG07
+ * - primary: 全 task 抑止（正本の mutually-exclusive 規則により legacy flag は
+ *   off が前提。resolveMigrationFlags 側の検証と二重化）
+ * kill switch（AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL=1）は resolveMigrationFlags が
+ * temporal を "false" へ落とすため、本 selector は自動的に「抑止なし」へ復帰する。
+ */
+export function resolveTemporalCutover(
+  temporalStage: string,
+  cutoverTasksRaw: string | undefined,
+): ReadonlySet<TemporalCutoverTaskName> {
+  const raw = cutoverTasksRaw?.trim() ?? "";
+  if (temporalStage === "false" || temporalStage === "shadow") {
+    // kill switch（.._KILL=1）は stage を "false" へ落とす。このとき cutover list が
+    // 残っていても「env 1 つで旧経路へ全復帰」を成立させるため、list は不活性として
+    // 無視する（エラーにしない）。soak 手順は runbooks/temporal-cutover.md。
+    return new Set();
+  }
+  if (temporalStage === "primary") {
+    if (raw !== "") {
+      throw new Error("E-CFG07: AIOPS_TEMPORAL_CUTOVER_TASKS must be unset at primary (all tasks are cut over)");
+    }
+    return new Set(TEMPORAL_CUTOVER_TASK_NAMES);
+  }
+  if (temporalStage !== "limited") {
+    throw new Error(`E-CFG07: unknown ${TEMPORAL_FLAG_NAME} stage: ${temporalStage}`);
+  }
+  if (raw === "") {
+    throw new Error("E-CFG07: AIOPS_TEMPORAL_CUTOVER_TASKS must list at least one task at limited stage");
+  }
+  const names = raw.split(",").map((n) => n.trim());
+  const known: ReadonlySet<string> = new Set(TEMPORAL_CUTOVER_TASK_NAMES);
+  const selected = new Set<TemporalCutoverTaskName>();
+  for (const name of names) {
+    if (!known.has(name)) {
+      throw new Error(`E-CFG07: unknown scheduler task in AIOPS_TEMPORAL_CUTOVER_TASKS: ${JSON.stringify(name)}`);
+    }
+    if (selected.has(name as TemporalCutoverTaskName)) {
+      throw new Error(`E-CFG07: duplicate scheduler task in AIOPS_TEMPORAL_CUTOVER_TASKS: ${JSON.stringify(name)}`);
+    }
+    selected.add(name as TemporalCutoverTaskName);
+  }
+  return selected;
+}
+
 /** 空文字・空白のみを未設定と同一視する optional 文字列（.env.example の空値対策） */
 const optionalTrimmed = (schema: z.ZodType<string>) =>
   z.preprocess((value) => {
@@ -72,6 +150,8 @@ const commaList = (lowercase = false) =>
     .refine((values) => values.length > 0 && !values.includes("*"), "must be a nonempty comma list without wildcard");
 
 const baseConfigSchema = z.object({
+  /** P3-T10: limited stage で legacy 実行を抑止する task 名（comma list）。 */
+  AIOPS_TEMPORAL_CUTOVER_TASKS: optionalTrimmed(z.string()).optional(),
   /** HTTP待受ポート（公開エンドポイント。既定8080） */
   PORT: z.coerce.number().int().positive().default(8080),
   /** Next.js WebUIの内部ポート（webuiProxyの転送先。既定3100） */
@@ -325,6 +405,8 @@ export type ServerConfig = Omit<
   LLM_DIRECT_FALLBACK_ENABLED: boolean;
   /** 根拠: FinalArch:FR-CP-008 / FinalArch:GOV-005。移行 flag 状態（fail closed で解決済み） */
   MIGRATION_FLAGS: MigrationFlagStates;
+  /** P3-T10: legacy scheduler で実行を抑止する task 名集合（cutover 済み）。 */
+  TEMPORAL_CUTOVER_SUPPRESSED: ReadonlySet<TemporalCutoverTaskName>;
 };
 
 /**
@@ -388,6 +470,10 @@ export function loadConfig(
       LLM_GATEWAY_ENABLED: llmGatewayEnabled,
       LLM_DIRECT_FALLBACK_ENABLED: llmDirectFallbackEnabled,
       MIGRATION_FLAGS: migrationFlags.states,
+      TEMPORAL_CUTOVER_SUPPRESSED: resolveTemporalCutover(
+        migrationFlags.states.get(TEMPORAL_FLAG_NAME) ?? "false",
+        parsed.data.AIOPS_TEMPORAL_CUTOVER_TASKS,
+      ),
     };
   } catch (error) {
     throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`);
