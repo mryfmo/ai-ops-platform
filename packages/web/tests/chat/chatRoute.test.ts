@@ -3,13 +3,13 @@
  *
  * 根拠: ADR-0005（WebUIダッシュボード：チャットによる動的表示切替）/
  *   ADR-0013 / PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1。POST /api/chat の
- *   handleChat（server/chat/chatHandler.ts）を、ai/test の MockLanguageModelV2 で
+ *   handleChat（server/chat/chatHandler.ts）を、ai/test の MockLanguageModelV3 で
  *   tool call合成をモックしてテストする（ネットワーク不要）。
  *   未認証401・権限外403・gateway model未設定時503・コスト超過429を検証する。
  */
 import { describe, it, expect, vi } from "vitest";
 import type { Session } from "next-auth";
-import { MockLanguageModelV2 } from "ai/test";
+import { MockLanguageModelV3 } from "ai/test";
 import type { UIMessage } from "ai";
 import { PgAuditLog, PgCostGuard, type PgQueryable } from "@aiops/shared";
 import type { PersonaResolver, ResolvedPersona } from "../../src/server/personaResolver";
@@ -77,8 +77,8 @@ function userMessage(text: string): UIMessage[] {
 }
 
 /** テキストのみを返すモックモデル（tool呼び出しなし） */
-function mockTextModel(text: string): MockLanguageModelV2 {
-  return new MockLanguageModelV2({
+function mockTextModel(text: string): MockLanguageModelV3 {
+  return new MockLanguageModelV3({
     doStream: async () => ({
       stream: new ReadableStream({
         start(controller) {
@@ -88,8 +88,11 @@ function mockTextModel(text: string): MockLanguageModelV2 {
           controller.enqueue({ type: "text-end", id: "1" });
           controller.enqueue({
             type: "finish",
-            finishReason: "stop",
-            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 5, text: 5, reasoning: 0 },
+            },
           });
           controller.close();
         },
@@ -99,8 +102,8 @@ function mockTextModel(text: string): MockLanguageModelV2 {
 }
 
 /** showExecutiveSummary tool callを合成するモックモデル */
-function mockToolCallModel(): MockLanguageModelV2 {
-  return new MockLanguageModelV2({
+function mockToolCallModel(): MockLanguageModelV3 {
+  return new MockLanguageModelV3({
     doStream: async () => ({
       stream: new ReadableStream({
         start(controller) {
@@ -113,8 +116,11 @@ function mockToolCallModel(): MockLanguageModelV2 {
           });
           controller.enqueue({
             type: "finish",
-            finishReason: "tool-calls",
-            usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            finishReason: { unified: "tool-calls", raw: "tool_use" },
+            usage: {
+              inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 5, text: 5, reasoning: 0 },
+            },
           });
           controller.close();
         },
@@ -193,7 +199,7 @@ describe("handleChat（コスト超過429）", () => {
 describe("handleChat（正当なセッション: ストリーミング応答）", () => {
   it("ダッシュボードと同じ選択ペルソナをchat promptへ反映する [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068]", async () => {
     let prompt = "";
-    const model = new MockLanguageModelV2({
+    const model = new MockLanguageModelV3({
       doStream: async (options) => {
         prompt = JSON.stringify(options.prompt);
         return mockTextModel("ok").doStream(options);
@@ -227,7 +233,7 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
   it("Reasoning UI用にAnthropic thinking providerOptionsを設定し、sendReasoning付きUI streamを返す [PrjOps:REQ-041 / DevOps:REQ-041 / PrjOps:SPEC-INT-068 / DevOps:SPEC-INT-068 / PrjOps:AC-041-1 / DevOps:AC-041-1]", async () => {
     let seenProviderOptions: unknown;
     let seenTemperature: unknown;
-    const model = new MockLanguageModelV2({
+    const model = new MockLanguageModelV3({
       doStream: async (options) => {
         seenProviderOptions = options.providerOptions;
         seenTemperature = options.temperature;
@@ -240,8 +246,11 @@ describe("handleChat（正当なセッション: ストリーミング応答）"
               controller.enqueue({ type: "reasoning-end", id: "r1" });
               controller.enqueue({
                 type: "finish",
-                finishReason: "stop",
-                usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                finishReason: { unified: "stop", raw: "stop" },
+                usage: {
+                  inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+                  outputTokens: { total: 5, text: 5, reasoning: 0 },
+                },
               });
               controller.close();
             },
@@ -433,7 +442,7 @@ describe("handleChat costGuard reservation and configured pricing [PrjOps:SPEC-I
         return { rows: [{ total: 0 }] };
       }),
     };
-    const model = new MockLanguageModelV2({
+    const model = new MockLanguageModelV3({
       doStream: async () => ({
         stream: new ReadableStream({
           start(controller) {
@@ -462,15 +471,18 @@ describe("handleChat costGuard reservation and configured pricing [PrjOps:SPEC-I
   });
 
   it("refusal相当のfinishReasonを通常完了として扱わない [PrjOps:SPEC-INT-060]", async () => {
-    const model = new MockLanguageModelV2({
+    const model = new MockLanguageModelV3({
       doStream: async () => ({
         stream: new ReadableStream({
           start(controller) {
             controller.enqueue({ type: "stream-start", warnings: [] });
             controller.enqueue({
               type: "finish",
-              finishReason: "content-filter",
-              usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
+              finishReason: { unified: "content-filter", raw: "content_filter" },
+              usage: {
+                inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+                outputTokens: { total: 0, text: 0, reasoning: 0 },
+              },
             });
             controller.close();
           },
