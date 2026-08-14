@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -270,17 +271,14 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     const bundleDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "p3t09-shadow-")));
     try {
       const bundlePath = path.join(bundleDir, "run.cjs");
-      execFileSync(
-        path.join(repoRoot, "node_modules/.bin/esbuild"),
-        [
-          path.join(repoRoot, "verification/temporal-shadow/run.ts"),
-          "--bundle",
-          "--platform=node",
-          "--format=cjs",
-          `--outfile=${bundlePath}`,
-        ],
-        { cwd: repoRoot, stdio: "pipe" },
-      );
+      buildSync({
+        entryPoints: [path.join(repoRoot, "verification/temporal-shadow/run.ts")],
+        bundle: true,
+        platform: "node",
+        format: "cjs",
+        outfile: bundlePath,
+        logLevel: "silent",
+      });
       const bundleSource = readFileSync(bundlePath, "utf8");
       assertPlanOnlyBundle(bundleSource);
       expect(() => assertPlanOnlyBundle('require("node:http")')).toThrow(/network capability/u);

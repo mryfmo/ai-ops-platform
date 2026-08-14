@@ -58,3 +58,24 @@ report-delivery。1 件でも欠けたら差し戻し。
 
 - report/validation/sandbox/learning/autoskill: `.orchestration/*/P3-T09-*.md`
 - done_signal: AGMSG-RESULT（non-draft PR + ai-generated label + head + pr_url）
+
+## scope amendment 2026-08-14（orchestrator 裁定 — R02 対応）
+
+- clean runner で `node_modules/.bin/esbuild` が ENOENT（esbuild はどの manifest にも
+  未宣言で、ローカルの hoisting 偶存に依存していた）。恒久則「hoisting 依存禁止」
+  に照らし、以下のいずれかを許可する:
+  (a) `packages/server/package.json` devDependencies へ esbuild を exact pin で宣言
+      （tree 内既存 version に一致させる。lockfile 変更は必要随伴物として許可）し、
+      spawn は `.bin` path でなく `require.resolve("esbuild/bin/esbuild")` +
+      `process.execPath` で解決する
+  (b) bundle-denial 検証を vitest suite から dev-only の evidence runner 側へ移し、
+      CI 内は source-level 検証（assertPlanOnlySource）に限定する
+- 条件: 新規 version の導入は不可（既存 tree の esbuild version のみ）。
+  素の `mise run ci` green を fresh DB で再確認すること。
+
+### amendment (a) 修正（2026-08-14、worker 指摘採択）
+
+- esbuild の bin は postinstall 後 native binary のため `process.execPath` +
+  `require.resolve` 実行は不成立（worker の検証を採択）。(a) の実装方式を
+  「同 exact devDependency 宣言 + **公式 JS API（buildSync）** をテスト内で使用し
+  CI の bundle-denial 検証を保持」に修正して承認する。他条件は不変。

@@ -9,7 +9,7 @@ advances actual scheduler ticks until the existing pure due predicate allows
 the next action, using an explicit empty holiday calendar.
 
 ```bash
-pnpm exec esbuild verification/temporal-shadow/run.ts --bundle --platform=node --format=cjs --outfile=/private/tmp/p3t09-shadow.cjs
+pnpm --filter @aiops/server exec esbuild ../../verification/temporal-shadow/run.ts --bundle --platform=node --format=cjs --outfile=/private/tmp/p3t09-shadow.cjs
 mise exec -- node --permission --allow-fs-read=. --allow-fs-read=/private/tmp/p3t09-shadow.cjs --import=./verification/temporal-shadow/deny-network.mjs /private/tmp/p3t09-shadow.cjs
 pnpm --filter @aiops/server exec vitest run tests/temporalShadow.test.ts --maxWorkers=1
 ```

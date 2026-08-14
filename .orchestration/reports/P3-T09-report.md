@@ -14,6 +14,6 @@
 - safety: source and complete-bundle checks exclude Temporal/DB/network clients; an explicit preload denies network access and Node permissions deny filesystem writes, child processes, workers, and native addons
 - completeness: TypeScript AST extraction classifies every actual `startScheduler` array element; exact full call-expression multisets reject added legacy write paths through dependencies or helpers, while mutation tests prove unknown additions, action/workflow removal, inline/composition/run-on-start retiming, and unrelated rationale-covered retiming fail CI
 - runtime impact: none; `packages/server/src/index.ts` and every existing scheduler task remain byte-identical
-- dependency impact: none
+- dependency impact: `packages/server` declares the already-used in-tree `esbuild` `0.28.1` as an exact devDependency so clean runners do not depend on hoisting
 
 Deterministic evidence: `verification/temporal-shadow/shadow-evidence.json`.
