@@ -126,15 +126,22 @@ export { createScopedWorker, refreshWorkerAuthorization } from "./temporal/worke
 export type { ScopedWorker, ScopedWorkerOptions, NativeConnectFn, WorkerCreateFn } from "./temporal/worker.js";
 export {
   assertReportDeliveryRequest,
-  parseOptionalReportDeliveryReceipt,
+  parseReportDeliveryLedgerStatus,
   parseReportDeliveryReceipt,
   parseReportGenerationReceipt,
+  parseReportProfileReceipt,
   parseReportValidationReceipt,
+  profileRequiresApproval,
+  REPORT_PROFILES,
 } from "./lib/reportDeliveryState.js";
 export type {
+  ReportApprovalParameters,
+  ReportDeliveryLedgerStatus,
   ReportDeliveryReceipt,
   ReportDeliveryRequest,
   ReportGenerationReceipt,
+  ReportProfile,
+  ReportProfileReceipt,
   ReportRecipient,
   ReportValidationReceipt,
 } from "./lib/reportDeliveryState.js";

@@ -608,13 +608,31 @@ try {
     sequence: 13,
     executionMode: "active",
   });
-  // --- P3-T07 report delivery fixtures（TMP-003 / recipient idempotency） ---
+  // --- P3-T07 report delivery fixtures（TMP-003 / recipient idempotency /
+  //     PrjOps:SPEC-INT-050 profile 分岐 / pending-no-resend） ---
   {
-    const deliveryKey = (reportId, recipientId) => `report/delivery:${reportId}:${recipientId}#deliverReport#0`;
-    const makeReportActivities = ({ reportId, valid = true, preexisting = [], loseFor = [] }) => {
-      const log = new Map();
-      for (const recipientId of preexisting) log.set(recipientId, deliveryKey(reportId, recipientId));
+    // 実 DeliveryLogStore の意味論: send 前に pending を記録し、応答後に sent。
+    const makeReportActivities = ({
+      profile = "PRF-04",
+      valid = true,
+      sentAlready = [],
+      pendingAlready = [],
+      loseFor = [],
+    }) => {
+      const ledger = new Map();
+      for (const recipientId of sentAlready) ledger.set(recipientId, "sent");
+      for (const recipientId of pendingAlready) ledger.set(recipientId, "pending");
       return {
+        async resolveReportProfile(input) {
+          return {
+            schemaVersion: 1,
+            payload: {
+              reportId: input.payload.reportId,
+              profile,
+              requiresApproval: profile === "PRF-04" || profile === "PRF-05",
+            },
+          };
+        },
         async generateReport(input) {
           return { schemaVersion: 1, payload: { reportId: input.payload.reportId, contentChecksum: "checksum-1" } };
         },
@@ -625,18 +643,24 @@ try {
           };
         },
         async findReportDelivery(input, idempotencyKey) {
-          const found = log.get(input.payload.recipientId);
-          if (found === undefined) return null;
+          const status = ledger.get(input.payload.recipientId);
+          if (status === undefined) return null;
           return {
             schemaVersion: 1,
-            payload: { reportId: input.payload.reportId, recipientId: input.payload.recipientId, idempotencyKey },
+            payload: {
+              reportId: input.payload.reportId,
+              recipientId: input.payload.recipientId,
+              status,
+              ...(status === "sent" ? { idempotencyKey } : {}),
+            },
           };
         },
         async deliverReport(input, idempotencyKey) {
-          log.set(input.payload.recipientId, idempotencyKey);
+          ledger.set(input.payload.recipientId, "pending");
           if (loseFor.includes(input.payload.recipientId)) {
             throw new Error("synthetic lost response after delivery");
           }
+          ledger.set(input.payload.recipientId, "sent");
           return {
             schemaVersion: 1,
             payload: { reportId: input.payload.reportId, recipientId: input.payload.recipientId, idempotencyKey },
@@ -644,13 +668,12 @@ try {
         },
       };
     };
+    const APPROVAL = { approvalId: APPROVAL_ID, approvalVersion: 3, approvalExpiryMs: 3_600_000 };
     const reportInput = (reportId, overrides = {}) => ({
       schemaVersion: 1,
       payload: {
         reportId,
-        approvalId: APPROVAL_ID,
-        approvalVersion: 3,
-        approvalExpiryMs: 3_600_000,
+        approval: APPROVAL,
         executionMode: "active",
         recipients: [{ recipientId: "user-1" }, { recipientId: "user-2" }],
         requestedBy: "fixture",
@@ -669,9 +692,9 @@ try {
         connection: env.nativeConnection,
         taskQueue,
         workflowsPath,
-        activities: makeReportActivities({ reportId, ...activityOptions }),
+        activities: makeReportActivities(activityOptions),
       });
-      const result = await worker.runUntil(async () => {
+      const outcome = await worker.runUntil(async () => {
         const handle = await env.client.workflow.start("reportDeliveryWorkflow", {
           taskQueue,
           workflowId,
@@ -685,19 +708,39 @@ try {
             decision: approve ? "approved" : "rejected",
           });
         }
-        return handle.result();
+        return handle.result().then(
+          (r) => `${r.payload.phase}/${r.payload.failureReason}`,
+          (e) => `wf-failed:${e.cause?.type ?? e.name}`,
+        );
       });
       await saveHistory(workflowId, `report-delivery.${name}.history.json`);
-      console.log(
-        `recorded report-delivery.${name}.history.json (${result.payload.phase}/${result.payload.failureReason})`,
-      );
+      console.log(`recorded report-delivery.${name}.history.json (${outcome})`);
     };
 
-    // complete: user-1 は既配信（authority read で reconciled、deliverReport 不発火）、
-    // user-2 のみ executed（recipient idempotency の混在証跡）。
-    await recordReportDelivery("complete", "fixture-report-1", { preexisting: ["user-1"] });
-    // delivery-lost-response: user-1 の配信応答喪失 → schedule 1 回 + reconcile 回収。
-    await recordReportDelivery("delivery-lost-response", "fixture-report-2", { loseFor: ["user-1"] });
+    // complete（PRF-04 承認経路）: user-1 は sent 既配信（reconciled、deliverReport
+    // 不発火）、user-2 のみ executed（recipient idempotency の混在証跡）。
+    await recordReportDelivery("complete", "fixture-report-1", { sentAlready: ["user-1"] });
+    // approval-free（PRF-02）: approval child を起動せず配信まで直行（P3-T07-001）。
+    await recordReportDelivery(
+      "approval-free",
+      "fixture-report-6",
+      { profile: "PRF-02" },
+      { driveApproval: false, input: reportInput("fixture-report-6", { approval: null }) },
+    );
+    // prf05-no-approval（負）: 承認必須 profile に approval パラメータ欠如 →
+    // E-CP-CONTRACT で失敗し、child も配信も一切ない（bypass 不能）。
+    await recordReportDelivery(
+      "prf05-no-approval",
+      "fixture-report-7",
+      { profile: "PRF-05" },
+      { driveApproval: false, input: reportInput("fixture-report-7", { approval: null }) },
+    );
+    // delivery-unresolved: user-1 の応答喪失 → 台帳は pending のまま → reconcile は
+    // sent を確認できず E-CP-EXTERNAL-UNRESOLVED（deliverReport schedule は 1 回）。
+    await recordReportDelivery("delivery-unresolved", "fixture-report-2", { loseFor: ["user-1"] });
+    // pending-no-resend: 前回 run が残した pending 行を preflight が検出 →
+    // deliverReport を一切 schedule せず unresolved（自動再送禁止の再実行証跡）。
+    await recordReportDelivery("pending-no-resend", "fixture-report-8", { pendingAlready: ["user-1"] });
     // approval-rejected: 配信 activity は一切 schedule されない。
     await recordReportDelivery("approval-rejected", "fixture-report-3", {}, { approve: false });
     // validation-failed: approval child すら起動しない。

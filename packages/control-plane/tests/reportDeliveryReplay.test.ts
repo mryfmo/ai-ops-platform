@@ -1,7 +1,7 @@
-// 根拠: FinalArch:FR-CP-001 / PrjOps:SPEC-INT-052 / PrjOps:SPEC-EXT-023 / TMP-003
-// report delivery の recorded history 5 経路をデータ検証 + replay する。
-// recipient idempotency（既配信は deliverReport 不発火）と lost-response の
-// schedule 1 回 + reconcile 回収（TMP-003）を history で機械検証する。
+// 根拠: FinalArch:FR-CP-001 / PrjOps:SPEC-INT-050 / PrjOps:SPEC-INT-052 / PrjOps:SPEC-EXT-023 / TMP-003
+// report delivery の recorded history 8 経路をデータ検証 + replay する。
+// P3-T07-001: PRF-01..03 の承認不要経路と PRF-04/05 の bypass 不能を実証。
+// P3-T07-002: pending 台帳は成功回収も自動再送もされないことを実証。
 
 import fs from "node:fs";
 import path from "node:path";
@@ -25,10 +25,15 @@ function scheduledActivities(history: proto.temporal.api.history.v1.History): st
     .map((e) => e.activityTaskScheduledEventAttributes?.activityType?.name ?? "");
 }
 
+function startedChild(history: proto.temporal.api.history.v1.History): boolean {
+  return history.events.some((e) => e.startChildWorkflowExecutionInitiatedEventAttributes != null);
+}
+
 function decodeResult(history: proto.temporal.api.history.v1.History): {
   payload: {
     phase: string;
     failureReason: string | null;
+    profile: string | null;
     approvalStatus: string | null;
     validationReason: string | null;
     deliveries: Array<{ recipientId: string; outcome: string }>;
@@ -40,37 +45,67 @@ function decodeResult(history: proto.temporal.api.history.v1.History): {
   return JSON.parse(Buffer.from(data).toString("utf8")) as never;
 }
 
-describe("PrjOps:SPEC-INT-052 report delivery の recorded history", () => {
-  it("complete fixture: 既配信 recipient は reconciled（deliverReport 不発火）、未配信のみ executed", () => {
+function decodeFailure(history: proto.temporal.api.history.v1.History): string {
+  const failed = history.events.find((e) => e.workflowExecutionFailedEventAttributes != null);
+  const type = failed?.workflowExecutionFailedEventAttributes?.failure?.applicationFailureInfo?.type;
+  if (type == null) throw new Error("workflow failure event not found in fixture");
+  return type;
+}
+
+describe("PrjOps:SPEC-INT-050/052 report delivery の recorded history", () => {
+  it("complete fixture（PRF-04）: sent 既配信は reconciled（deliverReport 不発火）、未配信のみ executed", () => {
     const history = loadHistory("report-delivery.complete.history.json");
     const result = decodeResult(history);
     expect(result.payload.phase).toBe("complete");
+    expect(result.payload.profile).toBe("PRF-04");
     expect(result.payload.approvalStatus).toBe("approved");
     expect(result.payload.deliveries).toEqual([
       { recipientId: "user-1", outcome: "reconciled" },
       { recipientId: "user-2", outcome: "executed" },
     ]);
-    // 生成 1・検証 1・authority read 2（recipient 毎）・配信は user-2 の 1 回のみ。
     const names = scheduledActivities(history);
-    expect(names.filter((n) => n === "generateReport")).toHaveLength(1);
-    expect(names.filter((n) => n === "validateReport")).toHaveLength(1);
-    expect(names.filter((n) => n === "findReportDelivery")).toHaveLength(2);
+    expect(names.filter((n) => n === "resolveReportProfile")).toHaveLength(1);
     expect(names.filter((n) => n === "deliverReport")).toHaveLength(1);
-    expect(history.events.some((e) => e.startChildWorkflowExecutionInitiatedEventAttributes != null)).toBe(true);
+    expect(startedChild(history)).toBe(true);
   });
 
-  it("TMP-003: 配信応答喪失でも deliverReport の schedule は recipient あたり 1 回で reconcile が回収する", () => {
-    const history = loadHistory("report-delivery.delivery-lost-response.history.json");
+  it("P3-T07-001: approval-free fixture（PRF-02）は approval child なしで配信まで直行する", () => {
+    const history = loadHistory("report-delivery.approval-free.history.json");
     const result = decodeResult(history);
     expect(result.payload.phase).toBe("complete");
+    expect(result.payload.profile).toBe("PRF-02");
+    expect(result.payload.approvalStatus).toBe("not-required");
     expect(result.payload.deliveries).toEqual([
-      { recipientId: "user-1", outcome: "reconciled" },
+      { recipientId: "user-1", outcome: "executed" },
       { recipientId: "user-2", outcome: "executed" },
     ]);
+    expect(startedChild(history)).toBe(false);
+  });
+
+  it("P3-T07-001（負）: PRF-05 は approval パラメータなしでは E-CP-CONTRACT で失敗し bypass 不能", () => {
+    const history = loadHistory("report-delivery.prf05-no-approval.history.json");
+    expect(decodeFailure(history)).toBe("E-CP-CONTRACT");
+    expect(startedChild(history)).toBe(false);
     const names = scheduledActivities(history);
-    // user-1: preflight read + lost 配信 1 回 + reconcile read / user-2: read + 配信。
-    expect(names.filter((n) => n === "deliverReport")).toHaveLength(2);
-    expect(names.filter((n) => n === "findReportDelivery")).toHaveLength(3);
+    expect(names).not.toContain("deliverReport");
+    expect(names).not.toContain("generateReport");
+  });
+
+  it("P3-T07-002: 応答喪失は pending のまま E-CP-EXTERNAL-UNRESOLVED（deliverReport schedule 1 回・成功偽装なし）", () => {
+    const history = loadHistory("report-delivery.delivery-unresolved.history.json");
+    expect(decodeFailure(history)).toBe("E-CP-EXTERNAL-UNRESOLVED");
+    const names = scheduledActivities(history);
+    expect(names.filter((n) => n === "deliverReport")).toHaveLength(1);
+    // preflight read + reconcile read の 2 回（user-1 のみ。後続 recipient へ進まない）。
+    expect(names.filter((n) => n === "findReportDelivery")).toHaveLength(2);
+  });
+
+  it("P3-T07-002: pending 行の再実行は deliverReport を一切 schedule しない（自動再送禁止）", () => {
+    const history = loadHistory("report-delivery.pending-no-resend.history.json");
+    expect(decodeFailure(history)).toBe("E-CP-EXTERNAL-UNRESOLVED");
+    const names = scheduledActivities(history);
+    expect(names).not.toContain("deliverReport");
+    expect(names.filter((n) => n === "findReportDelivery")).toHaveLength(1);
   });
 
   it("approval-rejected fixture: 承認なしでは deliverReport が一切 schedule されない", () => {
@@ -87,7 +122,7 @@ describe("PrjOps:SPEC-INT-052 report delivery の recorded history", () => {
     expect(result.payload.phase).toBe("failed");
     expect(result.payload.failureReason).toBe("validation-failed");
     expect(result.payload.validationReason).toBe("numbers missing");
-    expect(history.events.some((e) => e.startChildWorkflowExecutionInitiatedEventAttributes != null)).toBe(false);
+    expect(startedChild(history)).toBe(false);
     expect(scheduledActivities(history)).not.toContain("deliverReport");
   });
 
@@ -99,14 +134,15 @@ describe("PrjOps:SPEC-INT-052 report delivery の recorded history", () => {
       { recipientId: "user-1", outcome: "shadowed" },
       { recipientId: "user-2", outcome: "shadowed" },
     ]);
-    const names = scheduledActivities(history);
-    expect(names).not.toContain("deliverReport");
-    expect(names.filter((n) => n === "findReportDelivery")).toHaveLength(2);
+    expect(scheduledActivities(history)).not.toContain("deliverReport");
   });
 
   for (const fixture of [
     "report-delivery.complete.history.json",
-    "report-delivery.delivery-lost-response.history.json",
+    "report-delivery.approval-free.history.json",
+    "report-delivery.prf05-no-approval.history.json",
+    "report-delivery.delivery-unresolved.history.json",
+    "report-delivery.pending-no-resend.history.json",
     "report-delivery.approval-rejected.history.json",
     "report-delivery.validation-failed.history.json",
     "report-delivery.shadow.history.json",

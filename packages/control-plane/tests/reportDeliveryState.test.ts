@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertReportDeliveryRequest,
-  parseOptionalReportDeliveryReceipt,
+  parseReportDeliveryLedgerStatus,
   parseReportDeliveryReceipt,
   parseReportGenerationReceipt,
+  parseReportProfileReceipt,
   parseReportValidationReceipt,
+  profileRequiresApproval,
 } from "../src/lib/reportDeliveryState.js";
 
 const APPROVAL_ID = "0f6f2f6a-9f2e-4e6d-8a4b-2b8f6f2f6a9f";
@@ -16,9 +18,7 @@ const VALID = {
   schemaVersion: 1,
   payload: {
     reportId: "weekly-2026-08",
-    approvalId: APPROVAL_ID,
-    approvalVersion: 1,
-    approvalExpiryMs: 1,
+    approval: { approvalId: APPROVAL_ID, approvalVersion: 1, approvalExpiryMs: 1 },
     executionMode: "active",
     recipients: [{ recipientId: "user-1" }, { recipientId: "user-2" }],
     requestedBy: "scheduler",
@@ -26,8 +26,11 @@ const VALID = {
 };
 
 describe("PrjOps:SPEC-INT-052 report delivery 要求の封筒検証", () => {
-  it("正しい要求は通る", () => {
+  it("正しい要求は通る（approval あり / null 両方）", () => {
     expect(() => assertReportDeliveryRequest(VALID)).not.toThrow();
+    expect(() =>
+      assertReportDeliveryRequest({ schemaVersion: 1, payload: { ...VALID.payload, approval: null } }),
+    ).not.toThrow();
   });
 
   it("封筒・ID・recipients（空/重複/不正 ID）・requestedBy の不正は RangeError", () => {
@@ -40,9 +43,11 @@ describe("PrjOps:SPEC-INT-052 report delivery 要求の封筒検証", () => {
       { schemaVersion: 1, payload: null },
       { schemaVersion: 1, payload: { ...p, reportId: "" } },
       { schemaVersion: 1, payload: { ...p, reportId: "a#b" } },
-      { schemaVersion: 1, payload: { ...p, approvalId: "not-a-uuid" } },
-      { schemaVersion: 1, payload: { ...p, approvalVersion: 0 } },
-      { schemaVersion: 1, payload: { ...p, approvalExpiryMs: 0 } },
+      { schemaVersion: 1, payload: { ...p, approval: { ...p.approval, approvalId: "not-a-uuid" } } },
+      { schemaVersion: 1, payload: { ...p, approval: { ...p.approval, approvalVersion: 0 } } },
+      { schemaVersion: 1, payload: { ...p, approval: { ...p.approval, approvalExpiryMs: 0 } } },
+      { schemaVersion: 1, payload: { ...p, approval: undefined } },
+      { schemaVersion: 1, payload: { ...p, approval: "auto" } },
       { schemaVersion: 1, payload: { ...p, executionMode: "dry-run" } },
       { schemaVersion: 1, payload: { ...p, recipients: [] } },
       { schemaVersion: 1, payload: { ...p, recipients: [{ recipientId: "user-1" }, { recipientId: "user-1" }] } },
@@ -114,6 +119,86 @@ describe("PrjOps:SPEC-INT-052 receipt は要求へ束縛される", () => {
     ] as const) {
       expect(() => parseReportDeliveryReceipt(ok, r, u, k), `${r}/${u}/${k}`).toThrow(RangeError);
     }
-    expect(parseOptionalReportDeliveryReceipt(null, "weekly-2026-08", "user-1", KEY)).toBeNull();
+  });
+
+  it("P3-T07-001: profile receipt は正典対応（PRF-04/05 のみ承認必須）と矛盾すると拒否", () => {
+    for (const [profile, requiresApproval] of [
+      ["PRF-01", false],
+      ["PRF-02", false],
+      ["PRF-03", false],
+      ["PRF-04", true],
+      ["PRF-05", true],
+    ] as const) {
+      expect(profileRequiresApproval(profile)).toBe(requiresApproval);
+      expect(
+        parseReportProfileReceipt(
+          { schemaVersion: 1, payload: { reportId: "weekly-2026-08", profile, requiresApproval } },
+          "weekly-2026-08",
+        ),
+      ).toEqual({ reportId: "weekly-2026-08", profile, requiresApproval });
+      // bypass（承認必須を false と偽る）/ 捏造（承認不要に true）を両方向で拒否。
+      expect(() =>
+        parseReportProfileReceipt(
+          {
+            schemaVersion: 1,
+            payload: { reportId: "weekly-2026-08", profile, requiresApproval: !requiresApproval },
+          },
+          "weekly-2026-08",
+        ),
+      ).toThrow(RangeError);
+    }
+    for (const bad of [
+      null,
+      { schemaVersion: 1, payload: { reportId: "other", profile: "PRF-04", requiresApproval: true } },
+      { schemaVersion: 1, payload: { reportId: "weekly-2026-08", profile: "PRF-09", requiresApproval: true } },
+    ]) {
+      expect(() => parseReportProfileReceipt(bad, "weekly-2026-08"), JSON.stringify(bad)).toThrow(RangeError);
+    }
+  });
+
+  it("P3-T07-002: ledger status は absent|pending|sent の三値で、sent のみ receipt 束縛", () => {
+    expect(parseReportDeliveryLedgerStatus(null, "weekly-2026-08", "user-1", KEY)).toEqual({ status: "absent" });
+    expect(
+      parseReportDeliveryLedgerStatus(
+        { schemaVersion: 1, payload: { reportId: "weekly-2026-08", recipientId: "user-1", status: "pending" } },
+        "weekly-2026-08",
+        "user-1",
+        KEY,
+      ),
+    ).toEqual({ status: "pending" });
+    expect(
+      parseReportDeliveryLedgerStatus(
+        {
+          schemaVersion: 1,
+          payload: {
+            reportId: "weekly-2026-08",
+            recipientId: "user-1",
+            status: "sent",
+            idempotencyKey: KEY,
+          },
+        },
+        "weekly-2026-08",
+        "user-1",
+        KEY,
+      ),
+    ).toEqual({ status: "sent", receipt: { reportId: "weekly-2026-08", recipientId: "user-1", idempotencyKey: KEY } });
+    for (const bad of [
+      { schemaVersion: 1, payload: { reportId: "other", recipientId: "user-1", status: "pending" } },
+      { schemaVersion: 1, payload: { reportId: "weekly-2026-08", recipientId: "user-2", status: "pending" } },
+      { schemaVersion: 1, payload: { reportId: "weekly-2026-08", recipientId: "user-1", status: "queued" } },
+      {
+        schemaVersion: 1,
+        payload: {
+          reportId: "weekly-2026-08",
+          recipientId: "user-1",
+          status: "sent",
+          idempotencyKey: "forged#key#0",
+        },
+      },
+    ]) {
+      expect(() => parseReportDeliveryLedgerStatus(bad, "weekly-2026-08", "user-1", KEY), JSON.stringify(bad)).toThrow(
+        RangeError,
+      );
+    }
   });
 });

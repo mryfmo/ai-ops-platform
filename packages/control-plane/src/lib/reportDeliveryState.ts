@@ -6,15 +6,29 @@
 
 export type ReportDeliveryExecutionMode = "shadow" | "active";
 
+/** 正典 PrjOps:SPEC-INT-050 の report profile。 */
+export const REPORT_PROFILES = ["PRF-01", "PRF-02", "PRF-03", "PRF-04", "PRF-05"] as const;
+export type ReportProfile = (typeof REPORT_PROFILES)[number];
+
+/** 正典どおり PRF-04/05 のみ承認必須（reportJobStateMachine.requiresApproval と同一対応）。 */
+export function profileRequiresApproval(profile: ReportProfile): boolean {
+  return profile === "PRF-04" || profile === "PRF-05";
+}
+
 export interface ReportRecipient {
   readonly recipientId: string;
 }
 
-export interface ReportDeliveryRequest {
-  readonly reportId: string;
+export interface ReportApprovalParameters {
   readonly approvalId: string;
   readonly approvalVersion: number;
   readonly approvalExpiryMs: number;
+}
+
+export interface ReportDeliveryRequest {
+  readonly reportId: string;
+  /** PRF-04/05 のみ必須。PRF-01..03 に承認を捏造しない（P3-T07-001）。 */
+  readonly approval: ReportApprovalParameters | null;
   readonly executionMode: ReportDeliveryExecutionMode;
   readonly recipients: readonly ReportRecipient[];
   readonly requestedBy: string;
@@ -38,6 +52,23 @@ export interface ReportDeliveryReceipt {
   readonly recipientId: string;
   readonly idempotencyKey: string;
 }
+
+/** profile 分類 receipt。activity 実装は prjops requiresApproval を正本として返す。 */
+export interface ReportProfileReceipt {
+  readonly reportId: string;
+  readonly profile: ReportProfile;
+  readonly requiresApproval: boolean;
+}
+
+/**
+ * 配信 authority read の三値。実 DeliveryLogStore は send 前に pending を記録し
+ * 応答後に sent を記す（P3-T07-002）。pending は「送信済みか不明」であり、
+ * 自動再送も成功回収もしてはならない（手動/provider 側同定の reconcile のみ）。
+ */
+export type ReportDeliveryLedgerStatus =
+  | { readonly status: "sent"; readonly receipt: ReportDeliveryReceipt }
+  | { readonly status: "pending" }
+  | { readonly status: "absent" };
 
 const REPORT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,150}$/u;
 const RECIPIENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,150}$/u;
@@ -63,14 +94,20 @@ export function assertReportDeliveryRequest(input: unknown): asserts input is {
   if (typeof payload.reportId !== "string" || !REPORT_ID_PATTERN.test(payload.reportId)) {
     throw new RangeError("reportId must be a canonical nonblank identifier");
   }
-  if (typeof payload.approvalId !== "string" || !UUID_PATTERN.test(payload.approvalId)) {
-    throw new RangeError("approvalId must be a lowercase UUID");
-  }
-  if (!Number.isSafeInteger(payload.approvalVersion) || (payload.approvalVersion as number) < 1) {
-    throw new RangeError("approvalVersion must be a positive safe integer");
-  }
-  if (!Number.isSafeInteger(payload.approvalExpiryMs) || (payload.approvalExpiryMs as number) < 1) {
-    throw new RangeError("approvalExpiryMs must be a positive safe integer");
+  if (payload.approval !== null) {
+    if (typeof payload.approval !== "object" || Array.isArray(payload.approval) || payload.approval === undefined) {
+      throw new RangeError("approval must be null or an approval-parameter object");
+    }
+    const approval = payload.approval as Record<string, unknown>;
+    if (typeof approval.approvalId !== "string" || !UUID_PATTERN.test(approval.approvalId)) {
+      throw new RangeError("approval.approvalId must be a lowercase UUID");
+    }
+    if (!Number.isSafeInteger(approval.approvalVersion) || (approval.approvalVersion as number) < 1) {
+      throw new RangeError("approval.approvalVersion must be a positive safe integer");
+    }
+    if (!Number.isSafeInteger(approval.approvalExpiryMs) || (approval.approvalExpiryMs as number) < 1) {
+      throw new RangeError("approval.approvalExpiryMs must be a positive safe integer");
+    }
   }
   if (payload.executionMode !== "shadow" && payload.executionMode !== "active") {
     throw new RangeError("executionMode must be shadow or active");
@@ -106,6 +143,28 @@ function parseEnvelope(value: unknown, label: string): Record<string, unknown> {
     throw new RangeError(`${label} must use schemaVersion 1 with an object payload`);
   }
   return envelope.payload as Record<string, unknown>;
+}
+
+/**
+ * profile receipt。正典対応（PRF-04/05 のみ承認必須）と receipt の requiresApproval
+ * が一致しない場合は拒否する — bypass（PRF-04/05 を承認不要と偽る）も
+ * 捏造（PRF-01..03 に承認を要求する）も両方向で遮断（P3-T07-001）。
+ */
+export function parseReportProfileReceipt(value: unknown, reportId: string): ReportProfileReceipt {
+  const receipt = parseEnvelope(value, "report profile receipt");
+  if (
+    receipt.reportId !== reportId ||
+    typeof receipt.profile !== "string" ||
+    !(REPORT_PROFILES as readonly string[]).includes(receipt.profile) ||
+    typeof receipt.requiresApproval !== "boolean"
+  ) {
+    throw new RangeError("report profile receipt does not match the requested report");
+  }
+  const profile = receipt.profile as ReportProfile;
+  if (receipt.requiresApproval !== profileRequiresApproval(profile)) {
+    throw new RangeError("report profile receipt contradicts the canonical approval mapping");
+  }
+  return { reportId, profile, requiresApproval: receipt.requiresApproval };
 }
 
 export function parseReportGenerationReceipt(value: unknown, reportId: string): ReportGenerationReceipt {
@@ -144,11 +203,27 @@ export function parseReportDeliveryReceipt(
   return { reportId, recipientId, idempotencyKey };
 }
 
-export function parseOptionalReportDeliveryReceipt(
+/**
+ * authority read（DeliveryLogStore）の三値 parse。null = absent、
+ * status pending = 送信済み不明（自動再送禁止）、status sent = receipt 束縛検証。
+ */
+export function parseReportDeliveryLedgerStatus(
   value: unknown,
   reportId: string,
   recipientId: string,
   idempotencyKey: string,
-): ReportDeliveryReceipt | null {
-  return value === null ? null : parseReportDeliveryReceipt(value, reportId, recipientId, idempotencyKey);
+): ReportDeliveryLedgerStatus {
+  if (value === null) return { status: "absent" };
+  const payload = parseEnvelope(value, "report delivery ledger status");
+  if (payload.reportId !== reportId || payload.recipientId !== recipientId) {
+    throw new RangeError("report delivery ledger status does not match the requested recipient");
+  }
+  if (payload.status === "pending") return { status: "pending" };
+  if (payload.status === "sent") {
+    return {
+      status: "sent",
+      receipt: parseReportDeliveryReceipt(value, reportId, recipientId, idempotencyKey),
+    };
+  }
+  throw new RangeError("report delivery ledger status must be pending or sent");
 }
