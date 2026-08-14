@@ -279,13 +279,18 @@ export async function reportDeliveryWorkflow(input: unknown): Promise<VersionedP
           execute: async (_input, key) => externalWrites.deliverReport(deliveryInput, key),
           // 応答喪失後の reconcile も三値: sent のみ回収し、pending/absent は
           // null（= 未解決）として扱う。pending の自動再送経路は存在しない。
+          // activity の await と parse を分離し、activity/runtime エラーはそのまま
+          // 伝播、receipt の契約違反のみ E-CP-CONTRACT へ変換する（P3-T07-003:
+          // helper 内で素の RangeError を投げると workflow task が無限 retry で
+          // wedge する）。
           reconcile: async (key) => {
-            const status = parseReportDeliveryLedgerStatus(
-              await reads.findReportDelivery(deliveryInput, key),
-              request.reportId,
-              recipientId,
-              key,
-            );
+            const raw = await reads.findReportDelivery(deliveryInput, key);
+            let status;
+            try {
+              status = parseReportDeliveryLedgerStatus(raw, request.reportId, recipientId, key);
+            } catch (error) {
+              return contractFailure(error);
+            }
             return status.status === "sent" ? status.receipt : null;
           },
         },

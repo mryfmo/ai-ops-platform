@@ -100,6 +100,16 @@ describe("PrjOps:SPEC-INT-050/052 report delivery の recorded history", () => {
     expect(names.filter((n) => n === "findReportDelivery")).toHaveLength(2);
   });
 
+  it("P3-T07-003: 応答喪失後の forged reconcile receipt は E-CP-CONTRACT で終端し wedge しない・再配信もしない", () => {
+    const history = loadHistory("report-delivery.reconcile-contract.history.json");
+    expect(decodeFailure(history)).toBe("E-CP-CONTRACT");
+    const names = scheduledActivities(history);
+    // deliverReport は喪失した 1 回のみ（契約違反後の再配信なし）。
+    expect(names.filter((n) => n === "deliverReport")).toHaveLength(1);
+    // workflow task の無限 retry で RUNNING に固着せず、失敗イベントで終端している。
+    expect(history.events.some((e) => e.workflowExecutionFailedEventAttributes != null)).toBe(true);
+  });
+
   it("P3-T07-002: pending 行の再実行は deliverReport を一切 schedule しない（自動再送禁止）", () => {
     const history = loadHistory("report-delivery.pending-no-resend.history.json");
     expect(decodeFailure(history)).toBe("E-CP-EXTERNAL-UNRESOLVED");
@@ -143,6 +153,7 @@ describe("PrjOps:SPEC-INT-050/052 report delivery の recorded history", () => {
     "report-delivery.prf05-no-approval.history.json",
     "report-delivery.delivery-unresolved.history.json",
     "report-delivery.pending-no-resend.history.json",
+    "report-delivery.reconcile-contract.history.json",
     "report-delivery.approval-rejected.history.json",
     "report-delivery.validation-failed.history.json",
     "report-delivery.shadow.history.json",

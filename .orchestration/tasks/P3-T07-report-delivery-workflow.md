@@ -57,3 +57,10 @@ PrjOps:SPEC-INT-052）、承認 = approvalsRepo（P3-T03 child 経由）、
 ## expected artifacts
 
 - report/validation/review/acceptance/learning: `.orchestration/*/P3-T07-*.md`
+
+## Round 1→2 記録（2026-08-14）
+
+- codex findings 001/002（両 high、live probe 付き）を受理し是正:
+  001 = profile 分岐（PRF-01..03 承認不要経路の保存 + PRF-04/05 bypass 不能）、
+  002 = 三値 ledger（pending は自動再送も成功回収もしない）。
+  head `27109b2`、fixtures 8 経路。

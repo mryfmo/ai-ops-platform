@@ -618,6 +618,7 @@ try {
       sentAlready = [],
       pendingAlready = [],
       loseFor = [],
+      forgedReconcileFor = [],
     }) => {
       const ledger = new Map();
       for (const recipientId of sentAlready) ledger.set(recipientId, "sent");
@@ -645,6 +646,19 @@ try {
         async findReportDelivery(input, idempotencyKey) {
           const status = ledger.get(input.payload.recipientId);
           if (status === undefined) return null;
+          // 偽装 reconcile: pending 行に対し forged key の sent receipt を返す
+          // （P3-T07-003 の契約違反 regression 用）。
+          if (status === "pending" && forgedReconcileFor.includes(input.payload.recipientId)) {
+            return {
+              schemaVersion: 1,
+              payload: {
+                reportId: input.payload.reportId,
+                recipientId: input.payload.recipientId,
+                status: "sent",
+                idempotencyKey: "forged#key#0",
+              },
+            };
+          }
           return {
             schemaVersion: 1,
             payload: {
@@ -738,6 +752,12 @@ try {
     // delivery-unresolved: user-1 の応答喪失 → 台帳は pending のまま → reconcile は
     // sent を確認できず E-CP-EXTERNAL-UNRESOLVED（deliverReport schedule は 1 回）。
     await recordReportDelivery("delivery-unresolved", "fixture-report-2", { loseFor: ["user-1"] });
+    // reconcile-contract（負・P3-T07-003）: 応答喪失後の reconcile が forged key の
+    // sent receipt を返す → E-CP-CONTRACT で終端し wedge しない・再配信もしない。
+    await recordReportDelivery("reconcile-contract", "fixture-report-9", {
+      loseFor: ["user-1"],
+      forgedReconcileFor: ["user-1"],
+    });
     // pending-no-resend: 前回 run が残した pending 行を preflight が検出 →
     // deliverReport を一切 schedule せず unresolved（自動再送禁止の再実行証跡）。
     await recordReportDelivery("pending-no-resend", "fixture-report-8", { pendingAlready: ["user-1"] });
