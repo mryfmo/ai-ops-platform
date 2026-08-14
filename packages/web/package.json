@@ -15,7 +15,7 @@
     "lint": "eslint . --config ../../eslint.config.mjs"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "2.0.85",
+    "@ai-sdk/anthropic": "4.0.37",
     "@ai-sdk/react": "2.0.212",
     "@aiops/devops": "workspace:*",
     "@aiops/prjops": "workspace:*",
