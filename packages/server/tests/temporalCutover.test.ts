@@ -67,13 +67,13 @@ describe("WBS P3-T10 resolveTemporalCutover", () => {
   });
 });
 
-describe("P3-T10-001 exactly-one-writer（resolveLegacySchedulerEffective）", () => {
-  it("primary は legacy=false を要求し、legacy 停止（writer=Temporal）", () => {
+describe("P3-T10-001/006 server 側 legacy-writer 制約（resolveLegacySchedulerEffective）", () => {
+  it("primary は legacy=false を要求し、server 側 legacy writer を停止する", () => {
     expect(resolveLegacySchedulerEffective("primary", "false", false)).toBe(false);
     expect(() => resolveLegacySchedulerEffective("primary", "true", false)).toThrow(/E-CFG08/u);
   });
 
-  it("primary 構成 + KILL=1 は legacy を復元する（env 1 つの緊急 rollback）", () => {
+  it("primary 構成 + KILL=1 は server 側 legacy を復元する（前提: runbook どおり Temporal schedule を先に pause）", () => {
     expect(resolveLegacySchedulerEffective("false", "false", true)).toBe(true);
   });
 

@@ -615,8 +615,9 @@ export async function main(
 
   // 根拠: FinalArch:FR-CP-008。resolveMigrationFlags は legacy scheduler を正本 default=true で
   // 解決する。cutover（temporal primary + legacy false）ではこの in-process scheduler を起動しない。
-  // P3-T10-001: exactly-one-writer 判定（kill switch の primary rollback 復元込み）
-  // は config 側 resolveLegacySchedulerEffective に集約。
+  // P3-T10-001/006: server 側 legacy-writer 制約（zero-writer 拒否 + kill での
+  // legacy 復元）は config 側 resolveLegacySchedulerEffective に集約。Temporal 側
+  // writer は制御対象外 — rollback は runbook の pause 先行手順に従う。
   const legacySchedulerEnabled = config.LEGACY_SCHEDULER_EFFECTIVE;
   const scheduler = !legacySchedulerEnabled
     ? null
