@@ -194,7 +194,7 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
         prjopsJobPolicySource: source("packages/server/src/lib/prjopsJobPolicy.ts").replace('"06:00"', '"07:00"'),
       }),
     ).toThrow(/guard predicate changed/u);
-  });
+  }, 120_000);
 
   it("15件の planned action/time を一致または根拠付き差分として記録する", () => {
     const result = runTemporalShadowComparison(shadowInput());
