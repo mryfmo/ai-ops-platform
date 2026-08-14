@@ -5,7 +5,7 @@
 - gates: MCP-001（default deny tool policy / unknown tool denied）
 - refs: PRD-003 / PRD-005 / FR-MCP-001..007 / ADR-0023
 
-## 現況 summary（Round 3 head `8428e7a` — こちらが正）
+## 現況 summary（最新 head が正。head は PR #228 / git を参照）
 
 - 本成果物は **non-enabled preparatory configuration**: license register の
   agentgateway 行（SBOM/依存 license/NOTICE/承認 role）は **OPEN** で、
@@ -18,8 +18,9 @@
 - smoke は 2 phase: 認証前面（401/404/ui 404）+ 認証済み probe
   （per-run nonce + target counter で同一 process 証明、tools/list filter、
   vendor 厳密形 400/-32602 denial、target 未到達）
-- codex adversarial review 3 巡: findings 001-003, 005-008 resolved。
-  残 004（Owner 裁定のみ）と 009（本 report 冒頭の陳腐化 → 本節で是正）
+- codex adversarial review: findings 001-003, 005-008 resolved、
+  009（report 冒頭の陳腐化）は本 summary への書き換えで是正済み。
+  残る open は **004（Owner/Security の binding ruling）のみ**
 
 ## 成果物（初回提出時点の記述 — superseded。現況は上記 summary と Round 2/3 節が正）
 
