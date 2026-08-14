@@ -12,9 +12,18 @@ export type {
 } from "./adapters/index.js";
 export { isOperationAllowed, assertOperationAllowed } from "./lib/operationBoundary.js";
 export { buildMcpPolicyInput, assertGovernedMcpToolCallRequest } from "./lib/mcpPolicy.js";
+export {
+  BOUNDED_INVOCATION_PROFILES,
+  deriveInvocationContext,
+  invocationLimitError,
+  jsonResultByteLength,
+  resolveInvocationProfile,
+} from "./lib/invocationProfile.js";
+export type { BoundedInvocationProfile, InvocationLimitErrorCode } from "./lib/invocationProfile.js";
 export type {
   GovernedMcpToolCallRequest,
   GovernedRegistryEntry,
+  GovernedInvocationContext,
   McpPolicyInput,
   McpRegistryCaller,
   McpToolRisk,
