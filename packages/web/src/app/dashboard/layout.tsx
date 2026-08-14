@@ -4,9 +4,12 @@ import type { ReactNode } from "react";
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="space-y-6">
-      <nav aria-label="ダッシュボード操作">
+      <nav aria-label="ダッシュボード操作" className="flex gap-4">
         <a className="text-sm underline" href="/app/dashboard/xlsx-import">
           Excel取込
+        </a>
+        <a className="text-sm underline" href="/app/dashboard/mcp-ops">
+          MCP Operations
         </a>
       </nav>
       {children}

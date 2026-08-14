@@ -59,6 +59,7 @@ import { PmTimeseriesRepo } from "./db/pmTimeseriesRepo.js";
 import { ImportLedgerRepo } from "./db/importLedgerRepo.js";
 import { SevenKeysSnapshotsRepo } from "./db/sevenKeysSnapshotsRepo.js";
 import { RecipientsRepo } from "./db/recipientsRepo.js";
+import { McpOpsRepo } from "./db/mcpOpsRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { ReportDeliveryMetricsRepo } from "./db/reportDeliveryMetricsRepo.js";
@@ -109,6 +110,7 @@ import { MetricsRegistry } from "./observability/metrics.js";
 import type { Logger } from "./observability/logger.js";
 import type { TelemetryHandle } from "./observability/telemetry.js";
 import { createReadinessCheck } from "./http/routes/health.js";
+import { createMcpRegistryStatusReader } from "./lib/mcpRegistryStatus.js";
 import { createShutdownSignalHandler, gracefulShutdown } from "./serverLifecycle.js";
 
 export * from "./config.js";
@@ -121,6 +123,7 @@ export * from "./http/routes/xlsxImport.js";
 export * from "./http/routes/reportIngest.js";
 export * from "./http/routes/webuiProxy.js";
 export * from "./http/routes/approvals.js";
+export * from "./http/routes/mcpOps.js";
 export * from "./scheduler/scheduler.js";
 export * from "./scheduler/tasks/healthcheckTask.js";
 export * from "./scheduler/tasks/jitRevocationTask.js";
@@ -149,6 +152,7 @@ export * from "./lib/githubEventRouter.js";
 export * from "./lib/stakeholderProfileResolver.js";
 export * from "./lib/stakeholderYamlLoader.js";
 export * from "./lib/graphLifecycleHandler.js";
+export * from "./lib/mcpRegistryStatus.js";
 export * from "./agents/devopsEventHandlers.js";
 export * from "./db/pgAuditLog.js";
 export * from "./db/eventsRepo.js";
@@ -162,6 +166,7 @@ export * from "./db/reportSnapshotsRepo.js";
 export * from "./db/importLedgerRepo.js";
 export * from "./db/sevenKeysSnapshotsRepo.js";
 export * from "./db/recipientsRepo.js";
+export * from "./db/mcpOpsRepo.js";
 export * from "./db/standardReportsRepo.js";
 export * from "./db/reportDeliveryLogRepo.js";
 export * from "./db/approvalsRepo.js";
@@ -232,6 +237,8 @@ export async function main(
   const importLedgerRepo = new ImportLedgerRepo(pool);
   const sevenKeysSnapshotsRepo = new SevenKeysSnapshotsRepo(pool);
   const recipientsRepo = new RecipientsRepo(pool);
+  const mcpOpsRepo = new McpOpsRepo(pool);
+  const mcpRegistryStatus = createMcpRegistryStatusReader();
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
   const reportDeliveryMetricsRepo = new ReportDeliveryMetricsRepo(pool);
@@ -1054,6 +1061,14 @@ export async function main(
     approvals: {
       approvalsRepo,
       recipientsRepo,
+      auditLog: devopsAuditLog,
+      identitySecret: config.WEB_BFF_IDENTITY_SECRET,
+      traceIdProvider: () => randomUUID(),
+    },
+    mcpOps: {
+      mcpOpsRepo,
+      recipientsRepo,
+      registryStatus: mcpRegistryStatus,
       auditLog: devopsAuditLog,
       identitySecret: config.WEB_BFF_IDENTITY_SECRET,
       traceIdProvider: () => randomUUID(),
