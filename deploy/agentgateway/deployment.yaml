@@ -1,0 +1,25 @@
+# 根拠: FinalArch:PRD-003 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01
+# platform 側 provenance / posture 台帳（vendor config には書けない配備前提を固定する）。
+# contracts/mcp-gateway/check-gateway-config.mjs が config.yaml と突き合わせて検分する。
+provenance:
+  # 単一 upstream image。digest は v1.4.1 リリース（2026-07-29）の
+  # ghcr.io manifest index。tag の付け替えでは動かない
+  image: ghcr.io/agentgateway/agentgateway:v1.4.1@sha256:efd79355b89094a8225a9db465d9a01dc656b377f0bab458761b935a13231d29
+  # upstream OCI label の申告値。SBOM/依存 license/NOTICE の正式 review は
+  # docs/security の license register 上 OPEN（P4 entry gate、Owner/Security 裁定待ち）。
+  # 本構成はその完了まで non-enabled preparatory configuration であり、
+  # どの runtime からも参照されない（P4-T01-004）
+  license: Apache-2.0 (upstream label; register review OPEN)
+posture:
+  # internal-only: public ingress 禁止。internal ALB / service mesh 背後でのみ待受
+  ingress: internal-only
+  mode: mcp-a2a-only
+  ports:
+    gateway: 3000
+    readiness: 15021
+    stats: 15020
+    admin: off
+  otlp_endpoint: http://otel-collector.aiops.internal:4317
+  # 鍵材・トークンは runtime mount / secrets manager。この repo には置かない
+  secret_mounts:
+    - /etc/agentgateway/jwks/platform.json
