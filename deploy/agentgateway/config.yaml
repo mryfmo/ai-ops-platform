@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# 根拠: FinalArch:PRD-003 / FinalArch:PRD-005 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01 / gate MCP-001
+#
+# agentgateway v1.4.1 本番形（MCP/A2A-only mode）。
+# - LLM routes disabled: top-level `llm` と `ai` backend を一切構成しない
+#   （contracts/mcp-gateway が機械検分。ADR-0023: LLM routing は LiteLLM の管轄）
+# - production stdio disabled: `stdio` target を一切構成しない（同上で機械検分）
+# - MCP tool authorization は allowlist CEL（rules 非一致 = deny + tools list から filter）。
+#   初期状態は明示 deny-all sentinel のみ。target/tool の onboarding は
+#   P4-T02（registry generator）と P4-T05..T08 が rules と targets を生成・追記する
+config:
+  # 管理 UI は常時無効（private ingress でも露出させない）
+  adminAddr: "off"
+  # コンテナ orchestrator の health check 用（internal network のみに公開）
+  readinessAddr: "0.0.0.0:15021"
+  # Prometheus scrape 用 stats/metrics（internal network のみに公開）
+  statsAddr: "0.0.0.0:15020"
+  tracing:
+    # 収集先は VPC 内 OTel collector（deploy/aws の egress allowlist 内）
+    otlpEndpoint: http://otel-collector.aiops.internal:4317
+    otlpProtocol: grpc
+
+gateways:
+  default:
+    # MCP/A2A の唯一の entrypoint。internal ALB / service mesh 背後でのみ待受
+    port: 3000
+
+# MCP federation surface（/mcp, /sse は attached gateway 配下で自動的に serve される）
+mcp:
+  gateways: default
+  policies:
+    jwtAuth:
+      # strict: トークン欠落・検証失敗は 401（fail-closed）
+      mode: strict
+      issuer: https://auth.aiops.internal/realms/platform
+      audiences:
+        - aiops-mcp-gateway
+      jwks:
+        # 鍵材は deploy 時に platform issuer の JWKS を焼き込む（コンテナ mount）。
+        # URL 取得にしないのは起動時外部依存を egress allowlist 内に限定するため
+        file: /etc/agentgateway/jwks/platform.json
+    mcpAuthorization:
+      # allowlist CEL: いずれの rule にも一致しない tool 呼び出しは deny され、
+      # tools/list からも filter される（MCP-001: default deny / unknown tool denied）。
+      # 初期 onboarding 前は恒偽 sentinel のみ = 全 tool deny。
+      # rules の追記は P4-T02 の registry generator 経由でのみ行う（手書き追加は禁止）
+      rules:
+        - "false"
+  # target の onboarding は P4-T05..T08（GitHub read-only 等）。
+  # 空集合でも gateway は仮想 MCP server として応答し、authorization は全 deny
+  targets: []
+
+routes:
+  # A2A surface の marker route。A2A backend の onboarding までは 503 を返す
+  # （crash ではなく明示応答にすることで readiness と分離する）
+  - name: a2a-placeholder
+    gateways: default
+    matches:
+      - path:
+          pathPrefix: /a2a
+    policies:
+      a2a: {}
+      jwtAuth:
+        mode: strict
+        issuer: https://auth.aiops.internal/realms/platform
+        audiences:
+          - aiops-mcp-gateway
+        jwks:
+          file: /etc/agentgateway/jwks/platform.json
+      directResponse:
+        status: 503
+        bodyExpression: '"no A2A backends onboarded"'
