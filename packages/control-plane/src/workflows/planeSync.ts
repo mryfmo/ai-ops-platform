@@ -4,7 +4,7 @@
 // - dedupe 恒等 = (external_source, external_id, project_id, mapping_version)
 // - unknown write result は reconcile（三値 ledger。pending は自動再送も成功回収もしない）
 // - promotion は authoritative eligibility read で baseline revision を固定し、
-//   draft 作成直前に現行 revision を再読して不一致なら write なしの stale 終端。
+//   stale 保証は write authority の CAS（created|stale union receipt）が担う。
 //   receipt は baseline echo + draft:true を束縛（operationBoundary の draft 境界）。
 
 import { ApplicationFailure, executeChild, proxyActivities } from "@temporalio/workflow";
@@ -12,9 +12,11 @@ import { ApplicationFailure, executeChild, proxyActivities } from "@temporalio/w
 import type { VersionedPayload } from "../contracts/index.js";
 import { buildIdempotencyKey } from "../lib/idempotency.js";
 import {
+  assertPlaneSyncIdentity,
   assertPlaneSyncRequest,
-  parsePlanePromotionDraftReceipt,
   parsePlanePromotionEligibility,
+  parsePlanePromotionLedgerStatus,
+  parsePlanePromotionWriteResult,
   parsePlaneRevisionReceipt,
   parsePlaneSyncLedgerStatus,
   parsePlaneSyncWriteReceipt,
@@ -44,9 +46,13 @@ export interface PlaneSyncActivities {
   /** 現行 work item revision の read（stale check 用）。 */
   readWorkItemRevision(input: VersionedPayload<{ identity: PlaneSyncIdentity }>): Promise<unknown>;
   /**
-   * Plane → GitHub promotion（非冪等 write）。実装契約: baseline revision を
-   * 入力どおり固定した draft PR/Issue の作成まで。merge・formal publish は
-   * platform protection / 人間の管轄で、この activity から到達不能であること。
+   * Plane → GitHub promotion（非冪等 write）。実装契約:
+   * - stale 保証は write authority の CAS/precondition が担う: 現行 revision が
+   *   入力 baseline と一致するときのみ作成し、移動していれば result:"stale" を返す
+   *   （P3-T08-004 — 事前 read の比較では read と write の間の移動を防げない）
+   * - 作成は draft PR/Issue まで（result:"created" は baseline echo + draft:true）。
+   *   merge・formal publish はこの activity から到達不能であること。runtime 結線時は
+   *   integrations の operationBoundary（plane: read+draft）配下の adapter を用いる
    */
   createPromotionDraft(
     input: VersionedPayload<{ identity: PlaneSyncIdentity; baselineRevision: string }>,
@@ -107,9 +113,8 @@ function assertChildRequest(input: unknown): asserts input is VersionedPayload<C
     throw new RangeError("plane child request must use schemaVersion 1 with an object payload");
   }
   const payload = envelope.payload as { identity?: unknown; executionMode?: unknown };
-  if (typeof payload.identity !== "object" || payload.identity === null) {
-    throw new RangeError("plane child request must carry an identity object");
-  }
+  // P3-T08-002: child は直接起動可能な trust boundary。親と同一の完全検証を通す。
+  assertPlaneSyncIdentity(payload.identity);
   if (payload.executionMode !== "shadow" && payload.executionMode !== "active") {
     throw new RangeError("plane child request executionMode must be shadow or active");
   }
@@ -126,9 +131,10 @@ async function runDedupedWrite(
   executionMode: "shadow" | "active",
   write: (input: VersionedPayload<{ identity: PlaneSyncIdentity }>, key: string) => Promise<unknown>,
 ): Promise<"executed" | "reconciled" | "shadowed"> {
-  const workflowScope = buildPlaneSyncWorkflowId(identity, operation);
   let idempotencyKey: string;
   try {
+    // P3-T08-001: ID 構築も contract 圏内（文法拘束後も防御的に変換する）。
+    const workflowScope = buildPlaneSyncWorkflowId(identity, operation);
     idempotencyKey = buildIdempotencyKey(workflowScope, "planeSyncWrite", 0);
   } catch (error) {
     return contractFailure(error);
@@ -138,13 +144,11 @@ async function runDedupedWrite(
     payload: { identity, operation },
   };
 
+  // P3-T08-005: activity の await と parse を分離（activity/runtime エラーは素通し）。
+  const preflightRaw = await reads.findPlaneSyncWrite(ledgerInput, idempotencyKey);
   let preflight;
   try {
-    preflight = parsePlaneSyncLedgerStatus(
-      await reads.findPlaneSyncWrite(ledgerInput, idempotencyKey),
-      identity,
-      idempotencyKey,
-    );
+    preflight = parsePlaneSyncLedgerStatus(preflightRaw, identity, idempotencyKey);
   } catch (error) {
     return contractFailure(error);
   }
@@ -236,9 +240,10 @@ export async function planePromotionWorkflow(input: unknown): Promise<VersionedP
   };
 
   // authoritative eligibility read（baseline はここで固定される）。
+  const eligibilityRaw = await reads.readPromotionEligibility(identityInput);
   let eligibility;
   try {
-    eligibility = parsePlanePromotionEligibility(await reads.readPromotionEligibility(identityInput), identity);
+    eligibility = parsePlanePromotionEligibility(eligibilityRaw, identity);
   } catch (error) {
     return contractFailure(error);
   }
@@ -246,9 +251,9 @@ export async function planePromotionWorkflow(input: unknown): Promise<VersionedP
     return { schemaVersion: 1, payload: { operation: "promotion", outcome: "not-eligible" } };
   }
 
-  const workflowScope = buildPlaneSyncWorkflowId(identity, "promotion");
   let idempotencyKey: string;
   try {
+    const workflowScope = buildPlaneSyncWorkflowId(identity, "promotion");
     idempotencyKey = buildIdempotencyKey(workflowScope, "createPromotionDraft", 0);
   } catch (error) {
     return contractFailure(error);
@@ -258,13 +263,12 @@ export async function planePromotionWorkflow(input: unknown): Promise<VersionedP
     payload: { identity, operation: "promotion" },
   };
 
+  // P3-T08-003: promotion の ledger は draft receipt 形（baseline provenance +
+  // draft:true）のみ受理。過去 run の正当な draft は baseline 任意（null）。
+  const promotionPreflightRaw = await reads.findPlaneSyncWrite(ledgerInput, idempotencyKey);
   let preflight;
   try {
-    preflight = parsePlaneSyncLedgerStatus(
-      await reads.findPlaneSyncWrite(ledgerInput, idempotencyKey),
-      identity,
-      idempotencyKey,
-    );
+    preflight = parsePlanePromotionLedgerStatus(promotionPreflightRaw, identity, idempotencyKey, null);
   } catch (error) {
     return contractFailure(error);
   }
@@ -282,9 +286,10 @@ export async function planePromotionWorkflow(input: unknown): Promise<VersionedP
 
   // stale check: draft 作成直前に現行 revision を再読し、固定 baseline と不一致なら
   // write なしで stale 終端（正典「baseline revision を固定」の機械的保証）。
+  const revisionRaw = await reads.readWorkItemRevision(identityInput);
   let currentRevision;
   try {
-    currentRevision = parsePlaneRevisionReceipt(await reads.readWorkItemRevision(identityInput), identity);
+    currentRevision = parsePlaneRevisionReceipt(revisionRaw, identity);
   } catch (error) {
     return contractFailure(error);
   }
@@ -300,11 +305,13 @@ export async function planePromotionWorkflow(input: unknown): Promise<VersionedP
             { schemaVersion: 1, payload: { identity, baselineRevision: eligibility.baselineRevision } },
             key,
           ),
+        // 同一 run 内の lost-response reconcile は pinned baseline の完全一致を要求
+        // （P3-T08-003）。parse 失敗のみ E-CP-CONTRACT（activity エラーは素通し）。
         reconcile: async (key) => {
           const raw = await reads.findPlaneSyncWrite(ledgerInput, key);
           let status;
           try {
-            status = parsePlaneSyncLedgerStatus(raw, identity, key);
+            status = parsePlanePromotionLedgerStatus(raw, identity, key, eligibility.baselineRevision);
           } catch (error) {
             return contractFailure(error);
           }
@@ -315,10 +322,21 @@ export async function planePromotionWorkflow(input: unknown): Promise<VersionedP
       idempotencyKey,
     );
     if (outcome.outcome === "executed") {
+      // CAS union（P3-T08-004）: created は baseline echo + draft:true、
+      // stale は write なしの正当な終端。
+      let writeResult;
       try {
-        parsePlanePromotionDraftReceipt(outcome.result, identity, idempotencyKey, eligibility.baselineRevision);
+        writeResult = parsePlanePromotionWriteResult(
+          outcome.result,
+          identity,
+          idempotencyKey,
+          eligibility.baselineRevision,
+        );
       } catch (error) {
         return contractFailure(error);
+      }
+      if (writeResult.kind === "stale") {
+        return { schemaVersion: 1, payload: { operation: "promotion", outcome: "stale" } };
       }
     }
     return { schemaVersion: 1, payload: { operation: "promotion", outcome: outcome.outcome } };
@@ -344,7 +362,12 @@ export async function planeSyncWorkflow(input: unknown): Promise<VersionedPayloa
     projectId: request.projectId,
     mappingVersion: request.mappingVersion,
   };
-  const workflowId = buildPlaneSyncWorkflowId(identity);
+  let workflowId: string;
+  try {
+    workflowId = buildPlaneSyncWorkflowId(identity);
+  } catch (error) {
+    return contractFailure(error);
+  }
   const childArgs: [VersionedPayload<ChildRequest>] = [
     { schemaVersion: 1, payload: { identity, executionMode: request.executionMode } },
   ];

@@ -42,10 +42,21 @@ export interface PlanePromotionDraftReceipt extends PlaneSyncIdentity {
   readonly draft: true;
 }
 
-const SOURCE_PATTERN = /^[a-z][a-z0-9-]{1,40}$/u;
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,150}$/u;
+// P3-T08-001: 恒等 4 要素は区切り文字 ":" を含まない文法に拘束し、結合 key が
+// buildWorkflowId の business-key 上限（200）と衝突しないよう長さも拘束する
+// （source ≤41 + id ≤61 + project ≤61 + version ≤16 + 区切り 3 + ":promotion" 10 = 192）。
+const SOURCE_PATTERN = /^[a-z][a-z0-9-]{0,40}$/u;
+const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$/u;
 const REVISION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,100}$/u;
 const OPERATIONS: readonly string[] = ["projection", "event", "promotion"];
+
+/** 恒等 4 要素の完全検証。親・child の両 trust boundary で必ず呼ぶ（P3-T08-002）。 */
+export function assertPlaneSyncIdentity(value: unknown): asserts value is PlaneSyncIdentity {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new RangeError("plane sync identity must be an object");
+  }
+  assertIdentity(value as Record<string, unknown>);
+}
 
 function assertIdentity(payload: Record<string, unknown>): void {
   if (typeof payload.externalSource !== "string" || !SOURCE_PATTERN.test(payload.externalSource)) {
@@ -182,23 +193,91 @@ export function parsePlaneRevisionReceipt(value: unknown, identity: PlaneSyncIde
 }
 
 /**
- * promotion draft receipt。baseline echo の不一致・draft 明示の欠如は拒否
- * （operationBoundary の draft 境界と正典「draft PR/Issue まで」の機械的束縛）。
+ * promotion draft receipt。draft:true と有効な baseline の欠如は拒否。
+ * expectedBaseline を渡すと echo の完全一致まで要求する（同一 run 内の
+ * lost-response reconcile）。null は「過去 run が作成した正当な draft」を許す
+ * （provenance としての baseline は必須のまま）。
  */
 export function parsePlanePromotionDraftReceipt(
   value: unknown,
   identity: PlaneSyncIdentity,
   idempotencyKey: string,
-  baselineRevision: string,
+  expectedBaseline: string | null,
 ): PlanePromotionDraftReceipt {
   const receipt = parseEnvelope(value, "plane promotion draft receipt");
   if (
     !identityMatches(receipt, identity) ||
     receipt.idempotencyKey !== idempotencyKey ||
-    receipt.baselineRevision !== baselineRevision ||
+    typeof receipt.baselineRevision !== "string" ||
+    !REVISION_PATTERN.test(receipt.baselineRevision) ||
+    (expectedBaseline !== null && receipt.baselineRevision !== expectedBaseline) ||
     receipt.draft !== true
   ) {
     throw new RangeError("plane promotion draft receipt must echo the pinned baseline and declare draft-only output");
   }
-  return { ...identity, idempotencyKey, baselineRevision, draft: true };
+  return { ...identity, idempotencyKey, baselineRevision: receipt.baselineRevision, draft: true };
+}
+
+/**
+ * promotion 専用の三値 ledger（P3-T08-003）。written は generic receipt では
+ * 受理せず、draft receipt（baseline provenance + draft:true）の形を要求する。
+ */
+export type PlanePromotionLedgerStatus =
+  | { readonly status: "written"; readonly receipt: PlanePromotionDraftReceipt }
+  | { readonly status: "pending" }
+  | { readonly status: "absent" };
+
+export function parsePlanePromotionLedgerStatus(
+  value: unknown,
+  identity: PlaneSyncIdentity,
+  idempotencyKey: string,
+  expectedBaseline: string | null,
+): PlanePromotionLedgerStatus {
+  if (value === null) return { status: "absent" };
+  const payload = parseEnvelope(value, "plane promotion ledger status");
+  if (!identityMatches(payload, identity)) {
+    throw new RangeError("plane promotion ledger status does not match the requested identity");
+  }
+  if (payload.status === "pending") return { status: "pending" };
+  if (payload.status === "written") {
+    return {
+      status: "written",
+      receipt: parsePlanePromotionDraftReceipt(value, identity, idempotencyKey, expectedBaseline),
+    };
+  }
+  throw new RangeError("plane promotion ledger status must be pending or written");
+}
+
+/**
+ * createPromotionDraft の結果 union（P3-T08-004）。stale 保証は write authority
+ * 側の CAS/precondition が担い、revision 移動時は created ではなく stale を返す
+ * 契約（読み比較だけでは read と write の間の移動を防げない）。
+ */
+export type PlanePromotionWriteResult =
+  | { readonly kind: "created"; readonly receipt: PlanePromotionDraftReceipt }
+  | { readonly kind: "stale"; readonly observedRevision: string };
+
+export function parsePlanePromotionWriteResult(
+  value: unknown,
+  identity: PlaneSyncIdentity,
+  idempotencyKey: string,
+  pinnedBaseline: string,
+): PlanePromotionWriteResult {
+  const payload = parseEnvelope(value, "plane promotion write result");
+  if (!identityMatches(payload, identity)) {
+    throw new RangeError("plane promotion write result does not match the requested identity");
+  }
+  if (payload.result === "stale") {
+    if (typeof payload.observedRevision !== "string" || !REVISION_PATTERN.test(payload.observedRevision)) {
+      throw new RangeError("stale promotion write result must carry the observed revision");
+    }
+    return { kind: "stale", observedRevision: payload.observedRevision };
+  }
+  if (payload.result === "created") {
+    return {
+      kind: "created",
+      receipt: parsePlanePromotionDraftReceipt(value, identity, idempotencyKey, pinnedBaseline),
+    };
+  }
+  throw new RangeError("plane promotion write result must be created or stale");
 }

@@ -4,9 +4,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertPlaneSyncIdentity,
   assertPlaneSyncRequest,
   parsePlanePromotionDraftReceipt,
   parsePlanePromotionEligibility,
+  parsePlanePromotionLedgerStatus,
+  parsePlanePromotionWriteResult,
   parsePlaneRevisionReceipt,
   parsePlaneSyncLedgerStatus,
   parsePlaneSyncWriteReceipt,
@@ -48,6 +51,11 @@ describe("FinalArch:CON-002 plane sync 要求の封筒検証", () => {
       { schemaVersion: 1, payload: { ...p, operations: [] } },
       { schemaVersion: 1, payload: { ...p, operations: ["projection", "projection"] } },
       { schemaVersion: 1, payload: { ...p, operations: ["merge"] } },
+      // P3-T08-001: 区切り文字 ":" を含む恒等は文法で拒否（衝突封じ）。
+      { schemaVersion: 1, payload: { ...p, externalId: "issue:a" } },
+      { schemaVersion: 1, payload: { ...p, projectId: "a:proj" } },
+      // 長さ上限超過も拒否（結合 key の workflowId 上限保護）。
+      { schemaVersion: 1, payload: { ...p, externalId: "x".repeat(62) } },
     ];
     for (const invalid of cases) {
       expect(() => assertPlaneSyncRequest(invalid), JSON.stringify(invalid) ?? "undefined").toThrow(RangeError);
@@ -137,6 +145,115 @@ describe("promotion の eligibility / revision / draft receipt", () => {
       withIdentity({ idempotencyKey: "forged#key#0", baselineRevision: "rev-7", draft: true }),
     ]) {
       expect(() => parsePlanePromotionDraftReceipt(bad, IDENTITY, DKEY, "rev-7"), JSON.stringify(bad)).toThrow(
+        RangeError,
+      );
+    }
+  });
+});
+
+describe("P3-T08-001/002 恒等の文法・長さ拘束と直接検証", () => {
+  it("最大長の正当な恒等は受理され、buildWorkflowId 上限にも収まる", () => {
+    const identity = {
+      externalSource: "a" + "b".repeat(40),
+      externalId: "X" + "y".repeat(60),
+      projectId: "P" + "q".repeat(60),
+      mappingVersion: Number.MAX_SAFE_INTEGER,
+    };
+    expect(() => assertPlaneSyncIdentity(identity)).not.toThrow();
+    const joined = `${identity.externalSource}:${identity.externalId}:${identity.projectId}:${identity.mappingVersion}:promotion`;
+    expect(joined.length).toBeLessThanOrEqual(200);
+  });
+
+  it("assertPlaneSyncIdentity は欠損・不正 field を拒否（child trust boundary）", () => {
+    for (const bad of [
+      null,
+      "identity",
+      {},
+      { ...IDENTITY, externalId: "" },
+      { ...IDENTITY, externalId: "issue:a" },
+      { ...IDENTITY, mappingVersion: 0 },
+    ]) {
+      expect(() => assertPlaneSyncIdentity(bad), JSON.stringify(bad)).toThrow(RangeError);
+    }
+  });
+});
+
+describe("P3-T08-003/004 promotion ledger / CAS union", () => {
+  const DKEY = "plane-sync/github:issue-42:proj-1:3:promotion#createPromotionDraft#0";
+  const draftPayload = { ...IDENTITY, idempotencyKey: DKEY, baselineRevision: "rev-7", draft: true };
+
+  it("promotion ledger: written は draft receipt 形のみ受理（generic receipt は拒否）", () => {
+    expect(
+      parsePlanePromotionLedgerStatus(
+        { schemaVersion: 1, payload: { ...draftPayload, status: "written" } },
+        IDENTITY,
+        DKEY,
+        null,
+      ),
+    ).toEqual({ status: "written", receipt: draftPayload });
+    // generic（baseline/draft なし）は E 拒否 — P3-T08-003 の再発防止。
+    expect(() =>
+      parsePlanePromotionLedgerStatus(
+        { schemaVersion: 1, payload: { ...IDENTITY, status: "written", idempotencyKey: DKEY } },
+        IDENTITY,
+        DKEY,
+        null,
+      ),
+    ).toThrow(RangeError);
+    // 同一 run reconcile は pinned baseline の完全一致を要求。
+    expect(() =>
+      parsePlanePromotionLedgerStatus(
+        { schemaVersion: 1, payload: { ...draftPayload, status: "written" } },
+        IDENTITY,
+        DKEY,
+        "rev-9",
+      ),
+    ).toThrow(RangeError);
+  });
+
+  it("expectedBaseline=null は過去 run の正当な draft（別 baseline）を許すが provenance は必須", () => {
+    expect(
+      parsePlanePromotionDraftReceipt(
+        { schemaVersion: 1, payload: { ...draftPayload, baselineRevision: "rev-3" } },
+        IDENTITY,
+        DKEY,
+        null,
+      ).baselineRevision,
+    ).toBe("rev-3");
+    expect(() =>
+      parsePlanePromotionDraftReceipt(
+        { schemaVersion: 1, payload: { ...IDENTITY, idempotencyKey: DKEY, draft: true } },
+        IDENTITY,
+        DKEY,
+        null,
+      ),
+    ).toThrow(RangeError);
+  });
+
+  it("CAS union: created は baseline echo + draft、stale は observedRevision 必須", () => {
+    expect(
+      parsePlanePromotionWriteResult(
+        { schemaVersion: 1, payload: { ...draftPayload, result: "created" } },
+        IDENTITY,
+        DKEY,
+        "rev-7",
+      ),
+    ).toEqual({ kind: "created", receipt: draftPayload });
+    expect(
+      parsePlanePromotionWriteResult(
+        { schemaVersion: 1, payload: { ...IDENTITY, result: "stale", observedRevision: "rev-8" } },
+        IDENTITY,
+        DKEY,
+        "rev-7",
+      ),
+    ).toEqual({ kind: "stale", observedRevision: "rev-8" });
+    for (const bad of [
+      { schemaVersion: 1, payload: { ...IDENTITY, result: "done" } },
+      { schemaVersion: 1, payload: { ...IDENTITY, result: "stale" } },
+      { schemaVersion: 1, payload: { ...draftPayload, result: "created", baselineRevision: "rev-9" } },
+      { schemaVersion: 1, payload: { ...draftPayload, result: "created", draft: false } },
+    ]) {
+      expect(() => parsePlanePromotionWriteResult(bad, IDENTITY, DKEY, "rev-7"), JSON.stringify(bad)).toThrow(
         RangeError,
       );
     }
