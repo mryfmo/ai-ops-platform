@@ -539,8 +539,45 @@ export function extractSchedulerRegistrations(source: string, conditions: Shadow
     }
     return branch.elements;
   });
-  const found = effectiveElements.map(classify);
-  return found.sort((left, right) => left.position - right.position).map(({ key }) => key);
+  // P3-T10-002: 各 element は exactly one の cutover(<literal>, task) wrapper を持ち、
+  // literal は内側で分類された registration と一致しなければならない。wrapper の
+  // 欠落・二重・鍵不一致・鍵重複は抑止対象を静かに狂わせるため fail-closed で拒否。
+  const cutoverKeyOf = (element: ts.Expression): string => {
+    const wrappers: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "cutover") {
+        const first = node.arguments[0];
+        if (first === undefined || !ts.isStringLiteral(first)) {
+          throw new Error("cutover wrapper must take a string literal registration key");
+        }
+        wrappers.push(first.text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(element);
+    if (wrappers.length !== 1) {
+      throw new Error(`scheduler entry must contain exactly one cutover wrapper; found=${String(wrappers.length)}`);
+    }
+    return wrappers[0];
+  };
+  const found = effectiveElements.map((element) => {
+    const classified = classify(element);
+    const wrapperKey = cutoverKeyOf(element);
+    if (wrapperKey !== classified.key) {
+      throw new Error(
+        `cutover wrapper key ${JSON.stringify(wrapperKey)} does not match the registered task ${JSON.stringify(
+          classified.key,
+        )}`,
+      );
+    }
+    return classified;
+  });
+  const ordered = found.sort((left, right) => left.position - right.position).map(({ key }) => key);
+  const duplicate = ordered.find((key, index) => ordered.indexOf(key) !== index);
+  if (duplicate !== undefined) {
+    throw new Error(`duplicate cutover registration key: ${JSON.stringify(duplicate)}`);
+  }
+  return ordered;
 }
 
 function evaluateNumber(expression: ts.Expression, bindings: ReadonlyMap<string, number>): number | undefined {

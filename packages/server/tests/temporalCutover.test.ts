@@ -10,8 +10,10 @@ import {
   LEGACY_SCHEDULER_FLAG_NAME,
   TEMPORAL_CUTOVER_TASK_NAMES,
   TEMPORAL_FLAG_NAME,
+  resolveLegacySchedulerEffective,
   resolveTemporalCutover,
 } from "../src/config.js";
+import { instrumentScheduledTask } from "../src/scheduler/scheduler.js";
 import { EXPECTED_SCHEDULER_REGISTRATIONS } from "../../../verification/temporal-shadow/shadow.js";
 
 describe("WBS P3-T10 resolveTemporalCutover", () => {
@@ -62,5 +64,44 @@ describe("WBS P3-T10 resolveTemporalCutover", () => {
     expect(resolveTemporalCutover(stage, "createHealthcheckTask").size).toBe(0);
     // legacy scheduler flag は正本 default true のまま。
     expect(flags.states.get(LEGACY_SCHEDULER_FLAG_NAME) ?? "true").toBe("true");
+  });
+});
+
+describe("P3-T10-001 exactly-one-writer（resolveLegacySchedulerEffective）", () => {
+  it("primary は legacy=false を要求し、legacy 停止（writer=Temporal）", () => {
+    expect(resolveLegacySchedulerEffective("primary", "false", false)).toBe(false);
+    expect(() => resolveLegacySchedulerEffective("primary", "true", false)).toThrow(/E-CFG08/u);
+  });
+
+  it("primary 構成 + KILL=1 は legacy を復元する（env 1 つの緊急 rollback）", () => {
+    expect(resolveLegacySchedulerEffective("false", "false", true)).toBe(true);
+  });
+
+  it("非 primary + legacy=false（kill なし）は zero-writer として E-CFG08", () => {
+    for (const stage of ["false", "shadow", "limited"]) {
+      expect(() => resolveLegacySchedulerEffective(stage, "false", false), stage).toThrow(/E-CFG08/u);
+    }
+  });
+
+  it("通常構成（legacy=true）は stage に依らず legacy 稼働", () => {
+    for (const stage of ["false", "shadow", "limited"]) {
+      expect(resolveLegacySchedulerEffective(stage, "true", false)).toBe(true);
+    }
+  });
+});
+
+describe("P3-T10-003 抑止 tick の可観測性（observedTask(cutover(...)) 合成順）", () => {
+  it("抑止 no-op run も instrumentScheduledTask の計測対象になる", async () => {
+    const durations: Array<{ task: string }> = [];
+    const metrics = {
+      observeTaskDuration: (task: string) => durations.push({ task }),
+      recordTaskFailure: () => {},
+    };
+    const base = { name: "cutover-observability-probe", intervalMs: 60_000, run: async () => {} };
+    // index.ts の cutover guard と同じ形（run を no-op に置換）を instrument の内側に置く。
+    const suppressed = { ...base, run: async (): Promise<void> => {} };
+    const instrumented = instrumentScheduledTask(suppressed, metrics as never);
+    await instrumented.run(new Date());
+    expect(durations.length).toBeGreaterThan(0);
   });
 });

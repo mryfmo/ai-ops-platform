@@ -607,14 +607,16 @@ export async function main(
 
   // 根拠: FinalArch:FR-CP-008。resolveMigrationFlags は legacy scheduler を正本 default=true で
   // 解決する。cutover（temporal primary + legacy false）ではこの in-process scheduler を起動しない。
-  const legacySchedulerEnabled = config.MIGRATION_FLAGS.get("control.legacy_scheduler.enabled") !== "false";
+  // P3-T10-001: exactly-one-writer 判定（kill switch の primary rollback 復元込み）
+  // は config 側 resolveLegacySchedulerEffective に集約。
+  const legacySchedulerEnabled = config.LEGACY_SCHEDULER_EFFECTIVE;
   const scheduler = !legacySchedulerEnabled
     ? null
     : startScheduler(
         [
-          cutover(
-            "createHealthcheckTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createHealthcheckTask",
               createHealthcheckTask({
                 checkTargets: async () => {
                   await pool.query("SELECT 1");
@@ -631,9 +633,8 @@ export async function main(
               }),
             ),
           ),
-          cutover(
-            "inline:capability-metrics-refresh-30s",
-            observedTask({
+          observedTask(
+            cutover("inline:capability-metrics-refresh-30s", {
               name: "capability-metrics-refresh-30s",
               intervalMs: 30_000,
               async run(now): Promise<void> {
@@ -646,13 +647,15 @@ export async function main(
             }),
           ),
           // Read-only monitoring must continue during failsafe, so this task is intentionally not guardFailsafeTask-wrapped.
-          cutover(
-            "createReportDeliveryMetricsTask",
-            observedTask(createReportDeliveryMetricsTask({ provider: reportDeliveryMetricsRepo, metrics })),
+          observedTask(
+            cutover(
+              "createReportDeliveryMetricsTask",
+              createReportDeliveryMetricsTask({ provider: reportDeliveryMetricsRepo, metrics }),
+            ),
           ),
-          cutover(
-            "createApprovedDeployTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createApprovedDeployTask",
               guardTask(
                 createApprovedDeployTask({
                   approvalsRepo,
@@ -676,9 +679,9 @@ export async function main(
               ),
             ),
           ),
-          cutover(
-            "createProdMonitorTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createProdMonitorTask",
               guardTask(
                 createProdMonitorTask({
                   deploymentsRepo,
@@ -714,9 +717,9 @@ export async function main(
           ),
           ...(githubPolicy.enabled
             ? [
-                cutover(
-                  "createJitRevocationTask",
-                  observedTask(
+                observedTask(
+                  cutover(
+                    "createJitRevocationTask",
                     createJitRevocationTask({
                       grantsRepo,
                       secDeps: { githubClient, auditLog: devopsAuditLog },
@@ -729,9 +732,9 @@ export async function main(
           // callback が届かず running のまま残った coding_tasks を終端させる。
           // 実行状態を観測してから判断するため GitHub クライアントを渡す。認証が無効なときは
           // タスク自身が「観測不能」として回収を見送り、理由を監査に残す。
-          cutover(
-            "createCodingTaskReaperTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createCodingTaskReaperTask",
               createCodingTaskReaperTask({
                 codingTasksRepo,
                 auditLog: devopsAuditLog,
@@ -740,9 +743,9 @@ export async function main(
               }),
             ),
           ),
-          cutover(
-            "createSubscriptionRenewalTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createSubscriptionRenewalTask",
               createSubscriptionRenewalTask({
                 graphSubscriptionsRepo,
                 graphClient,
@@ -765,9 +768,9 @@ export async function main(
               }),
             ),
           ),
-          cutover(
-            "createChannelPollingTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createChannelPollingTask",
               createChannelPollingTask({
                 graphSubscriptionsRepo,
                 projectChannelsRepo,
@@ -782,9 +785,9 @@ export async function main(
               }),
             ),
           ),
-          cutover(
-            "createEventsPollingTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createEventsPollingTask",
               guardTask(
                 createEventsPollingTask({
                   eventsRepo,
@@ -815,9 +818,9 @@ export async function main(
               ),
             ),
           ),
-          cutover(
-            "createPmSnapshotReconcileTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createPmSnapshotReconcileTask",
               guardTask(
                 createPmSnapshotReconcileTask({
                   repo: pmTimeseriesRepo,
@@ -829,9 +832,9 @@ export async function main(
               ),
             ),
           ),
-          cutover(
-            "createSevenKeysMonthlySnapshotTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createSevenKeysMonthlySnapshotTask",
               guardTask(
                 createSevenKeysMonthlySnapshotTask({
                   repo: sevenKeysSnapshotsRepo,
@@ -844,9 +847,9 @@ export async function main(
               ),
             ),
           ),
-          cutover(
-            "createPrjopsWeeklyAnalyzeTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createPrjopsWeeklyAnalyzeTask",
               guardTask(
                 createPrjopsWeeklyAnalyzeTask({
                   provider: prjopsJobDataProvider,
@@ -860,9 +863,9 @@ export async function main(
               ),
             ),
           ),
-          cutover(
-            "createPrjopsDailyTrackerTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createPrjopsDailyTrackerTask",
               guardTask(
                 createPrjopsDailyTrackerTask({
                   provider: prjopsJobDataProvider,
@@ -878,9 +881,9 @@ export async function main(
               ),
             ),
           ),
-          cutover(
-            "createReportDeliveryTask",
-            observedTask(
+          observedTask(
+            cutover(
+              "createReportDeliveryTask",
               guardTask(
                 createReportDeliveryTask({
                   enabled: config.REPORT_DELIVERY_ENABLED,

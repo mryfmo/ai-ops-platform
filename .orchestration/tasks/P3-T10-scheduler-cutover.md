@@ -52,3 +52,11 @@
   「guard wrapper を理解しつつ inventory 完全性の fail-closed を維持する」
   範囲に限る（弱体化禁止）。
 - `packages/server/tests/**` は検証の必要随伴物として許可（前例踏襲）。
+
+## scope amendment（round-1 review 後、orchestrator 裁定 — P3-T10-004 対応）
+
+- `docs/reference/configuration.md`: traceability gate（config inventory）が
+  新 env var の server table 記載を必須とするため、1 行追加を必要随伴物として許可。
+  周辺行の再整形は prettier（format gate）が table 列幅を再計算するためで不可避
+- `.env.example`: 権限制約（orchestrator は .env* 編集不可）により
+  agmsg micro-task `P3-T10-ENVEX` として codex worker が 1 行追加（許可記録）

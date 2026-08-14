@@ -50,6 +50,46 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     );
   });
 
+  it("P3-T10-002: cutover wrapper の欠落・二重・鍵不一致・鍵重複・非 literal を fail-closed で拒否する", () => {
+    const synth = (elements: string) => `startScheduler([${elements}], () => {});`;
+    const ok = 'observedTask(cutover("createHealthcheckTask", createHealthcheckTask({})))';
+    expect(extractSchedulerRegistrations(synth(ok), SHADOW_LEGACY_CONDITIONS)).toEqual(["createHealthcheckTask"]);
+    expect(() =>
+      extractSchedulerRegistrations(synth("observedTask(createHealthcheckTask({}))"), SHADOW_LEGACY_CONDITIONS),
+    ).toThrow(/exactly one cutover wrapper; found=0/u);
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth('cutover("createHealthcheckTask", cutover("createHealthcheckTask", createHealthcheckTask({})))'),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/exactly one cutover wrapper; found=2/u);
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth('observedTask(cutover("createReportDeliveryTask", createHealthcheckTask({})))'),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/does not match the registered task/u);
+    expect(() => extractSchedulerRegistrations(synth(`${ok}, ${ok}`), SHADOW_LEGACY_CONDITIONS)).toThrow(
+      /duplicate cutover registration key/u,
+    );
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth("observedTask(cutover(name, createHealthcheckTask({})))"),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/string literal registration key/u);
+    // 実ソース経路: healthcheck の wrapper 鍵だけを別 task 名へ差し替えると拒否される。
+    const schedulerSource = source("packages/server/src/index.ts");
+    const wrongKey = schedulerSource.replace(
+      /cutover\(\s*"createHealthcheckTask",/u,
+      'cutover("createReportDeliveryTask",',
+    );
+    expect(wrongKey).not.toBe(schedulerSource);
+    expect(() => extractSchedulerRegistrations(wrongKey, SHADOW_LEGACY_CONDITIONS)).toThrow(
+      /does not match the registered task/u,
+    );
+  });
+
   it("scheduler task の追加・欠落を fail-closed で拒否する", () => {
     expect(() =>
       compareSchedulerInventory(EXPECTED_SCHEDULER_REGISTRATIONS.slice(1), EXPECTED_SCHEDULER_REGISTRATIONS),

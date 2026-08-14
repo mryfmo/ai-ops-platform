@@ -83,6 +83,41 @@ export type TemporalCutoverTaskName = (typeof TEMPORAL_CUTOVER_TASK_NAMES)[numbe
  * kill switch（AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL=1）は resolveMigrationFlags が
  * temporal を "false" へ落とすため、本 selector は自動的に「抑止なし」へ復帰する。
  */
+/**
+ * exactly-one-writer の強制（P3-T10-001）。
+ * - temporal=primary: writer は Temporal。legacy flag は正本の相互排他により false
+ * - temporal!=primary: writer は legacy scheduler。persisted legacy=false は
+ *   zero-writer 構成なので E-CFG08 で拒否する。ただし kill switch 発動時は
+ *   「env 1 つで旧経路へ全復帰」を成立させるため、persisted legacy=false を
+ *   effective true へ復元する（primary からの緊急 rollback 経路）
+ * 返り値: legacy scheduler を起動すべきか。
+ */
+export function resolveLegacySchedulerEffective(
+  temporalStage: string,
+  legacyFlagValue: string,
+  killActive: boolean,
+): boolean {
+  if (temporalStage === "primary") {
+    // 正本の mutually-exclusive 規則（resolveMigrationFlags）で legacy=false が
+    // 保証されるが、二重化して zero/dual-writer を遮断する。
+    if (legacyFlagValue !== "false") {
+      throw new Error(`E-CFG08: ${LEGACY_SCHEDULER_FLAG_NAME} must be false when ${TEMPORAL_FLAG_NAME}=primary`);
+    }
+    return false;
+  }
+  if (legacyFlagValue === "false") {
+    if (killActive) {
+      // primary 構成に KILL=1 だけを足した緊急 rollback: legacy を復元する。
+      return true;
+    }
+    throw new Error(
+      `E-CFG08: ${LEGACY_SCHEDULER_FLAG_NAME}=false requires ${TEMPORAL_FLAG_NAME}=primary ` +
+        "(zero-writer configuration rejected)",
+    );
+  }
+  return true;
+}
+
 export function resolveTemporalCutover(
   temporalStage: string,
   cutoverTasksRaw: string | undefined,
@@ -407,6 +442,8 @@ export type ServerConfig = Omit<
   MIGRATION_FLAGS: MigrationFlagStates;
   /** P3-T10: legacy scheduler で実行を抑止する task 名集合（cutover 済み）。 */
   TEMPORAL_CUTOVER_SUPPRESSED: ReadonlySet<TemporalCutoverTaskName>;
+  /** P3-T10-001: exactly-one-writer 判定後の legacy scheduler 起動可否。 */
+  LEGACY_SCHEDULER_EFFECTIVE: boolean;
 };
 
 /**
@@ -473,6 +510,11 @@ export function loadConfig(
       TEMPORAL_CUTOVER_SUPPRESSED: resolveTemporalCutover(
         migrationFlags.states.get(TEMPORAL_FLAG_NAME) ?? "false",
         parsed.data.AIOPS_TEMPORAL_CUTOVER_TASKS,
+      ),
+      LEGACY_SCHEDULER_EFFECTIVE: resolveLegacySchedulerEffective(
+        migrationFlags.states.get(TEMPORAL_FLAG_NAME) ?? "false",
+        migrationFlags.states.get(LEGACY_SCHEDULER_FLAG_NAME) ?? "true",
+        (env.AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL ?? "").trim() === "1",
       ),
     };
   } catch (error) {
