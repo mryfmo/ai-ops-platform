@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-05-31T14:59:00.000Z",
+  "guardedActionBasis": {
+    "holidayCalendar": "empty-deterministic",
+    "sevenKeysMonthlySnapshotAt": "2026-06-01T14:59:00.000Z",
+    "prjopsWeeklyAnalyzeAt": "2026-05-31T21:00:00.000Z",
+    "prjopsDailyTrackerAt": "2026-06-01T00:00:00.000Z",
+    "reportDeliveryAt": "2026-06-01T14:59:00.000Z"
+  },
+  "sideEffectMode": "structural-plan-only",
+  "externalWrites": 0,
+  "inventory": {
+    "expected": 15,
+    "observed": 15,
+    "complete": true,
+    "conditions": {
+      "githubPolicyEnabled": true
+    }
+  },
+  "temporalDefinitions": {
+    "p3t05GraphSubscriptionSchedules": true,
+    "p3t06JitHealthSchedules": true,
+    "p3t07ReportDeliveryWorkflow": true,
+    "p3t08PlaneSyncWorkflow": true,
+    "p3t08HasLegacySchedulerCounterpart": false
+  },
+  "comparisons": [
+    {
+      "task": "healthcheck",
+      "registration": "createHealthcheckTask",
+      "legacy": {
+        "action": "health.evaluate",
+        "runtimeName": "healthcheck-30s",
+        "plannedAt": "2026-05-31T14:59:30.000Z",
+        "everyMs": 30000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "health.evaluate",
+        "target": "healthEvaluationWorkflow",
+        "source": "P3-T06 schedule",
+        "plannedAt": "2026-05-31T14:59:30.000Z",
+        "everyMs": 30000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "capability-metrics-refresh-30s",
+      "registration": "inline:capability-metrics-refresh-30s",
+      "legacy": {
+        "action": "capabilities.refresh",
+        "runtimeName": "capability-metrics-refresh-30s",
+        "plannedAt": "2026-05-31T14:59:30.000Z",
+        "everyMs": 30000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "capabilities.refresh",
+        "target": "mapping:capabilityMetricsRefreshWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T14:59:30.000Z",
+        "everyMs": 30000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "report-delivery-metrics",
+      "registration": "createReportDeliveryMetricsTask",
+      "legacy": {
+        "action": "report-delivery.metrics.refresh",
+        "runtimeName": "report-delivery-metrics-refresh-60s",
+        "plannedAt": "2026-05-31T15:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "report-delivery.metrics.refresh",
+        "target": "mapping:reportDeliveryMetricsWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T15:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "approved-deploy",
+      "registration": "createApprovedDeployTask",
+      "legacy": {
+        "action": "deploy.approved.dispatch",
+        "runtimeName": "approved-prod-deploy-30s",
+        "plannedAt": "2026-05-31T14:59:00.000Z",
+        "everyMs": 30000,
+        "recurrenceAnchor": "startup-completion"
+      },
+      "temporal": {
+        "action": "deploy.approved.dispatch",
+        "target": "mapping:approvedDeployWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T14:59:00.000Z",
+        "everyMs": 30000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "reasoned-difference",
+      "reason": "legacy dispatch runs immediately, then anchors recurrence to startup completion; the mapping has a fixed observedAt phase"
+    },
+    {
+      "task": "prod-monitor",
+      "registration": "createProdMonitorTask",
+      "legacy": {
+        "action": "deploy.prod.monitor",
+        "runtimeName": "prod-red-monitor-60s",
+        "plannedAt": "2026-05-31T15:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "deploy.prod.monitor",
+        "target": "mapping:prodMonitorWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T15:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "jit-revocation",
+      "registration": "createJitRevocationTask",
+      "legacy": {
+        "action": "jit.expired.revoke",
+        "runtimeName": "jit-revocation-1m",
+        "plannedAt": "2026-05-31T15:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "jit.expired.revoke",
+        "target": "jitExpiryWorkflow",
+        "source": "P3-T06 schedule",
+        "plannedAt": "2026-05-31T15:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "coding-task-reaper",
+      "registration": "createCodingTaskReaperTask",
+      "legacy": {
+        "action": "coding-task.reap",
+        "runtimeName": "coding-task-reaper-5m",
+        "plannedAt": "2026-05-31T15:04:00.000Z",
+        "everyMs": 300000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "coding-task.reap",
+        "target": "mapping:codingTaskReaperWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T15:04:00.000Z",
+        "everyMs": 300000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "subscription-renewal",
+      "registration": "createSubscriptionRenewalTask",
+      "legacy": {
+        "action": "graph.subscription.renew",
+        "runtimeName": "subscription-renewal-30m",
+        "plannedAt": "2026-05-31T14:59:00.000Z",
+        "everyMs": 1800000,
+        "recurrenceAnchor": "startup-completion"
+      },
+      "temporal": {
+        "action": "graph.subscription.renew",
+        "target": "graphSubscriptionWorkflow:renewal",
+        "source": "P3-T05 schedule",
+        "plannedAt": "2026-06-03T08:54:00.000Z",
+        "everyMs": 237300000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "reasoned-difference",
+      "reason": "legacy scans immediately/every 30m; Temporal targets expiry-minus-6h and removes polling drift"
+    },
+    {
+      "task": "channel-polling",
+      "registration": "createChannelPollingTask",
+      "legacy": {
+        "action": "graph.channel.delta",
+        "runtimeName": "channel-polling-5m",
+        "plannedAt": "2026-05-31T14:59:00.000Z",
+        "everyMs": 300000,
+        "recurrenceAnchor": "startup-completion"
+      },
+      "temporal": {
+        "action": "graph.channel.delta",
+        "target": "graphSubscriptionWorkflow:delta",
+        "source": "P3-T05 schedule",
+        "plannedAt": "2026-05-31T15:04:00.000Z",
+        "everyMs": 300000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "reasoned-difference",
+      "reason": "legacy performs startup recovery immediately and anchors recurrence to its completion; Temporal begins at a fixed observedAt+5m phase"
+    },
+    {
+      "task": "events-polling",
+      "registration": "createEventsPollingTask",
+      "legacy": {
+        "action": "events.poll",
+        "runtimeName": "events-polling-5s",
+        "plannedAt": "2026-05-31T14:59:05.000Z",
+        "everyMs": 5000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "events.poll",
+        "target": "mapping:eventsPollingWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T14:59:05.000Z",
+        "everyMs": 5000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "pm-snapshot-reconcile",
+      "registration": "createPmSnapshotReconcileTask",
+      "legacy": {
+        "action": "project-snapshot.reconcile",
+        "runtimeName": "pm-snapshot-reconcile",
+        "plannedAt": "2026-05-31T20:59:00.000Z",
+        "everyMs": 21600000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "project-snapshot.reconcile",
+        "target": "mapping:pmSnapshotReconcileWorkflow",
+        "source": "mapping table (P3-T08 planeSyncWorkflow is not a semantic counterpart)",
+        "plannedAt": "2026-05-31T20:59:00.000Z",
+        "everyMs": 21600000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "seven-keys-monthly-snapshot",
+      "registration": "createSevenKeysMonthlySnapshotTask",
+      "legacy": {
+        "action": "seven-keys.snapshot",
+        "runtimeName": "seven-keys-monthly-snapshot",
+        "plannedAt": "2026-06-01T14:59:00.000Z",
+        "everyMs": 86400000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "seven-keys.snapshot",
+        "target": "mapping:sevenKeysMonthlySnapshotWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-06-01T14:59:00.000Z",
+        "everyMs": 86400000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "prjops-weekly-analyze",
+      "registration": "createPrjopsWeeklyAnalyzeTask",
+      "legacy": {
+        "action": "prjops.weekly.analyze",
+        "runtimeName": "prjops-weekly-analyze",
+        "plannedAt": "2026-05-31T21:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "prjops.weekly.analyze",
+        "target": "mapping:prjopsWeeklyAnalyzeWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-05-31T21:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "prjops-daily-tracker",
+      "registration": "createPrjopsDailyTrackerTask",
+      "legacy": {
+        "action": "prjops.daily.track",
+        "runtimeName": "prjops-daily-tracker",
+        "plannedAt": "2026-06-01T00:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "prjops.daily.track",
+        "target": "mapping:prjopsDailyTrackerWorkflow",
+        "source": "mapping table (not implemented)",
+        "plannedAt": "2026-06-01T00:00:00.000Z",
+        "everyMs": 60000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    },
+    {
+      "task": "report-delivery",
+      "registration": "createReportDeliveryTask",
+      "legacy": {
+        "action": "report.deliver",
+        "runtimeName": "report-delivery-weekly",
+        "plannedAt": "2026-06-01T14:59:00.000Z",
+        "everyMs": 86400000,
+        "recurrenceAnchor": "fixed-observed-at"
+      },
+      "temporal": {
+        "action": "report.deliver",
+        "target": "reportDeliveryWorkflow",
+        "source": "P3-T07 workflow + mapping table (schedule not implemented)",
+        "plannedAt": "2026-06-01T14:59:00.000Z",
+        "everyMs": 86400000,
+        "recurrenceAnchor": "fixed-observed-at",
+        "executionMode": "shadow"
+      },
+      "status": "match"
+    }
+  ],
+  "temporalOnlyPlans": [
+    {
+      "action": "graph.subscription.reconcile",
+      "target": "graphSubscriptionWorkflow:reconcile",
+      "source": "P3-T05 schedule",
+      "plannedAt": "2026-05-31T15:04:00.000Z",
+      "everyMs": 300000,
+      "executionMode": "shadow",
+      "reason": "P3-T05 adds an authoritative reconcile schedule with no separate legacy scheduler registration"
+    }
+  ],
+  "summary": {
+    "matches": 12,
+    "reasonedDifferences": 3,
+    "unreasonedDifferences": 0,
+    "temporalOnlyPlans": 1
+  }
+}
