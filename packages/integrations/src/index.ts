@@ -11,3 +11,18 @@ export type {
   ConfluenceAdapter,
 } from "./adapters/index.js";
 export { isOperationAllowed, assertOperationAllowed } from "./lib/operationBoundary.js";
+export { buildMcpPolicyInput, assertGovernedMcpToolCallRequest } from "./lib/mcpPolicy.js";
+export type {
+  GovernedMcpToolCallRequest,
+  GovernedRegistryEntry,
+  McpPolicyInput,
+  McpRegistryCaller,
+  McpToolRisk,
+} from "./lib/mcpPolicy.js";
+export { GovernedMcpToolCaller } from "./mcp/governedToolCall.js";
+export type {
+  GovernedMcpToolCallDependencies,
+  ToolInvocationReceipt,
+  ToolPolicyDecision,
+  ToolPolicyDecisionValue,
+} from "./mcp/governedToolCall.js";

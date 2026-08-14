@@ -123,6 +123,7 @@ export class OpaDecisionClient {
     if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash) {
       throw new TypeError("OPA baseUrl must not contain credentials, query, or fragment");
     }
+    if (baseUrl.pathname !== "/") throw new TypeError("OPA baseUrl must use the origin root path");
     this.decisionUrl = new URL(OPA_DECISION_PATH, baseUrl).toString();
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 2_000;

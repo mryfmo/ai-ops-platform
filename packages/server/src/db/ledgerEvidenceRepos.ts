@@ -40,7 +40,7 @@ export class PolicyDecisionsRepo {
     policyBundleVersion: string;
     decision: "allow" | "deny" | "require_approval";
     reasons: unknown[];
-    obligations: unknown[];
+    obligations: unknown;
     traceId: string;
   }): Promise<void> {
     await this.db.query(
@@ -53,12 +53,12 @@ export class PolicyDecisionsRepo {
         decision.workflowId,
         decision.actorId,
         decision.action,
-        JSON.stringify(decision.resource),
+        JSON.stringify(sanitizeJsonDeep(decision.resource)),
         decision.inputHash,
         decision.policyBundleVersion,
         decision.decision,
-        JSON.stringify(decision.reasons),
-        JSON.stringify(decision.obligations),
+        JSON.stringify(sanitizeJsonDeep(decision.reasons)),
+        JSON.stringify(sanitizeJsonDeep(decision.obligations)),
         decision.traceId,
       ],
     );
@@ -140,7 +140,7 @@ export class ToolInvocationsRepo {
         invocation.serverVersion,
         invocation.toolName,
         invocation.riskLevel,
-        JSON.stringify(invocation.resourceScope),
+        JSON.stringify(sanitizeJsonDeep(invocation.resourceScope)),
         invocation.policyDecisionId,
         invocation.approvalId,
         invocation.latencyMs,

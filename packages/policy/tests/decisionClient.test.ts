@@ -48,6 +48,23 @@ function opaResponse(decision: PolicyDecisionValue): Response {
 }
 
 describe("OPA decision client [FinalArch:MCP-002]", () => {
+  it("rejects a base URL with a path so the decision endpoint cannot be silently rebound [FinalArch:MCP-002]", () => {
+    expect(
+      () =>
+        new OpaDecisionClient({
+          baseUrl: "http://opa.aiops.internal:8181/tenant-a",
+          fetchImpl: async () => opaResponse("deny"),
+        }),
+    ).toThrow(/root path/u);
+    expect(
+      () =>
+        new OpaDecisionClient({
+          baseUrl: "http://opa.aiops.internal:8181/",
+          fetchImpl: async () => opaResponse("deny"),
+        }),
+    ).not.toThrow();
+  });
+
   it.each(["allow", "deny", "require_approval"] as const)(
     "returns a validated %s decision with bundle version [FinalArch:MCP-002]",
     async (decision) => {
