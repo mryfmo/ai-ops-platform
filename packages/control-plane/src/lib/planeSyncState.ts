@@ -271,6 +271,11 @@ export function parsePlanePromotionWriteResult(
     if (typeof payload.observedRevision !== "string" || !REVISION_PATTERN.test(payload.observedRevision)) {
       throw new RangeError("stale promotion write result must carry the observed revision");
     }
+    // P3-T08-007: baseline と同一 revision を報告する stale は自己矛盾
+    // （一致していれば CAS は成立するはず）。適格 promotion の silent 抑止を許さない。
+    if (payload.observedRevision === pinnedBaseline) {
+      throw new RangeError("stale promotion write result must observe a revision different from the pinned baseline");
+    }
     return { kind: "stale", observedRevision: payload.observedRevision };
   }
   if (payload.result === "created") {

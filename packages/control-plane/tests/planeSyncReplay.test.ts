@@ -130,6 +130,13 @@ describe("FinalArch:CON-002 plane sync の recorded history（親 + child）", (
     expect(names.filter((n) => n === "findPlaneSyncWrite")).toHaveLength(2);
   });
 
+  it("P3-T08-007: baseline と同一 revision の stale receipt は E-CP-CONTRACT で終端（silent 抑止不可）", () => {
+    const promotion = loadHistory("plane-sync.promotion-stale-contract.promotion.history.json");
+    expect(decodeFailureType(promotion)).toBe("E-CP-CONTRACT");
+    // 矛盾 receipt を返した write は 1 回だけ schedule され、stale としては受理されない。
+    expect(scheduledNames(promotion).filter((n) => n === "createPromotionDraft")).toHaveLength(1);
+  });
+
   it("promotion-not-eligible: 未承認 work item への write は発生しない", () => {
     const promotion = loadHistory("plane-sync.promotion-not-eligible.promotion.history.json");
     expect(decodeChildOutcome(promotion).payload).toEqual({ operation: "promotion", outcome: "not-eligible" });
@@ -171,6 +178,7 @@ describe("FinalArch:CON-002 plane sync の recorded history（親 + child）", (
     "plane-sync.promotion-stale.promotion.history.json",
     "plane-sync.promotion-cas-stale.promotion.history.json",
     "plane-sync.promotion-reconciled.promotion.history.json",
+    "plane-sync.promotion-stale-contract.promotion.history.json",
     "plane-sync.promotion-not-eligible.promotion.history.json",
     "plane-sync.pending-no-redispatch.history.json",
     "plane-sync.pending-no-redispatch.projection.history.json",

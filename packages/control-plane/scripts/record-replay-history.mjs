@@ -798,12 +798,20 @@ try {
       eligibility = { engineeringReady: true, approved: true, baselineRevision: "rev-7" },
       revisionAtRead = "rev-7",
       revisionAtWrite = null,
+      staleEqualBaseline = false,
     }) => {
       const ledger = new Map();
       for (const op of writtenAlready) ledger.set(op, { status: "written" });
       for (const op of pendingAlready) ledger.set(op, { status: "pending" });
       const write = (operation) => async (input, idempotencyKey) => {
         const identity = input.payload.identity;
+        if (operation === "promotion" && staleEqualBaseline) {
+          // P3-T08-007 の矛盾 receipt: baseline と同一 revision を報告する stale。
+          return {
+            schemaVersion: 1,
+            payload: { ...identity, result: "stale", observedRevision: input.payload.baselineRevision },
+          };
+        }
         if (operation === "promotion") {
           const effective = revisionAtWrite ?? revisionAtRead;
           if (effective !== input.payload.baselineRevision) {
@@ -932,6 +940,16 @@ try {
       8,
       { loseAfterWrittenFor: ["promotion"] },
       { operations: ["promotion"] },
+    );
+    // 矛盾 stale（P3-T08-007 負）: baseline と同一 revision の stale receipt は
+    // E-CP-CONTRACT で終端（適格 promotion の silent 抑止を許さない）。
+    await recordPlaneSync(
+      "promotion-stale-contract",
+      9,
+      { staleEqualBaseline: true },
+      {
+        operations: ["promotion"],
+      },
     );
     await recordPlaneSync(
       "promotion-not-eligible",

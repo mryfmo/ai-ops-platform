@@ -250,6 +250,8 @@ describe("P3-T08-003/004 promotion ledger / CAS union", () => {
     for (const bad of [
       { schemaVersion: 1, payload: { ...IDENTITY, result: "done" } },
       { schemaVersion: 1, payload: { ...IDENTITY, result: "stale" } },
+      // P3-T08-007: baseline と同一 revision の stale は自己矛盾として拒否。
+      { schemaVersion: 1, payload: { ...IDENTITY, result: "stale", observedRevision: "rev-7" } },
       { schemaVersion: 1, payload: { ...draftPayload, result: "created", baselineRevision: "rev-9" } },
       { schemaVersion: 1, payload: { ...draftPayload, result: "created", draft: false } },
     ]) {
