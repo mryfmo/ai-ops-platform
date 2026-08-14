@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# 根拠: FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01（P4-T01-001 是正）/ gate MCP-001
+#
+# smoke 専用 fixture。governed config（config.yaml）との差分は
+# 「synthetic MCP target 1 本」のみで、contracts/mcp-gateway の
+# validateSmokeFixture が構造同値を機械検分する（rules / jwtAuth /
+# 管理面は governed と byte 同値でなければ CI が落ちる）。
+#
+# 目的: authorization を認証の先で実測すること。synthetic target は
+# tools/list で 1 tool を公開するが、deny-all sentinel により gateway の
+# tools/list は空になり、tools/call は deny される（unknown tool denied）。
+# 192.168.64.1 は Apple container CLI の host 側 gateway アドレス。
+config:
+  adminAddr: "off"
+  readinessAddr: "0.0.0.0:15021"
+  statsAddr: "0.0.0.0:15020"
+  tracing:
+    otlpEndpoint: http://otel-collector.aiops.internal:4317
+    otlpProtocol: grpc
+
+gateways:
+  default:
+    port: 3000
+
+mcp:
+  gateways: default
+  policies:
+    jwtAuth:
+      mode: strict
+      issuer: https://auth.aiops.internal/realms/platform
+      audiences:
+        - aiops-mcp-gateway
+      jwks:
+        file: /etc/agentgateway/jwks/platform.json
+    mcpAuthorization:
+      rules:
+        - "false"
+  targets:
+    - name: synthetic
+      mcp:
+        host: 192.168.64.1
+        port: 8931
+        path: /mcp
+
+routes:
+  - name: a2a-placeholder
+    gateways: default
+    matches:
+      - path:
+          pathPrefix: /a2a
+    policies:
+      a2a: {}
+      jwtAuth:
+        mode: strict
+        issuer: https://auth.aiops.internal/realms/platform
+        audiences:
+          - aiops-mcp-gateway
+        jwks:
+          file: /etc/agentgateway/jwks/platform.json
+      directResponse:
+        status: 503
+        bodyExpression: '"no A2A backends onboarded"'

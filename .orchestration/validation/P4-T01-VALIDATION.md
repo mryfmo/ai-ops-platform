@@ -56,3 +56,66 @@ SMOKE PASS: ghcr.io/agentgateway/agentgateway:v1.4.1@sha256:efd79355b89094a8225a
   `contracts/mcp-gateway/**`（新規 2 files）+ `contracts/package.json`（test 1 行）+
   `.orchestration/**`（証跡）
 - `deploy/aws/**` 未使用（IaC 本体 P10-T01、AWS env Owner 待ち — task file に記録）
+
+---
+
+# Round 2（P4-T01-REVIEW findings 001/002/003/005 是正後、2026-08-14）
+
+## 是正内容
+
+- 001: check を恒偽 sentinel `["false"]` との完全一致 pin に変更（`["true"]`
+  等 broad rule 化は fail）。smoke に Phase 2（認証済み probe）を追加
+- 002: check を許可形 allowlist（レビュー済み構成形との完全一致）へ全面書換。
+  top-level `ui`/`routeGroups`/`backends`/`services`/`workloads`/`binds`/
+  `policies` reject、route は backend-free A2A marker 1 本固定、
+  レビューの実変異（generic host backend proxy / ui attach）を負 fixture 化。
+  smoke に `/ui` 404 probe 追加
+- 003: jwtAuth を canonical 定数（strict/issuer/audience/file-only JWKS）との
+  完全一致 pin に変更、MCP/A2A 同一 binding 必須。issuer/audience/URL-JWKS/
+  cross-surface drift の負 fixture 追加
+- 004: 主張 narrowing（README/deployment.yaml/task file に P4 entry gate OPEN と
+  non-enabled preparatory configuration 分類を明記）。Owner 裁定事項として登録
+- 005: traceability_matrix.md の timestamp-only diff を revert
+
+## contracts（round 2）
+
+`node --test mcp-gateway/gateway-config.test.mjs` → **9 tests / 9 pass**
+（負 fixture 20 種: sentinel 置換・rule 追加・rules 空/欠落・early target・
+top-level llm/ui/routeGroups/backends/services/workloads/binds/policies・
+generic host-backend route・ai backend route・A2A backend 付与・match 拡大・
+directResponse 欠落・issuer/audience/JWKS-URL/cross-surface/mode drift・
+image 浮動/digest 差替え/public ingress、および fixture 側の rules/auth 緩和・
+複数 target・stdio target）
+
+## container smoke（round 2、Phase 1+2 全 OK）
+
+```text
+Configuration is valid!
+OK: --validate-only accepts the governed config
+ready
+OK: /healthz/ready answered on 192.168.64.130:15021
+OK: /metrics answered on 192.168.64.130:15020
+OK: POST /mcp -> 401
+OK: GET /a2a -> 401
+OK: POST /v1/chat/completions -> 404
+OK: GET /v1/models -> 404
+OK: GET /ui -> 404
+smoke-mcp-target listening on :8931
+OK: synthetic target exposes synthetic_echo when called directly
+OK: authenticated tools/list via gateway is empty (denied tools filtered)
+OK: authenticated tools/call synthetic_echo denied by mcpAuthorization
+SMOKE PASS: ghcr.io/agentgateway/agentgateway:v1.4.1@sha256:efd79355…
+```
+
+MCP-001 runtime evidence: 認証済み session（短命 JWT を in-process 発行、
+秘密鍵ディスク非接触）で、synthetic target が直叩きでは 1 tool を公開するのに
+対し、gateway 経由 tools/list は空（denied tool filter）、tools/call は deny。
+fixture と governed config の同値性（差分 = synthetic target 1 本のみ）は
+`validateSmokeFixture` が CI で機械検分。
+
+## mise run ci（round 2）
+
+- 2026-08-14 fresh DB（3 DB dropdb→createdb）で `mise run ci` **exit 0**
+  （単独判定、`ERROR task failed` 0 件、末尾 `P001 PostgreSQL integration passed`）。
+  初回は新規 .mjs 3 files の Prettier 未整形で format gate が fail →
+  `pnpm exec prettier --write` 適用後 green（コード意味変更なし）

@@ -3,21 +3,33 @@
 # @brief Container smoke test for the pinned agentgateway MCP/A2A-only config.
 # @description
 #   根拠: FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01 / gate MCP-001
-#   Boots the immutably pinned agentgateway image with deploy/agentgateway/
-#   config.yaml and an ephemeral throwaway JWKS (public key only; the private
-#   key is discarded in-process), then asserts:
+#   Phase 1 boots the immutably pinned agentgateway image with the governed
+#   deploy/agentgateway/config.yaml and an ephemeral JWKS whose private key is
+#   discarded in-process (no token can exist), then asserts:
 #   1. `--validate-only` accepts the governed config (vendor-schema validity);
 #   2. /healthz/ready answers 200 (gateway boots with the governed config);
 #   3. /metrics answers on the stats port (OTel/Prometheus surface up);
 #   4. unauthenticated POST /mcp is denied with 401 (jwtAuth strict,
-#      fail-closed — the runtime half of the MCP-001 default-deny posture);
+#      fail-closed — the authentication half of the MCP-001 posture);
 #   5. unauthenticated GET /a2a is denied with 401 (auth precedes the
 #      placeholder directResponse);
 #   6. LLM serving paths (/v1/chat/completions, /v1/models) are NOT routed
-#      (404) — LLM routes disabled per ADR-0023.
+#      (404) — LLM routes disabled per ADR-0023;
+#   7. GET /ui is NOT routed (404) — no management UI attachment (P4-T01-002).
+#   Phase 2 (P4-T01-001) reboots with smoke-fixture.config.yaml (identical to
+#   the governed config except one synthetic MCP target; the equivalence is
+#   CI-checked by contracts/mcp-gateway) and a fresh keypair whose private key
+#   stays in-process just long enough to sign one throwaway JWT, then proves
+#   authorization PAST authentication via smoke-mcp-probe.mjs:
+#   8. the synthetic target directly exposes synthetic_echo;
+#   9. authenticated tools/list through the gateway is EMPTY (denied tools are
+#      filtered by the deny-all sentinel);
+#   10. authenticated tools/call synthetic_echo is denied (unknown/denied tool
+#       calls fail — the MCP-001 "unknown tool denied" runtime evidence).
 #   Works with the Apple `container` CLI (default) or any docker-compatible
 #   runtime via SMOKE_RUNTIME.
 # @option SMOKE_RUNTIME Container CLI to use (default: container).
+# @option SMOKE_HOST_ADDR Host address reachable from containers (default: 192.168.64.1).
 # @example
 #   ./deploy/agentgateway/smoke.sh
 set -euo pipefail
@@ -92,5 +104,56 @@ expect_code 401 GET /a2a
 # 6. LLM serving paths must not exist (MCP/A2A-only mode, ADR-0023).
 expect_code 404 POST /v1/chat/completions
 expect_code 404 GET /v1/models
+
+# 7. No management UI attachment (adminAddr off covers only the admin server).
+expect_code 404 GET /ui
+
+# ---- Phase 2: authorization past authentication (P4-T01-001) ----
+"$RUNTIME" rm -f "$NAME" >/dev/null 2>&1 || true
+
+HOST_ADDR="${SMOKE_HOST_ADDR:-192.168.64.1}"
+TARGET_PORT=8931
+
+# Fresh keypair: JWKS to disk (public only), one short-lived JWT to stdout.
+# The private key exists only inside this node process.
+SMOKE_JWT="$(node -e '
+  const fs = require("node:fs");
+  const { generateKeyPairSync, createSign } = require("node:crypto");
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const jwk = { ...publicKey.export({ format: "jwk" }), alg: "RS256", use: "sig", kid: "smoke" };
+  fs.writeFileSync(process.argv[1], JSON.stringify({ keys: [jwk] }));
+  const b64u = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const head = b64u({ alg: "RS256", typ: "JWT", kid: "smoke" });
+  const payload = b64u({
+    iss: "https://auth.aiops.internal/realms/platform",
+    aud: "aiops-mcp-gateway",
+    sub: "smoke-probe",
+    iat: now,
+    exp: now + 600,
+  });
+  const signature = createSign("RSA-SHA256").update(`${head}.${payload}`).sign(privateKey).toString("base64url");
+  console.log(`${head}.${payload}.${signature}`);
+' "$STAGE/jwks/platform.json")"
+export SMOKE_JWT
+
+cp "$DIR/smoke-fixture.config.yaml" "$STAGE/config.yaml"
+
+SMOKE_MCP_TARGET_PORT="$TARGET_PORT" node "$DIR/smoke-mcp-target.mjs" &
+TARGET_PID=$!
+trap '"$RUNTIME" rm -f "$NAME" >/dev/null 2>&1 || true; kill "$TARGET_PID" 2>/dev/null || true; rm -rf "$STAGE"' EXIT
+
+"$RUNTIME" run --detach --name "$NAME" \
+  --volume "$STAGE:/etc/agentgateway:ro" \
+  "$IMAGE" -f /etc/agentgateway/config.yaml
+ADDR="${SMOKE_ADDR:-$("$RUNTIME" list 2>/dev/null | awk -v n="$NAME" \
+  '$1==n {for(i=1;i<=NF;i++) if ($i ~ /^[0-9.]+\//) {split($i,a,"/"); print a[1]}}')}"
+for _ in $(seq 1 30); do
+  curl -fsS -o /dev/null "http://$ADDR:15021/healthz/ready" 2>/dev/null && break
+  sleep 1
+done
+
+# 8./9./10. Direct target exposure vs gateway deny-all filtering + denied call.
+node "$DIR/smoke-mcp-probe.mjs" "$ADDR:3000" "127.0.0.1:$TARGET_PORT"
 
 echo "SMOKE PASS: $IMAGE"

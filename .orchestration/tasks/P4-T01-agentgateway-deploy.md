@@ -8,6 +8,17 @@
 - adr_refs: ADR-0023
 - acceptance_gate_ids: MCP-001（default deny tool policy / unknown tool denied — blocking）
 
+## P4 entry gate（P4-T01-004、Owner 裁定待ち）
+
+- 正本の P4 entry（03_phase_acceptance.md）と P0 baseline 決定は、agentgateway/OPA
+  の exact pin と Apache notice/license review 完了を P4 entry の前提とする。
+  license register 上、agentgateway の SBOM/依存 license/NOTICE review と
+  承認 role は **OPEN** のまま
+- 本タスクの成果物は **non-enabled preparatory configuration** として扱う:
+  どの runtime からも参照・起動されず、runtime 有効化・P4 entry クローズは
+  Owner/Security の register クローズ裁定後。この分類の追認（または entry
+  クローズ）を Owner 裁定事項として Owner 待ち backlog に追加する
+
 ## Objective
 
 agentgateway v1.4.1 を MCP/A2A 専用モードで導入する構成一式

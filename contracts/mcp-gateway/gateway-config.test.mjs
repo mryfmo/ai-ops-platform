@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { defaultRepoRoot, loadDocument } from "../check-contracts.mjs";
-import { PINNED_IMAGE, validateGatewayConfig } from "./check-gateway-config.mjs";
+import { PINNED_IMAGE, validateGatewayConfig, validateSmokeFixture } from "./check-gateway-config.mjs";
 
 const cloneConfig = () => structuredClone(loadDocument(defaultRepoRoot, "deploy/agentgateway/config.yaml"));
 const cloneDeployment = () => structuredClone(loadDocument(defaultRepoRoot, "deploy/agentgateway/deployment.yaml"));
+const cloneFixture = () =>
+  structuredClone(loadDocument(defaultRepoRoot, "deploy/agentgateway/smoke-fixture.config.yaml"));
 
 describe("agentgateway MCP/A2A-only config [FinalArch:MCP-001]", () => {
   it("accepts the governed MCP/A2A-only configuration [FinalArch:MCP-001]", () => {
@@ -17,47 +19,107 @@ describe("agentgateway MCP/A2A-only config [FinalArch:MCP-001]", () => {
     });
   });
 
-  it("rejects an LLM surface anywhere in the config (ADR-0023) [FinalArch:MCP-001]", () => {
-    const withTopLevelLlm = cloneConfig();
-    withTopLevelLlm.llm = { gateways: "default" };
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withTopLevelLlm), /forbidden key "llm"/u);
+  it("rejects broad authorization rules — only the deny-all sentinel is allowed (P4-T01-001) [FinalArch:MCP-001]", () => {
+    const allowAll = cloneConfig();
+    allowAll.mcp.policies.mcpAuthorization.rules = ["true"];
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, allowAll), /deny-all sentinel/u);
 
-    const withAiBackend = cloneConfig();
-    withAiBackend.routes.push({
-      name: "llm-smuggle",
-      backends: [{ ai: { provider: { openAI: {} } } }],
-    });
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withAiBackend), /forbidden key "ai"/u);
-  });
+    const extraRule = cloneConfig();
+    extraRule.mcp.policies.mcpAuthorization.rules = ["false", 'mcp.tool.name == "anything"'];
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, extraRule), /deny-all sentinel/u);
 
-  it("rejects stdio targets (production stdio disabled) [FinalArch:MCP-001]", () => {
-    const config = cloneConfig();
-    config.mcp.targets.push({ name: "local", stdio: { cmd: "npx", args: ["x"] } });
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, config), /forbidden key "stdio"/u);
-  });
-
-  it("rejects a missing or empty mcpAuthorization allowlist (default deny) [FinalArch:MCP-001]", () => {
     const withoutPolicy = cloneConfig();
     delete withoutPolicy.mcp.policies.mcpAuthorization;
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withoutPolicy), /non-empty allowlist/u);
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withoutPolicy), /must be a mapping/u);
 
     const emptyRules = cloneConfig();
     emptyRules.mcp.policies.mcpAuthorization.rules = [];
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, emptyRules), /non-empty allowlist/u);
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, emptyRules), /deny-all sentinel/u);
+
+    const withTargets = cloneConfig();
+    withTargets.mcp.targets.push({ name: "early", mcp: { host: "example.internal", port: 443, path: "/mcp" } });
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withTargets), /targets must stay empty/u);
   });
 
-  it("rejects weakened or missing jwtAuth on MCP and A2A surfaces [FinalArch:MCP-001]", () => {
+  it("rejects LLM surfaces including generic host-backend routes (P4-T01-002 / ADR-0023) [FinalArch:MCP-001]", () => {
+    const withTopLevelLlm = cloneConfig();
+    withTopLevelLlm.llm = { gateways: "default" };
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withTopLevelLlm), /top-level config allows only/u);
+
+    // レビュー指摘の実変異: 禁止キーなしの generic proxy route。
+    const genericProxy = cloneConfig();
+    genericProxy.routes.push({
+      name: "llm-smuggle",
+      matches: [{ path: { pathPrefix: "/v1/chat/completions" } }],
+      backends: [{ host: "api.openai.com:443" }],
+    });
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, genericProxy), /exactly the A2A marker/u);
+
+    const aiBackend = cloneConfig();
+    aiBackend.routes = [{ name: "ai", backends: [{ ai: { provider: { openAI: {} } } }] }];
+    assert.throws(
+      () => validateGatewayConfig(defaultRepoRoot, aiBackend),
+      /allows only \[name, gateways, matches, policies\]/u,
+    );
+
+    for (const key of ["routeGroups", "backends", "services", "workloads", "binds", "policies"]) {
+      const smuggled = cloneConfig();
+      smuggled[key] = [];
+      assert.throws(() => validateGatewayConfig(defaultRepoRoot, smuggled), /top-level config allows only/u, key);
+    }
+  });
+
+  it("rejects a management UI attachment and admin re-enablement (P4-T01-002) [FinalArch:MCP-001]", () => {
+    const withUi = cloneConfig();
+    withUi.ui = { gateways: "default" };
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, withUi), /top-level config allows only/u);
+
+    const adminOn = cloneConfig();
+    adminOn.config.adminAddr = "0.0.0.0:15000";
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, adminOn), /adminAddr must be off/u);
+  });
+
+  it("pins the JWT identity: issuer, audience, file-only JWKS, shared across surfaces (P4-T01-003) [FinalArch:MCP-001]", () => {
+    const wrongIssuer = cloneConfig();
+    wrongIssuer.mcp.policies.jwtAuth.issuer = "https://attacker.invalid";
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, wrongIssuer), /canonical platform binding/u);
+
+    const wrongAudience = cloneConfig();
+    wrongAudience.mcp.policies.jwtAuth.audiences = ["attacker-audience"];
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, wrongAudience), /canonical platform binding/u);
+
+    const urlJwks = cloneConfig();
+    urlJwks.mcp.policies.jwtAuth.jwks = { url: "https://attacker.invalid/jwks.json" };
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, urlJwks), /canonical platform binding/u);
+
+    const crossSurfaceDrift = cloneConfig();
+    crossSurfaceDrift.routes[0].policies.jwtAuth.audiences = ["other-audience"];
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, crossSurfaceDrift), /canonical platform binding/u);
+
     const permissive = cloneConfig();
     permissive.mcp.policies.jwtAuth.mode = "permissive";
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, permissive), /jwtAuth must be strict/u);
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, permissive), /canonical platform binding/u);
+  });
 
-    const unauthedA2a = cloneConfig();
-    delete unauthedA2a.routes[0].policies.jwtAuth;
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, unauthedA2a), /must configure jwtAuth/u);
+  it("pins the A2A marker: backend-free, /a2a only, 503 (P4-T01-002) [FinalArch:MCP-001]", () => {
+    const withBackend = cloneConfig();
+    withBackend.routes[0].backends = [{ host: "agents.internal:443" }];
+    assert.throws(
+      () => validateGatewayConfig(defaultRepoRoot, withBackend),
+      /allows only \[name, gateways, matches, policies\]/u,
+    );
 
-    const noA2a = cloneConfig();
-    noA2a.routes = [];
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, noA2a), /A2A marker route/u);
+    const widenedMatch = cloneConfig();
+    widenedMatch.routes[0].matches = [{ path: { pathPrefix: "/" } }];
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, widenedMatch), /match only the \/a2a prefix/u);
+
+    const noDirectResponse = cloneConfig();
+    delete noDirectResponse.routes[0].policies.directResponse;
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, noDirectResponse), /policies allows only|503/u);
+
+    const noRoutes = cloneConfig();
+    noRoutes.routes = [];
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, noRoutes), /exactly the A2A marker/u);
   });
 
   it("rejects an unpinned or drifted image and weakened posture [FinalArch:MCP-001]", () => {
@@ -69,12 +131,32 @@ describe("agentgateway MCP/A2A-only config [FinalArch:MCP-001]", () => {
     drifted.provenance.image = PINNED_IMAGE.replace(/@sha256:.{8}/u, "@sha256:00000000");
     assert.throws(() => validateGatewayConfig(defaultRepoRoot, undefined, drifted), /reviewed reference/u);
 
-    const adminOn = cloneConfig();
-    adminOn.config.adminAddr = "0.0.0.0:15000";
-    assert.throws(() => validateGatewayConfig(defaultRepoRoot, adminOn), /adminAddr must be off/u);
-
     const publicIngress = cloneDeployment();
     publicIngress.posture.ingress = "public";
     assert.throws(() => validateGatewayConfig(defaultRepoRoot, undefined, publicIngress), /internal-only/u);
+  });
+});
+
+describe("agentgateway smoke fixture equivalence (P4-T01-001) [FinalArch:MCP-001]", () => {
+  it("accepts the checked-in fixture (governed config + exactly one synthetic target)", () => {
+    assert.deepEqual(validateSmokeFixture(), { syntheticTargetCount: 1 });
+  });
+
+  it("rejects a fixture that weakens authorization or auth relative to the governed config", () => {
+    const weakenedRules = cloneFixture();
+    weakenedRules.mcp.policies.mcpAuthorization.rules = ["true"];
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, weakenedRules), /only in mcp\.targets/u);
+
+    const weakenedAuth = cloneFixture();
+    weakenedAuth.mcp.policies.jwtAuth.mode = "permissive";
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, weakenedAuth), /only in mcp\.targets/u);
+
+    const extraTarget = cloneFixture();
+    extraTarget.mcp.targets.push({ name: "second", mcp: { host: "x", port: 1, path: "/mcp" } });
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, extraTarget), /exactly one synthetic/u);
+
+    const stdioTarget = cloneFixture();
+    stdioTarget.mcp.targets = [{ name: "synthetic", stdio: { cmd: "npx" } }];
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, stdioTarget), /target allows only|target\.mcp/u);
   });
 });

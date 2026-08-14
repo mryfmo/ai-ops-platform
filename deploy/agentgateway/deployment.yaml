@@ -2,10 +2,14 @@
 # platform 側 provenance / posture 台帳（vendor config には書けない配備前提を固定する）。
 # contracts/mcp-gateway/check-gateway-config.mjs が config.yaml と突き合わせて検分する。
 provenance:
-  # 単一 OSS image（Apache-2.0）。digest は v1.4.1 リリース（2026-07-29）の
+  # 単一 upstream image。digest は v1.4.1 リリース（2026-07-29）の
   # ghcr.io manifest index。tag の付け替えでは動かない
   image: ghcr.io/agentgateway/agentgateway:v1.4.1@sha256:efd79355b89094a8225a9db465d9a01dc656b377f0bab458761b935a13231d29
-  license: Apache-2.0
+  # upstream OCI label の申告値。SBOM/依存 license/NOTICE の正式 review は
+  # docs/security の license register 上 OPEN（P4 entry gate、Owner/Security 裁定待ち）。
+  # 本構成はその完了まで non-enabled preparatory configuration であり、
+  # どの runtime からも参照されない（P4-T01-004）
+  license: Apache-2.0 (upstream label; register review OPEN)
 posture:
   # internal-only: public ingress 禁止。internal ALB / service mesh 背後でのみ待受
   ingress: internal-only
