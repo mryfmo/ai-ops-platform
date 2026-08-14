@@ -1,4 +1,4 @@
-<!-- 根拠: FinalArch:PRD-003 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01 -->
+<!-- 根拠: FinalArch:PRD-003 / FinalArch:FR-MCP-001..007 / FinalArch:MCP-001 / FinalArch:MCP-004 / ADR-0023 / WBS P4-T01/P4-T02 -->
 
 # agentgateway（MCP/A2A-only mode）
 
@@ -57,3 +57,15 @@ check は禁止キーの blocklist ではなく**許可形の allowlist**（レ�
 - health: `:15021/healthz/ready` / metrics: `:15020/metrics` / OTel: config の
   `tracing.otlpEndpoint`
 - rollback: 本タスク PR の revert（gateway は現時点で他系の必須経路ではない）
+
+### Registry generator
+
+`contracts/tools/mcp-registry.yaml` が platform-owned 正本。全 entry は endpoint
+onboarding 前のため disabled で、現在の生成結果は deny-all sentinel と空 target。
+schema hash、golden、手書き drift は contracts gate が検分する。
+
+```bash
+pnpm exec tsx contracts/tools/generate-agentgateway.mjs --check
+# P4-T05..T08 で承認済み entry を変更した後だけ実行
+pnpm exec tsx contracts/tools/generate-agentgateway.mjs --write
+```

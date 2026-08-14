@@ -1,0 +1,30 @@
+# 根拠: FinalArch:MCP-001 / FinalArch:MCP-004 / ADR-0023 / WBS P4-T02
+schema_version: "1.0"
+schema_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+entries:
+  - id: github-read
+    enabled: true
+    protocol: mcp
+    transport: streamable-http
+    owner: devops
+    version: pinned
+    risk: L1
+    operations: [search, read, inspect_checks]
+    resources: repository-scoped
+    auth: github-app-or-oauth
+    allowed_callers: [control-plane, claude-runner]
+    endpoint:
+      host: github-mcp.aiops.internal
+      port: 443
+      path: /mcp
+  - id: plane-read-draft
+    enabled: false
+    protocol: mcp
+    transport: streamable-http
+    owner: prjops
+    version: pinned
+    risk: L2
+    operations: [read, draft]
+    resources: project-scoped
+    auth: oauth-or-dedicated-integration
+    allowed_callers: [control-plane]

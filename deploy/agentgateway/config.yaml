@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
-# 根拠: FinalArch:PRD-003 / FinalArch:PRD-005 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01 / gate MCP-001
+# 根拠: FinalArch:PRD-003 / FinalArch:PRD-005 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T01/P4-T02 / gate MCP-001/MCP-004
 #
 # agentgateway v1.4.1 本番形（MCP/A2A-only mode）。
 # - LLM routes disabled: top-level `llm` と `ai` backend を一切構成しない
@@ -44,11 +44,15 @@ mcp:
       # tools/list からも filter される（MCP-001: default deny / unknown tool denied）。
       # 初期 onboarding 前は恒偽 sentinel のみ = 全 tool deny。
       # rules の追記は P4-T02 の registry generator 経由でのみ行う（手書き追加は禁止）
+      # BEGIN GENERATED P4-T02 MCP AUTHORIZATION RULES
       rules:
         - "false"
+      # END GENERATED P4-T02 MCP AUTHORIZATION RULES
   # target の onboarding は P4-T05..T08（GitHub read-only 等）。
   # 空集合でも gateway は仮想 MCP server として応答し、authorization は全 deny
+  # BEGIN GENERATED P4-T02 MCP TARGETS
   targets: []
+  # END GENERATED P4-T02 MCP TARGETS
 
 routes:
   # A2A surface の marker route。A2A backend の onboarding までは 503 を返す

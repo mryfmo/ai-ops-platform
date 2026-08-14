@@ -1,0 +1,59 @@
+# 根拠: FinalArch:MCP-001 / FinalArch:MCP-004 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T02
+schema_version: "1.0"
+schema_hash: b63383c46b107bb48522f0dafb6d435de2413b0c9dd98596430839a4aea37f31
+entries:
+  - id: wispr-read
+    enabled: false
+    protocol: mcp
+    transport: streamable-http
+    owner: ai-coe
+    version: pinned
+    risk: L1
+    operations: [read, search]
+    resources: meeting-notes
+    auth: oauth
+    allowed_callers: [control-plane, claude-runner, droid-runner]
+  - id: github-read
+    enabled: false
+    protocol: mcp
+    transport: streamable-http
+    owner: devops
+    version: pinned
+    risk: L1
+    operations: [read, search, inspect_checks]
+    resources: repository-scoped
+    auth: github-app-or-oauth
+    allowed_callers: [control-plane, claude-runner, droid-runner]
+  - id: plane-read-draft
+    enabled: false
+    protocol: mcp
+    transport: streamable-http
+    owner: prjops
+    version: pinned
+    risk: L2
+    operations: [read, search, draft]
+    resources: project-scoped
+    auth: oauth-or-dedicated-integration
+    allowed_callers: [control-plane, claude-runner, droid-runner]
+  - id: confluence-read-draft
+    enabled: false
+    protocol: mcp
+    transport: streamable-http
+    owner: knowledge
+    version: pinned
+    risk: L2
+    operations: [read, search, draft]
+    resources: space-scoped
+    auth: oauth
+    allowed_callers: [control-plane, claude-runner, droid-runner]
+  - id: work-iq-read
+    enabled: false
+    protocol: mcp
+    transport: streamable-http
+    owner: m365
+    version: pinned
+    risk: L1
+    operations: [read, ask, get_schema]
+    resources: microsoft-365-permission-trimmed
+    auth: delegated-obo
+    allowed_callers: [control-plane]

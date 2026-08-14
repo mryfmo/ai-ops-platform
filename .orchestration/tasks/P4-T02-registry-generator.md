@@ -94,3 +94,27 @@ P4-T01 の「rules/targets の手書き追加禁止」を機械化する。
 ## Done signal
 
 AGMSG-RESULT v1 task_id=P4-T02 status=ready_for_review
+
+## Scope amendment（2026-08-15、orchestrator 承認）
+
+- 追加 allowed_paths:
+  - `contracts/package.json`（test 列挙への 1 行追加のみ — P4-T01/P2-T02 と同型）
+  - `packages/integrations/tests/**`（mcp generator の test。repo 規約
+    `packages/*/tests/*.test.ts` 準拠のため）
+- それ以外の scope / forbidden は不変
+
+## Contract clarification（2026-08-15、orchestrator 裁定）
+
+- 採択: **option (a)** — canonical registry entry に `endpoint: {host, port, path}`
+  を追加する
+- 制約:
+  1. `endpoint` は `enabled: true` の entry でのみ**必須**、`enabled: false` では
+     省略可（記載時も schema 検証はする）。全 entry disabled の現状では
+     runtime 影響なし（preparatory classification と整合）
+  2. 実 endpoint の記入は P4-T05..T08 の各 onboarding タスクの管轄
+     （egress allowlist / register gate の下でレビューされる）。T02 では
+     endpoint 付き enabled entry は **golden/負 fixture 内のみ**に置き、
+     正本 mcp-registry.yaml は全 disabled のまま
+  3. generator は enabled entry の endpoint を vendor `mcp.targets[].mcp`
+     {host,port,path} へ 1:1 で写像（加工・推測・default 補完をしない。
+     欠落は fail-closed で生成拒否）

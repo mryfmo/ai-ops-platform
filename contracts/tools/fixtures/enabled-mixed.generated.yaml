@@ -1,0 +1,11 @@
+# 根拠: FinalArch:MCP-001 / FinalArch:MCP-004 / ADR-0023 / WBS P4-T02
+rules:
+  - 'jwt.sub in ["claude-runner","control-plane"] && mcp.tool.target == "github-read" && mcp.tool.name == "inspect_checks"'
+  - 'jwt.sub in ["claude-runner","control-plane"] && mcp.tool.target == "github-read" && mcp.tool.name == "read"'
+  - 'jwt.sub in ["claude-runner","control-plane"] && mcp.tool.target == "github-read" && mcp.tool.name == "search"'
+targets:
+  - name: "github-read"
+    mcp:
+      host: "github-mcp.aiops.internal"
+      port: 443
+      path: "/mcp"

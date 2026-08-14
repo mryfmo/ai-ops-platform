@@ -1,0 +1,18 @@
+# 根拠: FinalArch:MCP-004 / FinalArch:CON-004 / FinalArch:FR-MCP-001..007 / ADR-0023 / WBS P4-T02
+schema_version: "1.0"
+levels:
+  L0: { description: public read, default: allow }
+  L1: { description: internal scoped read, default: allow_audit }
+  L2: { description: draft or staged side effect, default: require_batch_approval }
+  L3: { description: limited business write, default: require_explicit_approval }
+  L4: { description: branch or PR creation, default: runner_only }
+  L5: { description: merge deploy delete or permission, default: not_registered }
+  L6: { description: production direct DB or retention, default: not_registered }
+operations:
+  ask: L1
+  draft: L2
+  get_schema: L1
+  inspect_checks: L1
+  read: L1
+  search: L1
+forbidden_operation_tokens: [merge, deploy, delete, permission]
