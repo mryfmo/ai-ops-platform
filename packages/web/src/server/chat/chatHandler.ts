@@ -87,6 +87,46 @@ function sanitizeMessages(messages: UIMessage[]): UIMessage[] {
   }));
 }
 
+/**
+ * SSE の finish part を行単位で検分し、refusal 相当（content-filter / refusal）を
+ * 通常完了として素通しせず stream error（ChatRefusalError）に変換する guard。
+ * ai v7 で onFinish の throw が stream に伝播しなくなった挙動変更への対応。
+ */
+export function createRefusalGuardStream(): TransformStream<Uint8Array, Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffered = "";
+  const isRefusalFinishLine = (line: string): boolean =>
+    line.startsWith("data:") &&
+    line.includes('"type":"finish"') &&
+    (line.includes('"finishReason":"content-filter"') || line.includes('"finishReason":"refusal"'));
+  return new TransformStream({
+    transform(chunk, controller) {
+      buffered += decoder.decode(chunk, { stream: true });
+      let newlineIndex = buffered.indexOf("\n");
+      while (newlineIndex !== -1) {
+        const line = buffered.slice(0, newlineIndex + 1);
+        buffered = buffered.slice(newlineIndex + 1);
+        if (isRefusalFinishLine(line)) {
+          controller.error(new ChatRefusalError());
+          return;
+        }
+        controller.enqueue(encoder.encode(line));
+        newlineIndex = buffered.indexOf("\n");
+      }
+    },
+    flush(controller) {
+      if (buffered.length > 0) {
+        if (isRefusalFinishLine(buffered)) {
+          controller.error(new ChatRefusalError());
+          return;
+        }
+        controller.enqueue(encoder.encode(buffered));
+      }
+    },
+  });
+}
+
 export class ChatRefusalError extends Error {
   constructor() {
     super("E-LLM-REFUSAL: model refused the chat request");
@@ -167,7 +207,7 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
     const result = streamText({
       model: deps.languageModel,
       system,
-      messages: convertToModelMessages(sanitizedMessages),
+      messages: await convertToModelMessages(sanitizedMessages),
       tools,
       stopWhen: stepCountIs(deps.maxSteps ?? DEFAULT_PAGE_AGENT_MAX_STEPS),
       maxRetries: deps.maxRetries ?? 2,
@@ -194,13 +234,20 @@ export async function handleChat(deps: ChatHandlerDeps): Promise<Response> {
           output_tokens: outputTokens,
           estimated_cost_usd: estimateCostUsd(modelName, inputTokens, outputTokens, pricing),
         });
-        if (isRefusal) {
-          throw new ChatRefusalError();
-        }
+        // ai v7 では onFinish 内の throw が response stream に伝播しない
+        // （通常完了として届いてしまう）。refusal の error 化は下の
+        // SSE guard（createRefusalGuardStream）が担い、ここは cost 記録のみ。
       },
     });
 
-    return result.toUIMessageStreamResponse({ sendReasoning: true });
+    const response = result.toUIMessageStreamResponse({ sendReasoning: true });
+    // refusal 相当の finish を通常完了として返さない（PrjOps:SPEC-INT-060）。
+    // finish part を検分し、refusal なら stream を ChatRefusalError で error 化する。
+    if (response.body === null) return response;
+    return new Response(response.body.pipeThrough(createRefusalGuardStream()), {
+      status: response.status,
+      headers: response.headers,
+    });
   } catch (err) {
     return toErrorResponse(err);
   }
