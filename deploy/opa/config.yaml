@@ -1,0 +1,6 @@
+# 根拠: FinalArch:MCP-002 / FinalArch:CON-004 / ADR-0023 / WBS P4-T03
+# OPA decision events are written to stdout after data.system.log.mask removes
+# caller input. The runtime collector forwards stdout to the platform OTel
+# pipeline; OPA does not make a direct telemetry egress here.
+decision_logs:
+  console: true
