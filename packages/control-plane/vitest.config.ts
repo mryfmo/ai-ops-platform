@@ -18,6 +18,7 @@ export default defineConfig({
         "src/workflows/approval.ts",
         "src/workflows/codingTask.ts",
         "src/workflows/jitHealth.ts",
+        "src/workflows/reportDelivery.ts",
         "src/workflows/entry.ts",
       ],
       thresholds: {

@@ -1,0 +1,249 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 565000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "reportDeliveryWorkflow"
+        },
+        "taskQueue": {
+          "name": "report-delivery-prf05-no-approval",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7InJlcG9ydElkIjoiZml4dHVyZS1yZXBvcnQtNyIsImFwcHJvdmFsIjpudWxsLCJleGVjdXRpb25Nb2RlIjoiYWN0aXZlIiwicmVjaXBpZW50cyI6W3sicmVjaXBpZW50SWQiOiJ1c2VyLTEifSx7InJlY2lwaWVudElkIjoidXNlci0yIn1dLCJyZXF1ZXN0ZWRCeSI6ImZpeHR1cmUifX0="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {
+          "seconds": "315360000"
+        },
+        "workflowRunTimeout": {
+          "seconds": "315360000"
+        },
+        "workflowTaskTimeout": {
+          "seconds": "10"
+        },
+        "originalExecutionRunId": "576b6d08-5987-42a7-b5f4-1f780b6fa7f0",
+        "identity": "64136@MacBook-Air.local",
+        "firstExecutionRunId": "576b6d08-5987-42a7-b5f4-1f780b6fa7f0",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": {},
+        "header": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 565000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "report-delivery-prf05-no-approval",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 566000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "64136@MacBook-Air.local",
+        "historySizeBytes": "506"
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 584000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "64136@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+dfcfa7c4c0675ab40884ca4ffe8237531073cecc6c92d46ec4c9f6ec327fe494",
+        "sdkMetadata": {
+          "coreUsedFlags": [1, 2, 3],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.22.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 584000000
+      },
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "1",
+        "activityType": {
+          "name": "resolveReportProfile"
+        },
+        "taskQueue": {
+          "name": "report-delivery-prf05-no-approval",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7InJlcG9ydElkIjoiZml4dHVyZS1yZXBvcnQtNyJ9fQ=="
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": {
+          "seconds": "315360000"
+        },
+        "scheduleToStartTimeout": {
+          "seconds": "315360000"
+        },
+        "startToCloseTimeout": {
+          "seconds": "60"
+        },
+        "heartbeatTimeout": {},
+        "workflowTaskCompletedEventId": "3",
+        "retryPolicy": {
+          "initialInterval": {
+            "seconds": "1"
+          },
+          "backoffCoefficient": 2,
+          "maximumInterval": {
+            "seconds": "30"
+          },
+          "maximumAttempts": 5,
+          "nonRetryableErrorTypes": ["RangeError", "TypeError", "E-CP-CONTRACT"]
+        }
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 584000000
+      },
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "5",
+        "identity": "64136@MacBook-Air.local",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 584000000
+      },
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7InJlcG9ydElkIjoiZml4dHVyZS1yZXBvcnQtNyIsInByb2ZpbGUiOiJQUkYtMDUiLCJyZXF1aXJlc0FwcHJvdmFsIjp0cnVlfX0="
+            }
+          ]
+        },
+        "scheduledEventId": "5",
+        "startedEventId": "6",
+        "identity": "64136@MacBook-Air.local"
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 584000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "report-delivery-prf05-no-approval",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 584000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "8",
+        "identity": "64136@MacBook-Air.local",
+        "historySizeBytes": "1299"
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 587000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "8",
+        "identity": "64136@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+dfcfa7c4c0675ab40884ca4ffe8237531073cecc6c92d46ec4c9f6ec327fe494",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": {
+        "seconds": "7463156317",
+        "nanos": 587000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_FAILED",
+      "workflowExecutionFailedEventAttributes": {
+        "failure": {
+          "message": "profile PRF-05 requires approval parameters (PRF-04/05 cannot bypass approval)",
+          "source": "TypeScriptSDK",
+          "stackTrace": "ApplicationFailure: profile PRF-05 requires approval parameters (PRF-04/05 cannot bypass approval)\n    at Function.nonRetryable (/Users/mryfmo/Workspace/ai-ops-platform/node_modules/.pnpm/@temporalio+common@1.22.0/node_modules/@temporalio/common/src/failure.ts:253:11)\n    at nonRetryable (/Users/mryfmo/Workspace/ai-ops-platform/packages/control-plane/src/workflows/reportDelivery.ts:97:27)\n    at contractFailure (/Users/mryfmo/Workspace/ai-ops-platform/packages/control-plane/src/workflows/reportDelivery.ts:155:11)",
+          "applicationFailureInfo": {
+            "type": "E-CP-CONTRACT",
+            "nonRetryable": true
+          }
+        },
+        "workflowTaskCompletedEventId": "9"
+      }
+    }
+  ]
+}
