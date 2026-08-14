@@ -1,0 +1,16 @@
+# 根拠: FinalArch:MCP-002 / FinalArch:CON-004 / ADR-0023 / WBS P4-T03
+# Non-enabled preparatory declaration. Runtime enablement remains blocked on
+# the OPEN OPA Apache notice/dependency review and Owner/Security environment gate.
+provenance:
+  image: docker.io/openpolicyagent/opa:1.19.0-static@sha256:2f42ca765bb739b40fc23ee625b3287012acdf8120ad4fcbdab68433a17be144
+  release: v1.19.0
+  release_url: https://github.com/open-policy-agent/opa/releases/tag/v1.19.0
+  license: Apache-2.0 repository; image/dependency/notice review OPEN
+posture:
+  enabled: false
+  ingress: internal-only
+  decision_address: 0.0.0.0:8181
+  diagnostic_address: 0.0.0.0:8282
+  bundle_revision: "0.1.0"
+  bundle_path: /bundles/aiops-policy.tar.gz
+  decision_logs: masked stdout collected by the platform OTel pipeline

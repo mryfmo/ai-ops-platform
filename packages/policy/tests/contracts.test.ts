@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 
-import { isRiskLevel, RISK_LEVELS, type RiskLevel } from "../src/index.js";
+import { isRiskLevel, POLICY_BUNDLE_VERSION, RISK_LEVELS, type RiskLevel } from "../src/index.js";
 
 interface CanonicalCatalog {
   levels: Record<RiskLevel, { default: string }>;
@@ -36,6 +36,10 @@ const canonical = YAML.parse(
 const bundle = YAML.parse(
   readFileSync(new URL("../policies/risk_catalog.yaml", import.meta.url), "utf8"),
 ) as BundleCatalog;
+const policySource = readFileSync(new URL("../policies/policy.rego", import.meta.url), "utf8");
+const deployment = YAML.parse(
+  readFileSync(new URL("../../../deploy/opa/deployment.yaml", import.meta.url), "utf8"),
+) as { provenance: { image: string }; posture: { bundle_revision: string } };
 
 describe("policy contracts [FinalArch:CON-004, FinalArch:CON-005]", () => {
   it("represents every canonical risk level from L0 through L6", () => {
@@ -64,6 +68,14 @@ describe("policy contracts [FinalArch:CON-004, FinalArch:CON-005]", () => {
     );
     expect([...bundle.aiops.tool_risk_catalog.tools].sort((a, b) => key(a).localeCompare(key(b)))).toEqual(
       expectedTools.sort((a, b) => key(a).localeCompare(key(b))),
+    );
+  });
+
+  it("binds client, deployment, and Rego to one bundle revision [FinalArch:MCP-002]", () => {
+    expect(policySource).toContain(`bundle_version := "${POLICY_BUNDLE_VERSION}"`);
+    expect(deployment.posture.bundle_revision).toBe(POLICY_BUNDLE_VERSION);
+    expect(deployment.provenance.image).toMatch(
+      /^docker\.io\/openpolicyagent\/opa:1\.19\.0-static@sha256:[0-9a-f]{64}$/u,
     );
   });
 });

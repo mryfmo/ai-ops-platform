@@ -6,6 +6,7 @@ import rego.v1
 import data.aiops.policy.decision
 import data.aiops.policy.globally_forbidden_actions
 import data.aiops.policy.risk_dispositions
+import data.system.log.mask
 
 valid_l1_input := {
 	"actor": {
@@ -183,4 +184,57 @@ test_l4_through_l6_are_denied_without_registered_tools if {
 		result := decision with input as candidate
 		result.decision == "deny"
 	}
+}
+
+test_missing_input_is_denied if {
+	result := decision with input as {}
+	result.decision == "deny"
+	result.policyBundleVersion == "0.1.0"
+}
+
+test_catalog_outside_risk_stays_denied_if_accidentally_registered if {
+	candidate := object.union(valid_l1_input, {
+		"action": {
+			"name": "read",
+			"riskLevel": "L5",
+			"toolName": "github.repo-investigation.read",
+			"protocol": "mcp",
+		},
+	})
+	accidental_registration := [{
+		"server": "github",
+		"group": "repo-investigation",
+		"operation": "read",
+		"risk": "L5",
+	}]
+	result := decision with input as candidate with data.aiops.tool_risk_catalog.tools as accidental_registration
+	result.decision == "deny"
+	result.policyBundleVersion == "0.1.0"
+}
+
+test_bundle_version_is_present_on_allow_approval_and_deny if {
+	allow_result := decision with input as valid_l1_input
+	approval_input := object.union(valid_l1_input, {
+		"action": {
+			"name": "draft",
+			"riskLevel": "L2",
+			"toolName": "plane.draft-work-item.draft",
+			"protocol": "mcp",
+		},
+		"resource": {
+			"system": "plane",
+			"id": "work-item-draft-1",
+			"projectId": "project-1",
+			"classification": "internal",
+		},
+	})
+	approval_result := decision with input as approval_input
+	deny_result := decision with input as {}
+	every result in {allow_result, approval_result, deny_result} {
+		result.policyBundleVersion == "0.1.0"
+	}
+}
+
+test_decision_log_mask_removes_caller_input if {
+	mask == {"/input"}
 }
