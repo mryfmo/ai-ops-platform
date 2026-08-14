@@ -1,15 +1,24 @@
-// 根拠: WBS P4-T01（P4-T01-001 是正）/ gate MCP-001
+// 根拠: WBS P4-T01（P4-T01-001/006 是正）/ gate MCP-001
 // 認証済み MCP session を gateway に張り、authorization（deny-all sentinel）を
 // 認証の「先」で実測する probe:
-// 1. synthetic target 直叩きの tools/list に synthetic_echo が存在（fixture 結線の実在証明）
+// 1. synthetic target 直叩きの tools/list に nonce 付き synthetic_echo が存在
+//    （SMOKE_NONCE は smoke.sh がこの run で採番 — decoy target では一致しない）
 // 2. gateway 経由の tools/list は空（denied tool は list から filter される）
-// 3. gateway 経由の tools/call synthetic_echo は deny（unknown/denied tool call 失敗）
-// 使い方: SMOKE_JWT=<token> node smoke-mcp-probe.mjs <gateway-addr:port> <target-addr:port>
+//    かつ target の tools/list counter が増加（gateway が「同じ process」から
+//    取得した上で filter した証明。P4-T01-006 の decoy 反証対策）
+// 3. gateway 経由の tools/call synthetic_echo は vendor の厳密な denial
+//    （HTTP 400 / JSON-RPC -32602 "Unknown tool: ..."）で拒否され、
+//    target の tools/call counter は 0 のまま（call が target に未到達）
+// 使い方: SMOKE_JWT=<token> SMOKE_NONCE=<nonce> node smoke-mcp-probe.mjs <gateway> <target>
 import assert from "node:assert/strict";
 
 const [gateway, target] = process.argv.slice(2);
 const token = process.env.SMOKE_JWT;
-assert(gateway && target && token, "usage: SMOKE_JWT=... node smoke-mcp-probe.mjs <gateway> <target>");
+const nonce = process.env.SMOKE_NONCE;
+assert(
+  gateway && target && token && nonce,
+  "usage: SMOKE_JWT=... SMOKE_NONCE=... node smoke-mcp-probe.mjs <gateway> <target>",
+);
 
 const PROTOCOL_VERSION = "2025-03-26";
 
@@ -61,17 +70,30 @@ async function initialize(base, headers) {
   return { headers, session: init.sessionId };
 }
 
-// 1. target 直: synthetic_echo が公開されている（filter の比較対象の実在証明）。
+async function targetStats() {
+  const response = await fetch(`http://${target}/smoke-stats`);
+  assert.equal(response.status, 200, "target /smoke-stats must answer");
+  const stats = await response.json();
+  assert.equal(stats.nonce, nonce, "target /smoke-stats must carry this run's nonce");
+  return stats.counters;
+}
+
+// 1. target 直: この run の nonce を刻んだ synthetic_echo が公開されている。
 const direct = await initialize(target, {});
 const directTools = await rpc(target, direct, "tools/list", {}, 2);
-assert.deepEqual(
-  directTools.message?.result?.tools?.map((tool) => tool.name),
-  ["synthetic_echo"],
-  "synthetic target must expose synthetic_echo directly",
+const directTool = directTools.message?.result?.tools?.[0];
+assert.equal(directTool?.name, "synthetic_echo", "synthetic target must expose synthetic_echo directly");
+assert.match(
+  directTool?.description ?? "",
+  new RegExp(`nonce=${nonce}\\b`, "u"),
+  "direct tools/list must carry this run's nonce (same-process proof)",
 );
-console.log("OK: synthetic target exposes synthetic_echo when called directly");
+console.log("OK: synthetic target exposes nonce-stamped synthetic_echo when called directly");
+
+const before = await targetStats();
 
 // 2. gateway 経由: 認証は通るが tools/list は空（deny-all filter）。
+//    同時に target 側 counter の増加で「gateway が同じ process へ到達した」を検分。
 const auth = { authorization: `Bearer ${token}` };
 const viaGateway = await initialize(gateway, auth);
 const gatewayTools = await rpc(gateway, viaGateway, "tools/list", {}, 2);
@@ -81,14 +103,23 @@ assert.deepEqual(
   [],
   "gateway tools/list must be empty: denied tools are filtered by the deny-all sentinel",
 );
-console.log("OK: authenticated tools/list via gateway is empty (denied tools filtered)");
-
-// 3. gateway 経由: tools/call は deny される（result 成功以外を要求）。
-const call = await rpc(gateway, viaGateway, "tools/call", { name: "synthetic_echo", arguments: { text: "x" } }, 3);
-const denied = call.status !== 200 || call.message?.error !== undefined || call.message?.result?.isError === true;
+const afterList = await targetStats();
 assert(
-  denied,
-  `tools/call synthetic_echo must be denied, got status=${call.status} body=${JSON.stringify(call.message)}`,
+  afterList["tools/list"] > before["tools/list"],
+  "the gateway must have fetched tools/list from THIS target process (decoy guard)",
 );
-assert.notEqual(call.message?.result?.content?.[0]?.text, "echo", "denied tool call must never reach the target");
-console.log("OK: authenticated tools/call synthetic_echo denied by mcpAuthorization");
+console.log("OK: authenticated tools/list via gateway is empty while this target served the merge (counter advanced)");
+
+// 3. gateway 経由: tools/call は vendor の厳密な denial 形で拒否され、
+//    target には到達しない。
+const call = await rpc(gateway, viaGateway, "tools/call", { name: "synthetic_echo", arguments: { text: "x" } }, 3);
+assert.equal(call.status, 400, `denied tools/call must be HTTP 400 (got ${call.status})`);
+assert.equal(call.message?.error?.code, -32602, "denied tools/call must be JSON-RPC -32602");
+assert.equal(
+  call.message?.error?.message,
+  "Unknown tool: synthetic_echo",
+  "denied tool must be reported as unknown (filtered out of the tool set)",
+);
+const afterCall = await targetStats();
+assert.equal(afterCall["tools/call"], 0, "the denied call must never reach the target process");
+console.log("OK: authenticated tools/call denied as unknown tool (400/-32602) without reaching the target");

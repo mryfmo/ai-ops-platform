@@ -45,8 +45,11 @@ check は禁止キーの blocklist ではなく**許可形の allowlist**（レ�
   metrics / `/mcp`・`/a2a` 401 / `/v1/*` 404 / `/ui` 404
 - Phase 2（fixture・使い捨て鍵 + 短命 JWT を in-process 発行）: synthetic target
   直叩きでは tool が見えるのに対し、**認証済み** gateway 経由の tools/list は
-  空（denied tool の filter）、tools/call は deny — MCP-001 の
-  「unknown tool denied」を認証の先で実測
+  空（denied tool の filter）、tools/call は vendor 厳密形
+  （400 / -32602 "Unknown tool: …"）で deny — MCP-001 の「unknown tool denied」を
+  認証の先で実測。per-run nonce + target 側 request counter で観測対象が
+  script 起動の同一 process であることを検分（decoy 差し替え検出）。fixture の
+  endpoint pin と governed 同値性は contracts が CI 検分
 
 ## 運用
 

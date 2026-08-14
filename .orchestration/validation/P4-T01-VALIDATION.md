@@ -119,3 +119,60 @@ fixture と governed config の同値性（差分 = synthetic target 1 本のみ
   （単独判定、`ERROR task failed` 0 件、末尾 `P001 PostgreSQL integration passed`）。
   初回は新規 .mjs 3 files の Prettier 未整形で format gate が fail →
   `pnpm exec prettier --write` 適用後 green（コード意味変更なし）
+
+---
+
+# Round 3（P4-T01-REVIEW round 2 findings 004-008 対応、2026-08-15）
+
+## 是正内容
+
+- 006: fixture の target endpoint（192.168.64.1:8931/mcp）を contracts で
+  完全一致 pin（decoy host/port/path 変異 3 種の負 fixture 追加）。smoke は
+  per-run nonce（randomUUID）を target の tool description に刻印し、
+  probe が (a) 直叩き tools/list の nonce 一致、(b) gateway tools/list 後の
+  target 側 tools/list counter 増加（= gateway が同一 process から取得）、
+  (c) denied call 後も target 側 tools/call counter 0（= call 未到達）を検分。
+  denial は vendor 厳密形（HTTP 400 / JSON-RPC -32602 /
+  message "Unknown tool: synthetic_echo" — 実測で確定）との完全一致要求。
+  非機能だった SMOKE_HOST_ADDR オプションと docker-compat 主張は削除
+  （Phase 2 は Apple container の host gateway 前提と明記）
+- 007: 運用値の完全一致 pin（readinessAddr :15021 / statsAddr :15020 /
+  OTLP internal collector + grpc / gateway :3000 / A2A 503 body）+
+  deployment.yaml の posture.ports / otlp_endpoint と runtime config の
+  整合検分。外部 OTLP sink・port drift・deployment 不整合の負 fixture 8 種追加
+- 008: P4-T02 / P4-T03 タスクファイルを PR から除外（git rm --cached、
+  worktree には未追跡のまま保持。commit は各タスクの orchestration sync で）
+- 005: 最終 CI 実行**後**に traceability_matrix.md を main 版へ復元してから
+  commit（前回は ci 再生成後の一括 add で revert が打ち消されていた）
+- 004: PR body を round 3 実態（allowlist 方式・non-enabled preparatory
+  configuration・license register OPEN・Owner 裁定待ち）へ全面更新。
+  binding ruling 自体は Owner 権限のため pending のまま明記
+
+## contracts（round 3）
+
+`node --test mcp-gateway/gateway-config.test.mjs` → **11 tests / 11 pass**
+
+## container smoke（round 3、Phase 1+2 全 OK）
+
+```text
+OK: /healthz/ready answered on 192.168.64.140:15021
+OK: /metrics answered on 192.168.64.140:15020
+OK: POST /mcp -> 401
+OK: GET /a2a -> 401
+OK: POST /v1/chat/completions -> 404
+OK: GET /v1/models -> 404
+OK: GET /ui -> 404
+OK: synthetic target exposes nonce-stamped synthetic_echo when called directly
+OK: authenticated tools/list via gateway is empty while this target served the merge (counter advanced)
+OK: authenticated tools/call denied as unknown tool (400/-32602) without reaching the target
+SMOKE PASS: ghcr.io/agentgateway/agentgateway:v1.4.1@sha256:efd79355…
+```
+
+## mise run ci（round 3）
+
+- 2026-08-15 fresh DB（3 DB dropdb→createdb。55432 の disposable Postgres が
+  停止していたため postgres:16-alpine を pinned tag で再起動）で
+  `mise run ci` **exit 0**（単独判定、`ERROR task failed` 0 件、
+  末尾 `P001 PostgreSQL integration passed`）
+- traceability_matrix.md は本 CI 実行**後**に main 版へ復元して commit
+  （merge-base diff で net 変更なしを push 後に検証）

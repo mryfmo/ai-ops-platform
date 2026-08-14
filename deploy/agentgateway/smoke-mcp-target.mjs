@@ -1,15 +1,24 @@
-// 根拠: WBS P4-T01（P4-T01-001 是正）/ gate MCP-001
+// 根拠: WBS P4-T01（P4-T01-001/006 是正）/ gate MCP-001
 // smoke 専用の synthetic MCP server（streamable HTTP、stdlib のみ）。
 // tools/list で 1 tool（synthetic_echo）を公開する。gateway 側の deny-all
 // sentinel がこの tool を tools/list から filter し tools/call を deny する
 // ことを、smoke-mcp-probe.mjs が gateway 経由で実測する。
+//
+// P4-T01-006 対応: decoy target への差し替えを検出できるよう、
+// - SMOKE_NONCE を tool description に埋め込む（この process 固有の証印）
+// - method 別の受信 counter を GET /smoke-stats で公開する
+//   （probe が「gateway が本 process から tools を取得し、denied call は
+//   本 process に到達していない」ことを検分する）
 import http from "node:http";
 
 const PORT = Number(process.env.SMOKE_MCP_TARGET_PORT ?? 8931);
+const NONCE = process.env.SMOKE_NONCE ?? "no-nonce";
+
+const counters = { initialize: 0, "tools/list": 0, "tools/call": 0 };
 
 const TOOL = {
   name: "synthetic_echo",
-  description: "smoke-only echo tool (must never be reachable through the gateway)",
+  description: `smoke-only echo tool (nonce=${NONCE}; must never be reachable through the gateway)`,
   inputSchema: { type: "object", properties: { text: { type: "string" } } },
 };
 
@@ -18,6 +27,10 @@ function rpcResult(id, result) {
 }
 
 const server = http.createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/smoke-stats") {
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ nonce: NONCE, counters }));
+    return;
+  }
   if (req.method !== "POST") {
     res.writeHead(405).end();
     return;
@@ -31,6 +44,9 @@ const server = http.createServer((req, res) => {
     } catch {
       res.writeHead(400).end();
       return;
+    }
+    if (message.method in counters) {
+      counters[message.method] += 1;
     }
     if (message.method === "initialize") {
       res.writeHead(200, { "content-type": "application/json" }).end(

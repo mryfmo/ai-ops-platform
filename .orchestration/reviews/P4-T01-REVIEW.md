@@ -1,22 +1,24 @@
-# P4-T01-REVIEW — PR #228 revise at `ff91857`
+# P4-T01-REVIEW — PR #228 revise at `76b262f`
 
 ```yaml
 task_id: P4-T01-REVIEW
 reviewer: codex-deep-dot
-reviewed_at: 2026-08-14T21:14:23+09:00
+initial_reviewed_at: 2026-08-14T21:14:23+09:00
+round_2_reviewed_at: 2026-08-15T00:42:31+09:00
 pull_request: https://github.com/mryfmo/ai-ops-platform/pull/228
 base_sha: da14ca282198e60dd15584597f954f241cbd8648
-head_sha: ff91857e204dfe56dde94bc2de86d29ec3b60aca
+initial_head_sha: ff91857e204dfe56dde94bc2de86d29ec3b60aca
+head_sha: 76b262f72d10453122dcbf4c0082c11236c60261
 verdict: revise
 findings_open: 5
-findings_resolved: 0
+findings_resolved: 3
 summary: >-
-  The exact current config is deny-all and the pinned vendor image is genuine,
-  but the blocking contract and smoke evidence do not preserve or prove that
-  posture. Live mutations passed the repository checker and the v1.4.1 vendor
-  validator while enabling allow-all MCP authorization, a generic LLM proxy,
-  an externally attached management UI, and unreviewed identity bindings.
-  The P4 entry/license gate is also still explicitly OPEN.
+  Findings 001-003 are resolved at 76b262f: the governed configuration now
+  rejects the original authorization, route/UI, and identity mutations. The
+  review remains revise because the authenticated smoke can pass against an
+  unrelated empty target, operational endpoint/posture values remain mutable,
+  the binding Owner/Security entry ruling is still pending, finding 005 was
+  not actually reverted, and unrelated P4-T02/T03 task files entered the PR.
 ```
 
 ## Findings
@@ -185,3 +187,117 @@ artifacts.
 
 Revise. Findings 001-004 are blocking security/governance gaps. Finding 005 is
 non-blocking by itself but should be cleaned up with the fix round.
+
+---
+
+## Round 2 at `76b262f`
+
+### Disposition of findings 001–005
+
+- `P4-T01-001`: resolved for the governed config. The checker now pins
+  `mcpAuthorization.rules` to exactly `["false"]` and rejects targets before
+  onboarding. The checked-in authenticated smoke reaches a valid session,
+  observes an empty filtered list, and denies `synthetic_echo`. The remaining
+  evidence-integrity weakness is tracked separately as finding 006.
+- `P4-T01-002`: resolved. The checker now accepts only the four reviewed
+  top-level keys, one exact gateway, an empty MCP target set, and one
+  backend-free A2A marker. The prior generic-host route and top-level UI
+  mutations are rejected, and `/ui` returns 404 in the exact-head smoke.
+- `P4-T01-003`: resolved. MCP and A2A JWT policy objects must deep-equal the
+  canonical strict issuer, audience, and file-only JWKS binding. Independent
+  issuer/audience/URL/cross-surface mutations fail.
+- `P4-T01-004`: partially addressed but open. Repository artifacts now state
+  that this is non-enabled preparatory configuration and that the license/P4
+  entry gate is OPEN. The required binding Owner/Security ruling has not been
+  recorded, and the public PR description still presents an unqualified
+  production configuration and “Apache-2.0 single OSS image.” It also retains
+  the old blocklist/6-test/37-test description instead of the Round-2 state.
+- `P4-T01-005`: open. The exact merge-base diff still changes only the
+  traceability matrix generation timestamp, now to
+  `2026-08-14T12:26:10.961Z`, despite the commit/report claiming it was
+  reverted.
+
+### P4-T01-006 — medium — authenticated smoke can pass against a different empty MCP target
+
+- Location: `contracts/mcp-gateway/check-gateway-config.mjs:133-153`;
+  `deploy/agentgateway/smoke-fixture.config.yaml:38-43`;
+  `deploy/agentgateway/smoke.sh:114-157`;
+  `deploy/agentgateway/smoke-mcp-probe.mjs:64-94`.
+- `validateSmokeFixture()` permits arbitrary `host`, `port`, and `path` values
+  for the sole `synthetic` target. The direct probe always checks
+  `127.0.0.1:$TARGET_PORT`, while the gateway follows the independently
+  configured fixture endpoint. The two observations are not cryptographically
+  or structurally tied to the same server. `SMOKE_HOST_ADDR` is declared and
+  assigned but never applied to the fixture.
+- Live refutation: an isolated fixture changed only the gateway target port
+  from 8931 to 8932, which the checker accepted. Port 8932 served a separate
+  MCP decoy with zero tools and an unknown-tool error; port 8931 still ran the
+  real `synthetic_echo` target. The full smoke exited 0 and printed all three
+  authorization success lines. The empty list and failed call were produced
+  by the decoy's behavior, not by deny-all filtering of the directly observed
+  tool.
+- Required correction: bind the staged fixture endpoint to the exact target
+  launched by the script (including the effective host address, port, and
+  path), and make the contract reject endpoint drift. Assert a target-issued
+  nonce/counter proving that the gateway fetched `synthetic_echo` from that
+  same process while the subsequent call never reached it; require the exact
+  vendor authorization error instead of accepting any failure. Either use
+  `SMOKE_HOST_ADDR` in the staged fixture or remove the nonfunctional option
+  and docker-compatible claim.
+
+### P4-T01-007 — medium — the “reviewed exact shape” still permits telemetry and posture drift
+
+- Location: `contracts/mcp-gateway/check-gateway-config.mjs:78-102`;
+  `deploy/agentgateway/config.yaml:10-21`;
+  `deploy/agentgateway/deployment.yaml:9-22`.
+- The checker pins key names but only requires non-empty readiness, stats, and
+  OTLP endpoint values. It does not pin `otlpProtocol`, does not compare the
+  runtime endpoint/ports to `deployment.yaml`, and ignores the deployment port
+  and OTLP metadata entirely.
+- Exact-head mutations changing OTLP to
+  `https://attacker.invalid:4317`, readiness/stats ports, A2A response body,
+  and deployment port/OTLP metadata were all accepted. An external telemetry
+  sink is a materially different egress/data boundary, while port drift makes
+  the declared deployment posture inconsistent with the runtime config.
+- Required correction: deep-equal the reviewed operational values or compare
+  them to one canonical deployment manifest: readiness `:15021`, stats
+  `:15020`, OTLP internal collector + `grpc`, gateway `:3000`, and the exact
+  A2A marker response. Add external-OTLP and config/manifest mismatch fixtures.
+
+### P4-T01-008 — medium — Round 2 swept unrelated future task contracts into PR #228
+
+- Location: Round-2 commit `76b262f` adds
+  `.orchestration/tasks/P4-T02-registry-generator.md` (96 lines) and
+  `.orchestration/tasks/P4-T03-opa-decision-client.md` (82 lines).
+- These files were untracked before the fix commit, are not P4-T01 deliverables,
+  and define separate writer tasks/PRs with their own scopes and gates. They
+  are absent from the PR description and were not part of the requested
+  findings fix. Merging them here couples two unreviewed future task contracts
+  to the gateway preparation PR.
+- Required correction: remove both files from PR #228 and commit them through
+  their owning orchestration change, or record an explicit P4-T01 scope
+  amendment and update the full PR description so they receive deliberate
+  review.
+
+### Round-2 positive checks
+
+- GitHub CLI was used first. PR metadata, full body, commits, files, comments,
+  review threads, and checks were inspected at exact head
+  `76b262f72d10453122dcbf4c0082c11236c60261`. No review threads exist.
+- Exact-head Actions run `31800452150` is green: `build-test` and `gitleaks`
+  succeeded; CodeRabbit status is success.
+- Focused gateway tests pass 9/9. Full `mise run contracts` passes 40/40.
+  `git diff --check`, supported-file Prettier, and `bash -n` pass.
+- The normal exact-head two-phase smoke passes: governed 401/404 posture,
+  authenticated `tools/list` empty, and `tools/call` denied.
+- The original allow-all CEL, generic LLM route, attached UI, and wrong-issuer
+  live mutations are now rejected.
+- No implementation file, PR state, remote branch, dependency, gate, or user
+  untracked file was modified by this review.
+
+### Round-2 verdict
+
+Revise. Findings 004 and 005 remain open; findings 006-008 are new. The core
+MCP/route/JWT contract fixes are correct, but approval is not unconditional
+until the evidence chain, operational values, governance ruling/PR claims, and
+scope contamination are resolved.

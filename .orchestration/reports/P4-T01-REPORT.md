@@ -82,3 +82,18 @@ findings 5 件すべて妥当と裁定し、001/002/003/005 をコード是正�
 
 検証: `.orchestration/validation/P4-T01-VALIDATION.md` Round 2 節
 （contracts 9/9、smoke Phase 1+2 全 OK、fresh DB ci）。
+
+---
+
+## Round 3（round 2 findings 004-008 への対応、2026-08-15）
+
+- **006**: fixture endpoint を contracts で pin（decoy 差し替え reject）。smoke は
+  per-run nonce + target 側 counter で「gateway が script 起動の同一 process から
+  tools を取得し、denied call は未到達」を検分。denial は vendor 厳密形
+  （400 / -32602 / "Unknown tool: synthetic_echo"、実測確定）との完全一致要求
+- **007**: 運用値（readiness/stats/OTLP/gateway port/A2A body）と deployment
+  台帳整合を完全一致 pin。外部 OTLP sink 等の負 fixture 8 種追加
+- **008**: P4-T02/T03 タスクファイルを PR から除外（後続 sync で別途 commit）
+- **005**: 最終 CI 後に matrix を main 版へ復元して commit（net 変更なし）
+- **004**: PR body を round 3 実態へ全面更新。Owner 裁定（register クローズ or
+  preparatory 分類の binding 追認）は pending のまま明記

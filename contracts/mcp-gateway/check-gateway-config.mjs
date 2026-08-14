@@ -41,6 +41,30 @@ export const PLATFORM_JWT_AUTH = Object.freeze({
 // 恒偽 sentinel との完全一致に固定する（["true"] 等の broad rule 化を reject）。
 export const DENY_ALL_SENTINEL = Object.freeze(["false"]);
 
+// P4-T01-007: 運用値も完全一致で pin する。外部 OTLP sink は egress/データ境界の
+// 変質、port drift は deployment 台帳との不整合になるため、非空 check ではなく
+// canonical 定数との deep-equal で固定する。
+export const OPERATIONAL_PINS = Object.freeze({
+  readinessAddr: "0.0.0.0:15021",
+  statsAddr: "0.0.0.0:15020",
+  tracing: Object.freeze({
+    otlpEndpoint: "http://otel-collector.aiops.internal:4317",
+    otlpProtocol: "grpc",
+  }),
+  gatewayPort: 3000,
+  a2aBodyExpression: '"no A2A backends onboarded"',
+});
+
+// P4-T01-006: smoke fixture の synthetic target endpoint を pin する。
+// 192.168.64.1 は Apple container CLI の host gateway。fixture がここから
+// drift すると、smoke script が起動した target と gateway の観測対象が
+// 別 process になり得る（decoy 反証）ため、完全一致で固定する。
+export const SMOKE_TARGET_ENDPOINT = Object.freeze({
+  host: "192.168.64.1",
+  port: 8931,
+  path: "/mcp",
+});
+
 function assertKeys(node, allowed, where) {
   assert(node !== null && typeof node === "object" && !Array.isArray(node), `${where} must be a mapping`);
   const actual = Object.keys(node);
@@ -65,8 +89,11 @@ function assertA2aMarkerRoute(route) {
   assertKeys(route.policies, ["a2a", "jwtAuth", "directResponse"], `${where} policies`);
   assert.deepEqual(route.policies.a2a, {}, `${where} must carry the a2a marker`);
   assertPlatformJwtAuth(route.policies.jwtAuth, where);
-  assert.equal(route.policies.directResponse?.status, 503, `${where} must answer 503 until A2A onboarding`);
-  assertKeys(route.policies.directResponse, ["status", "bodyExpression"], `${where} directResponse`);
+  assert.deepEqual(
+    structuredClone(route.policies.directResponse ?? null),
+    { status: 503, bodyExpression: OPERATIONAL_PINS.a2aBodyExpression },
+    `${where} must answer the pinned 503 direct response until A2A onboarding`,
+  );
 }
 
 export function validateGatewayConfig(repoRoot = defaultRepoRoot, override, deploymentOverride) {
@@ -81,20 +108,40 @@ export function validateGatewayConfig(repoRoot = defaultRepoRoot, override, depl
   assert.equal(deployment?.posture?.ingress, "internal-only", "posture.ingress must be internal-only");
   assert.equal(deployment?.posture?.mode, "mcp-a2a-only", "posture.mode must be mcp-a2a-only");
 
+  // P4-T01-007: deployment 台帳の port / OTLP 宣言は runtime config と一致必須。
+  assert.deepEqual(
+    structuredClone(deployment?.posture?.ports ?? null),
+    { gateway: OPERATIONAL_PINS.gatewayPort, readiness: 15021, stats: 15020, admin: "off" },
+    "posture.ports must match the pinned runtime ports (admin stays off)",
+  );
+  assert.equal(
+    deployment?.posture?.otlp_endpoint,
+    OPERATIONAL_PINS.tracing.otlpEndpoint,
+    "posture.otlp_endpoint must match the runtime OTLP collector",
+  );
+
   // 許可形 allowlist（P4-T01-002）: top-level に llm / ui / binds / routeGroups /
   // backends / services / workloads / policies 等が現れた時点で reject。
   assertKeys(config, ["config", "gateways", "mcp", "routes"], "top-level config");
 
-  // 運用面: 管理 UI off / readiness / stats / OTel。
+  // 運用面（P4-T01-007）: 管理 UI off / readiness / stats / OTel を pin 値と
+  // 完全一致で固定（外部 OTLP sink・port drift は reject）。
   assertKeys(config.config, ["adminAddr", "readinessAddr", "statsAddr", "tracing"], "config");
   assert.equal(config.config.adminAddr, "off", "adminAddr must be off");
-  assert(config.config.readinessAddr, "readinessAddr must be configured");
-  assert(config.config.statsAddr, "statsAddr must be configured");
-  assertKeys(config.config.tracing, ["otlpEndpoint", "otlpProtocol"], "config.tracing");
-  assert(config.config.tracing.otlpEndpoint, "tracing.otlpEndpoint must be configured");
+  assert.equal(config.config.readinessAddr, OPERATIONAL_PINS.readinessAddr, "readinessAddr must stay pinned");
+  assert.equal(config.config.statsAddr, OPERATIONAL_PINS.statsAddr, "statsAddr must stay pinned");
+  assert.deepEqual(
+    structuredClone(config.config.tracing),
+    structuredClone(OPERATIONAL_PINS.tracing),
+    "tracing must stay pinned to the internal OTLP collector over grpc",
+  );
 
   // gateway entrypoint は default:3000 の単一 HTTP listener のみ。
-  assert.deepEqual(config.gateways, { default: { port: 3000 } }, "gateways must expose only default:3000");
+  assert.deepEqual(
+    config.gateways,
+    { default: { port: OPERATIONAL_PINS.gatewayPort } },
+    "gateways must expose only default:3000",
+  );
 
   // MCP surface: fail-closed auth + deny-all sentinel（P4-T01-001/003）。
   assertKeys(config.mcp, ["gateways", "policies", "targets"], "mcp");
@@ -134,7 +181,12 @@ export function validateSmokeFixture(repoRoot = defaultRepoRoot, fixtureOverride
     "smoke fixture must add exactly one synthetic MCP target",
   );
   assertKeys(targets[0], ["name", "mcp"], "smoke fixture target");
-  assertKeys(targets[0].mcp, ["host", "port", "path"], "smoke fixture target.mcp");
+  // P4-T01-006: endpoint drift（decoy target への付替え）を reject する。
+  assert.deepEqual(
+    structuredClone(targets[0].mcp),
+    structuredClone(SMOKE_TARGET_ENDPOINT),
+    "smoke fixture target endpoint must stay pinned to the script-launched target",
+  );
 
   // synthetic target 以外は governed config と byte 同値でなければならない。
   fixture.mcp.targets = [];

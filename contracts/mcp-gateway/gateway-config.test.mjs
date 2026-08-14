@@ -122,6 +122,43 @@ describe("agentgateway MCP/A2A-only config [FinalArch:MCP-001]", () => {
     assert.throws(() => validateGatewayConfig(defaultRepoRoot, noRoutes), /exactly the A2A marker/u);
   });
 
+  it("pins operational values: OTLP sink, ports, A2A body, deployment consistency (P4-T01-007) [FinalArch:MCP-001]", () => {
+    const externalOtlp = cloneConfig();
+    externalOtlp.config.tracing.otlpEndpoint = "https://attacker.invalid:4317";
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, externalOtlp), /tracing must stay pinned/u);
+
+    const httpOtlp = cloneConfig();
+    httpOtlp.config.tracing.otlpProtocol = "http";
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, httpOtlp), /tracing must stay pinned/u);
+
+    const readinessDrift = cloneConfig();
+    readinessDrift.config.readinessAddr = "0.0.0.0:25021";
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, readinessDrift), /readinessAddr must stay pinned/u);
+
+    const statsDrift = cloneConfig();
+    statsDrift.config.statsAddr = "0.0.0.0:25020";
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, statsDrift), /statsAddr must stay pinned/u);
+
+    const gatewayPortDrift = cloneConfig();
+    gatewayPortDrift.gateways.default.port = 3001;
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, gatewayPortDrift), /default:3000/u);
+
+    const a2aBodyDrift = cloneConfig();
+    a2aBodyDrift.routes[0].policies.directResponse.bodyExpression = '"drifted"';
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, a2aBodyDrift), /pinned 503 direct response/u);
+
+    const deploymentPortDrift = cloneDeployment();
+    deploymentPortDrift.posture.ports.gateway = 3001;
+    assert.throws(() => validateGatewayConfig(defaultRepoRoot, undefined, deploymentPortDrift), /posture\.ports/u);
+
+    const deploymentOtlpDrift = cloneDeployment();
+    deploymentOtlpDrift.posture.otlp_endpoint = "https://attacker.invalid:4317";
+    assert.throws(
+      () => validateGatewayConfig(defaultRepoRoot, undefined, deploymentOtlpDrift),
+      /posture\.otlp_endpoint/u,
+    );
+  });
+
   it("rejects an unpinned or drifted image and weakened posture [FinalArch:MCP-001]", () => {
     const floating = cloneDeployment();
     floating.provenance.image = "ghcr.io/agentgateway/agentgateway:latest";
@@ -157,6 +194,23 @@ describe("agentgateway smoke fixture equivalence (P4-T01-001) [FinalArch:MCP-001
 
     const stdioTarget = cloneFixture();
     stdioTarget.mcp.targets = [{ name: "synthetic", stdio: { cmd: "npx" } }];
-    assert.throws(() => validateSmokeFixture(defaultRepoRoot, stdioTarget), /target allows only|target\.mcp/u);
+    assert.throws(
+      () => validateSmokeFixture(defaultRepoRoot, stdioTarget),
+      /target allows only|endpoint must stay pinned/u,
+    );
+  });
+
+  it("rejects endpoint drift toward a decoy target (P4-T01-006)", () => {
+    const decoyPort = cloneFixture();
+    decoyPort.mcp.targets[0].mcp.port = 8932;
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, decoyPort), /endpoint must stay pinned/u);
+
+    const decoyHost = cloneFixture();
+    decoyHost.mcp.targets[0].mcp.host = "203.0.113.10";
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, decoyHost), /endpoint must stay pinned/u);
+
+    const decoyPath = cloneFixture();
+    decoyPath.mcp.targets[0].mcp.path = "/decoy";
+    assert.throws(() => validateSmokeFixture(defaultRepoRoot, decoyPath), /endpoint must stay pinned/u);
   });
 });

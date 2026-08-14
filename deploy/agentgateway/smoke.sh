@@ -24,12 +24,15 @@
 #   8. the synthetic target directly exposes synthetic_echo;
 #   9. authenticated tools/list through the gateway is EMPTY (denied tools are
 #      filtered by the deny-all sentinel);
-#   10. authenticated tools/call synthetic_echo is denied (unknown/denied tool
-#       calls fail — the MCP-001 "unknown tool denied" runtime evidence).
-#   Works with the Apple `container` CLI (default) or any docker-compatible
-#   runtime via SMOKE_RUNTIME.
-# @option SMOKE_RUNTIME Container CLI to use (default: container).
-# @option SMOKE_HOST_ADDR Host address reachable from containers (default: 192.168.64.1).
+#   10. authenticated tools/call synthetic_echo is denied with the exact
+#       vendor error (400 / -32602 "Unknown tool: ...") and never reaches the
+#       target — the MCP-001 "unknown tool denied" runtime evidence.
+#   A per-run nonce plus target-side request counters tie every observation to
+#   the exact target process this script launches (decoy guard, P4-T01-006).
+#   Phase 2 requires the Apple `container` CLI: the fixture pins the target
+#   endpoint to its 192.168.64.1 host gateway (enforced by contracts).
+# @option SMOKE_RUNTIME Container CLI to use (default: container; Phase 2
+#   assumes Apple container host addressing).
 # @example
 #   ./deploy/agentgateway/smoke.sh
 set -euo pipefail
@@ -108,11 +111,16 @@ expect_code 404 GET /v1/models
 # 7. No management UI attachment (adminAddr off covers only the admin server).
 expect_code 404 GET /ui
 
-# ---- Phase 2: authorization past authentication (P4-T01-001) ----
+# ---- Phase 2: authorization past authentication (P4-T01-001/006) ----
 "$RUNTIME" rm -f "$NAME" >/dev/null 2>&1 || true
 
-HOST_ADDR="${SMOKE_HOST_ADDR:-192.168.64.1}"
+# The fixture pins the target endpoint to 192.168.64.1:8931/mcp (the Apple
+# `container` host gateway; enforced by contracts/mcp-gateway). The per-run
+# nonce ties the probe's observations to the exact target process launched
+# below — a decoy on a different endpoint cannot echo this nonce (P4-T01-006).
 TARGET_PORT=8931
+SMOKE_NONCE="$(node -e 'console.log(require("node:crypto").randomUUID())')"
+export SMOKE_NONCE
 
 # Fresh keypair: JWKS to disk (public only), one short-lived JWT to stdout.
 # The private key exists only inside this node process.
@@ -139,7 +147,7 @@ export SMOKE_JWT
 
 cp "$DIR/smoke-fixture.config.yaml" "$STAGE/config.yaml"
 
-SMOKE_MCP_TARGET_PORT="$TARGET_PORT" node "$DIR/smoke-mcp-target.mjs" &
+SMOKE_MCP_TARGET_PORT="$TARGET_PORT" SMOKE_NONCE="$SMOKE_NONCE" node "$DIR/smoke-mcp-target.mjs" &
 TARGET_PID=$!
 trap '"$RUNTIME" rm -f "$NAME" >/dev/null 2>&1 || true; kill "$TARGET_PID" 2>/dev/null || true; rm -rf "$STAGE"' EXIT
 
