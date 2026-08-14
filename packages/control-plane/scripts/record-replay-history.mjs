@@ -512,6 +512,102 @@ try {
   });
   await recordGraphSubscription("delta", "fixture-subscription-3", "delta");
   await recordGraphSubscription("reconcile", "fixture-subscription-4", "reconcile");
+
+  // --- P3-T06 JIT expiry / health fixtures（TMP-003） ---
+  const JIT_GRANT_ID = "00000000-0000-4000-8000-000000000006";
+  const jitHealthInput = (operation, sequence, observedAtMs, executionMode) => ({
+    schemaVersion: 1,
+    payload: { operation, sequence, observedAtMs, executionMode },
+  });
+
+  function makeJitHealthActivities({ preexisting = false, loseResponse = false } = {}) {
+    const revocations = new Map();
+    const revocationReceipt = (input, idempotencyKey) => ({
+      schemaVersion: 1,
+      payload: {
+        grantId: input.payload.grantId,
+        idempotencyKey,
+        revokedAtMs: input.payload.observedAtMs,
+      },
+    });
+    return {
+      async findJitRevocationCandidates(input) {
+        return {
+          schemaVersion: 1,
+          payload: { evaluatedAtMs: input.payload.observedAtMs, grants: [{ grantId: JIT_GRANT_ID }] },
+        };
+      },
+      async findJitRevocation(input, idempotencyKey) {
+        if (preexisting) return revocationReceipt(input, idempotencyKey);
+        return revocations.get(idempotencyKey) ?? null;
+      },
+      async revokeExpiredGrant(input, idempotencyKey) {
+        const receipt = revocationReceipt(input, idempotencyKey);
+        revocations.set(idempotencyKey, receipt);
+        if (loseResponse) throw new Error("synthetic response loss after JIT revoke");
+        return receipt;
+      },
+      async evaluateHealth(input) {
+        return {
+          schemaVersion: 1,
+          payload: {
+            observedAtMs: input.payload.observedAtMs,
+            healthy: false,
+            consecutiveFailures: 3,
+            decision: "activate_failsafe",
+          },
+        };
+      },
+      async applyHealthDecision(input) {
+        return input;
+      },
+    };
+  }
+
+  const recordJitHealth = async ({ name, workflowType, operation, sequence, executionMode, activityOptions }) => {
+    const observedAtMs = await env.currentTimeMs();
+    const taskQueue = `jit-health-${name}`;
+    const workflowId = `incident/${operation === "jit-expiry" ? "jit-expiry" : "health"}:global:${String(sequence)}`;
+    const worker = await Worker.create({
+      connection: env.nativeConnection,
+      taskQueue,
+      workflowsPath,
+      activities: makeJitHealthActivities(activityOptions),
+    });
+    const result = await worker.runUntil(
+      env.client.workflow.execute(workflowType, {
+        taskQueue,
+        workflowId,
+        args: [jitHealthInput(operation, sequence, observedAtMs, executionMode)],
+      }),
+    );
+    await saveHistory(workflowId, `jit-health.${name}.history.json`);
+    console.log(`recorded jit-health.${name}.history.json (${result.payload.outcome})`);
+  };
+
+  await recordJitHealth({
+    name: "jit-lost-response",
+    workflowType: "jitExpiryWorkflow",
+    operation: "jit-expiry",
+    sequence: 11,
+    executionMode: "active",
+    activityOptions: { loseResponse: true },
+  });
+  await recordJitHealth({
+    name: "jit-shadow-no-duplicate",
+    workflowType: "jitExpiryWorkflow",
+    operation: "jit-expiry",
+    sequence: 12,
+    executionMode: "shadow",
+    activityOptions: { preexisting: true },
+  });
+  await recordJitHealth({
+    name: "health",
+    workflowType: "healthEvaluationWorkflow",
+    operation: "health",
+    sequence: 13,
+    executionMode: "active",
+  });
 } finally {
   await env.teardown();
 }

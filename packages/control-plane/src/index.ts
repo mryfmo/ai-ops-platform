@@ -68,6 +68,35 @@ export type {
 } from "./lib/graphSubscriptionState.js";
 export { buildGraphSubscriptionWorkflowId, graphSubscriptionWorkflow } from "./workflows/graphSubscription.js";
 export type { GraphSubscriptionActivities, GraphSubscriptionResult } from "./workflows/graphSubscription.js";
+export {
+  HEALTH_EVALUATION_INTERVAL_MS,
+  JIT_EXPIRY_INTERVAL_MS,
+  assertJitHealthRequest,
+  buildHealthEvaluationWorkflowId,
+  buildJitExpiryWorkflowId,
+  jitHealthScheduleDelayMs,
+  parseHealthApplicationReceipt,
+  parseHealthEvaluationReceipt,
+  parseJitRevocationCandidates,
+  parseJitRevocationReceipt,
+} from "./lib/jitHealthState.js";
+export type {
+  HealthDecision,
+  HealthEvaluationActivityInput,
+  HealthEvaluationReceipt,
+  HealthEvaluationRequest,
+  JitCandidateQuery,
+  JitExpiryRequest,
+  JitHealthRequest,
+  JitRevocationActivityInput,
+  JitRevocationCandidate,
+  JitRevocationReceipt,
+} from "./lib/jitHealthState.js";
+export { buildJitHealthSchedules } from "./lib/jitHealthSchedules.js";
+export type { JitHealthScheduleRegistration } from "./lib/jitHealthSchedules.js";
+export { registerJitHealthSchedules } from "./workflows/jitHealthScheduleRegistration.js";
+export { healthEvaluationWorkflow, jitExpiryWorkflow } from "./workflows/jitHealth.js";
+export type { HealthEvaluationResult, JitExpiryResult, JitHealthActivities } from "./workflows/jitHealth.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";
