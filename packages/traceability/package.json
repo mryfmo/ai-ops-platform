@@ -14,7 +14,7 @@
     "lint": "eslint . --config ../../eslint.config.mjs"
   },
   "devDependencies": {
-    "tsx": "^4.23.5",
+    "tsx": "^4.23.12",
     "typescript": "^5.6.3"
   }
 }
