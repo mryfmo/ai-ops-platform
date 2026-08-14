@@ -1,0 +1,308 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 743000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "planeSyncWorkflow"
+        },
+        "taskQueue": {
+          "name": "plane-sync-pending-no-redispatch",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7ImV4dGVybmFsU291cmNlIjoiZ2l0aHViIiwiZXh0ZXJuYWxJZCI6Imlzc3VlLTUiLCJwcm9qZWN0SWQiOiJwcm9qLTEiLCJtYXBwaW5nVmVyc2lvbiI6MywiZXhlY3V0aW9uTW9kZSI6ImFjdGl2ZSIsIm9wZXJhdGlvbnMiOlsicHJvamVjdGlvbiJdfX0="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {
+          "seconds": "315360000"
+        },
+        "workflowRunTimeout": {
+          "seconds": "315360000"
+        },
+        "workflowTaskTimeout": {
+          "seconds": "10"
+        },
+        "originalExecutionRunId": "aa5e8e1f-90c3-4ff0-b33e-935d9a942beb",
+        "identity": "11168@MacBook-Air.local",
+        "firstExecutionRunId": "aa5e8e1f-90c3-4ff0-b33e-935d9a942beb",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": {},
+        "header": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 743000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "plane-sync-pending-no-redispatch",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 743000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "11168@MacBook-Air.local",
+        "historySizeBytes": "481"
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 762000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "11168@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+05703428693a411a9e2f80a7e8e7a3d627d38dec65e73d83ddee7f1215779cfb",
+        "sdkMetadata": {
+          "coreUsedFlags": [2, 3, 1],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.22.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 762000000
+      },
+      "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+      "startChildWorkflowExecutionInitiatedEventAttributes": {
+        "namespace": "default",
+        "workflowId": "plane-sync/github:issue-5:proj-1:3/projection",
+        "workflowType": {
+          "name": "planeProjectionWorkflow"
+        },
+        "taskQueue": {
+          "name": "plane-sync-pending-no-redispatch",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7ImlkZW50aXR5Ijp7ImV4dGVybmFsU291cmNlIjoiZ2l0aHViIiwiZXh0ZXJuYWxJZCI6Imlzc3VlLTUiLCJwcm9qZWN0SWQiOiJwcm9qLTEiLCJtYXBwaW5nVmVyc2lvbiI6M30sImV4ZWN1dGlvbk1vZGUiOiJhY3RpdmUifX0="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {},
+        "workflowRunTimeout": {},
+        "workflowTaskTimeout": {
+          "seconds": "10"
+        },
+        "workflowTaskCompletedEventId": "3",
+        "header": {},
+        "memo": {}
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 762000000
+      },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+      "childWorkflowExecutionStartedEventAttributes": {
+        "namespace": "default",
+        "initiatedEventId": "5",
+        "workflowExecution": {
+          "workflowId": "plane-sync/github:issue-5:proj-1:3/projection",
+          "runId": "da027542-f1cd-49a3-ad6d-0f5317eaf803"
+        },
+        "workflowType": {
+          "name": "planeProjectionWorkflow"
+        }
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 762000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "plane-sync-pending-no-redispatch",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 762000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "11168@MacBook-Air.local",
+        "historySizeBytes": "1268"
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 767000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "11168@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+05703428693a411a9e2f80a7e8e7a3d627d38dec65e73d83ddee7f1215779cfb",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 770000000
+      },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_FAILED",
+      "childWorkflowExecutionFailedEventAttributes": {
+        "failure": {
+          "message": "plane sync ledger is pending for projection/github:issue-5:proj-1:3; a pending row cannot prove the write outcome - manual/provider-side reconcile is required and automatic redispatch is forbidden",
+          "source": "TypeScriptSDK",
+          "stackTrace": "ApplicationFailure: plane sync ledger is pending for projection/github:issue-5:proj-1:3; a pending row cannot prove the write outcome - manual/provider-side reconcile is required and automatic redispatch is forbidden\n    at Function.nonRetryable (/Users/mryfmo/Workspace/ai-ops-platform/node_modules/.pnpm/@temporalio+common@1.22.0/node_modules/@temporalio/common/src/failure.ts:253:11)\n    at nonRetryable (/Users/mryfmo/Workspace/ai-ops-platform/packages/control-plane/src/workflows/planeSync.ts:90:27)\n    at unresolvedFailure (/Users/mryfmo/Workspace/ai-ops-platform/packages/control-plane/src/workflows/planeSync.ts:157:11)",
+          "applicationFailureInfo": {
+            "type": "E-CP-EXTERNAL-UNRESOLVED",
+            "nonRetryable": true
+          }
+        },
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "plane-sync/github:issue-5:proj-1:3/projection",
+          "runId": "da027542-f1cd-49a3-ad6d-0f5317eaf803"
+        },
+        "workflowType": {
+          "name": "planeProjectionWorkflow"
+        },
+        "initiatedEventId": "5",
+        "startedEventId": "6"
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 770000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "plane-sync-pending-no-redispatch",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 770000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "11168@MacBook-Air.local",
+        "historySizeBytes": "2552"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 774000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "11168@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+05703428693a411a9e2f80a7e8e7a3d627d38dec65e73d83ddee7f1215779cfb",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": {
+        "seconds": "11562844615",
+        "nanos": 774000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_FAILED",
+      "workflowExecutionFailedEventAttributes": {
+        "failure": {
+          "message": "Child Workflow execution failed",
+          "cause": {
+            "message": "plane sync ledger is pending for projection/github:issue-5:proj-1:3; a pending row cannot prove the write outcome - manual/provider-side reconcile is required and automatic redispatch is forbidden",
+            "source": "TypeScriptSDK",
+            "stackTrace": "ApplicationFailure: plane sync ledger is pending for projection/github:issue-5:proj-1:3; a pending row cannot prove the write outcome - manual/provider-side reconcile is required and automatic redispatch is forbidden\n    at Function.nonRetryable (/Users/mryfmo/Workspace/ai-ops-platform/node_modules/.pnpm/@temporalio+common@1.22.0/node_modules/@temporalio/common/src/failure.ts:253:11)\n    at nonRetryable (/Users/mryfmo/Workspace/ai-ops-platform/packages/control-plane/src/workflows/planeSync.ts:90:27)\n    at unresolvedFailure (/Users/mryfmo/Workspace/ai-ops-platform/packages/control-plane/src/workflows/planeSync.ts:157:11)",
+            "applicationFailureInfo": {
+              "type": "E-CP-EXTERNAL-UNRESOLVED",
+              "nonRetryable": true
+            }
+          },
+          "childWorkflowExecutionFailureInfo": {
+            "namespace": "default",
+            "workflowExecution": {
+              "workflowId": "plane-sync/github:issue-5:proj-1:3/projection",
+              "runId": "da027542-f1cd-49a3-ad6d-0f5317eaf803"
+            },
+            "workflowType": {
+              "name": "planeProjectionWorkflow"
+            },
+            "initiatedEventId": "5",
+            "startedEventId": "6"
+          }
+        },
+        "workflowTaskCompletedEventId": "12"
+      }
+    }
+  ]
+}

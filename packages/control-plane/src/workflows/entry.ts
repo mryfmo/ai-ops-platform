@@ -6,5 +6,6 @@ export { cancellationProbeWorkflow, replayProbeWorkflow } from "./replayProbe.js
 export { approvalWorkflow } from "./approval.js";
 export { codingTaskWorkflow } from "./codingTask.js";
 export { reportDeliveryWorkflow } from "./reportDelivery.js";
+export { planeEventWorkflow, planeProjectionWorkflow, planePromotionWorkflow, planeSyncWorkflow } from "./planeSync.js";
 export { graphSubscriptionWorkflow } from "./graphSubscription.js";
 export { healthEvaluationWorkflow, jitExpiryWorkflow } from "./jitHealth.js";

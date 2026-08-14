@@ -1,0 +1,295 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 259000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "planeSyncWorkflow"
+        },
+        "taskQueue": {
+          "name": "plane-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7ImV4dGVybmFsU291cmNlIjoiZ2l0aHViIiwiZXh0ZXJuYWxJZCI6Imlzc3VlLTMiLCJwcm9qZWN0SWQiOiJwcm9qLTEiLCJtYXBwaW5nVmVyc2lvbiI6MywiZXhlY3V0aW9uTW9kZSI6ImFjdGl2ZSIsIm9wZXJhdGlvbnMiOlsicHJvbW90aW9uIl19fQ=="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {
+          "seconds": "315360000"
+        },
+        "workflowRunTimeout": {
+          "seconds": "315360000"
+        },
+        "workflowTaskTimeout": {
+          "seconds": "10"
+        },
+        "originalExecutionRunId": "8bea769e-d879-462e-be20-3921732ec655",
+        "identity": "11168@MacBook-Air.local",
+        "firstExecutionRunId": "8bea769e-d879-462e-be20-3921732ec655",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": {},
+        "header": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 259000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "plane-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 259000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "11168@MacBook-Air.local",
+        "historySizeBytes": "466"
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 278000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "11168@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+05703428693a411a9e2f80a7e8e7a3d627d38dec65e73d83ddee7f1215779cfb",
+        "sdkMetadata": {
+          "coreUsedFlags": [3, 1, 2],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.22.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 278000000
+      },
+      "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+      "startChildWorkflowExecutionInitiatedEventAttributes": {
+        "namespace": "default",
+        "workflowId": "plane-sync/github:issue-3:proj-1:3/promotion",
+        "workflowType": {
+          "name": "planePromotionWorkflow"
+        },
+        "taskQueue": {
+          "name": "plane-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7ImlkZW50aXR5Ijp7ImV4dGVybmFsU291cmNlIjoiZ2l0aHViIiwiZXh0ZXJuYWxJZCI6Imlzc3VlLTMiLCJwcm9qZWN0SWQiOiJwcm9qLTEiLCJtYXBwaW5nVmVyc2lvbiI6M30sImV4ZWN1dGlvbk1vZGUiOiJhY3RpdmUifX0="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {},
+        "workflowRunTimeout": {},
+        "workflowTaskTimeout": {
+          "seconds": "10"
+        },
+        "workflowTaskCompletedEventId": "3",
+        "header": {},
+        "memo": {}
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 278000000
+      },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+      "childWorkflowExecutionStartedEventAttributes": {
+        "namespace": "default",
+        "initiatedEventId": "5",
+        "workflowExecution": {
+          "workflowId": "plane-sync/github:issue-3:proj-1:3/promotion",
+          "runId": "54d8eb7a-662c-485f-b529-3d7d018660a8"
+        },
+        "workflowType": {
+          "name": "planePromotionWorkflow"
+        }
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 278000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "plane-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 278000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "11168@MacBook-Air.local",
+        "historySizeBytes": "1236"
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 283000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "11168@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+05703428693a411a9e2f80a7e8e7a3d627d38dec65e73d83ddee7f1215779cfb",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 291000000
+      },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+      "childWorkflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Im9wZXJhdGlvbiI6InByb21vdGlvbiIsIm91dGNvbWUiOiJzdGFsZSJ9fQ=="
+            }
+          ]
+        },
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "plane-sync/github:issue-3:proj-1:3/promotion",
+          "runId": "54d8eb7a-662c-485f-b529-3d7d018660a8"
+        },
+        "workflowType": {
+          "name": "planePromotionWorkflow"
+        },
+        "initiatedEventId": "5",
+        "startedEventId": "6"
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 291000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "plane-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": {
+          "seconds": "10"
+        },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 291000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "11168@MacBook-Air.local",
+        "historySizeBytes": "1737"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 293000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "11168@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+05703428693a411a9e2f80a7e8e7a3d627d38dec65e73d83ddee7f1215779cfb",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": {
+        "seconds": "9986044614",
+        "nanos": 293000000
+      },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7IndvcmtmbG93SWQiOiJwbGFuZS1zeW5jL2dpdGh1Yjppc3N1ZS0zOnByb2otMTozIiwiaWRlbnRpdHkiOnsiZXh0ZXJuYWxTb3VyY2UiOiJnaXRodWIiLCJleHRlcm5hbElkIjoiaXNzdWUtMyIsInByb2plY3RJZCI6InByb2otMSIsIm1hcHBpbmdWZXJzaW9uIjozfSwicGhhc2UiOiJjb21wbGV0ZSIsIm91dGNvbWVzIjpbeyJvcGVyYXRpb24iOiJwcm9tb3Rpb24iLCJvdXRjb21lIjoic3RhbGUifV19fQ=="
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "12"
+      }
+    }
+  ]
+}

@@ -775,6 +775,232 @@ try {
       },
     );
   }
+  // --- P3-T08 plane sync fixtures（TMP-003 / dedupe / CAS stale / draft 境界 /
+  //     child 実行証跡） ---
+  {
+    const identityFor = (n) => ({
+      externalSource: "github",
+      externalId: `issue-${n}`,
+      projectId: "proj-1",
+      mappingVersion: 3,
+    });
+    const idKey = (identity) =>
+      `${identity.externalSource}:${identity.externalId}:${identity.projectId}:${identity.mappingVersion}`;
+    // 内部 sync 台帳の代役: write 前に pending、応答後に written。promotion の
+    // written は draft receipt 形（baseline + draft:true）で保存する。
+    // stale 保証は write authority の CAS: revisionAtWrite が baseline と不一致なら
+    // created ではなく stale union を返し、台帳へは書かない。
+    const makePlaneActivities = ({
+      writtenAlready = [],
+      pendingAlready = [],
+      loseFor = [],
+      loseAfterWrittenFor = [],
+      eligibility = { engineeringReady: true, approved: true, baselineRevision: "rev-7" },
+      revisionAtRead = "rev-7",
+      revisionAtWrite = null,
+      staleEqualBaseline = false,
+    }) => {
+      const ledger = new Map();
+      for (const op of writtenAlready) ledger.set(op, { status: "written" });
+      for (const op of pendingAlready) ledger.set(op, { status: "pending" });
+      const write = (operation) => async (input, idempotencyKey) => {
+        const identity = input.payload.identity;
+        if (operation === "promotion" && staleEqualBaseline) {
+          // P3-T08-007 の矛盾 receipt: baseline と同一 revision を報告する stale。
+          return {
+            schemaVersion: 1,
+            payload: { ...identity, result: "stale", observedRevision: input.payload.baselineRevision },
+          };
+        }
+        if (operation === "promotion") {
+          const effective = revisionAtWrite ?? revisionAtRead;
+          if (effective !== input.payload.baselineRevision) {
+            return {
+              schemaVersion: 1,
+              payload: { ...identity, result: "stale", observedRevision: effective },
+            };
+          }
+        }
+        ledger.set(operation, { status: "pending" });
+        if (loseFor.includes(operation)) throw new Error("synthetic lost response after plane write");
+        const entry =
+          operation === "promotion"
+            ? { status: "written", baselineRevision: input.payload.baselineRevision, draft: true }
+            : { status: "written" };
+        ledger.set(operation, entry);
+        if (loseAfterWrittenFor.includes(operation)) {
+          // 外部 write は成立し台帳も written に達したが応答だけが失われた。
+          throw new Error("synthetic lost response after committed plane write");
+        }
+        if (operation === "promotion") {
+          return {
+            schemaVersion: 1,
+            payload: {
+              ...identity,
+              result: "created",
+              idempotencyKey,
+              baselineRevision: input.payload.baselineRevision,
+              draft: true,
+            },
+          };
+        }
+        return { schemaVersion: 1, payload: { ...identity, idempotencyKey } };
+      };
+      return {
+        async findPlaneSyncWrite(input, idempotencyKey) {
+          const identity = input.payload.identity;
+          const entry = ledger.get(input.payload.operation);
+          if (entry === undefined) return null;
+          if (entry.status === "pending") {
+            return { schemaVersion: 1, payload: { ...identity, status: "pending" } };
+          }
+          if (input.payload.operation === "promotion") {
+            return {
+              schemaVersion: 1,
+              payload: {
+                ...identity,
+                status: "written",
+                idempotencyKey,
+                baselineRevision: entry.baselineRevision ?? "rev-7",
+                draft: true,
+              },
+            };
+          }
+          return { schemaVersion: 1, payload: { ...identity, status: "written", idempotencyKey } };
+        },
+        projectToPlane: write("projection"),
+        emitPlaneEvent: write("event"),
+        createPromotionDraft: write("promotion"),
+        async readPromotionEligibility(input) {
+          return { schemaVersion: 1, payload: { ...input.payload.identity, ...eligibility } };
+        },
+        async readWorkItemRevision(input) {
+          return { schemaVersion: 1, payload: { ...input.payload.identity, revision: revisionAtRead } };
+        },
+      };
+    };
+    const planeInput = (identity, overrides = {}) => ({
+      schemaVersion: 1,
+      payload: {
+        ...identity,
+        executionMode: "active",
+        operations: ["projection", "event", "promotion"],
+        ...overrides,
+      },
+    });
+    const recordPlaneSync = async (name, n, activityOptions = {}, inputOverrides = {}) => {
+      const identity = identityFor(n);
+      const taskQueue = `plane-sync-${name}`;
+      const workflowId = `plane-sync/${idKey(identity)}`;
+      const input = planeInput(identity, inputOverrides);
+      const worker = await Worker.create({
+        connection: env.nativeConnection,
+        taskQueue,
+        workflowsPath,
+        activities: makePlaneActivities(activityOptions),
+      });
+      const outcome = await worker.runUntil(async () => {
+        const handle = await env.client.workflow.start("planeSyncWorkflow", {
+          taskQueue,
+          workflowId,
+          args: [input],
+        });
+        return handle.result().then(
+          (r) => `${r.payload.phase}:${r.payload.outcomes.map((o) => `${o.operation}=${o.outcome}`).join(",")}`,
+          (e) => `wf-failed:${e.cause?.type ?? e.name}`,
+        );
+      });
+      await saveHistory(workflowId, `plane-sync.${name}.history.json`);
+      // P3-T08-006: 実行証跡は child 側にある。関与した child の history も保存する。
+      for (const operation of input.payload.operations) {
+        try {
+          await saveHistory(`${workflowId}/${operation}`, `plane-sync.${name}.${operation}.history.json`);
+        } catch {
+          // 起動前に親が失敗した operation は child が存在しない。
+        }
+      }
+      console.log(`recorded plane-sync.${name} (${outcome})`);
+    };
+
+    await recordPlaneSync("complete", 1, { writtenAlready: ["projection"] });
+    await recordPlaneSync("unknown-write-reconciled", 2, { loseAfterWrittenFor: ["projection"] });
+    // 早期 read で stale 検出（安価経路）。
+    await recordPlaneSync("promotion-stale", 3, { revisionAtRead: "rev-8" }, { operations: ["promotion"] });
+    // CAS stale（P3-T08-004）: read 時は一致、write 直前に revision 移動 →
+    // write authority が stale union を返し、写経も台帳書き込みもない。
+    await recordPlaneSync(
+      "promotion-cas-stale",
+      7,
+      { revisionAtRead: "rev-7", revisionAtWrite: "rev-8" },
+      { operations: ["promotion"] },
+    );
+    // promotion の committed-lost（P3-T08-003）: reconcile は draft receipt 形のみ受理。
+    await recordPlaneSync(
+      "promotion-reconciled",
+      8,
+      { loseAfterWrittenFor: ["promotion"] },
+      { operations: ["promotion"] },
+    );
+    // 矛盾 stale（P3-T08-007 負）: baseline と同一 revision の stale receipt は
+    // E-CP-CONTRACT で終端（適格 promotion の silent 抑止を許さない）。
+    await recordPlaneSync(
+      "promotion-stale-contract",
+      9,
+      { staleEqualBaseline: true },
+      {
+        operations: ["promotion"],
+      },
+    );
+    await recordPlaneSync(
+      "promotion-not-eligible",
+      4,
+      { eligibility: { engineeringReady: true, approved: false, baselineRevision: "rev-7" } },
+      { operations: ["promotion"] },
+    );
+    await recordPlaneSync(
+      "pending-no-redispatch",
+      5,
+      { pendingAlready: ["projection"] },
+      {
+        operations: ["projection"],
+      },
+    );
+    await recordPlaneSync("shadow", 6, {}, { executionMode: "shadow" });
+
+    // 直接 child 起動 + 不正恒等（P3-T08-002）: 完全検証が E-CP-CONTRACT で遮断し、
+    // activity は一切 schedule されない。
+    {
+      const taskQueue = "plane-sync-child-invalid";
+      const workflowId = "plane-sync/child-invalid-identity";
+      const worker = await Worker.create({
+        connection: env.nativeConnection,
+        taskQueue,
+        workflowsPath,
+        activities: makePlaneActivities({}),
+      });
+      const outcome = await worker.runUntil(async () => {
+        const handle = await env.client.workflow.start("planeProjectionWorkflow", {
+          taskQueue,
+          workflowId,
+          args: [
+            {
+              schemaVersion: 1,
+              payload: {
+                identity: { externalSource: "github", externalId: "", projectId: "proj-1", mappingVersion: 3 },
+                executionMode: "active",
+              },
+            },
+          ],
+        });
+        return handle.result().then(
+          (r) => `unexpected:${JSON.stringify(r.payload)}`,
+          (e) => `wf-failed:${e.cause?.type ?? e.name}`,
+        );
+      });
+      await saveHistory(workflowId, "plane-sync.child-invalid-identity.history.json");
+      console.log(`recorded plane-sync.child-invalid-identity (${outcome})`);
+    }
+  }
 } finally {
   await env.teardown();
 }
