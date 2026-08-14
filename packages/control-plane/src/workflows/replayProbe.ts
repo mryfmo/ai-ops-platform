@@ -3,12 +3,12 @@
 // （retry class / idempotency / versioning / cancellation）を 1 本の決定的
 // workflow で行使し、recorded history に対する replay test の被験体とする。
 
-import { isCancellation, proxyActivities, sleep, workflowInfo } from "@temporalio/workflow";
+import { ApplicationFailure, isCancellation, proxyActivities, sleep, workflowInfo } from "@temporalio/workflow";
 
 import { buildIdempotencyKey } from "../lib/idempotency.js";
 import { toTemporalRetryPolicy } from "../lib/retryPolicies.js";
 import { guardSideEffectDispatch, runCleanup } from "./cancellation.js";
-import { runExternalSideEffect } from "./sideEffect.js";
+import { ExternalSideEffectUnresolvedError, runExternalSideEffect } from "./sideEffect.js";
 import { isPatchActive } from "./versioning.js";
 
 /** probe が要求する activity 契約（実装は worker 側で注入。ここは型のみ）。 */
@@ -31,14 +31,24 @@ const reads = proxyActivities<Pick<ReplayProbeActivities, "findExternalObject">>
 export async function replayProbeWorkflow(name: string): Promise<string> {
   const key = buildIdempotencyKey(workflowInfo().workflowId, "createExternalObject", 0);
   guardSideEffectDispatch("createExternalObject");
-  const created = await runExternalSideEffect<{ name: string }, string>(
-    {
-      execute: async (input, idempotencyKey) => sideEffects.createExternalObject(input, idempotencyKey),
-      reconcile: async (idempotencyKey) => reads.findExternalObject(idempotencyKey),
-    },
-    { name },
-    key,
-  );
+  let created;
+  try {
+    created = await runExternalSideEffect<{ name: string }, string>(
+      {
+        execute: async (input, idempotencyKey) => sideEffects.createExternalObject(input, idempotencyKey),
+        reconcile: async (idempotencyKey) => reads.findExternalObject(idempotencyKey),
+      },
+      { name },
+      key,
+    );
+  } catch (error) {
+    if (error instanceof ExternalSideEffectUnresolvedError) {
+      // P3-T11-001: 素の domain error のままだと workflow task が無限 retry で
+      // RUNNING に固着する。後続 workflow と同じ恒久則どおり terminal 化する。
+      throw ApplicationFailure.nonRetryable(error.message, "E-CP-EXTERNAL-UNRESOLVED");
+    }
+    throw error;
+  }
   await sleep(1_000);
   const version = isPatchActive("p3-t02-replay-probe") ? "v2" : "v1";
   return `${version}:${created.outcome}:${created.result}`;
