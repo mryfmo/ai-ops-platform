@@ -56,13 +56,31 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     expect(extractSchedulerRegistrations(synth(ok), SHADOW_LEGACY_CONDITIONS)).toEqual(["createHealthcheckTask"]);
     expect(() =>
       extractSchedulerRegistrations(synth("observedTask(createHealthcheckTask({}))"), SHADOW_LEGACY_CONDITIONS),
-    ).toThrow(/exactly one cutover wrapper; found=0/u);
+    ).toThrow(/must be a two-argument cutover/u);
+    // 旧合成順（metrics を迂回する cutover(observedTask(...))）は拒否される（P3-T10-007）。
     expect(() =>
       extractSchedulerRegistrations(
-        synth('cutover("createHealthcheckTask", cutover("createHealthcheckTask", createHealthcheckTask({})))'),
+        synth('cutover("createHealthcheckTask", observedTask(createHealthcheckTask({})))'),
         SHADOW_LEGACY_CONDITIONS,
       ),
-    ).toThrow(/exactly one cutover wrapper; found=2/u);
+    ).toThrow(/must be observedTask\(cutover/u);
+    // 二重 cutover は拒否される。
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth(
+          'observedTask(cutover("createHealthcheckTask", cutover("createHealthcheckTask", createHealthcheckTask({}))))',
+        ),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/exactly one cutover wrapper and one observedTask/u);
+    // decoy: 分類対象 task が cutover の外にあり、別の無関係 task が包まれている形は
+    // 第 2 引数 subtree 分類により登録不整合として検出される。
+    expect(() =>
+      extractSchedulerRegistrations(
+        synth('observedTask(cutover("createHealthcheckTask", pair(noop, createReportDeliveryTask({}))))'),
+        SHADOW_LEGACY_CONDITIONS,
+      ),
+    ).toThrow(/does not match the registered task/u);
     expect(() =>
       extractSchedulerRegistrations(
         synth('observedTask(cutover("createReportDeliveryTask", createHealthcheckTask({})))'),
@@ -108,7 +126,7 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
     );
     expect(unknownEntry).not.toBe(schedulerSource);
     expect(() => extractSchedulerRegistrations(unknownEntry, SHADOW_LEGACY_CONDITIONS)).toThrow(
-      /exactly one recognized task/u,
+      /must be observedTask\(cutover/u,
     );
     const secondScheduler = `startScheduler([{ name: "future-task", intervalMs: 1, async run() {} }], () => {});\n${schedulerSource}`;
     expect(() => extractSchedulerRegistrations(secondScheduler, SHADOW_LEGACY_CONDITIONS)).toThrow(

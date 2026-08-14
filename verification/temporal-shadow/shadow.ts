@@ -542,27 +542,51 @@ export function extractSchedulerRegistrations(source: string, conditions: Shadow
   // P3-T10-002: 各 element は exactly one の cutover(<literal>, task) wrapper を持ち、
   // literal は内側で分類された registration と一致しなければならない。wrapper の
   // 欠落・二重・鍵不一致・鍵重複は抑止対象を静かに狂わせるため fail-closed で拒否。
-  const cutoverKeyOf = (element: ts.Expression): string => {
-    const wrappers: string[] = [];
-    const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "cutover") {
-        const first = node.arguments[0];
-        if (first === undefined || !ts.isStringLiteral(first)) {
-          throw new Error("cutover wrapper must take a string literal registration key");
+  // P3-T10-002/007: 合成形を直接引数レベルで固定する。effective element は
+  // observedTask(cutover(<literal>, <task>)) でなければならず、cutover /
+  // observedTask の出現はそれぞれ element 全体で exactly one。分類は cutover の
+  // 第 2 引数 subtree に対して行い、decoy（別 subtree の task/cutover）を拒否する。
+  const cutoverArgOf = (element: ts.Expression): { key: string; task: ts.Expression } => {
+    const countCalls = (root: ts.Node, name: string): number => {
+      let count = 0;
+      const visit = (node: ts.Node): void => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === name) {
+          count += 1;
         }
-        wrappers.push(first.text);
-      }
-      ts.forEachChild(node, visit);
+        ts.forEachChild(node, visit);
+      };
+      visit(root);
+      return count;
     };
-    visit(element);
-    if (wrappers.length !== 1) {
-      throw new Error(`scheduler entry must contain exactly one cutover wrapper; found=${String(wrappers.length)}`);
+    if (
+      !ts.isCallExpression(element) ||
+      !ts.isIdentifier(element.expression) ||
+      element.expression.text !== "observedTask" ||
+      element.arguments.length !== 1
+    ) {
+      throw new Error("scheduler entry must be observedTask(cutover(<key>, <task>))");
     }
-    return wrappers[0];
+    const wrapper = element.arguments[0];
+    if (
+      !ts.isCallExpression(wrapper) ||
+      !ts.isIdentifier(wrapper.expression) ||
+      wrapper.expression.text !== "cutover" ||
+      wrapper.arguments.length !== 2
+    ) {
+      throw new Error("observedTask argument must be a two-argument cutover(<key>, <task>) call");
+    }
+    const keyArg = wrapper.arguments[0];
+    if (!ts.isStringLiteral(keyArg)) {
+      throw new Error("cutover wrapper must take a string literal registration key");
+    }
+    if (countCalls(element, "cutover") !== 1 || countCalls(element, "observedTask") !== 1) {
+      throw new Error("scheduler entry must contain exactly one cutover wrapper and one observedTask");
+    }
+    return { key: keyArg.text, task: wrapper.arguments[1] };
   };
   const found = effectiveElements.map((element) => {
-    const classified = classify(element);
-    const wrapperKey = cutoverKeyOf(element);
+    const { key: wrapperKey, task } = cutoverArgOf(element);
+    const classified = classify(task);
     if (wrapperKey !== classified.key) {
       throw new Error(
         `cutover wrapper key ${JSON.stringify(wrapperKey)} does not match the registered task ${JSON.stringify(

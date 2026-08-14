@@ -533,6 +533,14 @@ export async function main(
   // 登録自体は維持し run() のみ抑止する（restart で常に旧経路へ復元可能 = soak 中の
   // old path 可用性）。抑止集合は config（resolveTemporalCutover — kill switch 反映済み）。
   const cutoverSuppressed = config.TEMPORAL_CUTOVER_SUPPRESSED;
+  if (config.TEMPORAL_KILL_SWITCH_ACTIVE) {
+    // P3-T10-006: KILL は server 側 legacy 復元のみ。Temporal 側 schedule が
+    // active のままだと overlap 窓で両 writer になる — runbook の順序
+    // （pause → KILL）を守ること。冪等台帳が最終防壁だが、依存しない運用が正。
+    logger.warn(
+      "temporal kill switch active: verify Temporal schedules are paused/shadowed (runbooks/temporal-cutover.md)",
+    );
+  }
   if (cutoverSuppressed.size > 0) {
     logger.info(`temporal cutover: legacy execution suppressed for ${[...cutoverSuppressed].sort().join(", ")}`);
   }

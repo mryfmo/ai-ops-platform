@@ -84,12 +84,16 @@ export type TemporalCutoverTaskName = (typeof TEMPORAL_CUTOVER_TASK_NAMES)[numbe
  * temporal を "false" へ落とすため、本 selector は自動的に「抑止なし」へ復帰する。
  */
 /**
- * exactly-one-writer の強制（P3-T10-001）。
- * - temporal=primary: writer は Temporal。legacy flag は正本の相互排他により false
- * - temporal!=primary: writer は legacy scheduler。persisted legacy=false は
- *   zero-writer 構成なので E-CFG08 で拒否する。ただし kill switch 発動時は
- *   「env 1 つで旧経路へ全復帰」を成立させるため、persisted legacy=false を
- *   effective true へ復元する（primary からの緊急 rollback 経路）
+ * server 側 writer 制約（P3-T10-001/006）。本関数が保証するのは
+ * 「server 内で zero-writer 構成を拒否し、kill switch で legacy 側を復元する」
+ * ことまでで、Temporal 側 writer（登録済み schedule の executionMode）は
+ * 制御しない。primary からの rollback は runbook の順序
+ * （1. Temporal schedule を pause/shadow → 2. KILL=1 + restart）に従うこと。
+ * 順序を誤ると overlap 窓で両 writer が生じ得る（各 workflow の TMP-003
+ * 冪等台帳が二重外部 write の最終防壁）。
+ * - temporal=primary: legacy flag は正本の相互排他により false 必須（E-CFG08）
+ * - temporal!=primary: persisted legacy=false は zero-writer として E-CFG08。
+ *   ただし kill switch 発動時は legacy を effective true へ復元
  * 返り値: legacy scheduler を起動すべきか。
  */
 export function resolveLegacySchedulerEffective(
@@ -442,8 +446,10 @@ export type ServerConfig = Omit<
   MIGRATION_FLAGS: MigrationFlagStates;
   /** P3-T10: legacy scheduler で実行を抑止する task 名集合（cutover 済み）。 */
   TEMPORAL_CUTOVER_SUPPRESSED: ReadonlySet<TemporalCutoverTaskName>;
-  /** P3-T10-001: exactly-one-writer 判定後の legacy scheduler 起動可否。 */
+  /** P3-T10-001/006: server 側 writer 制約適用後の legacy scheduler 起動可否。 */
   LEGACY_SCHEDULER_EFFECTIVE: boolean;
+  /** P3-T10-006: kill switch 発動中（Temporal 側 pause の要確認を index が警告）。 */
+  TEMPORAL_KILL_SWITCH_ACTIVE: boolean;
 };
 
 /**
@@ -516,6 +522,7 @@ export function loadConfig(
         migrationFlags.states.get(LEGACY_SCHEDULER_FLAG_NAME) ?? "true",
         (env.AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL ?? "").trim() === "1",
       ),
+      TEMPORAL_KILL_SWITCH_ACTIVE: (env.AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL ?? "").trim() === "1",
     };
   } catch (error) {
     throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`);

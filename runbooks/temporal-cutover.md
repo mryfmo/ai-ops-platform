@@ -48,10 +48,16 @@ task 名は `packages/server/src/config.ts` の `TEMPORAL_CUTOVER_TASK_NAMES`
 
 ## Kill switch / rollback
 
-- **即時全復帰**: `AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL=1` を設定して再起動。
-  stage は無条件 `false` になり、**cutover list が残っていても不活性**（env 1 つで
-  legacy 全稼働へ戻る設計。unit test で保証）。Temporal 側 schedule は
-  shadow へ戻すか pause する
+- **rollback は必ずこの順序で行う（P3-T10-006）**:
+  1. **先に Temporal 側 schedule を pause / shadow へ戻す**（server の kill switch は
+     Temporal 側 writer を制御しない）
+  2. `AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL=1` を設定して server 再起動。
+     stage は無条件 `false` になり、**persisted `legacy=false`（primary 構成）でも
+     legacy scheduler を復元**し、cutover list は不活性（unit test で保証）。
+     起動時に kill 警告 log（Temporal pause の要確認）が出る
+  - 順序を誤ると overlap 窓で両 writer が生じ得る。各 workflow の TMP-003
+    冪等台帳（single-attempt + reconcile / pending 非再送）が二重外部 write の
+    最終防壁だが、台帳に依存しない運用（pause 先行）が正
 - 部分 rollback: `limited` のまま list から該当 task を外して再起動
 - コード rollback: 本タスクの PR を revert（旧経路は常に registered のため
   データ migration は不要）
