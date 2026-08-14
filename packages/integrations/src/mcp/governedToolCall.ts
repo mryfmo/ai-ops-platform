@@ -1,10 +1,16 @@
-// 根拠: FinalArch:MCP-001 / FinalArch:MCP-002 / FinalArch:CON-003..005 / ADR-0023 / WBS P4-T04
+// 根拠: FinalArch:MCP-001 / FinalArch:MCP-002 / FinalArch:MCP-006 / FinalArch:CON-003..005 / ADR-0023 / WBS P4-T04 / P4-T10
 import {
   buildMcpPolicyInput,
   type GovernedMcpToolCallRequest,
   type McpPolicyInput,
   type McpToolRisk,
 } from "../lib/mcpPolicy.js";
+import {
+  invocationLimitError,
+  jsonResultByteLength,
+  resolveInvocationProfile,
+  type InvocationLimitErrorCode,
+} from "../lib/invocationProfile.js";
 
 export type { GovernedMcpToolCallRequest } from "../lib/mcpPolicy.js";
 
@@ -21,6 +27,7 @@ export interface ToolPolicyDecision {
 type ActionStatus = "approval_pending" | "approved" | "applied" | "rejected" | "failed";
 type ApprovalStatus = "pending" | "approved" | "rejected";
 type ReceiptStatus = "succeeded" | "blocked" | "failed";
+type ToolExecutionErrorCode = InvocationLimitErrorCode | "E-TOOL-OVERSIZED" | "E-TOOL-TIMEOUT" | "E-TOOL-INVOKE";
 
 export interface GovernedMcpToolCallDependencies {
   decisionClient: { decide(input: McpPolicyInput): Promise<ToolPolicyDecision> };
@@ -104,6 +111,13 @@ export interface ToolInvocationReceipt<T = unknown> {
   policyBundleVersion: string;
   approvalId: string | null;
   errorCode: string | null;
+  correlation: {
+    traceId: string;
+    actorId: string;
+    tool: { serverId: string; serverVersion: string; name: string };
+    resource: { id: string; projectId?: string };
+    result: { status: ReceiptStatus; errorCode: string | null };
+  };
   result?: T;
 }
 
@@ -119,6 +133,9 @@ function isDecision(value: unknown): value is ToolPolicyDecision {
     typeof decision.obligations === "object" &&
     decision.obligations !== null &&
     !Array.isArray(decision.obligations) &&
+    (decision.obligations.maxResultBytes === undefined ||
+      (Number.isSafeInteger(decision.obligations.maxResultBytes) &&
+        (decision.obligations.maxResultBytes as number) > 0)) &&
     typeof decision.policyBundleVersion === "string" &&
     (decision.decisionId === undefined || (typeof decision.decisionId === "string" && UUID.test(decision.decisionId)))
   );
@@ -192,6 +209,12 @@ export class GovernedMcpToolCaller {
       return this.receipt(request, decision, null, "blocked", "E-POLICY-APPROVAL-REQUIRED", startedAt);
     }
 
+    const profile = resolveInvocationProfile(request.registryEntry.risk, decision.obligations.maxResultBytes);
+    const limitError = invocationLimitError(profile, request.operationId, request.invocation);
+    if (limitError !== null) {
+      return this.failExecution(request, decision, approvalId, limitError, startedAt);
+    }
+
     if (decision.decision === "require_approval") {
       if (decision.obligations.requireHumanApproval !== true || approvalId === null) {
         await this.dependencies.actionLedger.updateStatus(request.operationId, "failed", {
@@ -236,16 +259,46 @@ export class GovernedMcpToolCaller {
     if (!(await this.dependencies.actionLedger.claimExecution(request.operationId))) {
       return this.receipt(request, decision, approvalId, "blocked", "E-ACTION-CLAIM", startedAt);
     }
+    const timeout = Symbol("tool invocation timeout");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const executeStartedAt = this.now();
     try {
-      const result = (await this.dependencies.execute(request.registryEntry.id, request.operation, request.input)) as T;
+      const result = await Promise.race([
+        this.dependencies.execute(request.registryEntry.id, request.operation, request.input),
+        new Promise<typeof timeout>((resolve) => {
+          timer = setTimeout(() => resolve(timeout), profile.timeoutMs);
+        }),
+      ]);
+      if (result === timeout) {
+        return this.failExecution(request, decision, approvalId, "E-TOOL-TIMEOUT", startedAt);
+      }
+      const resultBytes = jsonResultByteLength(result);
+      if (this.now() - executeStartedAt >= profile.timeoutMs) {
+        return this.failExecution(request, decision, approvalId, "E-TOOL-TIMEOUT", startedAt);
+      }
+      if (resultBytes > profile.maxResultBytes) {
+        return this.failExecution(request, decision, approvalId, "E-TOOL-OVERSIZED", startedAt);
+      }
       await this.dependencies.actionLedger.updateStatus(request.operationId, "applied");
-      return this.receipt(request, decision, approvalId, "succeeded", null, startedAt, result);
+      return this.receipt(request, decision, approvalId, "succeeded", null, startedAt, result as T);
     } catch {
-      await this.dependencies.actionLedger.updateStatus(request.operationId, "failed", {
-        lastErrorClass: "E-TOOL-INVOKE",
-      });
-      return this.receipt(request, decision, approvalId, "failed", "E-TOOL-INVOKE", startedAt);
+      return this.failExecution(request, decision, approvalId, "E-TOOL-INVOKE", startedAt);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
+  }
+
+  private async failExecution<T>(
+    request: GovernedMcpToolCallRequest,
+    decision: Required<Pick<ToolPolicyDecision, "decisionId">> & ToolPolicyDecision,
+    approvalId: string | null,
+    errorCode: ToolExecutionErrorCode,
+    startedAt: number,
+  ): Promise<ToolInvocationReceipt<T>> {
+    await this.dependencies.actionLedger.updateStatus(request.operationId, "failed", {
+      lastErrorClass: errorCode,
+    });
+    return this.receipt(request, decision, approvalId, "failed", errorCode, startedAt);
   }
 
   private async decide(
@@ -311,6 +364,20 @@ export class GovernedMcpToolCaller {
       policyBundleVersion: decision.policyBundleVersion,
       approvalId,
       errorCode,
+      correlation: {
+        traceId: request.traceId,
+        actorId: request.actor.id,
+        tool: {
+          serverId: request.registryEntry.id,
+          serverVersion: request.registryEntry.version,
+          name: request.operation,
+        },
+        resource: {
+          id: request.resource.id,
+          ...(request.resource.projectId === undefined ? {} : { projectId: request.resource.projectId }),
+        },
+        result: { status, errorCode },
+      },
       ...(result === undefined ? {} : { result }),
     };
   }

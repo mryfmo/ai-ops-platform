@@ -20,6 +20,11 @@ export interface GovernedRegistryEntry {
   readonly allowed_callers: readonly McpRegistryCaller[];
 }
 
+export interface GovernedInvocationContext {
+  readonly depth: number;
+  readonly ancestorOperationIds: readonly string[];
+}
+
 export interface GovernedMcpToolCallRequest {
   readonly operationId: string;
   readonly invocationId: string;
@@ -45,6 +50,7 @@ export interface GovernedMcpToolCallRequest {
     readonly scope: unknown;
   };
   readonly context: { readonly purpose: string; readonly environment: PolicyEnvironment };
+  readonly invocation: GovernedInvocationContext;
   readonly approval: { readonly version: number; readonly expiryMs: number };
   readonly input: unknown;
 }
