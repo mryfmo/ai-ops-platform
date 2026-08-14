@@ -147,3 +147,28 @@ export type {
 } from "./lib/reportDeliveryState.js";
 export { buildReportDeliveryWorkflowId, reportDeliveryWorkflow } from "./workflows/reportDelivery.js";
 export type { ReportDeliveryActivities, ReportDeliveryResult } from "./workflows/reportDelivery.js";
+export {
+  assertPlaneSyncRequest,
+  parsePlanePromotionDraftReceipt,
+  parsePlanePromotionEligibility,
+  parsePlaneRevisionReceipt,
+  parsePlaneSyncLedgerStatus,
+  parsePlaneSyncWriteReceipt,
+} from "./lib/planeSyncState.js";
+export type { PlaneChildOutcome, PlaneSyncActivities, PlaneSyncResult } from "./workflows/planeSync.js";
+export type {
+  PlanePromotionDraftReceipt,
+  PlanePromotionEligibility,
+  PlaneSyncIdentity,
+  PlaneSyncLedgerStatus,
+  PlaneSyncOperation,
+  PlaneSyncRequest,
+  PlaneSyncWriteReceipt,
+} from "./lib/planeSyncState.js";
+export {
+  buildPlaneSyncWorkflowId,
+  planeEventWorkflow,
+  planeProjectionWorkflow,
+  planePromotionWorkflow,
+  planeSyncWorkflow,
+} from "./workflows/planeSync.js";
