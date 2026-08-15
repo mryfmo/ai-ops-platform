@@ -7,6 +7,7 @@
 3. A defense-in-depth fixture then proved an accidentally allowed restricted result reached dispatch; the control-plane local restricted stop made it green.
 4. A bounded-obligation fixture proved a 1,000,000-byte policy limit was accepted; the absolute 16 KiB ceiling made it green.
 5. A malformed-runtime-input fixture proved the typed boundary could throw before policy; the route-level fail-closed guard made it green.
+6. Independent review found a retained-field secret bypass; a RED fixture reproduced the unchanged dispatch payload and the existing shared LLM sanitizer made it green.
 
 ## Commands and Results
 
@@ -15,9 +16,9 @@
 2. `env CI=true pnpm --filter @aiops/policy run test`
    - PASS: 2 files / 13 tests.
 3. `env CI=true pnpm --filter @aiops/control-plane exec vitest run tests/m365Egress.test.ts`
-   - PASS: 1 file / 17 tests.
+   - PASS: 1 file / 18 tests.
 4. `env CI=true pnpm --filter @aiops/control-plane run test`
-   - PASS: 26 files / 238 tests.
+   - PASS: 26 files / 240 tests (final coverage run).
 5. Policy/control-plane typecheck and lint; `bash -n deploy/opa/smoke.sh`
    - PASS.
 6. `./deploy/opa/build-bundle.sh /private/tmp/P5-T07-policy.tar.gz`
@@ -39,4 +40,10 @@
 ## Amendments
 
 - Orchestrator approved the workspace-only `@aiops/policy` link in control-plane and the resulting lockfile link.
+- Orchestrator approved the workspace-only `@aiops/shared` link needed to reuse `sanitizeForLlmInput`; the lockfile diff is limited to that link.
 - Orchestrator approved only the OPA deployment/smoke version strings needed for `0.2.0` parity; no posture field changed.
+
+## Review
+
+- `codex --profile review review --commit f829d0c`: P1 retained-field secret bypass found.
+- Disposition: resolved by applying the existing `sanitizeForLlmInput()` immediately before size validation and dispatch, with a dedicated regression fixture.

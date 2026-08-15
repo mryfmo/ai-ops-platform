@@ -84,6 +84,28 @@ describe("M365 output egress checkpoint [FinalArch:WIQ-004] [ADR-0024]", () => {
     });
   });
 
+  it("sanitizes secrets inside retained fields before LLM dispatch", async () => {
+    const secret = ["sk", "ant", "A".repeat(24)].join("-");
+    const dispatch = vi.fn(async () => undefined);
+
+    const result = await routeM365Output(
+      {
+        ...request,
+        output: {
+          ...request.output,
+          fields: { ...request.output.fields, response: `Summary ${secret}` },
+        },
+      },
+      { decisionClient: { decide: async () => decision() }, dispatch },
+    );
+
+    expect(result.status).toBe("dispatched");
+    expect(dispatch).toHaveBeenCalledWith({
+      provider: "bedrock",
+      content: JSON.stringify({ response: "Summary ***REDACTED:anthropic_api_key***" }),
+    });
+  });
+
   it.each(["bedrock", "anthropic"] as const)("never dispatches restricted output to %s", async (providerCandidate) => {
     const decide = vi.fn(async () =>
       decision({

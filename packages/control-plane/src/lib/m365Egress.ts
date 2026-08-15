@@ -6,6 +6,7 @@ import type {
   ProviderCandidate,
   ResourceClassification,
 } from "@aiops/policy";
+import { sanitizeForLlmInput } from "@aiops/shared/secretSanitizer";
 
 export type M365ExternalProvider = Exclude<ProviderCandidate, "none">;
 
@@ -177,7 +178,7 @@ export function prepareM365Egress(
   );
   let content: string;
   try {
-    content = JSON.stringify(minimized);
+    content = sanitizeForLlmInput(JSON.stringify(minimized)).sanitized;
   } catch {
     return { ok: false, code: "E-M365-EGRESS-INPUT" };
   }
