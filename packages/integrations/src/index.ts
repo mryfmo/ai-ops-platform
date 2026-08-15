@@ -11,6 +11,12 @@ export type {
   ConfluenceAdapter,
 } from "./adapters/index.js";
 export { isOperationAllowed, assertOperationAllowed } from "./lib/operationBoundary.js";
+export {
+  WORKIQ_DELEGATED_SCOPE,
+  WORKIQ_RESOURCE_AUDIENCE,
+  validateWorkIqDelegatedClaims,
+} from "./workiq/tokenClaims.js";
+export type { ValidatedWorkIqDelegatedClaims } from "./workiq/tokenClaims.js";
 export { buildMcpPolicyInput, assertGovernedMcpToolCallRequest } from "./lib/mcpPolicy.js";
 export {
   BOUNDED_INVOCATION_PROFILES,
