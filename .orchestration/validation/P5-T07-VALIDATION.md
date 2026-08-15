@@ -59,3 +59,4 @@
 - GREEN: rebuilt control-plane, then the exact Node ESM import probe printed `IMPORT OK`.
 - Focused result: `tests/m365Egress.test.ts` PASS, 1 file / 19 tests; control-plane typecheck and lint PASS.
 - Fresh PostgreSQL `mise run ci`: PASS, exit 0 with `P001 PostgreSQL integration passed`.
+- `codex --profile review review --commit 9f37c76`: clean; no actionable regression identified.
