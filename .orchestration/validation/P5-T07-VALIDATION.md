@@ -49,4 +49,5 @@
 - `codex --profile review review --commit f829d0c`: P1 retained-field secret bypass found.
 - Disposition: resolved by applying the existing `sanitizeForLlmInput()` immediately before size validation and dispatch, with a dedicated regression fixture.
 - `codex --profile review review --base main` at `31b18d7`: P1 nested sensitive-metadata bypass found.
-- Disposition: resolved with recursive key redaction during deterministic JSON serialization and a nested fixture; final re-review pending the fix commit.
+- Disposition: resolved with recursive key redaction during deterministic JSON serialization and a nested fixture.
+- `codex --profile review review --commit b44f770`: clean; no actionable defect identified.
