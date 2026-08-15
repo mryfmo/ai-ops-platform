@@ -1,0 +1,60 @@
+# 根拠: GOV-003
+image	spdx_path	package	version	license_declared	license_concluded
+agentgateway	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates-bundle	20260413-r0	MPL-2.0 AND MIT	NOASSERTION
+agentgateway	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates.yaml	5fb1c6869c186cb9b385b875141643409c440ac2	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates	20260413	MPL-2.0 AND MIT	NOASSERTION
+agentgateway	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates-bundle	20260413-r0	(MPL-2.0 AND MIT)	NOASSERTION
+agentgateway	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates-bundle	20260413-r0	NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-2.43-r11.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-2.43-r11.spdx.json	glibc	2.43-r11	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-2.43-r11.spdx.json	glibc.yaml	c8659fb8a02b0cbff1c07e2d367796b6a074e14d	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-2.43-r11.spdx.json	gnutools/glibc	dae425b554207f7c4599c7fac707ad4c08545674	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-2.43-r11.spdx.json	glibc	2.43-r11	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-2.43-r11.spdx.json	glibc	2.43-r11	NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-locale-posix-2.43-r11.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-locale-posix-2.43-r11.spdx.json	glibc-locale-posix	2.43-r11	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-locale-posix-2.43-r11.spdx.json	glibc.yaml	c8659fb8a02b0cbff1c07e2d367796b6a074e14d	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-locale-posix-2.43-r11.spdx.json	gnutools/glibc	dae425b554207f7c4599c7fac707ad4c08545674	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-locale-posix-2.43-r11.spdx.json	glibc-locale-posix	2.43-r11	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/glibc-locale-posix-2.43-r11.spdx.json	glibc-locale-posix	2.43-r11	NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/ld-linux-2.43-r11.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/ld-linux-2.43-r11.spdx.json	ld-linux	2.43-r11	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/ld-linux-2.43-r11.spdx.json	glibc.yaml	c8659fb8a02b0cbff1c07e2d367796b6a074e14d	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/ld-linux-2.43-r11.spdx.json	gnutools/glibc	dae425b554207f7c4599c7fac707ad4c08545674	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/ld-linux-2.43-r11.spdx.json	ld-linux	2.43-r11	LGPL-2.1-or-later	NOASSERTION
+agentgateway	var/lib/db/sbom/ld-linux-2.43-r11.spdx.json	ld-linux	2.43-r11	NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/libgcc-16.1.0-r4.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/libgcc-16.1.0-r4.spdx.json	libgcc	16.1.0-r4	GPL-3.0-or-later WITH GCC-exception-3.1	NOASSERTION
+agentgateway	var/lib/db/sbom/libgcc-16.1.0-r4.spdx.json	gcc.yaml	ee52ebd3c186a06b70547dbfa69282385da38f2b	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/libgcc-16.1.0-r4.spdx.json	gnutools/gcc	releases/gcc-16.1.0	GPL-3.0-or-later WITH GCC-exception-3.1	NOASSERTION
+agentgateway	var/lib/db/sbom/libgcc-16.1.0-r4.spdx.json	libgcc	16.1.0-r4	(GPL-3.0-or-later WITH GCC-exception-3.1)	NOASSERTION
+agentgateway	var/lib/db/sbom/libgcc-16.1.0-r4.spdx.json	libgcc	16.1.0-r4	NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/libstdc++-16.1.0-r4.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/libstdc++-16.1.0-r4.spdx.json	libstdc++	16.1.0-r4	GPL-3.0-or-later WITH GCC-exception-3.1	NOASSERTION
+agentgateway	var/lib/db/sbom/libstdc++-16.1.0-r4.spdx.json	gcc.yaml	ee52ebd3c186a06b70547dbfa69282385da38f2b	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/libstdc++-16.1.0-r4.spdx.json	gnutools/gcc	releases/gcc-16.1.0	GPL-3.0-or-later WITH GCC-exception-3.1	NOASSERTION
+agentgateway	var/lib/db/sbom/libstdc++-16.1.0-r4.spdx.json	libstdc++	16.1.0-r4	(GPL-3.0-or-later WITH GCC-exception-3.1)	NOASSERTION
+agentgateway	var/lib/db/sbom/libstdc++-16.1.0-r4.spdx.json	libstdc++	16.1.0-r4	NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi		NOASSERTION	NOASSERTION
+agentgateway	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout	20230201-r29	MIT	NOASSERTION
+agentgateway	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout.yaml	35e7b4713442869116936fae3fe8cf7c69bc9054	Apache-2.0	NOASSERTION
+agentgateway	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout	20230201-r29	MIT	NOASSERTION
+agentgateway	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout	20230201-r29	NOASSERTION	NOASSERTION
+opa	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	wolfi		NOASSERTION	NOASSERTION
+opa	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates-bundle	20260413-r0	MPL-2.0 AND MIT	NOASSERTION
+opa	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates.yaml	5fb1c6869c186cb9b385b875141643409c440ac2	Apache-2.0	NOASSERTION
+opa	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates	20260413	MPL-2.0 AND MIT	NOASSERTION
+opa	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates-bundle	20260413-r0	(MPL-2.0 AND MIT)	NOASSERTION
+opa	var/lib/db/sbom/ca-certificates-bundle-20260413-r0.spdx.json	ca-certificates-bundle	20260413-r0	NOASSERTION	NOASSERTION
+opa	var/lib/db/sbom/tzdata-2026c-r0.spdx.json	wolfi		NOASSERTION	NOASSERTION
+opa	var/lib/db/sbom/tzdata-2026c-r0.spdx.json	tzdata	2026c-r0	CC-PDDC	NOASSERTION
+opa	var/lib/db/sbom/tzdata-2026c-r0.spdx.json	tzdata.yaml	ba2550b255b0a3cec44d816fd036eb27aaa1712b	Apache-2.0	NOASSERTION
+opa	var/lib/db/sbom/tzdata-2026c-r0.spdx.json	tz	2026c	CC-PDDC	NOASSERTION
+opa	var/lib/db/sbom/tzdata-2026c-r0.spdx.json	tzdata	2026c-r0	CC-PDDC	NOASSERTION
+opa	var/lib/db/sbom/tzdata-2026c-r0.spdx.json	tzdata	2026c-r0	NOASSERTION	NOASSERTION
+opa	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi		NOASSERTION	NOASSERTION
+opa	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout	20230201-r29	MIT	NOASSERTION
+opa	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout.yaml	35e7b4713442869116936fae3fe8cf7c69bc9054	Apache-2.0	NOASSERTION
+opa	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout	20230201-r29	MIT	NOASSERTION
+opa	var/lib/db/sbom/wolfi-baselayout-20230201-r29.spdx.json	wolfi-baselayout	20230201-r29	NOASSERTION	NOASSERTION

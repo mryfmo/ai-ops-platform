@@ -1,0 +1,42 @@
+# 根拠: GOV-003
+license_expression	package_count
+MIT OR Apache-2.0	374
+MIT	150
+Apache-2.0	73
+Apache-2.0 OR MIT	67
+MIT/Apache-2.0	44
+Unicode-3.0	18
+Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	7
+ISC	6
+Apache-2.0/MIT	4
+BSD-3-Clause	4
+Unlicense OR MIT	4
+Apache-2.0 OR ISC OR MIT	3
+Apache-2.0 OR MIT OR Zlib	3
+MPL-2.0	3
+BSD-2-Clause OR Apache-2.0 OR MIT	2
+CC0-1.0	2
+CDLA-Permissive-2.0	2
+MIT OR Apache-2.0 OR LGPL-2.1-or-later	2
+MIT OR Apache-2.0 OR Zlib	2
+UNKNOWN	2
+Unlicense/MIT	2
+Zlib	2
+(Apache-2.0 OR MIT) AND BSD-3-Clause	1
+(MIT OR Apache-2.0) AND Apache-2.0	1
+(MIT OR Apache-2.0) AND Unicode-3.0	1
+0BSD OR MIT OR Apache-2.0	1
+Apache-2.0 / MIT	1
+Apache-2.0 AND ISC	1
+Apache-2.0 OR BSL-1.0	1
+Apache-2.0 OR BSL-1.0 OR MIT	1
+Apache-2.0 OR MIT OR Unlicense	1
+Apache-2.0 WITH LLVM-exception	1
+BSD-3-Clause AND MIT	1
+BSD-3-Clause/MIT	1
+CC0-1.0 OR MIT-0 OR Apache-2.0	1
+ISC AND (Apache-2.0 OR ISC)	1
+ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)	1
+MIT AND BSD-3-Clause	1
+MIT OR Zlib OR Apache-2.0	1
+Zlib OR Apache-2.0 OR MIT	1

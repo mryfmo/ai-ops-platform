@@ -1,0 +1,3 @@
+# 根拠: GOV-003
+module	version	license	classifier_type	disposition
+github.com/hashicorp/golang-lru/v2	v2.0.7	MPL-2.0	reciprocal	Legal review candidate; no compatibility conclusion
