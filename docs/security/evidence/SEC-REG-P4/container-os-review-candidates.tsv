@@ -1,0 +1,17 @@
+# 根拠: GOV-003
+image	package	version	license_declared	disposition
+agentgateway	ca-certificates	20260413	MPL-2.0 AND MIT	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	ca-certificates-bundle	20260413-r0	(MPL-2.0 AND MIT)	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	ca-certificates-bundle	20260413-r0	MPL-2.0 AND MIT	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	glibc	2.43-r11	LGPL-2.1-or-later	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	glibc-locale-posix	2.43-r11	LGPL-2.1-or-later	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	gnutools/gcc	releases/gcc-16.1.0	GPL-3.0-or-later WITH GCC-exception-3.1	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	gnutools/glibc	dae425b554207f7c4599c7fac707ad4c08545674	LGPL-2.1-or-later	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	ld-linux	2.43-r11	LGPL-2.1-or-later	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	libgcc	16.1.0-r4	(GPL-3.0-or-later WITH GCC-exception-3.1)	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	libgcc	16.1.0-r4	GPL-3.0-or-later WITH GCC-exception-3.1	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	libstdc++	16.1.0-r4	(GPL-3.0-or-later WITH GCC-exception-3.1)	Legal review candidate from embedded SPDX; no compatibility conclusion
+agentgateway	libstdc++	16.1.0-r4	GPL-3.0-or-later WITH GCC-exception-3.1	Legal review candidate from embedded SPDX; no compatibility conclusion
+opa	ca-certificates	20260413	MPL-2.0 AND MIT	Legal review candidate from embedded SPDX; no compatibility conclusion
+opa	ca-certificates-bundle	20260413-r0	(MPL-2.0 AND MIT)	Legal review candidate from embedded SPDX; no compatibility conclusion
+opa	ca-certificates-bundle	20260413-r0	MPL-2.0 AND MIT	Legal review candidate from embedded SPDX; no compatibility conclusion
