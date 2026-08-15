@@ -100,6 +100,14 @@ export type { HealthEvaluationResult, JitExpiryResult, JitHealthActivities } fro
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";
+export { routeM365Output } from "./activities/m365Egress.js";
+export type { M365EgressDependencies, M365EgressResult, M365LlmInput } from "./activities/m365Egress.js";
+export type {
+  M365EgressErrorCode,
+  M365EgressRequest,
+  M365ExternalProvider,
+  PreparedM365Egress,
+} from "./lib/m365Egress.js";
 export {
   TEMPORAL_ENVIRONMENTS,
   WORKER_CN_PREFIX,

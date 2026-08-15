@@ -60,6 +60,12 @@ importers:
 
   packages/control-plane:
     dependencies:
+      '@aiops/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@aiops/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@temporalio/client':
         specifier: 1.22.0
         version: 1.22.0

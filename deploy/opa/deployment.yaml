@@ -11,6 +11,6 @@ posture:
   ingress: internal-only
   decision_address: 0.0.0.0:8181
   diagnostic_address: 0.0.0.0:8282
-  bundle_revision: "0.1.0"
+  bundle_revision: "0.2.0"
   bundle_path: /bundles/aiops-policy.tar.gz
   decision_logs: masked stdout collected by the platform OTel pipeline

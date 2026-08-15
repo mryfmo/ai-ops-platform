@@ -90,6 +90,37 @@ describe("OPA decision client [FinalArch:MCP-002]", () => {
     },
   );
 
+  it("preserves bounded M365 provider and minimization obligations [FinalArch:WIQ-004] [ADR-0024]", async () => {
+    const client = new OpaDecisionClient({
+      baseUrl: "http://opa.aiops.internal:8181",
+      fetchImpl: async () =>
+        Response.json({
+          result: {
+            decision: "allow",
+            reasons: ["m365_customer_confidential_bedrock_minimized"],
+            obligations: {
+              allowedProvider: "bedrock",
+              redactFields: ["conversationId", "permissionContext", "sourceReferences"],
+              maxResultBytes: 4_096,
+              requireHumanApproval: false,
+            },
+            policyBundleVersion: POLICY_BUNDLE_VERSION,
+          },
+        }),
+    });
+
+    await expect(client.decide(input)).resolves.toMatchObject({
+      decision: "allow",
+      obligations: {
+        allowedProvider: "bedrock",
+        redactFields: ["conversationId", "permissionContext", "sourceReferences"],
+        maxResultBytes: 4_096,
+        requireHumanApproval: false,
+      },
+      policyBundleVersion: "0.2.0",
+    });
+  });
+
   it("fails closed on malformed, unknown, or version-drifted responses [FinalArch:MCP-002]", async () => {
     const bodies = [
       { result: { decision: "allow" } },

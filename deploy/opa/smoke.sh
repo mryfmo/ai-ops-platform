@@ -61,10 +61,10 @@ printf '%s' "$RESPONSE" | node -e '
   const fs = require("node:fs");
   const response = JSON.parse(fs.readFileSync(0, "utf8"));
   if (response.result?.decision !== "deny") process.exit(1);
-  if (response.result?.policyBundleVersion !== "0.1.0") process.exit(1);
+  if (response.result?.policyBundleVersion !== "0.2.0") process.exit(1);
   if (response.result?.reasons?.[0] !== "default_deny") process.exit(1);
 '
-echo "OK: unknown MCP tool denied with bundle revision 0.1.0"
+echo "OK: unknown MCP tool denied with bundle revision 0.2.0"
 
 for _ in $(seq 1 10); do
   LOGS="$(read_logs)"
