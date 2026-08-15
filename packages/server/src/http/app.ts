@@ -23,6 +23,7 @@ import { registerXlsxImportRoutes, type XlsxImportRoutesDeps } from "./routes/xl
 import { registerReportIngestRoutes, type ReportIngestDeps } from "./routes/reportIngest.js";
 import { registerApprovalRoutes, type ApprovalRoutesDeps } from "./routes/approvals.js";
 import { registerMcpOpsRoutes, type McpOpsRoutesDeps } from "./routes/mcpOps.js";
+import { registerM365DelegatedRoutes, type M365DelegatedRoutesDeps } from "./routes/m365Delegated.js";
 import { MetricsRegistry } from "../observability/metrics.js";
 import { httpMetricsMiddleware } from "../observability/httpMetrics.js";
 import { registerMetricsRoutes } from "./routes/metrics.js";
@@ -41,6 +42,7 @@ export interface AppDependencies {
   webui?: WebuiProxyDeps; // 未指定時は /app/* を503にする（WebUI未起動の縮退運転）
   approvals?: ApprovalRoutesDeps;
   mcpOps?: McpOpsRoutesDeps;
+  m365Delegated?: M365DelegatedRoutesDeps;
 }
 
 export function buildApp(deps: AppDependencies): Hono {
@@ -81,6 +83,7 @@ export function buildApp(deps: AppDependencies): Hono {
   registerReportIngestRoutes(app, deps.reports);
   registerApprovalRoutes(app, deps.approvals);
   registerMcpOpsRoutes(app, deps.mcpOps);
+  registerM365DelegatedRoutes(app, deps.m365Delegated);
   registerWebuiProxy(app, deps.webui);
   return app;
 }
