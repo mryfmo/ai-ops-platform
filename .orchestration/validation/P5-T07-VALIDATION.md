@@ -51,3 +51,11 @@
 - `codex --profile review review --base main` at `31b18d7`: P1 nested sensitive-metadata bypass found.
 - Disposition: resolved with recursive key redaction during deterministic JSON serialization and a nested fixture.
 - `codex --profile review review --commit b44f770`: clean; no actionable defect identified.
+
+## R01 Runtime Import Revision
+
+- RED: plain Node ESM import of `packages/control-plane/dist/activities/m365Egress.js` failed with `ERR_MODULE_NOT_FOUND` for `@aiops/shared/dist/secretSanitizer`.
+- Fix: changed the existing shared sanitizer import to the `.js`-suffixed package subpath required by the wildcard exports map.
+- GREEN: rebuilt control-plane, then the exact Node ESM import probe printed `IMPORT OK`.
+- Focused result: `tests/m365Egress.test.ts` PASS, 1 file / 19 tests; control-plane typecheck and lint PASS.
+- Fresh PostgreSQL `mise run ci`: PASS, exit 0 with `P001 PostgreSQL integration passed`.

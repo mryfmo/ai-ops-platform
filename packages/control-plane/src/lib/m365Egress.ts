@@ -6,7 +6,7 @@ import type {
   ProviderCandidate,
   ResourceClassification,
 } from "@aiops/policy";
-import { sanitizeForLlmInput } from "@aiops/shared/secretSanitizer";
+import { sanitizeForLlmInput } from "@aiops/shared/secretSanitizer.js";
 
 export type M365ExternalProvider = Exclude<ProviderCandidate, "none">;
 
