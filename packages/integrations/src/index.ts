@@ -17,6 +17,24 @@ export {
   validateWorkIqDelegatedClaims,
 } from "./workiq/tokenClaims.js";
 export type { ValidatedWorkIqDelegatedClaims } from "./workiq/tokenClaims.js";
+export { WORKIQ_MCP_ENDPOINT, WorkIqRestClient } from "./workiq/restClient.js";
+export type {
+  WorkIqAskInput,
+  WorkIqAskResult,
+  WorkIqClientErrorCode,
+  WorkIqClientResult,
+  WorkIqDelegatedToken,
+  WorkIqDelegatedTokenProvider,
+  WorkIqFetchInput,
+  WorkIqFetchItem,
+  WorkIqFetchResult,
+  WorkIqGetSchemaInput,
+  WorkIqGetSchemaResult,
+  WorkIqPermissionContext,
+  WorkIqProvenance,
+  WorkIqRestClientOptions,
+  WorkIqSourceReference,
+} from "./workiq/restClient.js";
 export { buildMcpPolicyInput, assertGovernedMcpToolCallRequest } from "./lib/mcpPolicy.js";
 export {
   BOUNDED_INVOCATION_PROFILES,
