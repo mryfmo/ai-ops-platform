@@ -28,6 +28,10 @@
    - Final marker: `P001 PostgreSQL integration passed`.
    - All three disposable databases were dropped afterward.
 7. An earlier full-CI attempt reached workspace coverage but its PostgreSQL fixtures selected the nonexistent OS role `mryfmo` because libpq `PGUSER` was omitted. No code assertion failed; all disposable DBs were recreated before the definitive run.
+8. `codex --profile review review --commit 77f0969`
+   - PASS: independent review session `01a0078a-a15e-7c43-bed3-ca97cad7624a` found no discrete correctness regression and confirmed the corrected purpose-context semantics.
+9. `make require-crit-review`
+   - Not available in this repository (`No rule to make target require-crit-review`); the independent Codex review above was used as the review surface.
 
 ## Boundary Assertions
 

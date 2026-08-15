@@ -28,3 +28,4 @@ Implemented the fail-disabled `POST /m365/query` route with the fixed successful
 - Targeted route/auth: 14 tests green, including declared-purpose versus authorization semantics; server package: 81 files / 893 tests green under coverage.
 - Server typecheck, lint, build, and repository format/traceability gates are green.
 - Fresh-database `mise run ci`: exit 0 through `P001 PostgreSQL integration passed`.
+- Independent review of correction commit `77f0969` found no correctness regression and confirmed the purpose-context semantics.
