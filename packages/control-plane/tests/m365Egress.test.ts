@@ -106,6 +106,37 @@ describe("M365 output egress checkpoint [FinalArch:WIQ-004] [ADR-0024]", () => {
     });
   });
 
+  it("redacts prohibited metadata recursively inside retained fields", async () => {
+    const dispatch = vi.fn(async () => undefined);
+
+    await routeM365Output(
+      {
+        ...request,
+        output: {
+          ...request.output,
+          fields: {
+            ...request.output.fields,
+            response: {
+              text: "Summary",
+              permissionContext: { access: "delegated" },
+              nested: {
+                conversationId: "conversation-1",
+                sourceReferences: [{ objectId: "message-1" }],
+                retained: "safe",
+              },
+            },
+          },
+        },
+      },
+      { decisionClient: { decide: async () => decision() }, dispatch },
+    );
+
+    expect(dispatch).toHaveBeenCalledWith({
+      provider: "bedrock",
+      content: JSON.stringify({ response: { text: "Summary", nested: { retained: "safe" } } }),
+    });
+  });
+
   it.each(["bedrock", "anthropic"] as const)("never dispatches restricted output to %s", async (providerCandidate) => {
     const decide = vi.fn(async () =>
       decision({

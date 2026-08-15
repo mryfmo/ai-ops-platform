@@ -178,7 +178,8 @@ export function prepareM365Egress(
   );
   let content: string;
   try {
-    content = sanitizeForLlmInput(JSON.stringify(minimized)).sanitized;
+    const serialized = JSON.stringify(minimized, (key, value) => (redactions.includes(key) ? undefined : value));
+    content = sanitizeForLlmInput(serialized).sanitized;
   } catch {
     return { ok: false, code: "E-M365-EGRESS-INPUT" };
   }

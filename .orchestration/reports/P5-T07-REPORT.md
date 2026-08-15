@@ -20,7 +20,7 @@ Unknown classifications and provider `none` remain default-denied. Policy bundle
 - Constructs the existing `PolicyInput` from trusted actor/project, purpose, provider candidate, requested fields, source systems, and provenance state.
 - Escalates `provenanceComplete=false` to at least `customer-confidential`; Rego independently rejects an incomplete-provenance label paired with a lower classification.
 - Calls the existing `OpaDecisionClient` contract before dispatch. Missing, deny, approval, malformed, or transport-failed decisions never reach the injected LLM boundary.
-- Deterministically selects only requested fields, removes every required top-level redaction, sanitizes retained values at the LLM boundary, requires summarized customer-confidential output, and enforces both the policy byte bound and a 16 KiB absolute ceiling.
+- Deterministically selects only requested fields, removes required redactions recursively, sanitizes retained values at the LLM boundary, requires summarized customer-confidential output, and enforces both the policy byte bound and a 16 KiB absolute ceiling.
 - Dispatch receives only `{ provider, content }`; blocked results contain a fixed metadata-only E-code.
 
 ## Scope

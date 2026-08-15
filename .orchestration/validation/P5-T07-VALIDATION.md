@@ -8,6 +8,7 @@
 4. A bounded-obligation fixture proved a 1,000,000-byte policy limit was accepted; the absolute 16 KiB ceiling made it green.
 5. A malformed-runtime-input fixture proved the typed boundary could throw before policy; the route-level fail-closed guard made it green.
 6. Independent review found a retained-field secret bypass; a RED fixture reproduced the unchanged dispatch payload and the existing shared LLM sanitizer made it green.
+7. Final-diff review found nested M365 metadata bypassing top-level redaction; a RED fixture reproduced it and the JSON serialization replacer made recursive redaction green.
 
 ## Commands and Results
 
@@ -16,9 +17,9 @@
 2. `env CI=true pnpm --filter @aiops/policy run test`
    - PASS: 2 files / 13 tests.
 3. `env CI=true pnpm --filter @aiops/control-plane exec vitest run tests/m365Egress.test.ts`
-   - PASS: 1 file / 18 tests.
+   - PASS: 1 file / 19 tests.
 4. `env CI=true pnpm --filter @aiops/control-plane run test`
-   - PASS: 26 files / 240 tests (final coverage run).
+   - PASS: 26 files / 241 tests (final coverage run).
 5. Policy/control-plane typecheck and lint; `bash -n deploy/opa/smoke.sh`
    - PASS.
 6. `./deploy/opa/build-bundle.sh /private/tmp/P5-T07-policy.tar.gz`
@@ -47,3 +48,5 @@
 
 - `codex --profile review review --commit f829d0c`: P1 retained-field secret bypass found.
 - Disposition: resolved by applying the existing `sanitizeForLlmInput()` immediately before size validation and dispatch, with a dedicated regression fixture.
+- `codex --profile review review --base main` at `31b18d7`: P1 nested sensitive-metadata bypass found.
+- Disposition: resolved with recursive key redaction during deterministic JSON serialization and a nested fixture; final re-review pending the fix commit.
