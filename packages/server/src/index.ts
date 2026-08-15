@@ -124,6 +124,7 @@ export * from "./http/routes/reportIngest.js";
 export * from "./http/routes/webuiProxy.js";
 export * from "./http/routes/approvals.js";
 export * from "./http/routes/mcpOps.js";
+export * from "./http/routes/m365Delegated.js";
 export * from "./scheduler/scheduler.js";
 export * from "./scheduler/tasks/healthcheckTask.js";
 export * from "./scheduler/tasks/jitRevocationTask.js";
@@ -174,6 +175,7 @@ export * from "./db/deploymentsRepo.js";
 export * from "./db/actionReminderStateRepo.js";
 export * from "./auth/graphTokenProvider.js";
 export * from "./auth/githubAppTokenProvider.js";
+export * from "./auth/workIqOboTokenProvider.js";
 export * from "./agents/teamsConversationAgent.js";
 
 function loadJpHolidayCalendar() {

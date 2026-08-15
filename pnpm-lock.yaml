@@ -165,6 +165,12 @@ importers:
       '@aiops/devops':
         specifier: workspace:*
         version: link:../devops
+      '@aiops/integrations':
+        specifier: workspace:*
+        version: link:../integrations
+      '@aiops/policy':
+        specifier: workspace:*
+        version: link:../policy
       '@aiops/prjops':
         specifier: workspace:*
         version: link:../prjops

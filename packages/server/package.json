@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@aiops/devops": "workspace:*",
+    "@aiops/integrations": "workspace:*",
+    "@aiops/policy": "workspace:*",
     "@aiops/prjops": "workspace:*",
     "@aiops/shared": "workspace:*",
     "@anthropic-ai/sdk": "0.115.0",
