@@ -1,7 +1,7 @@
 // 根拠: FinalArch:MCP-002 / FinalArch:CON-004 / ADR-0023 / WBS P4-T03
 import type { PolicyDecision, PolicyDecisionValue, PolicyInput, ProviderCandidate } from "./contracts.js";
 
-export const POLICY_BUNDLE_VERSION = "0.1.0";
+export const POLICY_BUNDLE_VERSION = "0.2.0";
 export const OPA_DECISION_PATH = "/v1/data/aiops/policy/decision";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
