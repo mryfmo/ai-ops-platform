@@ -6,6 +6,7 @@
 2. A request-bound provider can prevalidate before policy and then satisfy the concrete downstream client without a second exchange when both share the same four-part cache; the client still performs its own canonical revalidation before dispatch.
 3. Authorization and policy failure evidence needs only a fixed E-code plus bounded decision metadata. Copying raw claims, policy reasons, user questions, or upstream content into an audit denial creates avoidable content leakage.
 4. Repository full-CI PostgreSQL fixtures use both explicit URLs and libpq defaults. Fresh-DB runs must set `PGHOST`, `PGPORT`, and `PGUSER` in addition to task-specific database URLs/names.
+5. A free-text Work IQ ask has no platform-enforceable project/source retrieval filter. Request declarations must be labeled as purpose context, while conformance evidence comes from delegated M365 permission trimming and downstream egress classification/minimization.
 
 ## Apply To
 

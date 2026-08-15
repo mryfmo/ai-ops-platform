@@ -36,8 +36,10 @@ interface AuthenticatedIdentity {
 
 interface M365Query {
   readonly question: string;
+  /** Declared purpose context only; it does not constrain Work IQ retrieval. */
   readonly purpose: string;
   readonly classification: ResourceClassification;
+  /** Declared purpose context only; Work IQ ask has no project/source filter parameters. */
   readonly projectId: string;
   readonly allowedSourceTypes: readonly string[];
 }
@@ -144,27 +146,22 @@ async function auditDenial(
   });
 }
 
-function policyInput(
-  identity: AuthenticatedIdentity,
-  projects: readonly string[],
-  query: M365Query,
-  environment: PolicyEnvironment,
-): PolicyInput {
+function policyInput(identity: AuthenticatedIdentity, query: M365Query, environment: PolicyEnvironment): PolicyInput {
+  // Work IQ ask accepts only a free-text question. These declarations limit the stated
+  // purpose; they do not authorize or filter retrieval. Isolation is M365 permission
+  // trimming plus output-side OPA classification/minimization in later P5 controls.
+  const declaredPurposeScope = JSON.stringify({
+    declaredPurpose: query.purpose,
+    declaredProjectContext: query.projectId,
+    declaredSourceContext: query.allowedSourceTypes,
+  });
   return {
-    actor: { id: identity.objectId, type: "human", tenantId: identity.tenantId, projectIds: [...projects] },
+    actor: { id: identity.objectId, type: "human", tenantId: identity.tenantId },
     agent: { id: "control-api", kind: "control-api" },
     action: { name: "ask", riskLevel: "L1", toolName: "work-iq.m365-intelligence.ask", protocol: "mcp" },
-    resource: {
-      system: "work-iq",
-      id: query.projectId,
-      projectId: query.projectId,
-      classification: query.classification,
-      ...(query.allowedSourceTypes.length === 0
-        ? {}
-        : { labels: query.allowedSourceTypes.map((source) => `source:${source}`) }),
-    },
+    resource: { system: "work-iq", id: "delegated-m365-ask", classification: query.classification },
     context: {
-      purpose: query.purpose,
+      purpose: declaredPurposeScope,
       environment,
       providerCandidate: "none",
       sourceTrust: "trusted-platform",
@@ -214,7 +211,7 @@ export function registerM365DelegatedRoutes(app: Hono, deps: M365DelegatedRoutes
 
     let decision;
     try {
-      decision = await deps.decisionClient.decide(policyInput(identity, recipient.projects, query, deps.environment));
+      decision = await deps.decisionClient.decide(policyInput(identity, query, deps.environment));
     } catch {
       await auditDenial(deps, identity, traceId, "m365_policy_denied", { code: "E-M365-POLICY-FAILURE" });
       return c.json({ error: "M365 query forbidden", code: "E-M365-POLICY-FAILURE" }, 403);

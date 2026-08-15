@@ -175,13 +175,33 @@ describe("Control API delegated M365 endpoint [FinalArch:PRD-007] [FinalArch:WIQ
     });
     expect(deps.decisionClient.decide).toHaveBeenCalledWith(
       expect.objectContaining({
-        actor: expect.objectContaining({ id: SUBJECT, tenantId: TENANT_ID, projectIds: ["PJ-001"] }),
+        actor: expect.objectContaining({ id: SUBJECT, tenantId: TENANT_ID }),
         action: { name: "ask", riskLevel: "L1", toolName: "work-iq.m365-intelligence.ask", protocol: "mcp" },
-        resource: expect.objectContaining({ projectId: "PJ-001", classification: "internal" }),
+        resource: expect.objectContaining({ classification: "internal" }),
       }),
     );
     expect(workIqFetch).toHaveBeenCalledTimes(1);
     expect(exchange).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats project and source declarations as purpose context, not an ask authorization boundary", async () => {
+    const { app, decide, workIqFetch } = setup();
+
+    const response = await app.request(PATH, { method: "POST", headers: identityHeaders(), body: BODY });
+
+    expect(response.status).toBe(200);
+    const input = decide.mock.calls[0]?.[0];
+    expect(input?.actor).not.toHaveProperty("projectIds");
+    expect(input?.resource).toEqual({ system: "work-iq", id: "delegated-m365-ask", classification: "internal" });
+    expect(JSON.parse(input?.context.purpose ?? "")).toEqual({
+      declaredPurpose: "project status",
+      declaredProjectContext: "PJ-001",
+      declaredSourceContext: ["teams", "sharepoint"],
+    });
+    const request = JSON.parse(String(workIqFetch.mock.calls[0]?.[1]?.body)) as {
+      params: { arguments: { question: string } };
+    };
+    expect(request.params.arguments.question).toBe("What changed?");
   });
 
   it("denies an invalid identity before OBO, OPA, or client dispatch", async () => {
