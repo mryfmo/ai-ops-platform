@@ -1,0 +1,45 @@
+{
+  "task_id": "P8-T02",
+  "review_surface": "local-staged-diff",
+  "reviewer": "codex-deep-dot",
+  "review_source": "git diff --cached plus full file reads",
+  "review_outcome": "approved",
+  "crit_status": {
+    "review_file": "/Users/mryfmo/.crit/reviews/38066f714014/review.json",
+    "review_file_exists": false,
+    "browser_review_opened": false
+  },
+  "dimensions": [
+    "spec_compliance",
+    "architecture_drift",
+    "security",
+    "correctness",
+    "idempotency",
+    "test_adequacy",
+    "observability",
+    "migration_rollback",
+    "documentation_traceability"
+  ],
+  "resolved_findings": [
+    {
+      "id": "P8-T02-SELF-001",
+      "severity": "high",
+      "finding": "Post-run Git ignore rules could hide a forbidden or outside-allowed file.",
+      "resolution": "Snapshot and compare ignored paths as well as tracked and ordinary untracked paths; added ignore-rule and existing-ignored negative fixtures."
+    },
+    {
+      "id": "P8-T02-SELF-002",
+      "severity": "critical",
+      "finding": "An external snapshot remained mutable by a same-account agent.",
+      "resolution": "Authenticate the create-once snapshot with a minimum-32-byte ephemeral HMAC key scoped to trusted pre/post steps; added tamper negative fixture."
+    },
+    {
+      "id": "P8-T02-SELF-003",
+      "severity": "high",
+      "finding": "The guard source itself was not in the unconditional governance set.",
+      "resolution": "Hard-forbid both guard CLI and test sources and add a self-modification negative fixture."
+    }
+  ],
+  "deferred_scope": "P8-T04/P8-T05 must wire the composite phases around the runner from a trusted action definition, keep the HMAC key out of the agent environment, and enforce the OS sandbox.",
+  "note": "This local evidence records the worker's required self-review and does not authenticate an independent reviewer."
+}
