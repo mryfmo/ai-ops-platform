@@ -1001,6 +1001,95 @@ try {
       console.log(`recorded plane-sync.child-invalid-identity (${outcome})`);
     }
   }
+
+  // --- P3-T13 deploy dispatch / prod monitor fixtures（TMP-003 / TMP-005） ---
+  {
+    const deployId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const target = {
+      deployId,
+      projectId: "PJ-001",
+      owner: "acme",
+      repo: "widget",
+      commitSha: "a".repeat(40),
+    };
+    const envelope = (payload) => ({ schemaVersion: 1, payload });
+    const plans = (operation, values) => envelope({ operation, plans: values });
+    const cas = (kind, from, to) =>
+      envelope(
+        kind === "created" ? { kind, deployId, from, to } : { kind, deployId, expectedState: from, observedState: to },
+      );
+    const effect = (kind, key) => envelope({ deployId, effect: kind, idempotencyKey: key });
+    const dispatchPlan = { kind: "dispatch", target };
+    const rollbackPlan = {
+      kind: "rollback",
+      target: { ...target, channel: { teamId: "team", channelId: "channel" } },
+      targetVersion: "v1",
+      matchedConditions: ["a"],
+    };
+    const record = async (name, workflowType, sequence, activities) => {
+      const taskQueue = `deployment-${name}`;
+      const workflowId =
+        workflowType === "deployDispatchWorkflow"
+          ? `incident/deploy-dispatch:global:${sequence}`
+          : `incident/prod-monitor:global:${sequence}`;
+      const operation = workflowType === "deployDispatchWorkflow" ? "deploy-dispatch" : "prod-monitor";
+      const observedAtMs =
+        operation === "deploy-dispatch" ? await env.currentTimeMs() : Math.max(0, (await env.currentTimeMs()) - 60_000);
+      const worker = await Worker.create({ connection: env.nativeConnection, taskQueue, workflowsPath, activities });
+      const outcome = await worker.runUntil(
+        env.client.workflow.execute(workflowType, {
+          taskQueue,
+          workflowId,
+          args: [envelope({ operation, executionMode: "active", sequence, observedAtMs })],
+        }),
+      );
+      await saveHistory(workflowId, `deployment.${name}.history.json`);
+      console.log(`recorded deployment.${name} (${outcome.payload.actions.map((a) => a.outcome).join(",")})`);
+    };
+
+    const baseActivities = {
+      async findDeployDispatchPlans() {
+        return plans("deploy-dispatch", [dispatchPlan]);
+      },
+      async claimApprovedDeployment(_input, key) {
+        return envelope({ kind: "stale", idempotencyKey: key });
+      },
+      async planProdMonitor() {
+        return plans("prod-monitor", [rollbackPlan]);
+      },
+      async claimDeploymentTransition(input) {
+        return cas("created", input.payload.from, input.payload.to);
+      },
+      async findDeploymentEffect() {
+        return null;
+      },
+      async dispatchDeployment(_input, key) {
+        return effect("deploy", key);
+      },
+      async dispatchRollback(_input, key) {
+        return effect("rollback", key);
+      },
+    };
+
+    const sent = new Map();
+    await record("dispatch-reconciled", "deployDispatchWorkflow", 7001, {
+      ...baseActivities,
+      async findDeploymentEffect(_input, key) {
+        return sent.get(key) ?? null;
+      },
+      async dispatchDeployment(_input, key) {
+        sent.set(key, envelope({ status: "sent", deployId, effect: "deploy", idempotencyKey: key }));
+        throw new Error("synthetic response loss after deploy dispatch");
+      },
+    });
+    await record("dispatch-cutover-stale", "deployDispatchWorkflow", 7002, {
+      ...baseActivities,
+      async claimDeploymentTransition(input) {
+        return cas("stale", input.payload.from, input.payload.to);
+      },
+    });
+    await record("monitor-rollback", "prodMonitorWorkflow", 7003, baseActivities);
+  }
 } finally {
   await env.teardown();
 }

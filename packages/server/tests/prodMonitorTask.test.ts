@@ -88,10 +88,21 @@ describe("production RED monitoring [DevOps:REQ-012 / TH-003]", () => {
         listMonitoringTargets: vi.fn(async () => [target]),
         markRollingBack: vi.fn(async () => {
           calls.push("rolling_back");
-          return true;
+          return {
+            kind: "created" as const,
+            deployId: target.deployId,
+            expectedState: "monitoring" as const,
+            observedState: "rolling_back" as const,
+          };
         }),
         markRolledBack: vi.fn(async () => {
           calls.push("rolled_back");
+          return {
+            kind: "created" as const,
+            deployId: target.deployId,
+            expectedState: "rolling_back" as const,
+            observedState: "rolled_back" as const,
+          };
         }),
       },
       metricsProvider: { read: vi.fn(async () => metrics) },

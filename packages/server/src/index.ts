@@ -60,6 +60,7 @@ import { ImportLedgerRepo } from "./db/importLedgerRepo.js";
 import { SevenKeysSnapshotsRepo } from "./db/sevenKeysSnapshotsRepo.js";
 import { RecipientsRepo } from "./db/recipientsRepo.js";
 import { McpOpsRepo } from "./db/mcpOpsRepo.js";
+import { WorkbenchRepo } from "./db/workbenchRepo.js";
 import { StandardReportsRepo } from "./db/standardReportsRepo.js";
 import { ReportDeliveryLogRepo } from "./db/reportDeliveryLogRepo.js";
 import { ReportDeliveryMetricsRepo } from "./db/reportDeliveryMetricsRepo.js";
@@ -125,6 +126,7 @@ export * from "./http/routes/webuiProxy.js";
 export * from "./http/routes/approvals.js";
 export * from "./http/routes/mcpOps.js";
 export * from "./http/routes/m365Delegated.js";
+export * from "./http/routes/workbench.js";
 export * from "./scheduler/scheduler.js";
 export * from "./scheduler/tasks/healthcheckTask.js";
 export * from "./scheduler/tasks/jitRevocationTask.js";
@@ -168,6 +170,7 @@ export * from "./db/importLedgerRepo.js";
 export * from "./db/sevenKeysSnapshotsRepo.js";
 export * from "./db/recipientsRepo.js";
 export * from "./db/mcpOpsRepo.js";
+export * from "./db/workbenchRepo.js";
 export * from "./db/standardReportsRepo.js";
 export * from "./db/reportDeliveryLogRepo.js";
 export * from "./db/approvalsRepo.js";
@@ -240,6 +243,7 @@ export async function main(
   const sevenKeysSnapshotsRepo = new SevenKeysSnapshotsRepo(pool);
   const recipientsRepo = new RecipientsRepo(pool);
   const mcpOpsRepo = new McpOpsRepo(pool);
+  const workbenchRepo = new WorkbenchRepo(pool);
   const mcpRegistryStatus = createMcpRegistryStatusReader();
   const standardReportsRepo = new StandardReportsRepo(pool);
   const reportDeliveryLogRepo = new ReportDeliveryLogRepo(pool);
@@ -1071,6 +1075,13 @@ export async function main(
       mcpOpsRepo,
       recipientsRepo,
       registryStatus: mcpRegistryStatus,
+      auditLog: devopsAuditLog,
+      identitySecret: config.WEB_BFF_IDENTITY_SECRET,
+      traceIdProvider: () => randomUUID(),
+    },
+    workbench: {
+      workbenchRepo,
+      recipientsRepo,
       auditLog: devopsAuditLog,
       identitySecret: config.WEB_BFF_IDENTITY_SECRET,
       traceIdProvider: () => randomUUID(),

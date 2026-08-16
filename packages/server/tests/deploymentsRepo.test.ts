@@ -74,17 +74,54 @@ describe("DeploymentsRepo dispatch state [DevOps:SPEC-INT-020]", () => {
           ],
         };
       }
+      if (sql.includes("UPDATE deployments")) {
+        const params = query.mock.calls.at(-1)?.[1] as string[];
+        return {
+          rows: [{ state: params[1] }],
+        };
+      }
       return { rows: [{ deploy_id: deployId }] };
     });
     const repo = new DeploymentsRepo({ query });
     await expect(repo.findNextApprovedDispatch()).resolves.toMatchObject({ deployId, owner: "acme" });
-    await expect(repo.markDispatching(deployId)).resolves.toBe(true);
-    await expect(repo.markRollingBack(deployId)).resolves.toBe(true);
-    await repo.markRolledBack(deployId);
+    await expect(repo.markDispatching(deployId)).resolves.toEqual({
+      kind: "created",
+      deployId,
+      expectedState: "approved",
+      observedState: "prod_deploying",
+    });
+    await expect(repo.markRollingBack(deployId)).resolves.toEqual({
+      kind: "created",
+      deployId,
+      expectedState: "monitoring",
+      observedState: "rolling_back",
+    });
+    await expect(repo.markRolledBack(deployId)).resolves.toEqual({
+      kind: "created",
+      deployId,
+      expectedState: "rolling_back",
+      observedState: "rolled_back",
+    });
     expect(query.mock.calls.slice(1).map(([, params]) => params)).toEqual([
       [deployId, "prod_deploying", "approved"],
       [deployId, "rolling_back", "monitoring"],
       [deployId, "rolled_back", "rolling_back"],
     ]);
+  });
+
+  it("TMP-003: CAS loser は observed DB state を持つ stale receipt になり dispatch authority を得ない", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ state: "prod_deploying" }] });
+    const repo = new DeploymentsRepo({ query });
+    await expect(repo.markDispatching(deployId)).resolves.toEqual({
+      kind: "stale",
+      deployId,
+      expectedState: "approved",
+      observedState: "prod_deploying",
+    });
+    expect(query.mock.calls[0]![0]).toMatch(/UPDATE deployments[\s\S]+state = \$2[\s\S]+state = \$3/u);
+    expect(query.mock.calls[1]).toEqual([expect.stringContaining("SELECT state FROM deployments"), [deployId]]);
   });
 });

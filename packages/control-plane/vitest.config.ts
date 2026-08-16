@@ -20,6 +20,7 @@ export default defineConfig({
         "src/workflows/jitHealth.ts",
         "src/workflows/reportDelivery.ts",
         "src/workflows/planeSync.ts",
+        "src/workflows/deployment.ts",
         "src/workflows/entry.ts",
       ],
       thresholds: {
