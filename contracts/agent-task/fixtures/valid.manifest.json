@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0",
+  "task_id": "P8-T01",
+  "writer": {
+    "agent_id": "codex-deep-dot",
+    "role": "writer",
+    "execution_profile": "standard"
+  },
+  "reviewer": {
+    "agent_id": "claude-reviewer",
+    "role": "reviewer",
+    "execution_profile": "review"
+  },
+  "runner": {
+    "isolation": "ephemeral",
+    "cli": [{ "name": "codex", "pin": "v5.6.0" }],
+    "credential": {
+      "kind": "litellm_virtual_key",
+      "key_env": "LITELLM_CODING_VIRTUAL_KEY",
+      "scope": "coding-p8-t01",
+      "master_key": false,
+      "provider_keys": false
+    },
+    "mcp_gateway": {
+      "endpoint_env": "AGENTGATEWAY_ENDPOINT",
+      "profile": "coding-agent"
+    },
+    "direct_production_network": false,
+    "clean_checkout": true
+  },
+  "paths": {
+    "allowed": ["contracts/agent-task/**"],
+    "forbidden": ["packages/server/src/index.ts", "packages/server/src/http/app.ts"]
+  },
+  "gates": [{ "id": "COD-003", "blocking": true }],
+  "budget": {
+    "max_runtime_seconds": 3600,
+    "max_cost_usd": 25,
+    "max_tokens": 200000,
+    "max_tool_calls": 500
+  },
+  "delivery": {
+    "branch": "agent/P8-T01-agent-task-manifest",
+    "direct_main_push": false,
+    "pull_request": {
+      "required": true,
+      "draft": false,
+      "auto_merge": false,
+      "human_merge_required": true,
+      "labels": ["ai-generated"]
+    }
+  },
+  "callback": {
+    "required_fields": [
+      "commands_executed",
+      "test_results",
+      "skipped_failed_checks",
+      "changed_paths",
+      "commit",
+      "branch",
+      "pull_request",
+      "dependency_changes",
+      "security_findings",
+      "unresolved_decisions"
+    ]
+  },
+  "review": {
+    "dimensions": [
+      "spec_compliance",
+      "architecture_drift",
+      "security",
+      "correctness",
+      "idempotency",
+      "test_adequacy",
+      "observability",
+      "migration_rollback",
+      "documentation_traceability"
+    ]
+  }
+}

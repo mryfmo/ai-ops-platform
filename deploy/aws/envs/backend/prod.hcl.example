@@ -1,0 +1,6 @@
+# Placeholder only. Bootstrap creates this backend before init.
+bucket         = "REPLACE_WITH_PROD_TERRAFORM_STATE_BUCKET"
+key            = "ai-ops-platform/prod/terraform.tfstate"
+region         = "ap-northeast-1"
+dynamodb_table = "REPLACE_WITH_PROD_TERRAFORM_LOCK_TABLE"
+encrypt        = true
