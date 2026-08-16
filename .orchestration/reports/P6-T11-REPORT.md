@@ -27,3 +27,9 @@ Email / Teams / GitHub payloads now converge on one sanitized, bounded event and
 - Temporal matrix: email / Teams / GitHub × accept / clarify at prior counts 0,1,2 / escalate at 3 / duplicate; shadow and lost-response reconciliation: green.
 - Recorded Temporal history replay: green.
 - Real PostgreSQL concurrency/constraint tests and `mise run ci`: green.
+
+## R01 Clean-runner Coverage Fix
+
+- Added DB-less `PgStatusIngestStore` unit tests following the existing unit + real-PostgreSQL split.
+- The mock suite exercises thread/side-effect reads, new and duplicate claims, advisory-lock/transaction ordering, rollback/release, receipt persistence conflicts, terminal CAS, reconciliation, and divergence.
+- Production code, coverage thresholds, and coverage exclusions are unchanged by R01.

@@ -39,3 +39,16 @@
 - Secret-like workflow input and unresolved project identity (`E-ING02`) are rejected before claim.
 - Canonical, notification, and audit activities use fixed single-attempt retry and authoritative reconciliation.
 - Audit detail excludes original subject/body/update content.
+
+## R01 Clean-runner Coverage Evidence
+
+1. RED with `TEST_DATABASE_URL` unset before the fix:
+   - 357 passed / 4 PostgreSQL tests skipped.
+   - Statements 87.20%, functions 90.49%, lines 88.83%; threshold failure reproduced exactly.
+2. GREEN after adding `packages/prjops/tests/pgStatusIngestStoreUnit.test.ts`:
+   - `env -u TEST_DATABASE_URL pnpm --filter @aiops/prjops run test:coverage` PASS.
+   - 363 passed / 4 PostgreSQL tests skipped.
+   - Statements 90.55%, branches 83.27%, functions 93.66%, lines 92.49%.
+   - `pgStatusIngestStore.ts`: statements 100%, functions 100%, lines 100%, branches 86.95%.
+3. Fresh disposable databases (`aiops_test`, `aiops_load_test`, `aiops_p001`) were recreated, then real-DB `mise run ci` passed with exit 0.
+4. R01 changes no production source, threshold, or coverage-exclude configuration.
