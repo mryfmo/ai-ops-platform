@@ -158,6 +158,12 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

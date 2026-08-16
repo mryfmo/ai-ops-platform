@@ -7,6 +7,21 @@ export type { FixedRetryPolicy } from "./lib/retryPolicies.js";
 export { buildIdempotencyKey, parseIdempotencyKey } from "./lib/idempotency.js";
 export { runExternalSideEffect, ExternalSideEffectUnresolvedError } from "./workflows/sideEffect.js";
 export type { ExternalSideEffectPorts, ExternalSideEffectOutcome } from "./workflows/sideEffect.js";
+export {
+  assertStatusIngestRequest,
+  buildStatusIngestSourceKey,
+  buildStatusIngestThreadKey,
+  buildStatusIngestWorkflowId,
+  deriveStatusIngestDecision,
+} from "./lib/statusIngestState.js";
+export type {
+  StatusIngestAction,
+  StatusIngestClaimReceipt,
+  StatusIngestDecision,
+  StatusIngestRequest,
+} from "./lib/statusIngestState.js";
+export { statusIngestWorkflow } from "./workflows/statusIngest.js";
+export type { StatusIngestActivities, StatusIngestResult } from "./workflows/statusIngest.js";
 export { isPatchActive, retirePatch } from "./workflows/versioning.js";
 export { guardSideEffectDispatch, runCleanup } from "./workflows/cancellation.js";
 export { assertApprovalRequest, evaluateDecisionSignal } from "./lib/approvalDecision.js";
