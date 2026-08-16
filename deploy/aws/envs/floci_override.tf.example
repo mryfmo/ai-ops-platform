@@ -1,0 +1,25 @@
+# 根拠: ADR-0029 / DEV-T01 / P10-T01 — copied only into the disposable validation root.
+provider "aws" {
+  region                      = var.aws_region
+  access_key                  = "000000000000"
+  secret_key                  = "floci"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  default_tags {
+    tags = local.tags
+  }
+}
+
+provider "aws" {
+  alias                       = "us_east_1"
+  region                      = "us-east-1"
+  access_key                  = "000000000000"
+  secret_key                  = "floci"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  default_tags {
+    tags = local.tags
+  }
+}

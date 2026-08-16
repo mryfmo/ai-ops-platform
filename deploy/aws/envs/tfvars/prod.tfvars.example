@@ -1,0 +1,34 @@
+# 根拠: ADR-0029 / REL-001 / P10-T01 — replace every placeholder at the production ENV gate.
+environment          = "prod"
+aws_region           = "ap-northeast-1"
+vpc_cidr             = "10.60.0.0/16"
+availability_zones   = ["ap-northeast-1a", "ap-northeast-1c"]
+public_subnet_cidrs  = ["10.60.0.0/24", "10.60.1.0/24"]
+private_subnet_cidrs = ["10.60.10.0/24", "10.60.11.0/24"]
+
+cloudfront_origin_prefix_list_id = "pl-00000000000000000"
+alb_certificate_arn              = "arn:aws:acm:ap-northeast-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"
+alb_origin_domain_name           = "origin.prod.placeholder.invalid"
+cloudfront_cache_policy_id       = "00000000-0000-0000-0000-000000000000"
+cloudfront_aliases               = ["placeholder.invalid"]
+cloudfront_certificate_arn       = "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"
+github_repository                = "placeholder/ai-ops-platform"
+github_oidc_thumbprints          = ["0000000000000000000000000000000000000000"]
+secret_names = ["entra-client-secret", "litellm-virtual-key"]
+services = {
+  server = {
+    repository    = "server"
+    image         = "000000000000.dkr.ecr.ap-northeast-1.amazonaws.com/aiops-prod/server@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    cpu           = 1024
+    memory        = 2048
+    port          = 3000
+    desired_count = 2
+    health_path   = "/health/ready"
+    path_patterns = ["/*"]
+    environment   = { NODE_ENV = "production" }
+    secret_names  = { ENTRA_CLIENT_SECRET = "entra-client-secret", LITELLM_VIRTUAL_KEY = "litellm-virtual-key" }
+  }
+}
+rds_instance_class               = "db.r7g.large"
+rds_allocated_storage_gib        = 100
+tags                             = { CostCenter = "replace-at-env-gate", Owner = "replace-at-env-gate" }

@@ -1,0 +1,5 @@
+# Placeholder only. Copy this file as backend.tf in an ephemeral deployment
+# checkout after the environment state bucket and lock table are approved.
+terraform {
+  backend "s3" {}
+}
