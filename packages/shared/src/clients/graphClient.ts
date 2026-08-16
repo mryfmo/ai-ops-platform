@@ -31,8 +31,14 @@ import { fetchWithBackoff, withTimeout, type FetchLike, type RetryOptions } from
 export { fetchWithBackoff } from "./fetchPolicy.js";
 export type { FetchLike, RetryOptions, RetryPolicy } from "./fetchPolicy.js";
 
+declare const graphAppOnlyTokenBrand: unique symbol;
+
+export type GraphAppOnlyToken = string & {
+  readonly [graphAppOnlyTokenBrand]: "GraphAppOnlyToken";
+};
+
 export interface GraphTokenProvider {
-  getAccessToken(): Promise<string>;
+  getAccessToken(): Promise<GraphAppOnlyToken>;
 }
 
 /** Graph送信・Teams取得のアプリ内最終allowlist（ADR-0005）。 */
@@ -217,6 +223,7 @@ function buildAdaptiveCardAttachment(card: AdaptiveCardPayload) {
 }
 
 export class GraphClient {
+  readonly authenticationMode = "app-only" as const;
   private readonly fetchImpl: FetchLike;
   private readonly allowedTeamIds: ReadonlySet<string>;
   private readonly allowedFromMailboxes: ReadonlySet<string>;

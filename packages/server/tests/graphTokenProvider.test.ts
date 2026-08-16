@@ -85,6 +85,7 @@ describe("Graph MSAL token provider [DevOps:SPEC-INT-062]", () => {
     ["empty token", { accessToken: "", expiresOn }],
     ["blank token", { accessToken: "  ", expiresOn }],
     ["surrounding whitespace token", { accessToken: " sensitive-token ", expiresOn }],
+    ["embedded whitespace token", { accessToken: "sensitive token", expiresOn }],
     ["null expiry", { accessToken: "sensitive-token", expiresOn: null }],
     ["invalid expiry", { accessToken: "sensitive-token", expiresOn: new Date(Number.NaN) }],
     ["expired result", { accessToken: "sensitive-token", expiresOn: new Date(now() - 1) }],
