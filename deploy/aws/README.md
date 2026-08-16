@@ -9,17 +9,17 @@ placeholders and must not be used for a real AWS plan or apply.
 
 ## Modules
 
-| Module            | Code-owned resources                                                              | Boundary                                                                             |
-| ----------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `network`         | VPC, public/private subnets, IGW, route tables                                    | Private subnets have no default route; P10-T02 adds reviewed endpoints/egress        |
-| `identity`        | GitHub OIDC provider and environment-scoped deploy role; ECS execution/task roles | No long-lived access key and no deploy permission until reviewed policy input exists |
-| `ecr`             | Immutable, scan-on-push repositories and lifecycle policy                         | Runtime images must use an ECR digest                                                |
-| `secrets-manager` | Secret containers only                                                            | Secret values are never Terraform inputs or state                                    |
-| `rds`             | Private encrypted PostgreSQL, managed master password, SSL, PITR/DR backups       | No public endpoint; whole-instance recovery points expire after 35 days              |
-| `alb`             | HTTPS ALB, CloudFront-prefix-list SG, service target groups                       | Direct internet ingress is not allowed by the SG                                     |
-| `ecs-fargate`     | Cluster, private services/tasks, logs, service SG                                 | No public IP and no outbound rule until P10-T02                                      |
-| `waf`             | CloudFront WAF with managed common rules and rate limit                           | Runs through the `us-east-1` provider alias                                          |
-| `cloudfront`      | Public distribution with WAF and HTTPS-only ALB origin                            | The only public application entry point                                              |
+| Module            | Code-owned resources                                                                          | Boundary                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `network`         | VPC, public/private subnets, IGW, route tables                                                | Private subnets have no default route; P10-T02 adds reviewed endpoints/egress                    |
+| `identity`        | GitHub OIDC provider and environment-scoped deploy role; per-service ECS execution/task roles | No long-lived access key; fixed workloads cannot assume sibling or cross-environment roles       |
+| `ecr`             | Immutable, scan-on-push repositories and lifecycle policy                                     | Runtime images must use an ECR digest                                                            |
+| `secrets-manager` | KMS-backed secret containers, exact workload policies, and rotation frame                     | Secret values are never Terraform inputs or state; unverifiable break-glass trust stays disabled |
+| `rds`             | Private encrypted PostgreSQL, managed master password, SSL, PITR/DR backups                   | No public endpoint; whole-instance recovery points expire after 35 days                          |
+| `alb`             | HTTPS ALB, CloudFront-prefix-list SG, service target groups                                   | Direct internet ingress is not allowed by the SG                                                 |
+| `ecs-fargate`     | Cluster, private services/tasks, logs, service SG                                             | No public IP and no outbound rule until P10-T02                                                  |
+| `waf`             | CloudFront WAF with managed common rules and rate limit                                       | Runs through the `us-east-1` provider alias                                                      |
+| `cloudfront`      | Public distribution with WAF and HTTPS-only ALB origin                                        | The only public application entry point                                                          |
 
 The composition root is `envs/main.tf`. Environment separation is expressed by
 distinct tfvars, VPC/name/tag namespaces, OIDC subjects, IAM roles, databases,
@@ -41,8 +41,9 @@ Before a real environment exists, an Owner performs these auditable prerequisite
    commit the activated backend or resolved backend values.
 3. Resolve the AWS-managed CloudFront origin prefix-list ID, regional ALB origin
    DNS/certificate, us-east-1 viewer certificate, CloudFront cache-policy ID,
-   GitHub OIDC thumbprint, immutable ECR image digests, sizing, aliases, and tags
-   through the ENV gate. Never commit the resolved file.
+   GitHub OIDC thumbprint, immutable ECR image digests, KMS administrator,
+   bootstrap/rotation roles, rotation Lambda, Bedrock model ARNs, sizing,
+   aliases, and tags through the ENV gate. Never commit the resolved file.
 4. Run a reviewed Terraform plan from a short-lived GitHub OIDC session. The OIDC
    provider/role and all application resources are already represented in code;
    no Console resource creation is part of the procedure.
@@ -96,6 +97,14 @@ Static validation requires only the pinned Terraform CLI/provider:
 
 ```bash
 P10_T01_STATIC_ONLY=1 ./deploy/aws/validate-modules.sh
+```
+
+The mock-only identity gate also proves exact OIDC claims, five governed role
+pairs, per-task ECS role selection, service-scoped Secrets Manager/KMS access,
+rotation, and the absence of an unverifiable break-glass role without AWS credentials:
+
+```bash
+./deploy/aws/test-identity-secrets.sh
 ```
 
 The full pre-validation starts the existing digest-pinned Floci service through
