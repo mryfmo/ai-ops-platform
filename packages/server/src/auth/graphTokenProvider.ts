@@ -4,7 +4,7 @@
  * 根拠: DevOps:SPEC-INT-062 / ADR-0005（Microsoft Graph アプリケーション権限 client credentials flow）。
  * MSAL Nodeのapplication token cacheへ委譲し、wrapperは同時取得だけをsingle-flightする。
  */
-import type { GraphTokenProvider } from "@aiops/shared";
+import type { GraphAppOnlyToken, GraphTokenProvider } from "@aiops/shared";
 import { ConfidentialClientApplication } from "@azure/msal-node";
 
 export interface ClientCredentials {
@@ -34,29 +34,29 @@ export function createMsalGraphTokenProvider(
   }),
   nowProvider: () => number = () => Date.now(),
 ): GraphTokenProvider {
-  let inflight: Promise<string> | null = null;
+  let inflight: Promise<GraphAppOnlyToken> | null = null;
 
-  async function acquire(): Promise<string> {
+  async function acquire(): Promise<GraphAppOnlyToken> {
     try {
       const result = await client.acquireTokenByClientCredential({ scopes: [GRAPH_DEFAULT_SCOPE] });
       const expiresAt = result?.expiresOn?.getTime();
       if (
-        !result?.accessToken?.trim() ||
-        result.accessToken !== result.accessToken.trim() ||
+        typeof result?.accessToken !== "string" ||
+        !/^\S+$/u.test(result.accessToken) ||
         expiresAt === undefined ||
         !Number.isFinite(expiresAt) ||
         expiresAt <= nowProvider()
       ) {
         throw new Error(AUTH_ERROR);
       }
-      return result.accessToken;
+      return result.accessToken as GraphAppOnlyToken;
     } catch {
       throw new Error(AUTH_ERROR);
     }
   }
 
   return {
-    async getAccessToken(): Promise<string> {
+    async getAccessToken(): Promise<GraphAppOnlyToken> {
       if (inflight) return inflight;
       inflight = acquire();
       try {
