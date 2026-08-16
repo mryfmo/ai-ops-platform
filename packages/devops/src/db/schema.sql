@@ -597,7 +597,57 @@ CREATE TABLE IF NOT EXISTS action_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_action_ledger_workflow ON action_ledger (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_action_ledger_status ON action_ledger (status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_action_ledger_operation_approval
+  ON action_ledger (operation_id, approval_id);
 -- rollback: DROP TABLE action_ledger;
+
+-- FinalArch:PRD-001 / FinalArch:FR-UI-003 / FinalArch:FR-UI-004 /
+-- FinalArch:FR-UI-005 / FinalArch:FR-UI-006 / ADR-0025 / UX-003:
+-- Workbench は presentation read model であり、正本内容・workflow/action/approval 状態を複製しない。
+CREATE TABLE IF NOT EXISTS workbench_workspaces (
+  workspace_id  UUID PRIMARY KEY,
+  kind          TEXT NOT NULL CHECK (kind IN ('project', 'repository', 'meeting', 'incident')),
+  project_id    TEXT NOT NULL CHECK (btrim(project_id) <> ''),
+  owner_user_id TEXT NOT NULL REFERENCES recipients(user_id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_workbench_workspaces_project ON workbench_workspaces (project_id);
+
+-- 外部 SoR の参照 metadata だけを保持する。本文・payload・summary は列として持たない。
+CREATE TABLE IF NOT EXISTS workbench_workspace_sources (
+  source_ref_id UUID PRIMARY KEY,
+  workspace_id  UUID NOT NULL REFERENCES workbench_workspaces(workspace_id) ON DELETE CASCADE,
+  source_system TEXT NOT NULL CHECK (source_system IN ('github', 'sharepoint', 'confluence', 'temporal')),
+  source_type   TEXT NOT NULL CHECK (source_type ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  external_id   TEXT NOT NULL CHECK (btrim(external_id) <> '' AND length(external_id) <= 512),
+  canonical_url TEXT NOT NULL CHECK (
+    canonical_url ~ '^https://[^?#[:space:]]+$' AND canonical_url !~ '^https://[^/]*@'
+  ),
+  linked_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, source_system, external_id)
+);
+
+-- workflow state は Temporal / workflow_runs が正本。Workbench は workflow_id link だけを保持する。
+CREATE TABLE IF NOT EXISTS workbench_workspace_runs (
+  workspace_id UUID NOT NULL REFERENCES workbench_workspaces(workspace_id) ON DELETE CASCADE,
+  workflow_id  TEXT NOT NULL REFERENCES workflow_runs(workflow_id),
+  linked_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, workflow_id)
+);
+
+-- 実行・承認 authority は action_ledger / approvals。Workbench は一致する authority pair の参照だけを保持する。
+CREATE TABLE IF NOT EXISTS workbench_pending_actions (
+  workspace_id UUID NOT NULL REFERENCES workbench_workspaces(workspace_id) ON DELETE CASCADE,
+  operation_id UUID NOT NULL,
+  approval_id  UUID NOT NULL REFERENCES approvals(approval_id),
+  linked_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, operation_id),
+  FOREIGN KEY (operation_id, approval_id)
+    REFERENCES action_ledger(operation_id, approval_id)
+);
+-- rollback: DROP TABLE workbench_pending_actions, workbench_workspace_runs,
+--   workbench_workspace_sources, workbench_workspaces;
+-- rollback: DROP INDEX idx_action_ledger_operation_approval;
 
 -- FinalArch:CON-004: OPA 判定の記録（判定の実体は policy bundle。ここは証跡）。
 CREATE TABLE IF NOT EXISTS policy_decisions (
