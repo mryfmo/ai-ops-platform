@@ -8,6 +8,7 @@
 4. Unconditional governance and credential paths must be fixed in the guard and evaluated before manifest allowlists; a manifest is task authority, not authority to rewrite the authority mechanism.
 5. Git commands that may refresh the index belong outside the guarded agent interval or need `GIT_OPTIONAL_LOCKS=0`; `.git/**` integrity intentionally treats index mutation as a rejection.
 6. An external snapshot is not automatically trusted when the agent shares the runner account. Authenticate it with an ephemeral key scoped only to trusted pre/post steps, and hard-forbid the guard sources themselves.
+7. A governance test that imports an independent workspace can pass locally only because that workspace's dependencies persist. Keep the governance-time import chain dependency-free, simulate the missing workspace `node_modules`, and reject unsupported schema keywords so the fallback does not silently widen acceptance.
 
 ## Apply To
 

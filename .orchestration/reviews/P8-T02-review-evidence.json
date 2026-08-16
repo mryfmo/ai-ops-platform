@@ -38,6 +38,18 @@
       "severity": "high",
       "finding": "The guard source itself was not in the unconditional governance set.",
       "resolution": "Hard-forbid both guard CLI and test sources and add a self-modification negative fixture."
+    },
+    {
+      "id": "P8-T02-R01-004",
+      "severity": "high",
+      "finding": "The governance-time manifest validator executed the independently installed contracts-local Spectral binary, so a persistent local contracts/node_modules masked clean-runner failure.",
+      "resolution": "Move the exact P8-T01 schema subset evaluation into a colocated Node.js-standard-library module, reject unsupported schema keywords, and verify governance with contracts/node_modules absent."
+    },
+    {
+      "id": "P8-T02-R01-005",
+      "severity": "high",
+      "finding": "A future supported $ref sibling constraint or unsupported boolean/schema form could be accepted without evaluation by the dependency-free subset validator.",
+      "resolution": "Evaluate $ref targets and sibling constraints together; reject non-object items/contains and every additionalProperties form outside the current false-only schema subset."
     }
   ],
   "deferred_scope": "P8-T04/P8-T05 must wire the composite phases around the runner from a trusted action definition, keep the HMAC key out of the agent environment, and enforce the OS sandbox.",
