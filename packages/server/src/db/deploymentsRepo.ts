@@ -6,7 +6,36 @@
  */
 import type { ChannelRef, PgQueryable } from "@aiops/shared";
 
-export type DispatchState = "approved" | "prod_deploying" | "dispatch_failed";
+export const DEPLOYMENT_STATES = [
+  "pending",
+  "staging_deployed",
+  "approval_requested",
+  "approved",
+  "rejected",
+  "expired",
+  "prod_deploying",
+  "monitoring",
+  "stable",
+  "rolling_back",
+  "rolled_back",
+  "dispatch_failed",
+] as const;
+export type DeploymentState = (typeof DEPLOYMENT_STATES)[number];
+export type DispatchState = Extract<DeploymentState, "approved" | "prod_deploying" | "dispatch_failed">;
+
+export type DeploymentCasReceipt =
+  | {
+      readonly kind: "created";
+      readonly deployId: string;
+      readonly expectedState: DeploymentState;
+      readonly observedState: DeploymentState;
+    }
+  | {
+      readonly kind: "stale";
+      readonly deployId: string;
+      readonly expectedState: DeploymentState;
+      readonly observedState: DeploymentState | null;
+    };
 
 export interface ApprovedDeploymentTarget {
   deployId: string;
@@ -75,7 +104,7 @@ export class DeploymentsRepo {
       : null;
   }
 
-  async markDispatching(deployId: string): Promise<boolean> {
+  async markDispatching(deployId: string): Promise<DeploymentCasReceipt> {
     return this.transition(deployId, "approved", "prod_deploying");
   }
 
@@ -99,26 +128,44 @@ export class DeploymentsRepo {
     return this.transitionByTarget(owner, repo, commitSha, "monitoring");
   }
 
-  async markRollingBack(deployId: string): Promise<boolean> {
+  async markRollingBack(deployId: string): Promise<DeploymentCasReceipt> {
     return this.transition(deployId, "monitoring", "rolling_back");
   }
 
-  async markRolledBack(deployId: string): Promise<void> {
-    if (!(await this.transition(deployId, "rolling_back", "rolled_back"))) {
-      throw new Error("Deployment rollback state could not be completed");
-    }
+  async markRolledBack(deployId: string): Promise<DeploymentCasReceipt> {
+    return this.transition(deployId, "rolling_back", "rolled_back");
   }
 
-  private async transition(deployId: string, from: string, to: string): Promise<boolean> {
+  private async transition(
+    deployId: string,
+    from: DeploymentState,
+    to: DeploymentState,
+  ): Promise<DeploymentCasReceipt> {
     if (!UUID.test(deployId)) throw new Error("Invalid deploy_id");
     const result = await this.db.query(
       `UPDATE deployments
        SET state = $2, updated_at = now()
        WHERE deploy_id = $1::uuid AND state = $3
-       RETURNING deploy_id`,
+       RETURNING state`,
       [deployId, to, from],
     );
-    return result.rows.length === 1;
+    if (result.rows.length > 1) throw new Error("Deployment CAS updated more than one row");
+    if (result.rows.length === 1) {
+      if (String(result.rows[0]?.state) !== to) {
+        throw new Error("Deployment CAS created receipt did not reach target state");
+      }
+      return { kind: "created", deployId, expectedState: from, observedState: to };
+    }
+    // A new statement gets a post-wait Read Committed snapshot after a concurrent CAS winner commits.
+    const observed = await this.db.query(`SELECT state FROM deployments WHERE deploy_id = $1::uuid`, [deployId]);
+    if (observed.rows.length > 1) throw new Error("Deployment CAS observed more than one row");
+    const row = observed.rows[0];
+    const observedState = row?.state == null ? null : String(row.state);
+    if (observedState !== null && !(DEPLOYMENT_STATES as readonly string[]).includes(observedState)) {
+      throw new Error("Deployment CAS returned an invalid state");
+    }
+    if (observedState === from) throw new Error("Deployment CAS stale receipt contradicts the expected state");
+    return { kind: "stale", deployId, expectedState: from, observedState: observedState as DeploymentState | null };
   }
 
   private async transitionByTarget(

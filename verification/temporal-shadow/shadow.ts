@@ -5,6 +5,7 @@ import ts from "typescript";
 import { buildGraphSubscriptionSchedules } from "../../packages/control-plane/src/lib/graphSubscriptionSchedules.js";
 import { GRAPH_SUBSCRIPTION_TARGET_LIFETIME_MS } from "../../packages/control-plane/src/lib/graphSubscriptionState.js";
 import { buildJitHealthSchedules } from "../../packages/control-plane/src/lib/jitHealthSchedules.js";
+import { buildDeploymentSchedules } from "../../packages/control-plane/src/lib/deploymentSchedules.js";
 import {
   buildHolidayCalendar,
   dayOfWeek,
@@ -165,8 +166,7 @@ const LEGACY_CALL_COUNTS: Readonly<Record<SchedulerRegistration, Readonly<Record
     "deps.workflowExists": 1,
     "now.toISOString": 4,
     sanitizeSecrets: 2,
-    targetFromClaim: 1,
-    validTarget: 1,
+    classifyApprovedDeployClaim: 1,
   },
   createProdMonitorTask: {
     "deps.auditLog.append": 4,
@@ -178,9 +178,8 @@ const LEGACY_CALL_COUNTS: Readonly<Record<SchedulerRegistration, Readonly<Record
     "deps.stableVersionsProvider.read": 1,
     "deps.traceIdProvider": 1,
     "deps.workflowExists": 1,
-    evaluateTh003Rollback: 1,
     "now.toISOString": 4,
-    selectRollbackTarget: 1,
+    planProdMonitorTarget: 3,
   },
   createJitRevocationTask: {
     "deps.grantsRepo.loadActiveGrants": 1,
@@ -358,8 +357,8 @@ const TEMPORAL_MAPPINGS: readonly TemporalMapping[] = [
     action: "deploy.approved.dispatch",
     firstDelayMs: 0,
     everyMs: 30_000,
-    temporalTarget: "mapping:approvedDeployWorkflow",
-    temporalSource: "mapping table (not implemented)",
+    temporalTarget: "deployDispatchWorkflow",
+    temporalSource: "P3-T13 schedule",
     reason:
       "legacy dispatch runs immediately, then anchors recurrence to startup completion; the mapping has a fixed observedAt phase",
     reasonedLegacy: { firstDelayMs: 0, everyMs: 30_000 },
@@ -370,8 +369,8 @@ const TEMPORAL_MAPPINGS: readonly TemporalMapping[] = [
     action: "deploy.prod.monitor",
     firstDelayMs: 60_000,
     everyMs: 60_000,
-    temporalTarget: "mapping:prodMonitorWorkflow",
-    temporalSource: "mapping table (not implemented)",
+    temporalTarget: "prodMonitorWorkflow",
+    temporalSource: "P3-T13 schedule",
   },
   {
     registration: "createJitRevocationTask",
@@ -892,6 +891,8 @@ interface TemporalPlan {
 const SCHEDULE_ACTIONS: Readonly<Record<string, string>> = {
   health: "health.evaluate",
   "jit-expiry": "jit.expired.revoke",
+  "deploy-dispatch": "deploy.approved.dispatch",
+  "prod-monitor": "deploy.prod.monitor",
   renewal: "graph.subscription.renew",
   delta: "graph.channel.delta",
   reconcile: "graph.subscription.reconcile",
@@ -948,6 +949,7 @@ export function assertPlanOnlySource(source: string, additionalAllowedImports: r
     "../../packages/control-plane/src/lib/graphSubscriptionSchedules.js",
     "../../packages/control-plane/src/lib/graphSubscriptionState.js",
     "../../packages/control-plane/src/lib/jitHealthSchedules.js",
+    "../../packages/control-plane/src/lib/deploymentSchedules.js",
     "../../packages/shared/src/calendar/businessCalendar.js",
     ...additionalAllowedImports,
   ]);
@@ -1095,11 +1097,18 @@ export function runTemporalShadowComparison(input: TemporalShadowInput) {
     expiresAtMs: input.observedAtMs + GRAPH_SUBSCRIPTION_TARGET_LIFETIME_MS,
     taskQueue: "temporal-shadow",
   });
+  const deployment = buildDeploymentSchedules({
+    sequence: 1,
+    observedAtMs: input.observedAtMs,
+    taskQueue: "temporal-shadow",
+  });
   const temporalSchedulePlans = new Map<string, TemporalPlan>([
     ["healthcheck", schedulePlan(findSchedule(jitHealth, "/health:"))],
     ["jit-revocation", schedulePlan(findSchedule(jitHealth, "/jit-expiry:"))],
     ["subscription-renewal", schedulePlan(findSchedule(graph, "/renewal:"))],
     ["channel-polling", schedulePlan(findSchedule(graph, "/delta:"))],
+    ["approved-deploy", schedulePlan(findSchedule(deployment, "/deploy-dispatch:"))],
+    ["prod-monitor", schedulePlan(findSchedule(deployment, "/prod-monitor:"))],
   ]);
   const graphReconcile = schedulePlan(findSchedule(graph, "/reconcile:"));
 
@@ -1219,6 +1228,7 @@ export function runTemporalShadowComparison(input: TemporalShadowInput) {
       p3t07ReportDeliveryWorkflow: true,
       p3t08PlaneSyncWorkflow: true,
       p3t08HasLegacySchedulerCounterpart: false,
+      p3t13DeploymentSchedules: true,
     },
     comparisons,
     temporalOnlyPlans,

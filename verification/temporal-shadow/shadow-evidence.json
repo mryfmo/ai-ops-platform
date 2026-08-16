@@ -23,7 +23,8 @@
     "p3t06JitHealthSchedules": true,
     "p3t07ReportDeliveryWorkflow": true,
     "p3t08PlaneSyncWorkflow": true,
-    "p3t08HasLegacySchedulerCounterpart": false
+    "p3t08HasLegacySchedulerCounterpart": false,
+    "p3t13DeploymentSchedules": true
   },
   "comparisons": [
     {
@@ -101,8 +102,8 @@
       },
       "temporal": {
         "action": "deploy.approved.dispatch",
-        "target": "mapping:approvedDeployWorkflow",
-        "source": "mapping table (not implemented)",
+        "target": "deployDispatchWorkflow",
+        "source": "P3-T13 schedule",
         "plannedAt": "2026-05-31T14:59:00.000Z",
         "everyMs": 30000,
         "recurrenceAnchor": "fixed-observed-at",
@@ -123,8 +124,8 @@
       },
       "temporal": {
         "action": "deploy.prod.monitor",
-        "target": "mapping:prodMonitorWorkflow",
-        "source": "mapping table (not implemented)",
+        "target": "prodMonitorWorkflow",
+        "source": "P3-T13 schedule",
         "plannedAt": "2026-05-31T15:00:00.000Z",
         "everyMs": 60000,
         "recurrenceAnchor": "fixed-observed-at",
