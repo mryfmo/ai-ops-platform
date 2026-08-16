@@ -29,3 +29,11 @@ Result: `[Errno 2] .claude/hooks/contextdb_cli.py: No such file or directory`. N
 
 - Branch: `agent/P7-T07-workbench-data-model`
 - Orchestrator performs push and PR creation after `AGMSG-RESULT`.
+
+## R01 Parallel Coverage Isolation
+
+Reviewer coverage exposed a cross-file fixture race: Workbench used the shared `public` schema while `p1LedgerPg.test.ts` deletes all `workflow_runs` and `action_ledger` rows between its tests. Unique fixture IDs cannot protect rows from an unscoped delete.
+
+`workbenchPg.test.ts` now creates a UUID-named schema per process, runs the complete schema and migration there through a pool-scoped `search_path`, asserts that the suite is not using `public`, and drops only that exact schema after closing the suite pool. No worker-count limit or retry masks the race.
+
+[memory:failure] Real-PostgreSQL test files that share one database cannot rely on unique row IDs when a sibling suite performs unscoped cleanup; isolate the suite schema (and assert current_schema) or make every sibling cleanup row-scoped. Apply this to future parallel coverage PG suites.

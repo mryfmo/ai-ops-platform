@@ -38,3 +38,16 @@
 - No credentials or external service calls were used.
 - Tests used injected synthetic identities and local disposable PostgreSQL databases only.
 - CompactionDB CLI is absent; the attempted command and failure are recorded in the report.
+
+## R01 Parallel Coverage Revision
+
+- Reviewer RED: fresh-DB `mise run ci` failed in `workbenchPg.test.ts` because `repo.linkRun(...)` returned `false` only during parallel coverage.
+- Root cause: Workbench fixtures lived in shared `public`; `p1LedgerPg.test.ts` performs unscoped `DELETE` against `action_ledger` and `workflow_runs`, so its `beforeEach` could remove Workbench authority rows after Workbench setup.
+- Regression RED: before isolation, the new `current_schema()` assertion received `public` instead of the generated P7-T07 schema.
+- Focused GREEN: isolated-schema `workbenchPg.test.ts` passed 3/3 against real PostgreSQL.
+- Parallel GREEN on a new DB: server `test:coverage` passed 85/85 files and 915/915 tests.
+- A diagnostic coverage run on the reused RED database failed in sibling cleanup because the pre-fix focused run had intentionally left public Workbench FK rows. This database was not used for acceptance; a new database proved the isolated suite leaves public untouched.
+- Fresh full CI run 1, using new `ci1_test`, `ci1_load`, and `ci1_p001` databases: PASS, exit 0, ending in `P001 PostgreSQL integration passed`.
+- Fresh full CI run 2, using separate new `ci2_test`, `ci2_load`, and `ci2_p001` databases: PASS, exit 0, ending in `P001 PostgreSQL integration passed`.
+- Final R01 staged gitleaks 8.30.1 scan: PASS, no leaks found.
+- No `maxWorkers`, retry, product schema, dependency, or runtime change was used.

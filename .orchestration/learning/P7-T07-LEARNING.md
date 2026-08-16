@@ -7,6 +7,7 @@
 3. Project consistency should be enforced while creating links (`INSERT ... SELECT` over both workspace and authority rows), not repaired or masked in the presentation layer.
 4. Scope-out and absence should share a 404 after repository-level filtering so the API does not reveal workspace existence.
 5. Strict BFF response parsing prevents a later upstream field addition from accidentally exposing source or workflow content.
+6. Unique fixture IDs do not isolate a test from sibling `DELETE FROM table` cleanup. For parallel real-PG coverage, a per-suite schema plus a `current_schema()` assertion is a smaller and stronger boundary than worker serialization.
 
 ## Apply To
 

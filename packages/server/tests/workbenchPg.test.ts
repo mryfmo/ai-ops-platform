@@ -1,4 +1,5 @@
 /** 根拠: FinalArch:PRD-001 / FinalArch:FR-UI-003 / FinalArch:FR-UI-005 / FinalArch:FR-UI-006 / ADR-0025 / UX-003 */
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -6,7 +7,11 @@ import { WorkbenchRepo } from "../src/db/workbenchRepo.js";
 import { applySchemaSerialized } from "./pgTestSchema.js";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 2 }) : undefined;
+const isolatedSchema = `p7t07_${randomUUID().replaceAll("-", "")}`;
+const adminPool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 1 }) : undefined;
+const pool = databaseUrl
+  ? new Pool({ connectionString: databaseUrl, max: 2, options: `-c search_path=${isolatedSchema}` })
+  : undefined;
 const uuid = (n: number) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
 const WORKSPACE_A = uuid(701);
 const WORKSPACE_B = uuid(702);
@@ -21,6 +26,9 @@ const SUBJECT = uuid(710);
 
 describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:FR-UI-006 / UX-003]", () => {
   beforeAll(async () => {
+    // 他の real-PG suite は同じ TEST_DATABASE_URL の public tables を全行 cleanup する。
+    // 固有 schema に閉じ、parallel coverage でも authority fixture を相互削除させない。
+    await adminPool!.query(`CREATE SCHEMA "${isolatedSchema}"`);
     await applySchemaSerialized(pool!, [
       new URL("../../devops/src/db/schema.sql", import.meta.url),
       new URL("../../devops/src/db/migrations/202608160100_workbench_read_model.sql", import.meta.url),
@@ -80,9 +88,14 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
 
   afterAll(async () => {
     await pool?.end();
+    await adminPool?.query(`DROP SCHEMA IF EXISTS "${isolatedSchema}" CASCADE`);
+    await adminPool?.end();
   });
 
   it("stores only workspace metadata and authority/source references", async () => {
+    await expect(pool!.query("SELECT current_schema() AS schema")).resolves.toMatchObject({
+      rows: [{ schema: isolatedSchema }],
+    });
     const expected = {
       workbench_workspaces: ["workspace_id", "kind", "project_id", "owner_user_id", "created_at"],
       workbench_workspace_sources: [
