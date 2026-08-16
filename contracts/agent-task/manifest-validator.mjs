@@ -1,7 +1,7 @@
 // 根拠: FinalArch:PRD-008 / FinalArch:FR-AGT-001..006 / FinalArch:COD-003 / ADR-0027 / WBS P8-T01
 import fs from "node:fs";
 
-import { defaultRepoRoot, validateJsonSchemaDocument } from "../check-contracts.mjs";
+import { defaultRepoRoot, validateJsonSchemaDocument } from "./json-schema-validator.mjs";
 
 const schema = JSON.parse(fs.readFileSync(new URL("./agent-task.schema.json", import.meta.url), "utf8"));
 

@@ -1,0 +1,44 @@
+{
+  "task_id": "P7-T02",
+  "review_surface": "codex-local-diff",
+  "reviewer": "codex-deep-dot",
+  "review_source": "scoped git diff plus focused and full-gate evidence",
+  "review_outcome": "approved_after_resolutions",
+  "crit_gate": {
+    "make_target": "unavailable",
+    "crit_data": "absent",
+    "browser_opened": false
+  },
+  "scope": [
+    "packages/channel-teams/src/**",
+    "packages/channel-teams/tests/**",
+    "packages/server/src/db/**",
+    "packages/server/tests/**",
+    "packages/devops/src/db/schema.sql",
+    "packages/devops/src/db/migrations/202608160300_channel_identity_thread_mapping.sql",
+    ".orchestration/*/P7-T02-*"
+  ],
+  "resolved_findings": [
+    {
+      "id": "P7-T02-REVIEW-001",
+      "severity": "high",
+      "finding": "The channel boundary accepted a mapping for another subject when the address matched.",
+      "resolution": "Added provider+tenant+subject to the authoritative mapping and fail-closed comparison before AG-UI request construction.",
+      "status": "resolved"
+    },
+    {
+      "id": "P7-T02-REVIEW-002",
+      "severity": "high",
+      "finding": "A targeted upsert could race between the existing primary key and the new source-message unique index.",
+      "resolution": "Use generic insert-do-nothing and an exact source/team/channel/message replay update; cross-channel collisions return a fixed conflict.",
+      "status": "resolved"
+    },
+    {
+      "id": "P7-T02-REVIEW-003",
+      "severity": "medium",
+      "finding": "Replacing the existing channel_messages primary key would violate the approved expand-only schema amendment.",
+      "resolution": "Preserved the existing primary key and added only source/default/check plus the approved unique index.",
+      "status": "resolved"
+    }
+  ]
+}

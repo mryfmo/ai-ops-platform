@@ -10,6 +10,7 @@
 import type { PgQueryable } from "@aiops/shared";
 
 export interface ChannelMessageRecord {
+  source?: string;
   teamId: string;
   channelId: string;
   messageId: string;
@@ -25,6 +26,7 @@ export interface ChannelMessageRecord {
 
 function toRecord(r: Record<string, unknown>): ChannelMessageRecord {
   return {
+    source: String(r.source ?? "teams"),
     teamId: String(r.team_id),
     channelId: String(r.channel_id),
     messageId: String(r.message_id),
@@ -52,22 +54,20 @@ export class ChannelMessagesRepo {
   async upsert(msg: ChannelMessageRecord): Promise<void> {
     if (msg.deletedAt) {
       await this.db.query(
-        `UPDATE channel_messages SET deleted_at = $4
-         WHERE team_id = $1 AND channel_id = $2 AND message_id = $3 AND deleted_at IS NULL`,
-        [msg.teamId, msg.channelId, msg.messageId, msg.deletedAt],
+        `UPDATE channel_messages SET deleted_at = $5
+         WHERE source = $1 AND team_id = $2 AND channel_id = $3 AND message_id = $4 AND deleted_at IS NULL`,
+        [msg.source ?? "teams", msg.teamId, msg.channelId, msg.messageId, msg.deletedAt],
       );
       return;
     }
-    await this.db.query(
+    const inserted = await this.db.query(
       `INSERT INTO channel_messages
-         (team_id, channel_id, message_id, reply_to_id, author_aad_id, author_name,
+         (source, team_id, channel_id, message_id, reply_to_id, author_aad_id, author_name,
           content_type, content, created_at, last_modified_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (team_id, channel_id, message_id) DO UPDATE SET
-         content = EXCLUDED.content,
-         content_type = EXCLUDED.content_type,
-         last_modified_at = EXCLUDED.last_modified_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT DO NOTHING`,
       [
+        msg.source ?? "teams",
         msg.teamId,
         msg.channelId,
         msg.messageId,
@@ -80,11 +80,30 @@ export class ChannelMessagesRepo {
         msg.lastModifiedAt,
       ],
     );
+    if (inserted.rowCount === 1) return;
+
+    const replayed = await this.db.query(
+      `UPDATE channel_messages SET
+         content = $5,
+         content_type = $6,
+         last_modified_at = $7
+       WHERE source = $1 AND team_id = $2 AND channel_id = $3 AND message_id = $4`,
+      [
+        msg.source ?? "teams",
+        msg.teamId,
+        msg.channelId,
+        msg.messageId,
+        msg.content,
+        msg.contentType,
+        msg.lastModifiedAt,
+      ],
+    );
+    if (replayed.rowCount !== 1) throw new Error("source message identity conflict");
   }
 
   async listByChannel(teamId: string, channelId: string): Promise<ChannelMessageRecord[]> {
     const res = await this.db.query(
-      `SELECT team_id, channel_id, message_id, reply_to_id, author_aad_id, author_name,
+      `SELECT source, team_id, channel_id, message_id, reply_to_id, author_aad_id, author_name,
               content_type, content, created_at, last_modified_at, deleted_at
        FROM channel_messages
        WHERE team_id = $1 AND channel_id = $2

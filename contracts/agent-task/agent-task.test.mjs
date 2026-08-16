@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { assertOneWriter, findWriterOverlaps, validateAgentTaskManifest } from "./manifest-validator.mjs";
+import { validateJsonSchemaDocument } from "./json-schema-validator.mjs";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(fs.readFileSync(path.join(directory, "fixtures/valid.manifest.json"), "utf8"));
@@ -129,5 +130,18 @@ describe("One Writer overlap gate [FinalArch:COD-003]", () => {
     peer.paths.allowed = ["packages/server/src/taskManifest.ts"];
     assert.deepEqual(findWriterOverlaps([fixture, peer]), []);
     assert.doesNotThrow(() => assertOneWriter([fixture, peer]));
+  });
+});
+
+describe("dependency-free schema subset gate [FinalArch:COD-004]", () => {
+  it("enforces $ref siblings and rejects unsupported keyword forms", () => {
+    const referenced = { $defs: { label: { type: "string" } }, $ref: "#/$defs/label", pattern: "^safe$" };
+    assert.doesNotThrow(() => validateJsonSchemaDocument(referenced, "safe"));
+    assert.throws(() => validateJsonSchemaDocument(referenced, "unsafe"), /invalid Draft 2020-12 schema/u);
+    assert.throws(
+      () => validateJsonSchemaDocument({ type: "object", additionalProperties: true }, {}),
+      /unsupported additionalProperties form/u,
+    );
+    assert.throws(() => validateJsonSchemaDocument({ type: "array", items: false }, []), /must be an object/u);
   });
 });

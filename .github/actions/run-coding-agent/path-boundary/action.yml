@@ -1,0 +1,38 @@
+# 根拠: FinalArch:PRD-008 / FinalArch:FR-AGT-001..006 / FinalArch:COD-001 / FinalArch:COD-004 / ADR-0027 / WBS P8-T02
+name: "coding-agent-path-boundary"
+description: "Record or verify the coding-agent worktree boundary"
+
+inputs:
+  phase:
+    description: "Guard phase: pre or post"
+    required: true
+  manifest:
+    description: "Validated agent task manifest path"
+    required: true
+  snapshot:
+    description: "Snapshot path outside the checkout, normally under runner.temp"
+    required: true
+  integrity_key:
+    description: "Ephemeral HMAC key passed only to trusted pre/post steps"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Enforce coding-agent path boundary
+      shell: bash
+      env:
+        PATH_GUARD_PHASE: ${{ inputs.phase }}
+        PATH_GUARD_MANIFEST: ${{ inputs.manifest }}
+        PATH_GUARD_SNAPSHOT: ${{ inputs.snapshot }}
+        PATH_GUARD_INTEGRITY_KEY: ${{ inputs.integrity_key }}
+      run: |
+        set -euo pipefail
+        case "${PATH_GUARD_PHASE}" in
+          pre|post) ;;
+          *) echo "::error::phase must be pre or post"; exit 1 ;;
+        esac
+        node "${GITHUB_WORKSPACE}/scripts/coding-agent-path-guard.mjs" "${PATH_GUARD_PHASE}" \
+          --repo "${GITHUB_WORKSPACE}" \
+          --manifest "${PATH_GUARD_MANIFEST}" \
+          --snapshot "${PATH_GUARD_SNAPSHOT}"
