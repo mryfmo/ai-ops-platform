@@ -238,6 +238,18 @@ describe("Work IQ delegated MCP client [ADR-0024] [WIQ-001] [WIQ-005]", () => {
     });
   });
 
+  it.each([
+    ["outer", async () => new Response(null, { status: 403 })],
+    ["inner", async () => toolResponse({ results: [{ data: {}, statusCode: 403 }] })],
+  ])("maps an explicit %s 403 to access denied", async (_label, fetchImpl) => {
+    const client = new WorkIqRestClient({ fetchImpl, tokenProvider, expectedTenantId: TENANT_ID });
+
+    await expect(client.fetch({ entityUrls: ["/me/messages"] })).resolves.toEqual({
+      ok: false,
+      errorCode: "E-WIQ-ACCESS-DENIED",
+    });
+  });
+
   it("returns only fetch schemas and rejects unsafe resource paths", async () => {
     const fetchImpl = vi.fn(async () =>
       toolSseResponse({ $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" }),

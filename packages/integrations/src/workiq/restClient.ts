@@ -6,7 +6,7 @@ import { validateWorkIqDelegatedClaims, type ValidatedWorkIqDelegatedClaims } fr
 export const WORKIQ_MCP_ENDPOINT = "https://workiq.svc.cloud.microsoft/mcp";
 
 export type WorkIqClientErrorCode =
-  "E-WIQ-HTTP" | "E-WIQ-IDENTITY" | "E-WIQ-MALFORMED" | "E-WIQ-NETWORK" | "E-WIQ-TIMEOUT";
+  "E-WIQ-ACCESS-DENIED" | "E-WIQ-HTTP" | "E-WIQ-IDENTITY" | "E-WIQ-MALFORMED" | "E-WIQ-NETWORK" | "E-WIQ-TIMEOUT";
 
 export interface WorkIqDelegatedToken {
   readonly accessToken: string;
@@ -314,7 +314,11 @@ export class WorkIqRestClient {
       },
       true,
     );
-    return result.ok && result.value.results.some(({ statusCode }) => statusCode < 200 || statusCode > 299)
+    if (!result.ok) return result;
+    if (result.value.results.some(({ statusCode }) => statusCode === 403)) {
+      return { ok: false, errorCode: "E-WIQ-ACCESS-DENIED" };
+    }
+    return result.value.results.some(({ statusCode }) => statusCode < 200 || statusCode > 299)
       ? { ok: false, errorCode: "E-WIQ-HTTP" }
       : result;
   }
@@ -390,6 +394,7 @@ export class WorkIqRestClient {
         errorCode: error instanceof DOMException && error.name === "AbortError" ? "E-WIQ-TIMEOUT" : "E-WIQ-NETWORK",
       };
     }
+    if (response.status === 403) return { ok: false, errorCode: "E-WIQ-ACCESS-DENIED" };
     if (!response.ok) return { ok: false, errorCode: "E-WIQ-HTTP" };
 
     try {
