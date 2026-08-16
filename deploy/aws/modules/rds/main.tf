@@ -52,6 +52,10 @@ variable "engine_version" {
   default = "16.4"
 }
 
+locals {
+  engine_major = split(".", var.engine_version)[0]
+}
+
 variable "instance_class" {
   type = string
 }
@@ -64,6 +68,17 @@ variable "allocated_storage_gib" {
   }
 }
 
+variable "enable_long_term_copy" {
+  type    = bool
+  default = false
+}
+
+variable "long_term_copy_vault_arn" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
 variable "tags" {
   type = map(string)
 }
@@ -72,6 +87,19 @@ resource "aws_db_subnet_group" "this" {
   name       = var.name
   subnet_ids = var.private_subnet_ids
   tags       = merge(var.tags, { Name = var.name })
+}
+
+resource "aws_db_parameter_group" "this" {
+  name   = "${var.name}-postgres${local.engine_major}"
+  family = "postgres${local.engine_major}"
+
+  parameter {
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
+  tags = merge(var.tags, { Name = "${var.name}-postgres${local.engine_major}" })
 }
 
 resource "aws_security_group" "this" {
@@ -105,6 +133,7 @@ resource "aws_db_instance" "this" {
   username                              = var.master_username
   manage_master_user_password           = true
   iam_database_authentication_enabled   = true
+  parameter_group_name                  = aws_db_parameter_group.this.name
   db_subnet_group_name                  = aws_db_subnet_group.this.name
   vpc_security_group_ids                = [aws_security_group.this.id]
   publicly_accessible                   = false
@@ -122,6 +151,69 @@ resource "aws_db_instance" "this" {
   tags                                  = merge(var.tags, { Name = var.name })
 }
 
+resource "aws_backup_vault" "long_term" {
+  name = "${var.name}-long-term"
+  tags = merge(var.tags, { Name = "${var.name}-long-term" })
+}
+
+resource "aws_iam_role" "backup" {
+  name = "${var.name}-backup"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "backup.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+  tags = merge(var.tags, { Name = "${var.name}-backup" })
+}
+
+resource "aws_iam_role_policy_attachment" "backup" {
+  role       = aws_iam_role.backup.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+}
+
+resource "aws_backup_plan" "long_term" {
+  name = "${var.name}-long-term"
+
+  rule {
+    rule_name         = "daily-rds-long-term"
+    target_vault_name = aws_backup_vault.long_term.name
+    schedule          = "cron(0 18 * * ? *)"
+
+    lifecycle {
+      delete_after = 35
+    }
+
+    dynamic "copy_action" {
+      for_each = var.enable_long_term_copy ? [true] : []
+      content {
+        destination_vault_arn = var.long_term_copy_vault_arn
+        lifecycle {
+          delete_after = 35
+        }
+      }
+    }
+  }
+
+  tags = merge(var.tags, { Name = "${var.name}-long-term" })
+
+  lifecycle {
+    precondition {
+      condition     = !var.enable_long_term_copy || var.long_term_copy_vault_arn != null
+      error_message = "long-term copy requires a destination backup vault ARN."
+    }
+  }
+}
+
+resource "aws_backup_selection" "rds" {
+  name         = "${var.name}-rds"
+  iam_role_arn = aws_iam_role.backup.arn
+  plan_id      = aws_backup_plan.long_term.id
+  resources    = [aws_db_instance.this.arn]
+}
+
 output "endpoint" {
   value = aws_db_instance.this.endpoint
 }
@@ -133,4 +225,16 @@ output "security_group_id" {
 output "master_secret_arn" {
   value     = try(aws_db_instance.this.master_user_secret[0].secret_arn, null)
   sensitive = true
+}
+
+output "database_arn" {
+  value = aws_db_instance.this.arn
+}
+
+output "parameter_group_name" {
+  value = aws_db_parameter_group.this.name
+}
+
+output "long_term_backup_vault_arn" {
+  value = aws_backup_vault.long_term.arn
 }

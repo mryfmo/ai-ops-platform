@@ -25,6 +25,14 @@ provider "aws" {
   }
 }
 
+provider "aws" {
+  alias  = "dr"
+  region = "ap-northeast-3"
+  default_tags {
+    tags = local.tags
+  }
+}
+
 variable "environment" {
   type = string
   validation {
@@ -129,7 +137,36 @@ locals {
     Project     = "ai-ops-platform"
   })
   repository_names = toset([for service in values(var.services) : "${local.name}/${service.repository}"])
-  secret_names     = toset([for secret_name in var.secret_names : "${local.name}/${secret_name}"])
+  database_secret_names = toset([
+    "database/app-password",
+    "database/litellm-password",
+  ])
+  secret_names = toset([
+    for secret_name in setunion(var.secret_names, local.database_secret_names) : "${local.name}/${secret_name}"
+  ])
+}
+
+resource "aws_backup_vault" "rds_long_term_dr" {
+  provider = aws.dr
+  count    = var.environment == "prod" ? 1 : 0
+  name     = "${local.name}-postgres-long-term-dr"
+  tags     = merge(local.tags, { Name = "${local.name}-postgres-long-term-dr" })
+}
+
+resource "aws_kms_key" "rds_dr_backup" {
+  provider                = aws.dr
+  count                   = var.environment == "prod" ? 1 : 0
+  description             = "Cross-region RDS automated backups for ${local.name}"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  tags                    = merge(local.tags, { Name = "${local.name}-rds-dr-backup" })
+}
+
+resource "aws_kms_alias" "rds_dr_backup" {
+  provider      = aws.dr
+  count         = var.environment == "prod" ? 1 : 0
+  name          = "alias/${local.name}-rds-dr-backup"
+  target_key_id = aws_kms_key.rds_dr_backup[0].key_id
 }
 
 module "network" {
@@ -155,13 +192,16 @@ module "secrets_manager" {
 }
 
 module "identity" {
-  source                        = "../modules/identity"
-  name                          = local.name
-  environment                   = var.environment
-  github_repository             = var.github_repository
-  github_oidc_thumbprints       = var.github_oidc_thumbprints
-  ecr_repository_arns           = values(module.ecr.repository_arns)
-  secret_arns                   = values(module.secrets_manager.secret_arns)
+  source                  = "../modules/identity"
+  name                    = local.name
+  environment             = var.environment
+  github_repository       = var.github_repository
+  github_oidc_thumbprints = var.github_oidc_thumbprints
+  ecr_repository_arns     = values(module.ecr.repository_arns)
+  secret_arns = [
+    for secret_name in var.secret_names :
+    module.secrets_manager.secret_arns["${local.name}/${secret_name}"]
+  ]
   github_deployment_policy_json = null
   tags                          = local.tags
 }
@@ -221,7 +261,17 @@ module "rds" {
   allowed_security_group_ids = { ecs = module.ecs_fargate.service_security_group_id }
   instance_class             = var.rds_instance_class
   allocated_storage_gib      = var.rds_allocated_storage_gib
+  enable_long_term_copy      = var.environment == "prod"
+  long_term_copy_vault_arn   = try(aws_backup_vault.rds_long_term_dr[0].arn, null)
   tags                       = local.tags
+}
+
+resource "aws_db_instance_automated_backups_replication" "rds_dr" {
+  provider               = aws.dr
+  count                  = var.environment == "prod" ? 1 : 0
+  source_db_instance_arn = module.rds.database_arn
+  retention_period       = 35
+  kms_key_id             = aws_kms_key.rds_dr_backup[0].arn
 }
 
 module "waf" {
@@ -256,6 +306,23 @@ output "alb_dns_name" {
 
 output "ecs_cluster_arn" {
   value = module.ecs_fargate.cluster_arn
+}
+
+output "database_secret_arns" {
+  description = "Secret containers populated by the approved environment bootstrap; Terraform creates no values."
+  value = {
+    for name in local.database_secret_names :
+    name => module.secrets_manager.secret_arns["${local.name}/${name}"]
+  }
+  sensitive = true
+}
+
+output "rds_long_term_dr_backup_vault_arn" {
+  value = try(aws_backup_vault.rds_long_term_dr[0].arn, null)
+}
+
+output "rds_dr_automated_backup_arn" {
+  value = try(aws_db_instance_automated_backups_replication.rds_dr[0].id, null)
 }
 
 output "ecr_repository_urls" {

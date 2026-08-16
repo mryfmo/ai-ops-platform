@@ -15,7 +15,7 @@ placeholders and must not be used for a real AWS plan or apply.
 | `identity`        | GitHub OIDC provider and environment-scoped deploy role; ECS execution/task roles | No long-lived access key and no deploy permission until reviewed policy input exists |
 | `ecr`             | Immutable, scan-on-push repositories and lifecycle policy                         | Runtime images must use an ECR digest                                                |
 | `secrets-manager` | Secret containers only                                                            | Secret values are never Terraform inputs or state                                    |
-| `rds`             | Private encrypted PostgreSQL, managed master password, subnet/SG                  | No public endpoint; 35-day backup retention                                          |
+| `rds`             | Private encrypted PostgreSQL, managed master password, SSL, PITR/DR backups       | No public endpoint; whole-instance recovery points expire after 35 days              |
 | `alb`             | HTTPS ALB, CloudFront-prefix-list SG, service target groups                       | Direct internet ingress is not allowed by the SG                                     |
 | `ecs-fargate`     | Cluster, private services/tasks, logs, service SG                                 | No public IP and no outbound rule until P10-T02                                      |
 | `waf`             | CloudFront WAF with managed common rules and rate limit                           | Runs through the `us-east-1` provider alias                                          |
@@ -49,6 +49,40 @@ Before a real environment exists, an Owner performs these auditable prerequisite
 5. Populate Secrets Manager values through the approved rotation pipeline after
    apply. Terraform deliberately creates no secret version.
 
+### Database bootstrap
+
+Terraform creates the environment-scoped `database/app-password` and
+`database/litellm-password` secret containers and exposes only sensitive ARN
+references. Temporal already owns and consumes its single
+`aiops-temporal-<environment>/db-password` container in `deploy/aws/temporal`;
+the bootstrap job must resolve that same value for `AIOPS_DB_TEMPORAL_PASSWORD`.
+The approved bootstrap job resolves these references into
+`AIOPS_DB_APP_PASSWORD`, `AIOPS_DB_LITELLM_PASSWORD`, and
+`AIOPS_DB_TEMPORAL_PASSWORD` in its process environment, then runs:
+
+```bash
+psql "$RDS_ADMIN_DATABASE_URL" \
+  -v ON_ERROR_STOP=1 \
+  -f packages/devops/src/db/provision_database_roles.sql
+psql "$RDS_ADMIN_AIOPS_DATABASE_URL" \
+  -v ON_ERROR_STOP=1 \
+  -c 'SET ROLE aiops_owner' \
+  -f packages/devops/src/db/schema.sql
+psql "$RDS_ADMIN_DATABASE_URL" \
+  -v ON_ERROR_STOP=1 \
+  -f packages/devops/src/db/provision_database_roles.sql
+```
+
+The first pass creates the fixed logical databases, non-login owners, schemas,
+and isolated runtime roles. The second pass grants current application tables
+only the runtime operations used by repositories and reapplies readonly/audit
+restrictions after schema creation. Rerun it after migrations add tables. The
+script is idempotent; application roles never
+own their database or schema, and `app_role` never receives audit UPDATE,
+DELETE, or TRUNCATE. Clear the injected environment immediately after bootstrap
+and never print it or place it in Terraform variables, plan files, shell
+arguments, or evidence.
+
 Custom DNS and certificate validation records belong in the future
 environment-owned DNS bootstrap stack because no DNS zone is selected yet. Dev
 uses the default CloudFront certificate; staging/prod fail unless an alias and
@@ -81,3 +115,11 @@ This command never applies resources. A Floci plan proves configuration wiring
 only; it is not staging/prod, IAM, network enforcement, durability, quota, RPO/RTO,
 or production-readiness evidence. REL-001 remains blocked until a real staging ENV
 gate authorizes its own plan/apply.
+
+The database role contract has a separate local-only integration check. It
+starts and removes a disposable PostgreSQL cluster, applies provisioning twice,
+installs the unchanged application schema, and executes denied mutations:
+
+```bash
+./deploy/aws/test-db-roles.sh
+```

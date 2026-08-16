@@ -129,6 +129,8 @@ for module_name in "${module_names[@]}"; do
 done
 [ -f "$envs_dir/main.tf" ] || fail "missing environment composition root"
 [ -f "$envs_dir/tfvars/dev.tfvars" ] || fail "missing synthetic dev tfvars"
+grep -q 'valueFrom = aws_secretsmanager_secret.db_password.arn' "$script_dir/temporal/main.tf" || \
+  fail "Temporal task must consume its module-owned database password secret"
 
 terraform fmt -check -recursive "$modules_dir" "$envs_dir"
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/aiops-p10-t01.XXXXXX")"
@@ -180,8 +182,35 @@ curl -fsS --connect-timeout 1 --max-time 2 "$floci_endpoint/_localstack/health" 
 
 terraform -chdir="$workdir/envs" plan -input=false -lock=false \
   -var-file=tfvars/dev.tfvars -out="$workdir/dev.plan" >/dev/null
-terraform -chdir="$workdir/envs" show -json "$workdir/dev.plan" | jq -r '
+terraform -chdir="$workdir/envs" show -json "$workdir/dev.plan" >"$workdir/dev-plan.json"
+terraform -chdir="$workdir/envs" plan -input=false -lock=false \
+  -var-file=tfvars/prod.tfvars.example -out="$workdir/prod.plan" >/dev/null
+terraform -chdir="$workdir/envs" show -json "$workdir/prod.plan" >"$workdir/prod-plan.json"
+jq -e '
+  def planned($address):
+    first(.resource_changes[] | select(.address == $address) | .change.after);
+  planned("module.rds.aws_db_instance.this").backup_retention_period == 35 and
+  planned("module.rds.aws_db_parameter_group.this").parameter[0].name == "rds.force_ssl" and
+  planned("module.rds.aws_db_parameter_group.this").parameter[0].value == "1" and
+  planned("module.rds.aws_backup_plan.long_term").rule[0].lifecycle[0].delete_after == 35 and
+  planned("module.rds.aws_backup_selection.rds") != null and
+  planned("module.secrets_manager.aws_secretsmanager_secret.this[\"aiops-dev/database/app-password\"]") != null and
+  planned("module.secrets_manager.aws_secretsmanager_secret.this[\"aiops-dev/database/litellm-password\"]") != null and
+  (.configuration.root_module.module_calls.identity.expressions.secret_arns.references |
+    index("var.secret_names")) != null and
+  all(.resource_changes[]; .address != "module.secrets_manager.aws_secretsmanager_secret.this[\"aiops-dev/database/temporal-password\"]") and
+  all(.resource_changes[]; .type != "aws_secretsmanager_secret_version")
+' "$workdir/dev-plan.json" >/dev/null || fail "P10-T04 RDS backup, SSL, or secret-reference plan contract failed"
+jq -e '
+  def planned($address):
+    first(.resource_changes[] | select(.address == $address) | .change.after);
+  planned("aws_backup_vault.rds_long_term_dr[0]") != null and
+  planned("aws_kms_key.rds_dr_backup[0]").enable_key_rotation == true and
+  planned("aws_db_instance_automated_backups_replication.rds_dr[0]").retention_period == 35 and
+  (planned("module.rds.aws_backup_plan.long_term").rule[0].copy_action | length == 1)
+' "$workdir/prod-plan.json" >/dev/null || fail "P10-T04 production cross-region DR and long-term backup plan contract failed"
+jq -r '
   [.resource_changes[]?.change.actions] as $actions |
   "FLOCI PLAN PASS: create=\($actions | map(select(. == ["create"])) | length) " +
   "update=\($actions | map(select(. == ["update"])) | length) " +
-  "delete=\($actions | map(select(. == ["delete"])) | length)"'
+  "delete=\($actions | map(select(. == ["delete"])) | length); prod-dr-copy=enabled"' "$workdir/dev-plan.json"
