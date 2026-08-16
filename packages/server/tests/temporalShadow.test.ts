@@ -281,8 +281,15 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
       expect.objectContaining({
         status: "reasoned-difference",
         legacy: expect.objectContaining({ recurrenceAnchor: "startup-completion" }),
-        temporal: expect.objectContaining({ recurrenceAnchor: "fixed-observed-at" }),
+        temporal: expect.objectContaining({
+          action: "deploy.approved.dispatch",
+          target: "deployDispatchWorkflow",
+          recurrenceAnchor: "fixed-observed-at",
+        }),
       }),
+    );
+    expect(result.comparisons.find(({ task }) => task === "prod-monitor")?.temporal).toEqual(
+      expect.objectContaining({ action: "deploy.prod.monitor", target: "prodMonitorWorkflow", everyMs: 60_000 }),
     );
     expect(result.summary).toEqual({
       matches: 12,
@@ -303,6 +310,7 @@ describe("FinalArch:FR-CP-008 / DELTA-01 Temporal scheduler shadow", () => {
       p3t07ReportDeliveryWorkflow: true,
       p3t08PlaneSyncWorkflow: true,
       p3t08HasLegacySchedulerCounterpart: false,
+      p3t13DeploymentSchedules: true,
     });
     expect(result.guardedActionBasis).toEqual({
       holidayCalendar: "empty-deterministic",

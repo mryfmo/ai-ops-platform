@@ -44,6 +44,9 @@ export interface ApprovedDeployClaim {
   repositories: Array<{ owner: string; repo: string }>;
 }
 
+export type ApprovedDeployClaimReceipt =
+  { readonly kind: "created"; readonly claim: ApprovedDeployClaim } | { readonly kind: "stale" };
+
 export interface DecideApprovalInput {
   decision: ApprovalDecision;
   reason?: string;
@@ -256,6 +259,12 @@ export class ApprovalsRepo {
       });
       return claim;
     });
+  }
+
+  /** P3-T13: Temporal/legacy cutover が同じ dispatched_at CAS authority を共有する union receipt。 */
+  async claimNextApprovedChangeReceipt(traceId: string): Promise<ApprovedDeployClaimReceipt> {
+    const claim = await this.claimNextApprovedChange(traceId);
+    return claim === null ? { kind: "stale" } : { kind: "created", claim };
   }
 
   async listPending(approvalTypes: ApprovalType[]): Promise<ApprovalRecord[]> {

@@ -9,3 +9,4 @@ export { reportDeliveryWorkflow } from "./reportDelivery.js";
 export { planeEventWorkflow, planeProjectionWorkflow, planePromotionWorkflow, planeSyncWorkflow } from "./planeSync.js";
 export { graphSubscriptionWorkflow } from "./graphSubscription.js";
 export { healthEvaluationWorkflow, jitExpiryWorkflow } from "./jitHealth.js";
+export { deployDispatchWorkflow, prodMonitorWorkflow } from "./deployment.js";

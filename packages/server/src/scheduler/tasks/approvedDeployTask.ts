@@ -6,49 +6,21 @@
  */
 import { sanitizeSecrets, type AuditLogWriter } from "@aiops/shared";
 import type { ApprovedDeployClaim } from "../../db/approvalsRepo.js";
-import type { ApprovedDeploymentTarget } from "../../db/deploymentsRepo.js";
+import type { ApprovedDeploymentTarget, DeploymentCasReceipt } from "../../db/deploymentsRepo.js";
+import { classifyApprovedDeployClaim } from "../../lib/deploymentTaskState.js";
 import type { ScheduledTask } from "../scheduler.js";
 
 export interface ApprovedDeployTaskDeps {
   approvalsRepo: { claimNextApprovedChange(traceId: string): Promise<ApprovedDeployClaim | null> };
   deploymentsRepo: {
     findNextApprovedDispatch(): Promise<ApprovedDeploymentTarget | null>;
-    markDispatching(deployId: string): Promise<boolean>;
+    markDispatching(deployId: string): Promise<DeploymentCasReceipt>;
     markDispatchFailed(deployId: string): Promise<boolean>;
   };
   workflowExists(owner: string, repo: string): Promise<boolean>;
   execute(owner: string, repo: string, commitSha: string, traceId: string): Promise<void>;
   auditLog: AuditLogWriter;
   traceIdProvider(): string;
-}
-
-function validTarget(
-  claim: ApprovedDeployClaim,
-): claim is ApprovedDeployClaim & { deployId: string; projectId: string; commitSha: string } {
-  const repository = claim.repositories[0];
-  return (
-    typeof claim.deployId === "string" &&
-    claim.deployId.length > 0 &&
-    typeof claim.projectId === "string" &&
-    claim.projectId.trim().length > 0 &&
-    typeof claim.commitSha === "string" &&
-    /^[0-9a-f]{40}$/.test(claim.commitSha) &&
-    claim.repositories.length === 1 &&
-    Boolean(repository?.owner.trim()) &&
-    Boolean(repository?.repo.trim())
-  );
-}
-
-function targetFromClaim(
-  claim: ApprovedDeployClaim & { deployId: string; projectId: string; commitSha: string },
-): ApprovedDeploymentTarget {
-  return {
-    deployId: claim.deployId,
-    projectId: claim.projectId,
-    owner: claim.repositories[0]!.owner,
-    repo: claim.repositories[0]!.repo,
-    commitSha: claim.commitSha,
-  };
 }
 
 export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): ScheduledTask {
@@ -62,9 +34,11 @@ export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): Schedule
       let approvalId: string | null = null;
       if (!target) {
         const claim = await deps.approvalsRepo.claimNextApprovedChange(traceId);
-        if (!claim) return;
+        const plan = classifyApprovedDeployClaim(claim);
+        if (plan.kind === "idle") return;
+        if (claim === null) return;
         approvalId = claim.approvalId;
-        if (!validTarget(claim)) {
+        if (plan.kind === "invalid") {
           await deps.auditLog.append({
             trace_id: traceId,
             actor: "AGT-DEP",
@@ -81,7 +55,7 @@ export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): Schedule
           });
           return;
         }
-        target = targetFromClaim(claim);
+        target = plan.target;
       }
       let workflowAvailable: boolean;
       try {
@@ -110,7 +84,7 @@ export function createApprovedDeployTask(deps: ApprovedDeployTaskDeps): Schedule
         });
         return;
       }
-      if (!(await deps.deploymentsRepo.markDispatching(target.deployId))) return;
+      if ((await deps.deploymentsRepo.markDispatching(target.deployId)).kind !== "created") return;
       try {
         await deps.execute(target.owner, target.repo, target.commitSha, traceId);
       } catch (error) {
