@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "P10-T04",
+  "reviewer": "codex",
+  "review_surface": "codex-review",
+  "reviewed_code_commit": "2839e4a3a3473bddd706aae41a25ba1bc83c591e",
+  "findings": [
+    { "id": "001", "status": "resolved", "summary": "Bootstrap-only database secrets were removed from shared ECS execution-role access." },
+    { "id": "002", "status": "resolved", "summary": "app_role received the existing runtime repositories' required mutation privileges." },
+    { "id": "003", "status": "resolved", "summary": "Temporal bootstrap now reuses the module-owned password secret." },
+    { "id": "004", "status": "resolved", "summary": "The RDS parameter-group family follows the configured PostgreSQL major version." },
+    { "id": "005", "status": "resolved", "summary": "Production uses continuous cross-region automated-backup replication for the regional RPO." },
+    { "id": "006", "status": "resolved", "summary": "app_role can perform the required llm_usage reservation reconciliation update." },
+    { "id": "007", "status": "resolved", "summary": "Whole-instance recovery points and copies expire after the 35-day data-policy ceiling." },
+    { "id": "008", "status": "resolved", "summary": "Rollback is write-freeze-only; post-write rollback requires reviewed reconciliation." },
+    { "id": "009", "status": "resolved", "summary": "The DR query reads RestoreWindow.LatestTime." },
+    { "id": "010", "status": "resolved", "summary": "Disposable restore cleanup no longer creates an unbounded final snapshot." },
+    { "id": "011", "status": "resolved", "summary": "Exercise cleanup cannot delete a promoted production restore target." },
+    { "id": "012", "status": "resolved", "summary": "PITR, AWS Backup selection, and Osaka replication must protect a promoted ARN before writes resume." },
+    { "id": "013", "status": "resolved", "summary": "DR verification selects the replicated automated backup by emitted ARN." },
+    { "id": "014", "status": "resolved", "summary": "Backup and copy job checks filter on the selected RDS ARN and destination vault." },
+    { "id": "015", "status": "resolved", "summary": "Runtime INSERT into schema_migrations is revoked and rejected by the measured PostgreSQL test." }
+  ],
+  "final_review": {
+    "status": "approved",
+    "finding_count": 0,
+    "summary": "No discrete correctness, security, or compatibility defects were found in the reviewed commit."
+  },
+  "final_commit_scope": "Evidence-only amend after the reviewed code commit."
+}
