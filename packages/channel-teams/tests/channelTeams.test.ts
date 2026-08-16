@@ -82,6 +82,11 @@ describe("FinalArch:FR-UI-003 AG-UI mapping boundary", () => {
 
     const mapping: AuthoritativeConversationMapping = {
       address: normalized.value.address,
+      identity: {
+        provider: "microsoft-entra",
+        tenantId: "tenant-1",
+        subjectId: "user-1",
+      },
       conversationId: "agui-conversation-1",
       threadId: "agui-thread-1",
       workflowId: "workflow-1",
@@ -108,6 +113,37 @@ describe("FinalArch:FR-UI-003 AG-UI mapping boundary", () => {
     expect(
       buildAgUiRunRequest(normalized.value, {
         address: { ...normalized.value.address, platformThreadId: "other-thread" },
+        identity: {
+          provider: "microsoft-entra",
+          tenantId: "tenant-1",
+          subjectId: "user-1",
+        },
+        conversationId: "agui-conversation-1",
+        threadId: "agui-thread-1",
+        workflowId: "workflow-1",
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        code: "E-CHANNEL-MAPPING-MISMATCH",
+        recoverable: true,
+        message: "The conversation mapping is unavailable.",
+      },
+    });
+  });
+
+  it("fails closed when the authoritative mapping belongs to another user", () => {
+    const normalized = teamsAdapter.normalize(teamsInput);
+    if (!normalized.ok) throw new Error("fixture must normalize");
+
+    expect(
+      buildAgUiRunRequest(normalized.value, {
+        address: normalized.value.address,
+        identity: {
+          provider: "microsoft-entra",
+          tenantId: "tenant-1",
+          subjectId: "other-user",
+        },
         conversationId: "agui-conversation-1",
         threadId: "agui-thread-1",
         workflowId: "workflow-1",
@@ -148,7 +184,7 @@ describe("FinalArch:FR-UI-006 replaceable stateless adapter contract", () => {
 
   it("defines server-side mapping lookup as an injected authority only", () => {
     const authority: ConversationMappingAuthority = {
-      lookup: async (_address) => null,
+      lookup: async (_address, _identity) => null,
     };
 
     expectTypeOf(authority.lookup).returns.resolves.toEqualTypeOf<AuthoritativeConversationMapping | null>();

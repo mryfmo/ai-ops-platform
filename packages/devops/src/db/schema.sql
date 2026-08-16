@@ -411,6 +411,7 @@ CREATE INDEX IF NOT EXISTS idx_project_channels_project ON project_channels (pro
 -- Teams側の編集/削除は last_modified_at / deleted_at で追従（物理削除しない。監査整合のため）。
 -- 保持期間: project_channels.closed_at から13か月後に当該チャネル分をDELETE（runbooks/channel-messages-purge.md）。
 CREATE TABLE IF NOT EXISTS channel_messages (
+  source           TEXT NOT NULL DEFAULT 'teams' CHECK (btrim(source) <> ''),
   team_id          TEXT NOT NULL,
   channel_id       TEXT NOT NULL,
   message_id       TEXT NOT NULL,
@@ -427,6 +428,7 @@ CREATE TABLE IF NOT EXISTS channel_messages (
   FOREIGN KEY (team_id, channel_id) REFERENCES project_channels (team_id, channel_id)
 );
 CREATE INDEX IF NOT EXISTS idx_channel_messages_channel_time ON channel_messages (channel_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_messages_source_message ON channel_messages (source, message_id);
 -- rollback: DROP TABLE channel_messages;
 
 -- ADR-0005: Graphサブスクリプション台帳。renew対象・プロセス再起動後の復元・deltaLink永続化の正本。
@@ -567,6 +569,25 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs (status);
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_project ON workflow_runs (project_id);
 -- rollback: DROP TABLE workflow_runs;
+
+-- FinalArch:PRD-001 / FinalArch:FR-UI-001 / FinalArch:FR-UI-003 / ADR-0025 / UX-001:
+-- channel address から workflow への唯一の mapping 正本。initiating identity を同じ行に束縛し、
+-- lookup は address + provider + tenant + subject の完全一致だけを返す。
+CREATE TABLE IF NOT EXISTS channel_conversation_mappings (
+  source                   TEXT NOT NULL CHECK (btrim(source) <> ''),
+  platform_conversation_id TEXT NOT NULL CHECK (btrim(platform_conversation_id) <> ''),
+  platform_thread_id       TEXT CHECK (platform_thread_id IS NULL OR btrim(platform_thread_id) <> ''),
+  identity_provider        TEXT NOT NULL CHECK (btrim(identity_provider) <> ''),
+  tenant_id                TEXT NOT NULL CHECK (btrim(tenant_id) <> ''),
+  subject_id               TEXT NOT NULL CHECK (btrim(subject_id) <> ''),
+  conversation_id          TEXT NOT NULL CHECK (btrim(conversation_id) <> ''),
+  thread_id                TEXT NOT NULL CHECK (btrim(thread_id) <> ''),
+  workflow_id              TEXT NOT NULL REFERENCES workflow_runs(workflow_id),
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT channel_conversation_mappings_address_unique
+    UNIQUE NULLS NOT DISTINCT (source, platform_conversation_id, platform_thread_id)
+);
+-- rollback: DROP TABLE channel_conversation_mappings;
 
 -- FinalArch:CON-003: 外部副作用の冪等 ledger。approval を要する操作は approvals を参照する
 -- （DELTA-03: 承認の並行正本を作らない。deployments の状態機械はここに写像しない）。

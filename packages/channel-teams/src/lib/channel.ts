@@ -50,13 +50,18 @@ export interface ChannelAdapter {
 
 export interface AuthoritativeConversationMapping {
   readonly address: ChannelAddress;
+  readonly identity: {
+    readonly provider: string;
+    readonly tenantId: string;
+    readonly subjectId: string;
+  };
   readonly conversationId: string;
   readonly threadId: string;
   readonly workflowId: string;
 }
 
 export interface ConversationMappingAuthority {
-  lookup(address: ChannelAddress): Promise<AuthoritativeConversationMapping | null>;
+  lookup(address: ChannelAddress, identity: ChannelUserIdentity): Promise<AuthoritativeConversationMapping | null>;
 }
 
 export interface AgUiRunRequest {
@@ -103,7 +108,10 @@ export function buildAgUiRunRequest(
   if (
     expected.source !== actual.source ||
     expected.platformConversationId !== actual.platformConversationId ||
-    expected.platformThreadId !== actual.platformThreadId
+    expected.platformThreadId !== actual.platformThreadId ||
+    message.user.provider !== mapping.identity.provider ||
+    message.user.tenantId !== mapping.identity.tenantId ||
+    message.user.subjectId !== mapping.identity.subjectId
   ) {
     return mappingMismatch;
   }
