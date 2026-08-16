@@ -38,6 +38,9 @@ Reviewed VPC endpoints/egress are intentionally deferred to P10-T02.
 
 - No real AWS credential, account ID, ARN, backend name, or endpoint was added.
 - No AWS plan/apply was executed; the only plan used `127.0.0.1:4566`.
+- Runtime absence was separately proven fail-closed before plan; the successful
+  Floci plan reused the already-installed Apple Container runtime without
+  provisioning Docker or changing system runtime state.
 - Existing `deploy/aws/temporal/**` and `deploy/aws/floci/**` files were read only.
 - No dependency, main branch, merge, approval, or external persistent effect.
 - Open-PR file lists were checked with `gh`; no P10-T01 path overlaps.

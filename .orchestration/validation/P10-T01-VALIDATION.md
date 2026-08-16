@@ -21,6 +21,19 @@ It started the existing digest-pinned Floci image through Apple Container 1.2.2,
 bound it to `127.0.0.1:4566`, and removed the disposable container and Terraform
 copy on exit. It did not invoke `terraform apply`.
 
+The orchestrator-approved no-runtime disposition was also tested independently.
+With `PATH` limited to a temporary Terraform symlink plus `/usr/bin:/bin` (so
+neither Docker nor Apple Container was discoverable), fmt/init/validate completed
+and the script then exited 1 with:
+
+```text
+ERROR: local Docker Compose or Apple container runtime is required for the Floci plan
+```
+
+No plan began and no real-AWS fallback exists. The successful local Apple
+Container plan is additional evidence; no Docker/runtime was installed or
+provisioned by this task.
+
 ## Credential guard
 
 | Case | Expected/result |
