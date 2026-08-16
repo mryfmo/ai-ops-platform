@@ -1,0 +1,222 @@
+{
+  "$comment": "根拠: FinalArch:PRD-008 / FinalArch:FR-AGT-001..006 / FinalArch:COD-003 / ADR-0027 / WBS P8-T01",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.example/contracts/agent-task/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "writer",
+    "reviewer",
+    "runner",
+    "paths",
+    "gates",
+    "budget",
+    "delivery",
+    "callback",
+    "review"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "task_id": { "type": "string", "pattern": "^[A-Z][A-Z0-9._-]{1,127}$" },
+    "writer": { "$ref": "#/$defs/assignment" },
+    "reviewer": { "$ref": "#/$defs/assignment" },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["isolation", "cli", "credential", "mcp_gateway", "direct_production_network", "clean_checkout"],
+      "properties": {
+        "isolation": { "const": "ephemeral" },
+        "cli": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "pin"],
+            "properties": {
+              "name": { "$ref": "#/$defs/label" },
+              "pin": {
+                "type": "string",
+                "pattern": "^(?:v?[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?|sha256:[a-f0-9]{64}|git:[a-f0-9]{40})$"
+              }
+            }
+          }
+        },
+        "credential": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "key_env", "scope", "master_key", "provider_keys"],
+          "properties": {
+            "kind": { "const": "litellm_virtual_key" },
+            "key_env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*_VIRTUAL_KEY$" },
+            "scope": { "$ref": "#/$defs/label" },
+            "master_key": { "const": false },
+            "provider_keys": { "const": false }
+          }
+        },
+        "mcp_gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["endpoint_env", "profile"],
+          "properties": {
+            "endpoint_env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*_ENDPOINT$" },
+            "profile": { "$ref": "#/$defs/label" }
+          }
+        },
+        "direct_production_network": { "const": false },
+        "clean_checkout": { "const": true }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "forbidden"],
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/pathScope" }
+        },
+        "forbidden": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/pathScope" }
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "blocking"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9._-]{1,63}$" },
+          "blocking": { "const": true }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_runtime_seconds", "max_cost_usd", "max_tokens", "max_tool_calls"],
+      "properties": {
+        "max_runtime_seconds": { "type": "integer", "minimum": 1 },
+        "max_cost_usd": { "type": "number", "exclusiveMinimum": 0 },
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "max_tool_calls": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "direct_main_push", "pull_request"],
+      "properties": {
+        "branch": { "type": "string", "pattern": "^agent/[A-Za-z0-9][A-Za-z0-9._-]{0,191}$" },
+        "direct_main_push": { "const": false },
+        "pull_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "draft", "auto_merge", "human_merge_required", "labels"],
+          "properties": {
+            "required": { "const": true },
+            "draft": { "const": false },
+            "auto_merge": { "const": false },
+            "human_merge_required": { "const": true },
+            "labels": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "uniqueItems": true,
+              "contains": { "const": "ai-generated" },
+              "items": { "$ref": "#/$defs/label" }
+            }
+          }
+        }
+      }
+    },
+    "callback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_fields"],
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "commands_executed",
+              "test_results",
+              "skipped_failed_checks",
+              "changed_paths",
+              "commit",
+              "branch",
+              "pull_request",
+              "dependency_changes",
+              "security_findings",
+              "unresolved_decisions"
+            ]
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "spec_compliance",
+              "architecture_drift",
+              "security",
+              "correctness",
+              "idempotency",
+              "test_adequacy",
+              "observability",
+              "migration_rollback",
+              "documentation_traceability"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "label": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_id", "role", "execution_profile"],
+      "properties": {
+        "agent_id": { "$ref": "#/$defs/label" },
+        "role": { "enum": ["writer", "reviewer"] },
+        "execution_profile": { "$ref": "#/$defs/label" }
+      }
+    },
+    "pathScope": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!.*//)[A-Za-z0-9._@()+{}\\[\\]-]+(?:/[A-Za-z0-9._@()+{}\\[\\]-]+)*(?:/\\*\\*)?$"
+    }
+  }
+}

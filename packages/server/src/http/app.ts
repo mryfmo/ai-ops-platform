@@ -24,6 +24,7 @@ import { registerReportIngestRoutes, type ReportIngestDeps } from "./routes/repo
 import { registerApprovalRoutes, type ApprovalRoutesDeps } from "./routes/approvals.js";
 import { registerMcpOpsRoutes, type McpOpsRoutesDeps } from "./routes/mcpOps.js";
 import { registerM365DelegatedRoutes, type M365DelegatedRoutesDeps } from "./routes/m365Delegated.js";
+import { registerWorkbenchRoutes, type WorkbenchRoutesDeps } from "./routes/workbench.js";
 import { MetricsRegistry } from "../observability/metrics.js";
 import { httpMetricsMiddleware } from "../observability/httpMetrics.js";
 import { registerMetricsRoutes } from "./routes/metrics.js";
@@ -43,6 +44,7 @@ export interface AppDependencies {
   approvals?: ApprovalRoutesDeps;
   mcpOps?: McpOpsRoutesDeps;
   m365Delegated?: M365DelegatedRoutesDeps;
+  workbench?: WorkbenchRoutesDeps;
 }
 
 export function buildApp(deps: AppDependencies): Hono {
@@ -84,6 +86,7 @@ export function buildApp(deps: AppDependencies): Hono {
   registerApprovalRoutes(app, deps.approvals);
   registerMcpOpsRoutes(app, deps.mcpOps);
   registerM365DelegatedRoutes(app, deps.m365Delegated);
+  registerWorkbenchRoutes(app, deps.workbench);
   registerWebuiProxy(app, deps.webui);
   return app;
 }
