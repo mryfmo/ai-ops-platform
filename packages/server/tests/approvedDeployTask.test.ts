@@ -19,7 +19,12 @@ const claim = {
 describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
   it("approved changeを一度claimし、workflow存在時だけprod_deployingを記録して実行する", async () => {
     const execute = vi.fn(async () => undefined);
-    const markDispatching = vi.fn(async () => true);
+    const markDispatching = vi.fn(async () => ({
+      kind: "created" as const,
+      deployId: claim.deployId,
+      expectedState: "approved" as const,
+      observedState: "prod_deploying" as const,
+    }));
     const task = createApprovedDeployTask({
       approvalsRepo: { claimNextApprovedChange: vi.fn(async () => claim) },
       deploymentsRepo: {
@@ -134,7 +139,12 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
       approvalsRepo: { claimNextApprovedChange: vi.fn(async () => null) },
       deploymentsRepo: {
         findNextApprovedDispatch: vi.fn(async () => recovered),
-        markDispatching: vi.fn(async () => true),
+        markDispatching: vi.fn(async () => ({
+          kind: "created" as const,
+          deployId: claim.deployId,
+          expectedState: "approved" as const,
+          observedState: "prod_deploying" as const,
+        })),
         markDispatchFailed: vi.fn(),
       },
       workflowExists: vi.fn(async () => true),
@@ -148,6 +158,59 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
     expect(execute).toHaveBeenCalledWith("acme", "widget", claim.commitSha, "trace-recovered");
   });
 
+  it("TMP-003/TMP-005 cutover 並行 tick は共有 deployments CAS winner だけが dispatch", async () => {
+    const recovered = {
+      deployId: claim.deployId,
+      projectId: claim.projectId,
+      owner: "acme",
+      repo: "widget",
+      commitSha: claim.commitSha,
+    };
+    let state: "approved" | "prod_deploying" = "approved";
+    let writes = 0;
+    const deploymentsRepo = {
+      findNextApprovedDispatch: vi.fn(async () => recovered),
+      markDispatching: vi.fn(async () => {
+        await Promise.resolve();
+        if (state !== "approved") {
+          return {
+            kind: "stale" as const,
+            deployId: claim.deployId,
+            expectedState: "approved" as const,
+            observedState: "prod_deploying" as const,
+          };
+        }
+        state = "prod_deploying";
+        return {
+          kind: "created" as const,
+          deployId: claim.deployId,
+          expectedState: "approved" as const,
+          observedState: "prod_deploying" as const,
+        };
+      }),
+      markDispatchFailed: vi.fn(async () => false),
+    };
+    const makeTask = (traceId: string) =>
+      createApprovedDeployTask({
+        approvalsRepo: { claimNextApprovedChange: vi.fn(async () => null) },
+        deploymentsRepo,
+        workflowExists: vi.fn(async () => true),
+        execute: vi.fn(async () => {
+          writes += 1;
+        }),
+        auditLog: new InMemoryAuditLog(),
+        traceIdProvider: () => traceId,
+      });
+
+    await Promise.all([
+      makeTask("legacy-cutover").run(new Date("2026-08-09T00:00:00Z")),
+      makeTask("temporal-cutover").run(new Date("2026-08-09T00:00:00Z")),
+    ]);
+
+    expect(deploymentsRepo.markDispatching).toHaveBeenCalledTimes(2);
+    expect(writes).toBe(1);
+  });
+
   it("repo claim queryはapproved changeだけをCAS consumedにする", async () => {
     const queries: string[] = [];
     const db = {
@@ -157,7 +220,9 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
       }),
     };
     const repo = new ApprovalsRepo(db, async (work) => work({ db, auditLog: new InMemoryAuditLog() }));
-    await repo.claimNextApprovedChange("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    await expect(repo.claimNextApprovedChangeReceipt("cccccccc-cccc-4ccc-8ccc-cccccccccccc")).resolves.toEqual({
+      kind: "stale",
+    });
     const sql = queries.join("\n");
     expect(sql).toContain("approval_type = 'change'");
     expect(sql).toContain("status = 'approved'");
@@ -199,5 +264,35 @@ describe("approved deploy polling [DevOps:REQ-010 / AC-010a]", () => {
         detail: expect.objectContaining({ repositoryMappingCount: 2 }),
       }),
     );
+  });
+
+  it("P3-T13 dispatched_at CAS winner だけ created union receipt を得る", async () => {
+    const auditLog = new InMemoryAuditLog();
+    let claimed = false;
+    const db = {
+      query: vi.fn(async () => {
+        if (claimed) return { rows: [] };
+        claimed = true;
+        return {
+          rows: [
+            {
+              approval_id: claim.approvalId,
+              project_id: claim.projectId,
+              target_sha: claim.commitSha,
+              deploy_id: claim.deployId,
+              repo_mappings: claim.repositories,
+            },
+          ],
+        };
+      }),
+    };
+    const repo = new ApprovalsRepo(db, async (work) => work({ db, auditLog }));
+    await expect(repo.claimNextApprovedChangeReceipt("cccccccc-cccc-4ccc-8ccc-cccccccccccc")).resolves.toMatchObject({
+      kind: "created",
+      claim: { deployId: claim.deployId },
+    });
+    await expect(repo.claimNextApprovedChangeReceipt("dddddddd-dddd-4ddd-8ddd-dddddddddddd")).resolves.toEqual({
+      kind: "stale",
+    });
   });
 });

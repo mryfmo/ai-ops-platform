@@ -58,6 +58,8 @@ importers:
         specifier: ^2.6.0
         version: 2.9.0
 
+  packages/channel-teams: {}
+
   packages/control-plane:
     dependencies:
       '@aiops/policy':

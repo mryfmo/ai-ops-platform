@@ -97,6 +97,35 @@ export type { JitHealthScheduleRegistration } from "./lib/jitHealthSchedules.js"
 export { registerJitHealthSchedules } from "./workflows/jitHealthScheduleRegistration.js";
 export { healthEvaluationWorkflow, jitExpiryWorkflow } from "./workflows/jitHealth.js";
 export type { HealthEvaluationResult, JitExpiryResult, JitHealthActivities } from "./workflows/jitHealth.js";
+export {
+  DEPLOY_DISPATCH_INTERVAL_MS,
+  PROD_MONITOR_INTERVAL_MS,
+  assertDeploymentWorkflowRequest,
+  buildDeployDispatchWorkflowId,
+  buildProdMonitorWorkflowId,
+  parseApprovedDeploymentClaimReceipt,
+  parseDeploymentCasReceipt,
+  parseDeploymentEffectReceipt,
+  parseDeploymentEffectStatus,
+  parseDeploymentPlans,
+} from "./lib/deploymentState.js";
+export type {
+  ApprovedDeploymentClaimReceipt,
+  DeployDispatchPlan,
+  DeploymentCasReceipt,
+  DeploymentEffectReceipt,
+  DeploymentEffectStatus,
+  DeploymentPlan,
+  DeploymentState,
+  DeploymentTarget,
+  DeploymentWorkflowOperation,
+  DeploymentWorkflowRequest,
+  ProdMonitorPlan,
+} from "./lib/deploymentState.js";
+export { buildDeploymentSchedules } from "./lib/deploymentSchedules.js";
+export type { DeploymentScheduleRegistration } from "./lib/deploymentSchedules.js";
+export { deployDispatchWorkflow, prodMonitorWorkflow } from "./workflows/deployment.js";
+export type { DeploymentActivities, DeploymentWorkflowResult } from "./workflows/deployment.js";
 export { defineWorkflow } from "./workflows/index.js";
 export type { WorkflowDefinition } from "./workflows/index.js";
 export type { ActivityDefinition } from "./activities/types.js";

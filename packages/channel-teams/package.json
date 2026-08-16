@@ -1,0 +1,22 @@
+{
+  "name": "@aiops/channel-teams",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": "Replaceable Teams channel and AG-UI boundary contracts (FinalArch:PRD-001 / FinalArch:FR-UI-001..006 / ADR-0025)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
+}

@@ -5,22 +5,17 @@
  * 60秒 cadenceで監視対象を評価し、欠落入力は0へ補完しない。
  */
 import type { AuditLogWriter, ChannelRef } from "@aiops/shared";
-import {
-  evaluateTh003Rollback,
-  selectRollbackTarget,
-  type RollbackOutcome,
-  type StableVersionRecord,
-  type Th003Input,
-} from "@aiops/devops";
-import type { MonitoringDeploymentTarget } from "../../db/deploymentsRepo.js";
+import type { RollbackOutcome, StableVersionRecord, Th003Input } from "@aiops/devops";
+import type { DeploymentCasReceipt, MonitoringDeploymentTarget } from "../../db/deploymentsRepo.js";
+import { planProdMonitorTarget } from "../../lib/deploymentTaskState.js";
 import type { ScheduledTask } from "../scheduler.js";
 
 export interface ProdMonitorTaskDeps {
   /** Repo query is bounded to at most 100 active monitoring rows per tick. */
   deploymentsRepo: {
     listMonitoringTargets(): Promise<MonitoringDeploymentTarget[]>;
-    markRollingBack(deployId: string): Promise<boolean>;
-    markRolledBack(deployId: string): Promise<void>;
+    markRollingBack(deployId: string): Promise<DeploymentCasReceipt>;
+    markRolledBack(deployId: string): Promise<DeploymentCasReceipt>;
   };
   metricsProvider: { read(target: MonitoringDeploymentTarget, now: Date): Promise<Th003Input | null> };
   stableVersionsProvider: {
@@ -46,7 +41,8 @@ export function createProdMonitorTask(deps: ProdMonitorTaskDeps): ScheduledTask 
       const targets = await deps.deploymentsRepo.listMonitoringTargets();
       for (const target of targets) {
         const traceId = deps.traceIdProvider();
-        if (target.channels.length !== 1 || !target.channels[0]!.teamId || !target.channels[0]!.channelId) {
+        const targetPlan = planProdMonitorTarget(target, null, null, null);
+        if (targetPlan.kind === "skip" && targetPlan.reason === "invalid-channel") {
           await deps.auditLog.append({
             trace_id: traceId,
             actor: "AGT-DEP",
@@ -58,7 +54,8 @@ export function createProdMonitorTask(deps: ProdMonitorTaskDeps): ScheduledTask 
           continue;
         }
         const input = await deps.metricsProvider.read(target, now);
-        if (!input) {
+        const inputPlan = planProdMonitorTarget(target, input, null, null);
+        if (inputPlan.kind === "skip") {
           await deps.auditLog.append({
             trace_id: traceId,
             actor: "AGT-DEP",
@@ -69,8 +66,11 @@ export function createProdMonitorTask(deps: ProdMonitorTaskDeps): ScheduledTask 
           });
           continue;
         }
+        if (input === null) continue;
         const stableVersions = await deps.stableVersionsProvider.read(target, now);
-        let rollbackCandidates = stableVersions ?? [];
+        const workflowAvailable = stableVersions === null ? null : await deps.workflowExists(target.owner, target.repo);
+        const plan = planProdMonitorTarget(target, input, stableVersions, workflowAvailable);
+        if (plan.kind !== "evaluate") continue;
         if (!stableVersions) {
           await deps.auditLog.append({
             trace_id: traceId,
@@ -80,8 +80,7 @@ export function createProdMonitorTask(deps: ProdMonitorTaskDeps): ScheduledTask 
             detail: { deployId: target.deployId, reason: "Stable deployment history is unavailable" },
             at: now.toISOString(),
           });
-        } else if (!(await deps.workflowExists(target.owner, target.repo))) {
-          rollbackCandidates = [];
+        } else if (!workflowAvailable) {
           await deps.auditLog.append({
             trace_id: traceId,
             actor: "AGT-DEP",
@@ -91,11 +90,12 @@ export function createProdMonitorTask(deps: ProdMonitorTaskDeps): ScheduledTask 
             at: now.toISOString(),
           });
         }
-        const willDispatch =
-          evaluateTh003Rollback(input).shouldRollback && selectRollbackTarget(rollbackCandidates) !== null;
-        if (willDispatch && !(await deps.deploymentsRepo.markRollingBack(target.deployId))) continue;
-        const outcome = await deps.evaluate(input, rollbackCandidates, target, target.channels[0]!, traceId);
-        if (outcome.rolledBack) await deps.deploymentsRepo.markRolledBack(target.deployId);
+        if (plan.willDispatch && (await deps.deploymentsRepo.markRollingBack(target.deployId)).kind !== "created")
+          continue;
+        const outcome = await deps.evaluate(input, plan.rollbackCandidates, target, target.channels[0]!, traceId);
+        if (outcome.rolledBack && (await deps.deploymentsRepo.markRolledBack(target.deployId)).kind !== "created") {
+          throw new Error("Deployment rollback state could not be completed");
+        }
       }
     },
   };
