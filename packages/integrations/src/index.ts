@@ -35,6 +35,22 @@ export type {
   WorkIqRestClientOptions,
   WorkIqSourceReference,
 } from "./workiq/restClient.js";
+export {
+  hashWorkIqQuestion,
+  probeWorkIqPermissionDifferential,
+  probeWorkIqSourceAccessibility,
+} from "./workiq/sourceEvidence.js";
+export type {
+  WorkIqAccessibilityErrorCode,
+  WorkIqPermissionDifferentialInput,
+  WorkIqPermissionDifferentialResult,
+  WorkIqProbeSubject,
+  WorkIqSourceAccessibilityEvidence,
+  WorkIqSourceAccessibilityInput,
+  WorkIqSourceAccessibilityResult,
+  WorkIqSourceFetchClient,
+  WorkIqSourceReferenceResolver,
+} from "./workiq/sourceEvidence.js";
 export { buildMcpPolicyInput, assertGovernedMcpToolCallRequest } from "./lib/mcpPolicy.js";
 export {
   BOUNDED_INVOCATION_PROFILES,

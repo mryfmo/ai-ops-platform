@@ -13,7 +13,7 @@ import { sanitizeSecrets, type PgQueryable } from "@aiops/shared";
  * 直列化後の文字列に regex を当てると閉じ引用符まで消費して JSON を壊し得るため、
  * 構造を保ったまま値単位で redact する。
  */
-function sanitizeJsonDeep(value: unknown): unknown {
+export function sanitizeJsonDeep(value: unknown): unknown {
   if (typeof value === "string") return sanitizeSecrets(value).sanitized;
   if (Array.isArray(value)) return value.map(sanitizeJsonDeep);
   if (value !== null && typeof value === "object") {
