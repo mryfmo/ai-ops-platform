@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "task_id": "P8-T01",
+  "reviewer": {
+    "agent_id": "claude-reviewer",
+    "execution_profile": "review"
+  },
+  "source": {
+    "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "reviewed_dimensions": [
+    "spec_compliance",
+    "architecture_drift",
+    "security",
+    "correctness",
+    "idempotency",
+    "test_adequacy",
+    "observability",
+    "migration_rollback",
+    "documentation_traceability"
+  ],
+  "collection": {
+    "changed_files": ["contracts/agent-task/agent-task.schema.json"],
+    "spec_references": ["FinalArch:FR-AGT-005"],
+    "security_sensitive_files": ["contracts/agent-task/agent-task.schema.json"]
+  },
+  "findings": [
+    {
+      "dimension": "security",
+      "severity": "medium",
+      "file": "contracts/agent-task/agent-task.schema.json",
+      "line": 12,
+      "evidence": "The changed trust-boundary schema needs adversarial validation.",
+      "suggestion": "Add a negative fixture that proves unknown fields are rejected."
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "$comment": "根拠: FinalArch:PRD-008 / FinalArch:FR-AGT-001..006 / FinalArch:COD-006 / ADR-0027 / WBS P8-T06",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.example/contracts/agent-review/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "reviewer", "source", "reviewed_dimensions", "collection", "findings"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "task_id": { "type": "string", "pattern": "^[A-Z][A-Z0-9._-]{1,127}$" },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_id", "execution_profile"],
+      "properties": {
+        "agent_id": { "$ref": "#/$defs/label" },
+        "execution_profile": { "$ref": "#/$defs/label" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_sha", "head_sha"],
+      "properties": {
+        "base_sha": { "$ref": "#/$defs/sha" },
+        "head_sha": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "reviewed_dimensions": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/dimension" }
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changed_files", "spec_references", "security_sensitive_files"],
+      "properties": {
+        "changed_files": { "$ref": "#/$defs/pathList" },
+        "spec_references": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128,
+            "pattern": "^(?:FinalArch:)?[A-Z][A-Z0-9.-]+$"
+          }
+        },
+        "security_sensitive_files": { "$ref": "#/$defs/pathList" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "label": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!.*//)[A-Za-z0-9._@()+{}\\[\\]-]+(?:/[A-Za-z0-9._@()+{}\\[\\]-]+)*$"
+    },
+    "pathList": {
+      "type": "array",
+      "maxItems": 4096,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repoPath" }
+    },
+    "dimension": {
+      "enum": [
+        "spec_compliance",
+        "architecture_drift",
+        "security",
+        "correctness",
+        "idempotency",
+        "test_adequacy",
+        "observability",
+        "migration_rollback",
+        "documentation_traceability"
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension", "severity", "file", "line", "evidence", "suggestion"],
+      "properties": {
+        "dimension": { "$ref": "#/$defs/dimension" },
+        "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
+        "file": { "$ref": "#/$defs/repoPath" },
+        "line": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "evidence": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "suggestion": { "type": "string", "minLength": 1, "maxLength": 8192 }
+      }
+    }
+  }
+}
