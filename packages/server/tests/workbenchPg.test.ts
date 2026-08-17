@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { workbenchGrantTarget } from "../src/db/grantsRepo.js";
 import { WorkbenchRepo } from "../src/db/workbenchRepo.js";
 import { applySchemaSerialized } from "./pgTestSchema.js";
 
@@ -15,7 +16,9 @@ const pool = databaseUrl
 const uuid = (n: number) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
 const WORKSPACE_A = uuid(701);
 const WORKSPACE_B = uuid(702);
+const WORKSPACE_C = uuid(712);
 const SOURCE_A = uuid(703);
+const SOURCE_C = uuid(713);
 const OPERATION_A = uuid(704);
 const OPERATION_B = uuid(705);
 const APPROVAL_A = uuid(706);
@@ -23,6 +26,10 @@ const APPROVAL_B = uuid(707);
 const TRACE = uuid(708);
 const TENANT = uuid(709);
 const SUBJECT = uuid(710);
+const PROJECT_GRANT = uuid(714);
+const REPOSITORY_GRANT = uuid(715);
+const SPACE_GRANT = uuid(716);
+const CROSS_PROJECT_GRANT = uuid(717);
 
 describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:FR-UI-006 / UX-003]", () => {
   beforeAll(async () => {
@@ -35,19 +42,32 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
       new URL("../../devops/src/db/migrations/202608160100_workbench_read_model.sql", import.meta.url),
     ]);
 
-    await pool!.query("DELETE FROM workbench_pending_actions WHERE workspace_id IN ($1, $2)", [
+    await pool!.query("DELETE FROM workbench_pending_actions WHERE workspace_id IN ($1, $2, $3)", [
       WORKSPACE_A,
       WORKSPACE_B,
+      WORKSPACE_C,
     ]);
-    await pool!.query("DELETE FROM workbench_workspace_runs WHERE workspace_id IN ($1, $2)", [
+    await pool!.query("DELETE FROM workbench_workspace_runs WHERE workspace_id IN ($1, $2, $3)", [
       WORKSPACE_A,
       WORKSPACE_B,
+      WORKSPACE_C,
     ]);
-    await pool!.query("DELETE FROM workbench_workspace_sources WHERE workspace_id IN ($1, $2)", [
+    await pool!.query("DELETE FROM workbench_workspace_sources WHERE workspace_id IN ($1, $2, $3)", [
       WORKSPACE_A,
       WORKSPACE_B,
+      WORKSPACE_C,
     ]);
-    await pool!.query("DELETE FROM workbench_workspaces WHERE workspace_id IN ($1, $2)", [WORKSPACE_A, WORKSPACE_B]);
+    await pool!.query("DELETE FROM workbench_workspaces WHERE workspace_id IN ($1, $2, $3)", [
+      WORKSPACE_A,
+      WORKSPACE_B,
+      WORKSPACE_C,
+    ]);
+    await pool!.query("DELETE FROM grants WHERE grant_id IN ($1, $2, $3, $4)", [
+      PROJECT_GRANT,
+      REPOSITORY_GRANT,
+      SPACE_GRANT,
+      CROSS_PROJECT_GRANT,
+    ]);
     await pool!.query("DELETE FROM action_ledger WHERE operation_id IN ($1, $2)", [OPERATION_A, OPERATION_B]);
     await pool!.query("DELETE FROM workflow_runs WHERE workflow_id IN ('incident/wb-a', 'incident/wb-b')");
     await pool!.query("DELETE FROM approvals WHERE approval_id IN ($1, $2)", [APPROVAL_A, APPROVAL_B]);
@@ -121,7 +141,7 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
     }
   });
 
-  it("links same-project authority rows and reads current state live", async () => {
+  it("is default-none, becomes visible after grant, and hides immediately after revoke", async () => {
     const repo = new WorkbenchRepo(pool!);
     await expect(
       repo.createWorkspace({
@@ -144,7 +164,20 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
     await expect(repo.linkRun(WORKSPACE_A, "incident/wb-a")).resolves.toBe(true);
     await expect(repo.linkPendingAction(WORKSPACE_A, OPERATION_A)).resolves.toBe(true);
 
-    const recipient = { profile: "PRF-L", scopeMode: "project" as const, projects: ["PJ-WB-A"] };
+    const recipient = {
+      userId: "p7t07-owner",
+      profile: "PRF-L",
+      scopeMode: "project" as const,
+      projects: ["PJ-WB-A"],
+    };
+    await expect(repo.findByIdFor(recipient, WORKSPACE_A)).resolves.toBeNull();
+
+    await pool!.query(
+      `INSERT INTO grants (
+         grant_id, subject, subject_type, target, level, reason, approved_by, expires_at
+       ) VALUES ($1, 'p7t07-owner', 'internal', $2, 'pull', 'P7-T08 project access', 'p7t08', now() + interval '1 hour')`,
+      [PROJECT_GRANT, workbenchGrantTarget("project", "PJ-WB-A")],
+    );
     await expect(repo.findByIdFor(recipient, WORKSPACE_A)).resolves.toMatchObject({
       workspaceId: WORKSPACE_A,
       projectId: "PJ-WB-A",
@@ -158,6 +191,7 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
           approvalStatus: "pending",
         },
       ],
+      grant: { resourceType: "project", resourceId: "PJ-WB-A" },
     });
 
     await pool!.query(
@@ -172,6 +206,38 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
       runs: [{ status: "completed" }],
       pendingActions: [{ approvalStatus: "approved" }],
     });
+
+    await pool!.query("UPDATE grants SET revoked_at = now() WHERE grant_id = $1", [PROJECT_GRANT]);
+    await expect(repo.findByIdFor(recipient, WORKSPACE_A)).resolves.toBeNull();
+
+    await pool!.query(
+      `INSERT INTO grants (
+         grant_id, subject, subject_type, target, level, reason, approved_by, expires_at
+       ) VALUES ($1, 'p7t07-owner', 'internal', $2, 'pull', 'P7-T08 repository access', 'p7t08', now() + interval '1 hour')`,
+      [REPOSITORY_GRANT, workbenchGrantTarget("repository", "mryfmo/ai-ops-platform")],
+    );
+    await expect(repo.findByIdFor(recipient, WORKSPACE_A)).resolves.toMatchObject({
+      sources: [{ externalId: "mryfmo/ai-ops-platform" }],
+      runs: [],
+      pendingActions: [],
+      grant: { resourceType: "repository", resourceId: "mryfmo/ai-ops-platform" },
+    });
+
+    await pool!.query("UPDATE grants SET revoked_at = now() WHERE grant_id = $1", [REPOSITORY_GRANT]);
+    await pool!.query(
+      `INSERT INTO grants (
+         grant_id, subject, subject_type, target, level, reason, approved_by, expires_at
+       ) VALUES ($1, 'p7t07-owner', 'internal', $2, 'pull', 'P7-T08 space access', 'p7t08', now() + interval '1 hour')`,
+      [SPACE_GRANT, workbenchGrantTarget("space", WORKSPACE_A)],
+    );
+    await expect(repo.findByIdFor(recipient, WORKSPACE_A)).resolves.toMatchObject({
+      runs: [{ workflowId: "incident/wb-a" }],
+      pendingActions: [{ operationId: OPERATION_A }],
+      grant: { resourceType: "space", resourceId: WORKSPACE_A },
+    });
+
+    await pool!.query("UPDATE grants SET revoked_at = now() WHERE grant_id = $1", [SPACE_GRANT]);
+    await expect(repo.findByIdFor(recipient, WORKSPACE_A)).resolves.toBeNull();
   });
 
   it("rejects cross-project run/action links and non-HTTPS source references", async () => {
@@ -195,5 +261,38 @@ describe.skipIf(!databaseUrl)("Workbench real PostgreSQL references [FinalArch:F
         canonicalUrl: "http://untrusted.example/doc-1",
       }),
     ).rejects.toThrow(/workbench_workspace_sources_canonical_url_check/u);
+  });
+
+  it("keeps a granted cross-project workspace and all nested references invisible", async () => {
+    const repo = new WorkbenchRepo(pool!);
+    await repo.createWorkspace({
+      workspaceId: WORKSPACE_C,
+      kind: "project",
+      projectId: "PJ-WB-B",
+      ownerUserId: "p7t07-owner",
+    });
+    await repo.addSource({
+      sourceRefId: SOURCE_C,
+      workspaceId: WORKSPACE_C,
+      sourceSystem: "github",
+      sourceType: "repository",
+      externalId: "mryfmo/cross-project",
+      canonicalUrl: "https://github.com/mryfmo/cross-project",
+    });
+    await expect(repo.linkRun(WORKSPACE_C, "incident/wb-b")).resolves.toBe(true);
+    await expect(repo.linkPendingAction(WORKSPACE_C, OPERATION_B)).resolves.toBe(true);
+    await pool!.query(
+      `INSERT INTO grants (
+         grant_id, subject, subject_type, target, level, reason, approved_by, expires_at
+       ) VALUES ($1, 'p7t07-owner', 'internal', $2, 'pull', 'cross-project negative', 'p7t08', now() + interval '1 hour')`,
+      [CROSS_PROJECT_GRANT, workbenchGrantTarget("project", "PJ-WB-B")],
+    );
+
+    await expect(
+      repo.findByIdFor(
+        { userId: "p7t07-owner", profile: "PRF-L", scopeMode: "project", projects: ["PJ-WB-A"] },
+        WORKSPACE_C,
+      ),
+    ).resolves.toBeNull();
   });
 });

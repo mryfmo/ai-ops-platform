@@ -42,6 +42,7 @@ export const LITELLM_FLAG_NAME = "inference.litellm.enabled";
 // direct provider egress は security+ai-platform 所有の正典 flag が唯一のゲート
 // （requires: classification<=internal / explicit-provider-allow。kill switch 有効）。
 export const DIRECT_FALLBACK_FLAG_NAME = "inference.anthropic_direct_fallback.enabled";
+export const OPA_FLAG_NAME = "policy.opa.enforce";
 
 // 根拠: FinalArch:FR-CP-008 / WBS P3-T10。Temporal への段階的 cutover。
 export const TEMPORAL_FLAG_NAME = "control.temporal.enabled";
@@ -167,6 +168,20 @@ const optionalTrimmed = (schema: z.ZodType<string>) =>
     const trimmed = value.trim();
     return trimmed === "" ? undefined : trimmed;
   }, schema.optional());
+const originRootUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.pathname === "/" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.search === "" &&
+      url.hash === ""
+    );
+  }, "must be an HTTP(S) origin root without credentials, query, or fragment");
 const modelIdSchema = z
   .string()
   .trim()
@@ -246,6 +261,13 @@ const baseConfigSchema = z.object({
    * off 以外のとき必須。virtual key は Secrets 経由で注入する。空文字は未設定扱い。 */
   LITELLM_BASE_URL: optionalTrimmed(z.string().url()),
   LITELLM_VIRTUAL_KEY: optionalTrimmed(z.string().min(1)),
+  /** FinalArch:CON-004 / ADR-0023: internal OPA origin. enforce flag時のみ必須。 */
+  OPA_BASE_URL: optionalTrimmed(originRootUrlSchema),
+  /** OPA input の deployment environment。enforce flag時は明示必須（暗黙dev禁止）。 */
+  OPA_POLICY_ENVIRONMENT: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.enum(["dev", "staging", "prod"]).optional(),
+  ),
   /** PrjOps:REQ-002: 関係者マスタYAMLディレクトリ。未設定時はTeamsペルソナ解決を無効化する。 */
   STAKEHOLDERS_DIR: z.string().refine(isAbsolute, "must be an absolute path").optional(),
   /** A046 / DEC-SPEC-001: owner-pinned immutable PrjOps job data snapshot identity。 */
@@ -471,6 +493,14 @@ export function loadConfig(
   const migrationFlags = resolveMigrationFlags(env);
   if (migrationFlags.errors.length > 0) {
     throw new Error(`E-CFG01: invalid server configuration: ${migrationFlags.errors.join("; ")}`);
+  }
+  if (
+    migrationFlags.states.get(OPA_FLAG_NAME) === "enforce" &&
+    (!parsed.data.OPA_BASE_URL || !parsed.data.OPA_POLICY_ENVIRONMENT)
+  ) {
+    throw new Error(
+      `E-CFG01: invalid server configuration: ${OPA_FLAG_NAME}=enforce requires OPA_BASE_URL and OPA_POLICY_ENVIRONMENT`,
+    );
   }
 
   // 根拠: FinalArch:LLM-001 / ADR-0022（P2-T06）。gateway が既定経路。

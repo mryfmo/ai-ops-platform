@@ -97,6 +97,18 @@ decision := {
 
 decision := {
 	"decision": "allow",
+	"reasons": ["workbench_explicit_capability_grant"],
+	"obligations": {
+		"allowedProvider": "none",
+		"requireHumanApproval": false,
+	},
+	"policyBundleVersion": bundle_version,
+} if {
+	workbench_capability_read
+}
+
+decision := {
+	"decision": "allow",
 	"reasons": [sprintf("registered_%s_tool", [tool.risk])],
 	"obligations": {
 		"allowedProvider": "none",
@@ -192,6 +204,47 @@ m365_provenance_classification_safe if {
 m365_provenance_classification_safe if {
 	"provenance:incomplete" in input.resource.labels
 	input.resource.classification in {"customer-confidential", "restricted"}
+}
+
+workbench_capability_read if {
+	valid_input
+	input.actor.type == "human"
+	count(input.actor.id) > 0
+	count(input.actor.tenantId) > 0
+	input.agent == {"id": "workbench-bff", "kind": "web-workbench"}
+	input.action == {"name": "read", "riskLevel": "L0", "protocol": "ui"}
+	input.resource.system == "workbench"
+	input.resource.classification == "internal"
+	"capability-grant:active" in input.resource.labels
+	count(input.resource.labels) == 3
+	some workspace_label in input.resource.labels
+	startswith(workspace_label, "workspace-id:")
+	workspace_id := trim_prefix(workspace_label, "workspace-id:")
+	count(workspace_id) > 0
+	workbench_target_valid(workspace_id)
+	workbench_recipient_scope_valid
+}
+
+workbench_target_valid(_) if {
+	input.resource.id == sprintf("workbench:project:%s", [input.resource.projectId])
+}
+
+workbench_target_valid(_) if {
+	startswith(input.resource.id, "workbench:repository:")
+	count(trim_prefix(input.resource.id, "workbench:repository:")) > 0
+}
+
+workbench_target_valid(workspace_id) if {
+	input.resource.id == sprintf("workbench:space:%s", [workspace_id])
+}
+
+workbench_recipient_scope_valid if {
+	"recipient-scope:project" in input.resource.labels
+	input.resource.projectId in input.actor.projectIds
+}
+
+workbench_recipient_scope_valid if {
+	"recipient-scope:global" in input.resource.labels
 }
 
 project_in_scope if {
