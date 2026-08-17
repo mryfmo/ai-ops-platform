@@ -7,8 +7,8 @@ Date: 2026-08-17
 | Check | Result |
 | --- | --- |
 | Validator test before implementation | expected `ERR_MODULE_NOT_FOUND` |
-| `node --test deploy-workflow/deploy-workflow.test.mjs` | exit 0; 8/8 |
-| `pnpm --dir contracts test` | exit 0; 71/71 |
+| `node --test deploy-workflow/deploy-workflow.test.mjs` | exit 0; final 9/9 |
+| `pnpm --dir contracts test` | exit 0; final 72/72 |
 | `mise run actionlint` | exit 0 |
 | `bash -n deploy/aws/ecs-release.sh` | exit 0 |
 | `shellcheck deploy/aws/ecs-release.sh` | exit 0 |
@@ -23,12 +23,14 @@ The shell guard separately rejects a mutable image before invoking AWS.
 
 ## Repository CI
 
-`mise run ci` ran against task-owned fresh PostgreSQL 16 databases
+Two `mise run ci` passes ran against independently recreated task-owned fresh
+PostgreSQL 16 databases
 `aiops_p001`, `aiops_test`, and `aiops_load_test` on local port 55434. It exited
-0, including governance, Rego 25/25, contracts 71/71, dependency audit,
+0 both before and after review fixes, including governance, Rego 25/25,
+contracts 72/72 on the final pass, dependency audit,
 actionlint, lint, traceability, format, build, typecheck, all-package coverage,
 940 server tests, and `P001 PostgreSQL integration passed`. The dedicated
-`aiops-p10-t05-postgres` container was then stopped and deleted; the pre-existing
+`aiops-p10-t05-postgres` container was stopped and deleted after each pass; the pre-existing
 `aiops-p001-postgres` container was untouched.
 
 ## Scope and secret checks
@@ -45,4 +47,6 @@ actionlint, lint, traceability, format, build, typecheck, all-package coverage,
 
 - `make require-crit-review`: exit 2 because this repository has no such target.
 - Browser Crit was not opened because project instructions prohibit it.
-- A Codex review-profile pass is required on the exact commit before RESULT.
+- Exact-commit Codex review found and prompted fixes for repeated use of a
+  one-shot ECS pause hook and a non-terminal rollback timeout. Final exact-commit
+  review is required before RESULT.

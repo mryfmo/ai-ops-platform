@@ -161,4 +161,12 @@ describe("P10-T05 ECS release guard [FinalArch:FR-OBS-005 / REL-003]", () => {
       fs.rmSync(bin, { recursive: true, force: true });
     }
   });
+
+  it("continues the single pre-traffic pause once and requires terminal rollback", () => {
+    const script = fs.readFileSync(path.join(repoRoot, "deploy/aws/ecs-release.sh"), "utf8");
+    assert.match(script, /stepBakeTimeInMinutes:2/u);
+    assert.doesNotMatch(script, /while \(\( current < target \)\); do\s+continue_paused_deployment/u);
+    assert.match(script, /if \(\( current == 0 \)\); then\s+continue_paused_deployment/u);
+    assert.match(script, /\[\[ "\$rollback_complete" == true \]\] \|\| fail "timed out waiting for ECS rollback"/u);
+  });
 });

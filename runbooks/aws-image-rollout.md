@@ -42,10 +42,11 @@ STOP before dispatch when any condition is true:
 3. A successful staging job reaches the production GitHub Environment. Its required
    reviewer confirms the staging evidence, release provenance, previous digest,
    alarm ownership, and on-call availability before approval.
-4. Production starts at a pause hook while the new revision has 0% production
-   traffic. The workflow checks ECS traffic-weight readback and the alarm before
-   continuing to 10%, then through verified 10% increments to the explicit 50%
-   and 100% gates. A later gate never runs when an earlier gate fails.
+4. Production starts at the single pre-traffic pause hook while the new revision
+   has 0% production traffic. After that one continuation, ECS automatically
+   advances by 10% with a two-minute bake at each increment. The workflow checks
+   traffic-weight readback and the alarm at the explicit 10%, 50%, and 100% gates;
+   a later gate never runs when an earlier gate fails.
 5. Record ECS deployment/service-revision ARNs, actual traffic weights and times,
    alarm state/history, health evidence, and final task-definition digest.
 
@@ -55,7 +56,8 @@ The production failure handler runs inside the already approved Environment job;
 it does not wait for a second approval. When ECS is paused, it calls
 `ContinueServiceDeployment` with `ROLLBACK`; otherwise it requests an ECS service
 deployment rollback. Timeout action is also `ROLLBACK`. It verifies the service
-again resolves the recorded previous digest.
+reaches `ROLLBACK_SUCCESSFUL` and again resolves the recorded previous digest;
+rollback polling timeout is a failure and retains the recovery state.
 
 If automatic rollback fails, STOP traffic advancement, page the production owner,
 retain both immutable digests and all CloudTrail/ECS/CloudWatch evidence, and use

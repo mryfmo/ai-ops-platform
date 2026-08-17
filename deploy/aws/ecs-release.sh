@@ -103,7 +103,7 @@ wait_for_weight() {
       '.serviceDeployments[0].targetServiceRevision.requestedProductionTrafficWeight == $expected' \
       <<<"$detail" >/dev/null; then
       alarm_is_ok
-      if (( expected < 100 )); then
+      if (( expected == 0 )); then
         jq -e '
           .serviceDeployments[0].lifecycleStage == "PRE_PRODUCTION_TRAFFIC_SHIFT" and
           ([.serviceDeployments[0].lifecycleHookDetails[] |
@@ -160,7 +160,7 @@ start_production() {
   task_definition="$(register_task_definition "$image_ref")"
   configuration="$(jq -nc --arg alarm "$CLOUDWATCH_ALARM_NAME" '{
     strategy:"LINEAR",maximumPercent:200,minimumHealthyPercent:100,bakeTimeInMinutes:10,
-    linearConfiguration:{stepPercent:10,stepBakeTimeInMinutes:0},
+    linearConfiguration:{stepPercent:10,stepBakeTimeInMinutes:2},
     alarms:{alarmNames:[$alarm],enable:true,rollback:true},
     lifecycleHooks:[{targetType:"PAUSE",lifecycleStages:["PRE_PRODUCTION_TRAFFIC_SHIFT"],
       timeoutConfiguration:{timeoutInMinutes:60,action:"ROLLBACK"}}]
@@ -182,7 +182,7 @@ start_production() {
   fail "new production deployment was not observable"
 }
 
-# @description Continue a paused linear deployment through verified 10-percent steps to a named acceptance gate.
+# @description Continue the initial pause once, then observe ECS automatic linear progression to a named gate.
 # @arg $1 target_weight One of 10, 50, or 100.
 advance_production() {
   local target="$1" detail current image_ref
@@ -193,12 +193,11 @@ advance_production() {
   current="$(jq -r '.serviceDeployments[0].targetServiceRevision.requestedProductionTrafficWeight' <<<"$detail")"
   [[ "$current" =~ ^(0|10|20|30|40|50|60|70|80|90)(\.0)?$ ]] || fail "unexpected current traffic weight $current"
   current="${current%%.*}"
-  (( current < target )) || fail "target $target does not advance current weight $current"
-  while (( current < target )); do
+  (( current <= target )) || fail "deployment already passed target weight $target"
+  if (( current == 0 )); then
     continue_paused_deployment
-    current=$((current + 10))
-    wait_for_weight "$current"
-  done
+  fi
+  wait_for_weight "$target"
   if (( target == 100 )); then
     aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
     verify_service_image "$image_ref"
@@ -215,7 +214,7 @@ rollback_staging() {
 }
 
 rollback_production() {
-  local previous_ref="$1" deployment_arn hook_id status detail active_count
+  local previous_ref="$1" deployment_arn hook_id status detail active_count rollback_complete=false
   assert_digest "$previous_ref"
   [[ -f "$ROLLOUT_STATE_FILE" ]] || return 0
   [[ "$(jq -r '.previousImageRef' "$ROLLOUT_STATE_FILE")" == "$previous_ref" ]] || fail "rollback digest differs from recorded baseline"
@@ -244,10 +243,14 @@ rollback_production() {
     fi
     for _ in {1..90}; do
       status="$(deployment_detail | jq -r '.serviceDeployments[0].status')"
-      [[ "$status" == "ROLLBACK_SUCCESSFUL" ]] && break
+      if [[ "$status" == "ROLLBACK_SUCCESSFUL" ]]; then
+        rollback_complete=true
+        break
+      fi
       [[ "$status" != "ROLLBACK_FAILED" ]] || fail "ECS rollback failed"
       sleep 10
     done
+    [[ "$rollback_complete" == true ]] || fail "timed out waiting for ECS rollback"
   else
     deploy_rolling "$previous_ref"
   fi

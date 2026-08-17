@@ -14,10 +14,11 @@ digest. GitHub OIDC is the sole AWS credential path and every external action is
 pinned to a full commit SHA.
 
 [memory:decision] Production uses ECS native `LINEAR` traffic shifting at ten
-percent increments with a `PRE_PRODUCTION_TRAFFIC_SHIFT` pause hook. The workflow
-records explicit 0/10/50/100 gates, verifies every intermediate increment and
-the configured CloudWatch alarm, and runs rollback inside the already-approved
-production Environment job so rollback cannot wait for a second approval.
+percent increments with one `PRE_PRODUCTION_TRAFFIC_SHIFT` pause hook. After the
+single continuation ECS advances automatically; the workflow observes explicit
+0/10/50/100 gates and the configured CloudWatch alarm. Rollback runs inside the
+already-approved production Environment job so it cannot wait for a second
+approval, and it succeeds only at ECS's terminal rollback state.
 
 ## Delivered
 
@@ -58,6 +59,15 @@ fail-closed input behavior only.
 The required project-memory path `.claude/hooks/contextdb_cli.py` is absent in
 this checkout, so no project DB mutation was possible. Durable decisions are
 recorded above with `[memory:decision]` markers.
+
+## Independent review disposition
+
+The exact initial commit review found two P1 issues: it incorrectly treated the
+one-shot ECS pre-traffic pause as reusable at every linear increment, and rollback
+could fall through after polling timeout without a terminal success state. The
+implementation now continues once, observes ECS's automatic baked increments,
+adds a regression check, and retains state while failing any non-terminal
+rollback timeout. Targeted tests and fresh-DB full CI passed after both fixes.
 
 ## Evidence
 
