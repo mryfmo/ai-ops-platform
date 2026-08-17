@@ -1,0 +1,133 @@
+# 根拠: FinalArch:PRD-010 / FinalArch:FR-CP-008 / FinalArch:FR-OBS-005 / ADR-0029 / REL-003 / WBS P10-T05
+name: deploy-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: Immutable ECR reference (repository@sha256:digest)
+        required: true
+        type: string
+      previous_image_ref:
+        description: Previously verified immutable ECR reference for rollback
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-litellm
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate immutable release pair
+        env:
+          IMAGE_REF: ${{ inputs.image_ref }}
+          PREVIOUS_IMAGE_REF: ${{ inputs.previous_image_ref }}
+        run: |
+          set -euo pipefail
+          pattern='^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9][a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
+          [[ "$IMAGE_REF" =~ $pattern ]]
+          [[ "$PREVIOUS_IMAGE_REF" =~ $pattern ]]
+          test "$IMAGE_REF" != "$PREVIOUS_IMAGE_REF"
+          test "${IMAGE_REF%@sha256:*}" = "${PREVIOUS_IMAGE_REF%@sha256:*}"
+
+  staging:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.LITELLM_ECS_SERVICE }}
+      ECS_TASK_FAMILY: ${{ vars.LITELLM_TASK_FAMILY }}
+      ECS_CONTAINER: litellm
+      CLOUDWATCH_ALARM_NAME: ${{ vars.LITELLM_ROLLOUT_ALARM }}
+      ROLLOUT_STATE_FILE: ${{ github.workspace }}/.release/staging-rollout.json
+    steps:
+      - name: Checkout trusted deployment code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          unset-current-credentials: true
+
+      - name: Deploy and verify staging digest
+        id: staging-deploy
+        env:
+          IMAGE_REF: ${{ inputs.image_ref }}
+          ROLLBACK_IMAGE_REF: ${{ inputs.previous_image_ref }}
+        run: bash deploy/aws/ecs-release.sh deploy-staging "$IMAGE_REF" "$ROLLBACK_IMAGE_REF"
+
+      - name: Roll back failed staging deployment
+        id: rollback-staging
+        if: ${{ failure() }}
+        env:
+          ROLLBACK_IMAGE_REF: ${{ inputs.previous_image_ref }}
+        run: bash deploy/aws/ecs-release.sh rollback-staging "$ROLLBACK_IMAGE_REF"
+
+  production:
+    needs: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: production
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.LITELLM_ECS_SERVICE }}
+      ECS_TASK_FAMILY: ${{ vars.LITELLM_TASK_FAMILY }}
+      ECS_CONTAINER: litellm
+      CLOUDWATCH_ALARM_NAME: ${{ vars.LITELLM_ROLLOUT_ALARM }}
+      ROLLOUT_STATE_FILE: ${{ github.workspace }}/.release/production-rollout.json
+    steps:
+      - name: Checkout trusted deployment code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          unset-current-credentials: true
+
+      - name: Verify 0% production traffic gate
+        id: production-0
+        env:
+          IMAGE_REF: ${{ inputs.image_ref }}
+          ROLLBACK_IMAGE_REF: ${{ inputs.previous_image_ref }}
+        run: bash deploy/aws/ecs-release.sh start-production "$IMAGE_REF" "$ROLLBACK_IMAGE_REF"
+
+      - name: Verify 10% production traffic gate
+        id: production-10
+        run: bash deploy/aws/ecs-release.sh advance-production 10
+
+      - name: Verify 50% production traffic gate
+        id: production-50
+        run: bash deploy/aws/ecs-release.sh advance-production 50
+
+      - name: Verify 100% production traffic gate
+        id: production-100
+        run: bash deploy/aws/ecs-release.sh advance-production 100
+
+      - name: Roll back failed production deployment
+        id: rollback-production
+        if: ${{ failure() }}
+        env:
+          ROLLBACK_IMAGE_REF: ${{ inputs.previous_image_ref }}
+        run: bash deploy/aws/ecs-release.sh rollback-production "$ROLLBACK_IMAGE_REF"
