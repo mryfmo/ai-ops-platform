@@ -24,6 +24,34 @@ inputs:
     description: "agent=claude-code 専用のLiteLLM virtual key。CLI導入ステップには渡さない"
     required: false
     default: ""
+  execution_profile:
+    description: "能力推定ではなく監査用の実行プロファイルラベル"
+    required: false
+    default: "claude-code-fable5-xhigh"
+  max_runtime_seconds:
+    description: "Claude Code processの実行秒数上限（P8-T03 lease以下）"
+    required: false
+    default: "1800"
+  max_cost_usd:
+    description: "Claude Code CLI側のcost上限（LiteLLM virtual key側でも別途強制）"
+    required: false
+    default: "25"
+  max_tokens:
+    description: "Claude Code API task全体のtoken上限"
+    required: false
+    default: "200000"
+  max_tool_calls:
+    description: "Claude Code CLIのagentic turn上限"
+    required: false
+    default: "500"
+
+outputs:
+  execution_profile:
+    description: "監査用の実行プロファイルラベル"
+    value: ${{ steps.run_claude.outputs.execution_profile }}
+  evidence:
+    description: "P8-T01 callback fieldsに準拠する構造化実行証跡JSON"
+    value: ${{ steps.run_claude.outputs.evidence }}
 
 runs:
   using: "composite"
@@ -41,42 +69,133 @@ runs:
           exit 1
         fi
 
-    # AGENTS.md「npmコマンドは使用しない」に従い pnpm で導入する。バージョンは
-    # リポジトリの他の依存と同様に exact pin し、更新はレビュー付きの明示的なPRで行う。
-    # このステップにはgateway資格情報を渡さない: 依存のlifecycle scriptが動く可能性が
-    # あるため、virtual keyは実行ステップのenvにのみ展開する。
-    - name: Install Claude Code CLI (agent=claude-code)
+    # Native artifactをexact URL + SHA-256で検証してから配置する。package managerの
+    # optionalDependency解決やpostinstallに未検証コードを委ねない。virtual keyは
+    # このstepへ渡さず、後続の実行stepだけに閉じる。
+    - name: Install verified Claude Code CLI (agent=claude-code)
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
       env:
         CLAUDE_CODE_VERSION: "2.1.222"
+        CLAUDE_CODE_LINUX_X64_SHA256: "6680125b6f3baab47c84797cbeb3196e343c61bb4679cae15d138041a325c1ff"
       run: |
         set -euo pipefail
-        # pnpm 11 は既定でlifecycle scriptを実行しない。claude-code は postinstall
-        # (node install.cjs) でプラットフォーム別バイナリを配置するため、明示的に
-        # このパッケージだけbuildを許可する。許可しないと導入できても起動しない。
-        pnpm add --global --allow-build=@anthropic-ai/claude-code "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
-        claude --version
+        case "$(uname -s):$(uname -m)" in
+          Linux:x86_64) ;;
+          *) echo "::error::The pinned Claude Code artifact supports only the ubuntu-latest Linux x86_64 runner."; exit 1 ;;
+        esac
+        artifact="${RUNNER_TEMP}/claude-code-linux-x64-${CLAUDE_CODE_VERSION}.tgz"
+        extract_dir="${RUNNER_TEMP}/claude-code-${CLAUDE_CODE_VERSION}"
+        curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+          --output "${artifact}" \
+          "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-${CLAUDE_CODE_VERSION}.tgz"
+        echo "${CLAUDE_CODE_LINUX_X64_SHA256}  ${artifact}" | sha256sum -c -
+        mkdir -p "${extract_dir}"
+        tar --extract --gzip --file "${artifact}" --directory "${extract_dir}" --no-same-owner --no-same-permissions
+        install -m 0755 "${extract_dir}/package/claude" "${RUNNER_TEMP}/claude"
+        installed_version="$("${RUNNER_TEMP}/claude" --version)"
+        if [[ "${installed_version}" != "${CLAUDE_CODE_VERSION} (Claude Code)"* ]]; then
+          echo "::error::Installed Claude Code version does not match the reviewed pin."
+          exit 1
+        fi
+        echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
 
-    - name: Run Claude Code (agent=claude-code)
+    - name: Run bounded Claude Code (agent=claude-code)
+      id: run_claude
       if: ${{ inputs.agent == 'claude-code' }}
       shell: bash
       env:
         CODING_INSTRUCTION: ${{ inputs.instruction }}
+        EXECUTION_PROFILE: ${{ inputs.execution_profile }}
+        MAX_RUNTIME_SECONDS: ${{ inputs.max_runtime_seconds }}
+        MAX_COST_USD: ${{ inputs.max_cost_usd }}
+        MAX_TOKENS: ${{ inputs.max_tokens }}
+        MAX_TOOL_CALLS: ${{ inputs.max_tool_calls }}
         ANTHROPIC_BASE_URL: ${{ inputs.litellm_base_url }}
         ANTHROPIC_AUTH_TOKEN: ${{ inputs.litellm_coding_virtual_key }}
         ANTHROPIC_MODEL: "claude-code"
         ANTHROPIC_SMALL_FAST_MODEL: "claude-code"
       run: |
         set -euo pipefail
-        echo "[run-coding-agent] launching claude-code CLI"
+        if [[ "${EXECUTION_PROFILE}" != "claude-code-fable5-xhigh" ]]; then
+          echo "::error::execution_profile must be the reviewed claude-code-fable5-xhigh label."
+          exit 1
+        fi
+        if [[ ! "${MAX_RUNTIME_SECONDS}" =~ ^[1-9][0-9]{0,9}$ ]] || (( MAX_RUNTIME_SECONDS > 1800 )); then
+          echo "::error::max_runtime_seconds must be an integer between 1 and 1800."
+          exit 1
+        fi
+        if ! jq -en --arg value "${MAX_COST_USD}" '$value | tonumber | select(. > 0 and . <= 25)' >/dev/null; then
+          echo "::error::max_cost_usd must be a number greater than 0 and at most 25."
+          exit 1
+        fi
+        if [[ ! "${MAX_TOKENS}" =~ ^[1-9][0-9]{0,9}$ ]] || (( MAX_TOKENS > 200000 )); then
+          echo "::error::max_tokens must be an integer between 1 and 200000."
+          exit 1
+        fi
+        if [[ ! "${MAX_TOOL_CALLS}" =~ ^[1-9][0-9]{0,9}$ ]] || (( MAX_TOOL_CALLS > 500 )); then
+          echo "::error::max_tool_calls must be an integer between 1 and 500."
+          exit 1
+        fi
+        current_branch="$(git symbolic-ref --quiet --short HEAD)" || {
+          echo "::error::Claude Code requires a named agent/* branch."
+          exit 1
+        }
+        case "${current_branch}" in
+          agent/*) ;;
+          *) echo "::error::Claude Code may run only on an agent/* PR branch."; exit 1 ;;
+        esac
+
+        echo "[run-coding-agent] launching profile=${EXECUTION_PROFILE} branch=${current_branch}"
         # virtual keyはLiteLLM側でclaude-code aliasだけを許可し、budget上限とexpiryを
         # 必ず設定する。provider credentialはrunnerへ渡さない。
-        # --permission-mode acceptEdits はコード編集を自動承認するが、git commit/push・
-        # PR作成はcoding-task.yml側のステップが別途行う（AC-002b: 自動マージはしない）。
+        # dontAsk + explicit tool rulesにより未知のtool/commandは非対話で拒否する。
+        # git commit/push・PR作成はcoding-task.yml側の資格分離済みstepだけが行う
+        # （AC-002b: 自動マージはしない）。
         # 呼び出し側は checkout の persist-credentials: false と core.hooksPath=/dev/null で
         # 資格情報の残留とフック実行を封じている。
-        claude -p "${CODING_INSTRUCTION}" --model "${ANTHROPIC_MODEL}" --permission-mode acceptEdits
+        evidence_schema='{"type":"object","additionalProperties":false,"required":["execution_profile","commands_executed","test_results","skipped_failed_checks","changed_paths","dependency_changes","security_findings","unresolved_decisions"],"properties":{"execution_profile":{"const":"claude-code-fable5-xhigh"},"commands_executed":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["command","result","evidence"],"properties":{"command":{"type":"string"},"result":{"enum":["pass","fail"]},"evidence":{"type":"string"}}}},"test_results":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["test","result","evidence"],"properties":{"test":{"type":"string"},"result":{"enum":["pass","fail"]},"evidence":{"type":"string"}}}},"skipped_failed_checks":{"type":"array","items":{"type":"string"}},"changed_paths":{"type":"array","items":{"type":"string"}},"dependency_changes":{"type":"array","items":{"type":"string"}},"security_findings":{"type":"array","items":{"type":"string"}},"unresolved_decisions":{"type":"array","items":{"type":"string"}}}}'
+        result_file="${RUNNER_TEMP}/claude-code-result-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}.json"
+        trap 'rm -f "${result_file}"' EXIT
+        timeout --signal=TERM --kill-after=30s "${MAX_RUNTIME_SECONDS}s" \
+          claude -p "${CODING_INSTRUCTION}" \
+          --model "${ANTHROPIC_MODEL}" \
+          --effort xhigh \
+          --permission-mode dontAsk \
+          --safe-mode \
+          --no-chrome \
+          --disable-slash-commands \
+          --no-session-persistence \
+          --strict-mcp-config \
+          --mcp-config '{"mcpServers":{}}' \
+          --tools "Read,Edit,Write,Glob,Grep,Bash" \
+          --allowedTools \
+            "Read" "Edit" "Write" "Glob" "Grep" \
+            "Bash(git status *)" "Bash(git diff *)" "Bash(git log *)" \
+            "Bash(git show *)" "Bash(git grep *)" "Bash(git rev-parse *)" \
+            "Bash(git ls-files *)" "Bash(rg *)" "Bash(node --test *)" \
+            "Bash(pnpm run *)" "Bash(pnpm --filter * run *)" "Bash(mise run *)" \
+          --disallowedTools \
+            "WebFetch" "WebSearch" \
+            "Bash(curl *)" "Bash(wget *)" "Bash(gh *)" "Bash(ssh *)" "Bash(scp *)" "Bash(rsync *)" \
+            "Bash(git push *)" "Bash(git commit *)" "Bash(git tag *)" "Bash(git merge *)" \
+            "Bash(git rebase *)" "Bash(git reset *)" \
+            "Bash(aws *)" "Bash(kubectl *)" "Bash(terraform *)" "Bash(helm *)" \
+            "Bash(docker *)" "Bash(podman *)" \
+            "Bash(pnpm add *)" "Bash(pnpm install *)" "Bash(pnpm publish *)" "Bash(npm *)" "Bash(npx *)" \
+          --max-budget-usd "${MAX_COST_USD}" \
+          --task-budget "${MAX_TOKENS}" \
+          --max-turns "${MAX_TOOL_CALLS}" \
+          --output-format json \
+          --json-schema "${evidence_schema}" > "${result_file}"
+
+        evidence="$(jq -ce --arg profile "${EXECUTION_PROFILE}" \
+          '.structured_output | select(.execution_profile == $profile)' "${result_file}")" || {
+          echo "::error::Claude Code did not return valid structured callback evidence."
+          exit 1
+        }
+        echo "execution_profile=${EXECUTION_PROFILE}" >> "${GITHUB_OUTPUT}"
+        echo "evidence=${evidence}" >> "${GITHUB_OUTPUT}"
 
     # ADR-0006「影響」節の残課題: Droid実行ステップはFactory側のCI実行方式が
     # 確定するまで有効化しない。動かない経路を動くように見せず、明示的に失敗させる

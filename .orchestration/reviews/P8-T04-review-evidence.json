@@ -1,0 +1,24 @@
+{
+  "task_id": "P8-T04",
+  "review_surface": "crit-data-unavailable-local-staged-diff",
+  "reviewer": "codex",
+  "reviewed_base": "6f3a2acbb420928baf08565e235f55f74a6689a4",
+  "findings": [
+    {
+      "id": "P8-T04-SELF-001",
+      "severity": "medium",
+      "status": "resolved",
+      "finding": "The first validator version did not mechanically pin --effort xhigh or the LiteLLM base URL and model aliases, so a route/profile drift could pass the static gate.",
+      "resolution": "Pinned the exact base URL input binding, both claude-code aliases, and --effort xhigh; added negative mutations and reran focused and full contract tests."
+    },
+    {
+      "id": "P8-T04-SELF-002",
+      "severity": "low",
+      "status": "resolved",
+      "finding": "The first validator checked the artifact filename and digest but not the complete reviewed npm registry URL.",
+      "resolution": "Required the complete platform-package URL in the installer contract while preserving pre-extraction digest verification."
+    }
+  ],
+  "review_outcome": "approved",
+  "unresolved_findings": []
+}

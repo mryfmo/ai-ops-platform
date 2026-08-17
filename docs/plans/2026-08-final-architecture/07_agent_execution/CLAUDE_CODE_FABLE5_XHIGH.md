@@ -54,3 +54,18 @@ Report: evidence template
 6. Work IQ/Graph、LiteLLM/agentgatewayの責務を混ぜていないか。
 7. testがmock successだけでE2Eを装っていないか。
 8. spec ID/ADR/AC/traceabilityを更新したか。
+
+## CI implementation record（P8-T04）
+
+- `@anthropic-ai/claude-code-linux-x64@2.1.222`をSHA-256
+  `6680125b6f3baab47c84797cbeb3196e343c61bb4679cae15d138041a325c1ff`で検証してから実行する。
+- `claude-code-fable5-xhigh`は監査用の固定プロファイルラベルであり、provider/model routingはLiteLLM側の責務とする。
+- actionの固定上限はruntime 1,800秒、cost 25 USD、task budget 200,000 tokens、agentic turns 500。
+  callerは値を下げられるが上げられず、gateway側の独立制限も維持する。
+- `agent/*` branch gate、built-in tool allowlist、network/deploy/git mutation deny、safe modeをaction内で強制する。
+- 実行結果はprofile、commands、tests、changed paths、dependency changes、security findings、未解決事項を含む
+  strict JSON schemaで返す。
+
+このaction単体が保証するのは上記の固定プロファイルだけである。P8-T01 manifestによるtask固有path/budget、
+P8-T02 path guardのrunner結線、evidence永続化とraw parallel tool-call計数はP8-T08/P8-T09で扱う。
+staging E2EおよびOSレベルのegress隔離は本変更では主張しない。
