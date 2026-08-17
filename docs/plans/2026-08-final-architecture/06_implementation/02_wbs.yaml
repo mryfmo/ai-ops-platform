@@ -2464,18 +2464,28 @@ tasks:
   risk: high
   allowed_paths:
   - packages/control-plane/src/activities/**
+  - packages/control-plane/tests/**
   - deploy/litellm/**
   - .github/workflows/coding-task.yml
   forbidden_paths:
   - main direct push
   - production configuration without approved environment gate
   deliverables:
-  - job-scoped key lifecycle
+  - job-scoped LiteLLM virtual-key lifecycle
+  - job-scoped GitHub App installation-token mint/use/revoke lifecycle
+  - repository/permission-scoped installation token injected only into dedicated push/PR steps
+  - GitHub OIDC audience-bound workflow-to-issuer authentication; no master key or App private key on the runner
   acceptance:
   - model/budget/expiry enforced
-  - revoked after run
+  - LiteLLM virtual key and GitHub installation token revoked after successful or failed run, with finite expiry as defense in depth
+  - installation token limited to the requested repository and minimum push/PR permissions
+  - PAT removal readiness proven; final secret deletion remains owned by P10-T10
   verification:
   - key negative/expiry tests
+  - always-run revocation tests for successful and failed runner paths
+  - out-of-scope repository and main-push negative tests
+  - missing issuer configuration and missing or wrong-audience GitHub OIDC token fail closed
+  - runner input and environment contain no LiteLLM master key, provider key, or GitHub App private key
   rollback: Revert the task PR and leave the previous path enabled.
   acceptance_gate_ids:
   - COD-002

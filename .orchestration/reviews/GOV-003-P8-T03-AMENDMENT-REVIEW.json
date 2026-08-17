@@ -1,0 +1,22 @@
+{
+  "task_id": "GOV-003-P8-T03-AMENDMENT",
+  "reviewer": "codex-deep-dot",
+  "review_surface": "exact-staged-diff",
+  "base": "1d49f2362283ee100ba3d68a894f5ba4cbad673c",
+  "scope": [
+    "WBS amendment completeness",
+    "GOV-003 signature timing",
+    "credential trust boundaries",
+    "allowed-path compliance",
+    "pack checksum integrity"
+  ],
+  "findings": [],
+  "records": [
+    {
+      "id": "GOV-003-P8-T03-AMENDMENT-REVIEW-001",
+      "status": "resolved",
+      "outcome": "approved",
+      "detail": "Exact staged diff covers every mandatory security-plan amendment, preserves P10-T10 final-deletion ownership, does not pre-claim Owner signature, and contains no implementation or open-PR path changes."
+    }
+  ]
+}
