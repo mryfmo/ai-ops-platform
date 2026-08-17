@@ -101,6 +101,45 @@ variable "secret_names" {
   type = set(string)
 }
 
+variable "kms_administrator_role_arns" {
+  type = set(string)
+  validation {
+    condition     = length(var.kms_administrator_role_arns) > 0
+    error_message = "at least one separate KMS administrator role ARN is required."
+  }
+}
+
+variable "rotation_secret_names" {
+  type    = set(string)
+  default = []
+}
+
+variable "enable_rotation" {
+  type    = bool
+  default = false
+}
+
+variable "rotation_lambda_arn" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
+variable "rotation_role_arn" {
+  type     = string
+  default  = null
+  nullable = true
+}
+
+variable "bootstrap_role_arn" {
+  type = string
+}
+
+variable "bedrock_model_arns" {
+  type    = set(string)
+  default = []
+}
+
 variable "services" {
   type = map(object({
     repository    = string
@@ -114,6 +153,14 @@ variable "services" {
     environment   = map(string)
     secret_names  = map(string)
   }))
+  validation {
+    condition     = alltrue([for name in keys(var.services) : contains(["server", "litellm", "temporal", "agentgateway", "opa", "web"], name)])
+    error_message = "services may contain only the five governed workloads and the secretless web compatibility service."
+  }
+  validation {
+    condition     = try(length(var.services.web.secret_names), 0) == 0
+    error_message = "the web compatibility service must not receive Secrets Manager values."
+  }
 }
 
 variable "rds_instance_class" {
@@ -136,7 +183,12 @@ locals {
     ManagedBy   = "terraform"
     Project     = "ai-ops-platform"
   })
-  repository_names = toset([for service in values(var.services) : "${local.name}/${service.repository}"])
+  repository_names       = toset([for service in values(var.services) : "${local.name}/${service.repository}"])
+  governed_service_names = toset(["server", "litellm", "temporal", "agentgateway", "opa"])
+  compatibility_service_names = setsubtract(
+    toset(keys(var.services)),
+    local.governed_service_names
+  )
   database_secret_names = toset([
     "database/app-password",
     "database/litellm-password",
@@ -144,6 +196,15 @@ locals {
   secret_names = toset([
     for secret_name in setunion(var.secret_names, local.database_secret_names) : "${local.name}/${secret_name}"
   ])
+  service_secret_names = {
+    for service in local.governed_service_names : service => setunion(
+      toset([
+        for secret_name in values(try(var.services[service].secret_names, {})) : "${local.name}/${secret_name}"
+      ]),
+      service == "server" ? toset(["${local.name}/database/app-password"]) : toset([]),
+      service == "litellm" ? toset(["${local.name}/database/litellm-password"]) : toset([])
+    )
+  }
 }
 
 resource "aws_backup_vault" "rds_long_term_dr" {
@@ -186,9 +247,21 @@ module "ecr" {
 }
 
 module "secrets_manager" {
-  source = "../modules/secrets-manager"
-  names  = local.secret_names
-  tags   = local.tags
+  source                      = "../modules/secrets-manager"
+  names                       = local.secret_names
+  environment                 = var.environment
+  create_kms_key              = true
+  workload_role_name_prefix   = local.name
+  service_secret_names        = local.service_secret_names
+  kms_administrator_role_arns = var.kms_administrator_role_arns
+  rotation_secret_names = toset([
+    for secret_name in var.rotation_secret_names : "${local.name}/${secret_name}"
+  ])
+  enable_rotation     = var.enable_rotation
+  rotation_lambda_arn = var.rotation_lambda_arn
+  rotation_role_arn   = var.rotation_role_arn
+  bootstrap_role_arn  = var.bootstrap_role_arn
+  tags                = local.tags
 }
 
 module "identity" {
@@ -197,11 +270,19 @@ module "identity" {
   environment             = var.environment
   github_repository       = var.github_repository
   github_oidc_thumbprints = var.github_oidc_thumbprints
-  ecr_repository_arns     = values(module.ecr.repository_arns)
-  secret_arns = [
-    for secret_name in var.secret_names :
-    module.secrets_manager.secret_arns["${local.name}/${secret_name}"]
+  ecr_repository_arns = [
+    for service in local.compatibility_service_names :
+    module.ecr.repository_arns["${local.name}/${var.services[service].repository}"]
   ]
+  secret_arns = []
+  service_ecr_repository_arns = {
+    for service in local.governed_service_names : service => contains(keys(var.services), service) ? toset([
+      module.ecr.repository_arns["${local.name}/${var.services[service].repository}"]
+    ]) : toset([])
+  }
+  service_secret_names          = local.service_secret_names
+  secrets_kms_key_arn           = module.secrets_manager.kms_key_arn
+  bedrock_model_arns            = var.bedrock_model_arns
   github_deployment_policy_json = null
   tags                          = local.tags
 }
@@ -232,9 +313,15 @@ module "ecs_fargate" {
   vpc_id                = module.network.vpc_id
   private_subnet_ids    = module.network.private_subnet_ids
   alb_security_group_id = module.alb.security_group_id
-  execution_role_arn    = module.identity.ecs_execution_role_arn
-  task_role_arn         = module.identity.ecs_task_role_arn
-  target_group_arns     = module.alb.target_group_arns
+  execution_role_arns = {
+    for service in keys(var.services) : service => contains(local.governed_service_names, service) ?
+    module.identity.service_execution_role_arns[service] : module.identity.ecs_execution_role_arn
+  }
+  task_role_arns = {
+    for service in keys(var.services) : service => contains(local.governed_service_names, service) ?
+    module.identity.service_task_role_arns[service] : module.identity.ecs_task_role_arn
+  }
+  target_group_arns = module.alb.target_group_arns
   services = {
     for name, service in var.services : name => {
       image         = service.image
