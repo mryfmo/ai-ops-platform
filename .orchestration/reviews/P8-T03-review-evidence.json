@@ -1,0 +1,39 @@
+{
+  "task_id": "P8-T03",
+  "review_surface": "local-staged-diff",
+  "reviewer": "codex-deep-dot",
+  "review_source": "git diff --cached plus full file reads",
+  "review_outcome": "approved",
+  "crit_status": {
+    "review_file": "/Users/mryfmo/.crit/reviews/695cd003b293/review.json",
+    "review_file_exists": false,
+    "browser_review_opened": false
+  },
+  "dimensions": [
+    "spec_compliance",
+    "architecture_drift",
+    "security",
+    "correctness",
+    "idempotency",
+    "test_adequacy",
+    "observability",
+    "rollback",
+    "documentation_traceability"
+  ],
+  "resolved_findings": [
+    {
+      "id": "P8-T03-SELF-001",
+      "severity": "high",
+      "finding": "An injected provider could return an already-expired derived credential; the issuer rejected it but did not revoke the credential first.",
+      "resolution": "Move expiry validation into the common lease-save boundary and revoke invalid issued credentials before rejecting them; add a negative test proving no lease is stored."
+    },
+    {
+      "id": "P8-T03-SELF-002",
+      "severity": "medium",
+      "finding": "Workflow output validation rejected LF but allowed CR in token, lease, and audience values.",
+      "resolution": "Reject both CR and LF before writing credential outputs or requesting an OIDC token; keep the structural workflow assertion."
+    }
+  ],
+  "deferred_scope": "Live issuer routing, real LiteLLM/GitHub App conformance, post-job denial, and final AIOPS_PR_TOKEN secret deletion remain environment-gated/P10-T10 work.",
+  "note": "Crit data was unavailable and browser Crit is prohibited by project policy. This records the required local self-review and does not authenticate an independent reviewer."
+}
