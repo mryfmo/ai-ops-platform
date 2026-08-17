@@ -69,7 +69,8 @@ implementation now continues once, observes ECS's automatic baked increments,
 accepts an already-reached gate only after status/alarm validation, adds regression
 checks, and retains state while failing any non-terminal rollback timeout.
 Targeted tests and fresh-DB full CI passed after the first review fixes; the
-delayed-runner race received the same validation before RESULT.
+delayed-runner race received the same validation, and its exact-commit review
+reported no actionable regression before RESULT.
 
 ## Evidence
 

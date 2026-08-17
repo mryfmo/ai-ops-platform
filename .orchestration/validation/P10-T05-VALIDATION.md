@@ -51,5 +51,5 @@ actionlint, lint, traceability, format, build, typecheck, all-package coverage,
   one-shot ECS pause hook and a non-terminal rollback timeout. Final exact-commit
   review then found an automatic-progression race when a runner observes a gate
   after ECS has passed it. The final implementation accepts an already-reached
-  gate only after deployment status and alarm validation. Another exact-commit
-  review is required before RESULT.
+  gate only after deployment status and alarm validation. The exact final code
+  commit review reported no actionable regression.
