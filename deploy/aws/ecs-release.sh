@@ -92,16 +92,17 @@ deployment_detail() {
 }
 
 wait_for_weight() {
-  local expected="$1" detail status
+  local expected="$1" detail status current
   for _ in {1..90}; do
     detail="$(deployment_detail)"
     status="$(jq -r '.serviceDeployments[0].status' <<<"$detail")"
     case "$status" in
       ROLLBACK_*|STOPPED|STOP_REQUESTED) fail "deployment entered $status" ;;
     esac
-    if jq -e --argjson expected "$expected" \
-      '.serviceDeployments[0].targetServiceRevision.requestedProductionTrafficWeight == $expected' \
-      <<<"$detail" >/dev/null; then
+    current="$(jq -r '.serviceDeployments[0].targetServiceRevision.requestedProductionTrafficWeight' <<<"$detail")"
+    [[ "$current" =~ ^(0|10|20|30|40|50|60|70|80|90|100)(\.0)?$ ]] || fail "unexpected traffic weight $current"
+    current="${current%%.*}"
+    if (( (expected == 0 && current == 0) || (expected > 0 && current >= expected) )); then
       alarm_is_ok
       if (( expected == 0 )); then
         jq -e '
@@ -191,9 +192,8 @@ advance_production() {
   assert_digest "$image_ref"
   detail="$(deployment_detail)"
   current="$(jq -r '.serviceDeployments[0].targetServiceRevision.requestedProductionTrafficWeight' <<<"$detail")"
-  [[ "$current" =~ ^(0|10|20|30|40|50|60|70|80|90)(\.0)?$ ]] || fail "unexpected current traffic weight $current"
+  [[ "$current" =~ ^(0|10|20|30|40|50|60|70|80|90|100)(\.0)?$ ]] || fail "unexpected current traffic weight $current"
   current="${current%%.*}"
-  (( current <= target )) || fail "deployment already passed target weight $target"
   if (( current == 0 )); then
     continue_paused_deployment
   fi

@@ -66,8 +66,10 @@ The exact initial commit review found two P1 issues: it incorrectly treated the
 one-shot ECS pre-traffic pause as reusable at every linear increment, and rollback
 could fall through after polling timeout without a terminal success state. The
 implementation now continues once, observes ECS's automatic baked increments,
-adds a regression check, and retains state while failing any non-terminal
-rollback timeout. Targeted tests and fresh-DB full CI passed after both fixes.
+accepts an already-reached gate only after status/alarm validation, adds regression
+checks, and retains state while failing any non-terminal rollback timeout.
+Targeted tests and fresh-DB full CI passed after the first review fixes; the
+delayed-runner race received the same validation before RESULT.
 
 ## Evidence
 

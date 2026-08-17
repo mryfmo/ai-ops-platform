@@ -14,6 +14,11 @@ LINEAR increment. Continue it once, then observe the platform's automatic baked
 increments; use a different deployment mechanism if every gate must be manually
 held.
 
+[memory:failure] Automatic increments can pass a workflow gate while a runner is
+delayed. Treat a greater observed weight as an already-reached gate only after
+the deployment status and alarm remain healthy; exact-equality polling creates
+false rollback.
+
 [memory:decision] Treat local structural proof separately from REL-003: real
 target groups, alarms, traffic, AWS CLI/API support, and measured terminal
 rollback remain environment evidence.

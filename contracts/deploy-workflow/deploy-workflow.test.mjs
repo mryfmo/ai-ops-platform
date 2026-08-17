@@ -167,6 +167,9 @@ describe("P10-T05 ECS release guard [FinalArch:FR-OBS-005 / REL-003]", () => {
     assert.match(script, /stepBakeTimeInMinutes:2/u);
     assert.doesNotMatch(script, /while \(\( current < target \)\); do\s+continue_paused_deployment/u);
     assert.match(script, /if \(\( current == 0 \)\); then\s+continue_paused_deployment/u);
+    assert.match(script, /expected > 0 && current >= expected/u);
+    assert.match(script, /80\|90\|100/u);
+    assert.doesNotMatch(script, /deployment already passed target weight/u);
     assert.match(script, /\[\[ "\$rollback_complete" == true \]\] \|\| fail "timed out waiting for ECS rollback"/u);
   });
 });

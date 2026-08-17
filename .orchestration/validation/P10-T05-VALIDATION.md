@@ -23,10 +23,10 @@ The shell guard separately rejects a mutable image before invoking AWS.
 
 ## Repository CI
 
-Two `mise run ci` passes ran against independently recreated task-owned fresh
+Three `mise run ci` passes ran against independently recreated task-owned fresh
 PostgreSQL 16 databases
 `aiops_p001`, `aiops_test`, and `aiops_load_test` on local port 55434. It exited
-0 both before and after review fixes, including governance, Rego 25/25,
+0 before review and after each review-fix round, including governance, Rego 25/25,
 contracts 72/72 on the final pass, dependency audit,
 actionlint, lint, traceability, format, build, typecheck, all-package coverage,
 940 server tests, and `P001 PostgreSQL integration passed`. The dedicated
@@ -49,4 +49,7 @@ actionlint, lint, traceability, format, build, typecheck, all-package coverage,
 - Browser Crit was not opened because project instructions prohibit it.
 - Exact-commit Codex review found and prompted fixes for repeated use of a
   one-shot ECS pause hook and a non-terminal rollback timeout. Final exact-commit
+  review then found an automatic-progression race when a runner observes a gate
+  after ECS has passed it. The final implementation accepts an already-reached
+  gate only after deployment status and alarm validation. Another exact-commit
   review is required before RESULT.

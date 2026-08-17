@@ -46,7 +46,8 @@ STOP before dispatch when any condition is true:
    has 0% production traffic. After that one continuation, ECS automatically
    advances by 10% with a two-minute bake at each increment. The workflow checks
    traffic-weight readback and the alarm at the explicit 10%, 50%, and 100% gates;
-   a later gate never runs when an earlier gate fails.
+   a delayed runner accepts an already-reached gate only after rechecking deployment
+   status and the alarm. A later gate never runs when an earlier gate fails.
 5. Record ECS deployment/service-revision ARNs, actual traffic weights and times,
    alarm state/history, health evidence, and final task-definition digest.
 
