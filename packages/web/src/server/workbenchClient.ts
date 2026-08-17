@@ -46,6 +46,15 @@ const pendingActionSchema = z
   })
   .strict();
 
+const grantSchema = z
+  .object({
+    resourceType: z.enum(["project", "repository", "space"]),
+    resourceId: z.string().min(1).max(512),
+    policyBundleVersion: z.string().min(1).max(128),
+    decisionId: z.uuid().nullable(),
+  })
+  .strict();
+
 const workspaceSchema = z
   .object({
     workspaceId: z.uuid(),
@@ -56,6 +65,7 @@ const workspaceSchema = z
     sources: z.array(sourceSchema),
     runs: z.array(runSchema),
     pendingActions: z.array(pendingActionSchema),
+    grant: grantSchema,
   })
   .strict();
 

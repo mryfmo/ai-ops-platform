@@ -46,7 +46,7 @@ import {
   promoteToStagingIfEligible,
   triageAndNotify,
 } from "@aiops/devops";
-import { loadConfig } from "./config.js";
+import { loadConfig, OPA_FLAG_NAME } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { PgAuditLog } from "./db/pgAuditLog.js";
 import { EventsRepo } from "./db/eventsRepo.js";
@@ -68,6 +68,7 @@ import { ApprovalsRepo } from "./db/approvalsRepo.js";
 import { DeploymentsRepo } from "./db/deploymentsRepo.js";
 import { ActionReminderStateRepo } from "./db/actionReminderStateRepo.js";
 import { buildApp } from "./http/app.js";
+import { createWorkbenchPolicyDependencies } from "./http/routes/workbench.js";
 import {
   guardFailsafeTask,
   instrumentScheduledTask,
@@ -213,6 +214,11 @@ export async function main(
   } = {},
 ): Promise<void> {
   const config = bootstrap.config ?? loadConfig();
+  const workbenchPolicy = createWorkbenchPolicyDependencies({
+    enforce: config.MIGRATION_FLAGS.get(OPA_FLAG_NAME) === "enforce",
+    baseUrl: config.OPA_BASE_URL,
+    environment: config.OPA_POLICY_ENVIRONMENT,
+  });
   const logger = bootstrap.logger ?? createLogger(config.LOG_LEVEL);
   const metrics = new MetricsRegistry();
   const jpHolidayCalendar = loadJpHolidayCalendar();
@@ -1082,6 +1088,7 @@ export async function main(
     workbench: {
       workbenchRepo,
       recipientsRepo,
+      ...workbenchPolicy,
       auditLog: devopsAuditLog,
       identitySecret: config.WEB_BFF_IDENTITY_SECRET,
       traceIdProvider: () => randomUUID(),

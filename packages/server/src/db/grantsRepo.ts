@@ -8,13 +8,31 @@
 import type { PgQueryable } from "@aiops/shared";
 import type { GrantRecord } from "@aiops/devops";
 
+export const WORKBENCH_GRANT_TARGET_PREFIX = {
+  project: "workbench:project:",
+  repository: "workbench:repository:",
+  space: "workbench:space:",
+} as const;
+
+export type WorkbenchGrantResourceType = keyof typeof WORKBENCH_GRANT_TARGET_PREFIX;
+
+export function workbenchGrantTarget(resourceType: WorkbenchGrantResourceType, resourceId: string): string {
+  if (resourceId.length === 0 || resourceId.length > 512 || /\p{Cc}/u.test(resourceId)) {
+    throw new TypeError("Workbench grant resource ID is invalid");
+  }
+  return `${WORKBENCH_GRANT_TARGET_PREFIX[resourceType]}${resourceId}`;
+}
+
 export class GrantsRepo {
   constructor(private readonly db: PgQueryable) {}
 
   /** 未失効の権限を台帳から読み込む（JIT失効ジョブの入力） */
   async loadActiveGrants(): Promise<GrantRecord[]> {
     const res = await this.db.query(
-      "SELECT grant_id, subject, target, level, expires_at, revoked_at FROM grants WHERE revoked_at IS NULL",
+      `SELECT grant_id, subject, target, level, expires_at, revoked_at
+       FROM grants
+       WHERE revoked_at IS NULL
+         AND target NOT LIKE 'workbench:%'`,
     );
     return res.rows.map((r) => {
       const target = String(r.target);

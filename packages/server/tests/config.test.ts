@@ -383,6 +383,35 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.MIGRATION_FLAGS.get("control.legacy_scheduler.enabled")).toBe("true");
   });
 
+  it("FinalArch:FR-UI-004 / FinalArch:CON-004: OPA enforce は origin root URL と環境を必須にする", () => {
+    expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_POLICY_OPA_ENFORCE: "enforce" })).toThrow(
+      /E-CFG01.*OPA_BASE_URL.*OPA_POLICY_ENVIRONMENT/u,
+    );
+    const config = loadConfig({
+      ...validEnv,
+      AIOPS_FLAG_POLICY_OPA_ENFORCE: "enforce",
+      OPA_BASE_URL: "http://opa.aiops.internal:8181",
+      OPA_POLICY_ENVIRONMENT: "staging",
+    });
+    expect(config.OPA_BASE_URL).toBe("http://opa.aiops.internal:8181");
+    expect(config.OPA_POLICY_ENVIRONMENT).toBe("staging");
+  });
+
+  it.each([
+    "http://user@opa.aiops.internal:8181",
+    "http://opa.aiops.internal:8181/tenant-a",
+    "http://opa.aiops.internal:8181/?policy=other",
+  ])("FinalArch:CON-004: OPA endpoint rebound/credential URL を拒否する: %s", (baseUrl) => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        AIOPS_FLAG_POLICY_OPA_ENFORCE: "enforce",
+        OPA_BASE_URL: baseUrl,
+        OPA_POLICY_ENVIRONMENT: "dev",
+      }),
+    ).toThrow("E-CFG01");
+  });
+
   it("FinalArch:GOV-005: 不正な移行flag値はE-CFG01で起動失敗させる", () => {
     expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED: "on" })).toThrow("E-FLAG01");
     expect(() => loadConfig({ ...validEnv, AIOPS_FLAG_TYPO_ENABLED: "primary" })).toThrow("E-FLAG04");
