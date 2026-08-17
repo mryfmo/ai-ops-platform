@@ -2,6 +2,12 @@
 
 export { teamsAdapter } from "./adapters/teams.js";
 export { buildApprovalCard } from "./lib/approvalCard.js";
+export { buildWorkbenchHandoffCard, verifyWorkbenchHandoffUrl } from "./lib/workbenchHandoffCard.js";
+export type {
+  BuildWorkbenchHandoffCardInput,
+  VerifiedWorkbenchHandoffUrl,
+  WorkbenchHandoffAdaptiveCard,
+} from "./lib/workbenchHandoffCard.js";
 export type {
   ApprovalAdaptiveCard,
   ApprovalCardActionData,
