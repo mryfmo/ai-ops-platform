@@ -1,0 +1,336 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`FinalArch:FR-UI-006 typed rich result cards > renders status/table/chart/incident/PR/source results deterministically 1`] = `
+[
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "Release status",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "color": "Good",
+        "text": "All checks passed",
+        "type": "TextBlock",
+        "wrap": true,
+      },
+      {
+        "facts": [
+          {
+            "title": "Status",
+            "value": "healthy",
+          },
+          {
+            "title": "Version",
+            "value": "v42",
+          },
+        ],
+        "type": "FactSet",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "DORA metrics",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "columns": [
+          {
+            "width": 1,
+          },
+          {
+            "width": 1,
+          },
+        ],
+        "firstRowAsHeaders": true,
+        "rows": [
+          {
+            "cells": [
+              {
+                "items": [
+                  {
+                    "text": "Metric",
+                    "type": "TextBlock",
+                    "wrap": true,
+                  },
+                ],
+                "type": "TableCell",
+              },
+              {
+                "items": [
+                  {
+                    "text": "Value",
+                    "type": "TextBlock",
+                    "wrap": true,
+                  },
+                ],
+                "type": "TableCell",
+              },
+            ],
+            "type": "TableRow",
+          },
+          {
+            "cells": [
+              {
+                "items": [
+                  {
+                    "text": "Lead time",
+                    "type": "TextBlock",
+                    "wrap": true,
+                  },
+                ],
+                "type": "TableCell",
+              },
+              {
+                "items": [
+                  {
+                    "text": "12.5",
+                    "type": "TextBlock",
+                    "wrap": true,
+                  },
+                ],
+                "type": "TableCell",
+              },
+            ],
+            "type": "TableRow",
+          },
+          {
+            "cells": [
+              {
+                "items": [
+                  {
+                    "text": "Failures",
+                    "type": "TextBlock",
+                    "wrap": true,
+                  },
+                ],
+                "type": "TableCell",
+              },
+              {
+                "items": [
+                  {
+                    "text": "0",
+                    "type": "TextBlock",
+                    "wrap": true,
+                  },
+                ],
+                "type": "TableCell",
+              },
+            ],
+            "type": "TableRow",
+          },
+        ],
+        "showGridLines": true,
+        "type": "Table",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "Deployments",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "text": "Bar chart",
+        "type": "TextBlock",
+        "wrap": true,
+      },
+      {
+        "facts": [
+          {
+            "title": "Deployments · Mon",
+            "value": "█████ 2",
+          },
+          {
+            "title": "Deployments · Tue",
+            "value": "██████████ 4",
+          },
+          {
+            "title": "Deployments · Wed",
+            "value": "0",
+          },
+          {
+            "title": "Deployments · Thu",
+            "value": "−█████ 2",
+          },
+        ],
+        "type": "FactSet",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [
+      {
+        "title": "Open incident",
+        "type": "Action.OpenUrl",
+        "url": "https://status.example.test/incidents/42",
+      },
+    ],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "API outage",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "color": "Attention",
+        "text": "Requests are failing",
+        "type": "TextBlock",
+        "wrap": true,
+      },
+      {
+        "facts": [
+          {
+            "title": "Severity",
+            "value": "SEV-1",
+          },
+          {
+            "title": "Status",
+            "value": "investigating",
+          },
+        ],
+        "type": "FactSet",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "Lead time trend",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "text": "Line chart",
+        "type": "TextBlock",
+        "wrap": true,
+      },
+      {
+        "facts": [
+          {
+            "title": "Hours",
+            "value": "█▁▅ · Mon 8, Tue 4, Wed 6",
+          },
+        ],
+        "type": "FactSet",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [
+      {
+        "title": "Open pull request",
+        "type": "Action.OpenUrl",
+        "url": "https://github.com/acme/platform/pull/42",
+      },
+    ],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "Guard deployment",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "facts": [
+          {
+            "title": "Repository",
+            "value": "acme/platform",
+          },
+          {
+            "title": "Pull request",
+            "value": "#42",
+          },
+          {
+            "title": "State",
+            "value": "open",
+          },
+          {
+            "title": "Author",
+            "value": "octocat",
+          },
+        ],
+        "type": "FactSet",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+  {
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "actions": [
+      {
+        "title": "Runbook",
+        "type": "Action.OpenUrl",
+        "url": "https://docs.example.test/runbooks/deploy",
+      },
+      {
+        "title": "Pull request",
+        "type": "Action.OpenUrl",
+        "url": "https://github.com/acme/platform/pull/42",
+      },
+    ],
+    "body": [
+      {
+        "size": "Medium",
+        "text": "Sources",
+        "type": "TextBlock",
+        "weight": "Bolder",
+        "wrap": true,
+      },
+      {
+        "facts": [
+          {
+            "title": "Source 1",
+            "value": "Runbook · runbook/deploy · sha256:abc123",
+          },
+          {
+            "title": "Source 2",
+            "value": "Pull request · acme/platform/pull/42 · head:deadbeef",
+          },
+        ],
+        "type": "FactSet",
+      },
+    ],
+    "type": "AdaptiveCard",
+    "version": "1.5",
+  },
+]
+`;
