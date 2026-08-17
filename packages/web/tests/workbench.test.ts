@@ -10,6 +10,7 @@ const TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const OBJECT_ID = "22222222-2222-4222-8222-222222222222";
 const WORKSPACE_ID = "33333333-3333-4333-8333-333333333333";
 const NOW = 1_786_118_400;
+const DECISION_ID = "77777777-7777-4777-8777-777777777777";
 const session = async () =>
   ({
     user: { subject: { tenantId: TENANT_ID, objectId: OBJECT_ID }, roles: [] },
@@ -50,6 +51,12 @@ const workspace = {
       approvalStatus: "pending",
     },
   ],
+  grant: {
+    resourceType: "project",
+    resourceId: "PJ-001",
+    policyBundleVersion: "0.2.0",
+    decisionId: DECISION_ID,
+  },
 };
 
 function deps(fetchImpl: typeof fetch, authenticated = true, identitySecret = SECRET): WorkbenchClientDeps {
@@ -103,5 +110,19 @@ describe("Workbench Web BFF [FinalArch:FR-UI-003 / FinalArch:FR-UI-004 / UX-003]
     const missing = await handleWorkbenchWorkspace(WORKSPACE_ID, deps(missingFetch));
     expect(missing.status).toBe(404);
     expect(await missing.text()).not.toContain(marker);
+  });
+
+  it("rejects a missing, malformed, or extra grant state instead of default-allowing it", async () => {
+    for (const candidate of [
+      { ...workspace, grant: undefined },
+      { ...workspace, grant: { ...workspace.grant, resourceType: "organization" } },
+      { ...workspace, grant: { ...workspace.grant, unexpected: true } },
+    ]) {
+      const response = await handleWorkbenchWorkspace(
+        WORKSPACE_ID,
+        deps(vi.fn<typeof fetch>(async () => Response.json(candidate))),
+      );
+      expect(response.status).toBe(502);
+    }
   });
 });

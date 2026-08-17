@@ -1,4 +1,4 @@
-# 根拠: FinalArch:PRD-010 / ADR-0029 / REL-001 / P10-T01
+# 根拠: FinalArch:PRD-010 / FinalArch:FR-CP-008 / ADR-0029 / REL-001 / P10-T01 / P10-T03
 terraform {
   required_version = ">= 1.7.0, < 2.0.0"
   required_providers {
@@ -45,6 +45,36 @@ variable "secret_arns" {
   type = list(string)
 }
 
+variable "service_ecr_repository_arns" {
+  type    = map(set(string))
+  default = {}
+  validation {
+    condition     = alltrue([for service in keys(var.service_ecr_repository_arns) : contains(["server", "litellm", "temporal", "agentgateway", "opa"], service)])
+    error_message = "service ECR mappings may target only server, litellm, temporal, agentgateway, or opa."
+  }
+}
+
+variable "service_secret_names" {
+  type    = map(set(string))
+  default = {}
+  validation {
+    condition     = alltrue([for service in keys(var.service_secret_names) : contains(["server", "litellm", "temporal", "agentgateway", "opa"], service)])
+    error_message = "service secrets may target only server, litellm, temporal, agentgateway, or opa."
+  }
+}
+
+variable "secrets_kms_key_arn" {
+  type      = string
+  default   = null
+  nullable  = true
+  sensitive = true
+}
+
+variable "bedrock_model_arns" {
+  type    = set(string)
+  default = []
+}
+
 variable "github_deployment_policy_json" {
   type      = string
   default   = null
@@ -57,6 +87,11 @@ variable "tags" {
 }
 
 locals {
+  service_names = toset(["server", "litellm", "temporal", "agentgateway", "opa"])
+  other_environments = toset([
+    for environment in ["dev", "staging", "prod"] : environment
+    if environment != var.environment
+  ])
   ecs_assume_role = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -65,7 +100,31 @@ locals {
       Action    = "sts:AssumeRole"
     }]
   })
+  service_ecr_repository_arns = {
+    for service in local.service_names : service => lookup(var.service_ecr_repository_arns, service, toset([]))
+  }
+  service_secret_names = {
+    for service in local.service_names : service => lookup(var.service_secret_names, service, toset([]))
+  }
+  service_secret_arns = {
+    for service, names in local.service_secret_names : service => [
+      for name in names : "arn:${data.aws_partition.current.partition}:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${name}-??????"
+    ]
+  }
+  denied_environment_resources = flatten([
+    for environment in local.other_environments : [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/aiops-${environment}-*",
+      "arn:${data.aws_partition.current.partition}:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:aiops-${environment}/*",
+      "arn:${data.aws_partition.current.partition}:ecr:*:${data.aws_caller_identity.current.account_id}:repository/aiops-${environment}/*",
+      "arn:${data.aws_partition.current.partition}:ecs:*:${data.aws_caller_identity.current.account_id}:cluster/aiops-${environment}*",
+      "arn:${data.aws_partition.current.partition}:ecs:*:${data.aws_caller_identity.current.account_id}:service/aiops-${environment}*"
+    ]
+  ])
 }
+
+data "aws_partition" "current" {}
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
@@ -120,6 +179,147 @@ resource "aws_iam_role" "ecs_task" {
   tags               = var.tags
 }
 
+resource "aws_iam_role" "service_execution" {
+  for_each           = local.service_names
+  name               = "${var.name}-${each.key}-execution"
+  assume_role_policy = local.ecs_assume_role
+  tags               = merge(var.tags, { Environment = var.environment, Service = each.key })
+}
+
+resource "aws_iam_role_policy" "service_execution" {
+  for_each = local.service_names
+  name     = "${var.name}-${each.key}-execution"
+  role     = aws_iam_role.service_execution[each.key].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          Sid      = "EcrAuthorization"
+          Effect   = "Allow"
+          Action   = ["ecr:GetAuthorizationToken"]
+          Resource = "*"
+        },
+        {
+          Sid      = "WriteServiceLogs"
+          Effect   = "Allow"
+          Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+          Resource = "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aiops/${var.name}/${each.key}:log-stream:*"
+        },
+        {
+          Sid      = "DenyLongLivedCredentials"
+          Effect   = "Deny"
+          Action   = ["iam:CreateAccessKey", "iam:UpdateAccessKey", "iam:CreateLoginProfile"]
+          Resource = "*"
+        },
+        {
+          Sid      = "DenyRoleChaining"
+          Effect   = "Deny"
+          Action   = ["sts:AssumeRole", "iam:PassRole"]
+          Resource = "*"
+        }
+      ],
+      [for statement in [{
+        Sid      = "PullServiceImage"
+        Effect   = "Allow"
+        Action   = ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"]
+        Resource = local.service_ecr_repository_arns[each.key]
+      }] : statement if length(local.service_ecr_repository_arns[each.key]) > 0],
+      [for statement in [
+        {
+          Sid      = "ReadServiceSecrets"
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+          Resource = local.service_secret_arns[each.key]
+        },
+        {
+          Sid       = "DecryptServiceSecrets"
+          Effect    = "Allow"
+          Action    = ["kms:Decrypt", "kms:DescribeKey"]
+          Resource  = var.secrets_kms_key_arn
+          Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com" } }
+        }
+      ] : statement if length(local.service_secret_arns[each.key]) > 0]
+    )
+  })
+
+  lifecycle {
+    precondition {
+      condition     = length(local.service_secret_arns[each.key]) == 0 || var.secrets_kms_key_arn != null
+      error_message = "service secret access requires secrets_kms_key_arn."
+    }
+    precondition {
+      condition     = alltrue([for name in local.service_secret_names[each.key] : startswith(name, "${var.name}/")])
+      error_message = "service secrets must remain under the environment name prefix."
+    }
+  }
+}
+
+resource "aws_iam_role" "service_task" {
+  for_each             = local.service_names
+  name                 = "${var.name}-${each.key}-task"
+  assume_role_policy   = local.ecs_assume_role
+  max_session_duration = 3600
+  tags                 = merge(var.tags, { Environment = var.environment, Service = each.key })
+}
+
+resource "aws_iam_role_policy" "service_task" {
+  for_each = local.service_names
+  name     = "${var.name}-${each.key}-task"
+  role     = aws_iam_role.service_task[each.key].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          Sid      = "DenyLongLivedCredentials"
+          Effect   = "Deny"
+          Action   = ["iam:CreateAccessKey", "iam:UpdateAccessKey", "iam:CreateLoginProfile"]
+          Resource = "*"
+        },
+        {
+          Sid      = "DenyRoleChaining"
+          Effect   = "Deny"
+          Action   = ["sts:AssumeRole", "iam:PassRole"]
+          Resource = "*"
+        }
+      ],
+      [for statement in [
+        {
+          Sid      = "ReadServiceSecrets"
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+          Resource = local.service_secret_arns[each.key]
+        },
+        {
+          Sid       = "DecryptServiceSecrets"
+          Effect    = "Allow"
+          Action    = ["kms:Decrypt", "kms:DescribeKey"]
+          Resource  = var.secrets_kms_key_arn
+          Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com" } }
+        }
+      ] : statement if length(local.service_secret_arns[each.key]) > 0],
+      [for statement in [{
+        Sid      = "InvokeDeclaredBedrockModels"
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Resource = var.bedrock_model_arns
+      }] : statement if each.key == "litellm" && length(var.bedrock_model_arns) > 0]
+    )
+  })
+
+  lifecycle {
+    precondition {
+      condition     = length(local.service_secret_arns[each.key]) == 0 || var.secrets_kms_key_arn != null
+      error_message = "service secret access requires secrets_kms_key_arn."
+    }
+    precondition {
+      condition     = alltrue([for name in local.service_secret_names[each.key] : startswith(name, "${var.name}/")])
+      error_message = "service secrets must remain under the environment name prefix."
+    }
+  }
+}
+
 resource "aws_iam_role" "github_deploy" {
   name = "${var.name}-github-deploy"
   assume_role_policy = jsonencode({
@@ -138,7 +338,57 @@ resource "aws_iam_role" "github_deploy" {
       }
     }]
   })
-  tags = var.tags
+  max_session_duration = 3600
+  tags                 = merge(var.tags, { Environment = var.environment })
+}
+
+resource "aws_iam_role_policy" "github_guardrails" {
+  name = "${var.name}-github-guardrails"
+  role = aws_iam_role.github_deploy.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DenyLongLivedCredentials"
+        Effect   = "Deny"
+        Action   = ["iam:CreateAccessKey", "iam:UpdateAccessKey", "iam:CreateLoginProfile", "iam:CreateUser"]
+        Resource = "*"
+      },
+      {
+        Sid      = "DenyRoleChaining"
+        Effect   = "Deny"
+        Action   = ["sts:AssumeRole", "sts:AssumeRoleWithSAML"]
+        Resource = "*"
+      },
+      {
+        Sid      = "DenyCrossEnvironmentSecrets"
+        Effect   = "Deny"
+        Action   = ["secretsmanager:*"]
+        Resource = local.denied_environment_resources
+      },
+      {
+        Sid      = "DenyCrossEnvironmentKms"
+        Effect   = "Deny"
+        Action   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*"]
+        Resource = "*"
+        Condition = {
+          StringNotEquals = { "aws:ResourceTag/Environment" = var.environment }
+        }
+      },
+      {
+        Sid      = "DenyKmsTagMutation"
+        Effect   = "Deny"
+        Action   = ["kms:TagResource", "kms:UntagResource"]
+        Resource = "*"
+      },
+      {
+        Sid      = "DenyCrossEnvironmentDeploy"
+        Effect   = "Deny"
+        Action   = ["iam:PassRole", "ecs:*", "ecr:*"]
+        Resource = local.denied_environment_resources
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role_policy" "github_deploy" {
@@ -158,4 +408,12 @@ output "ecs_task_role_arn" {
 
 output "github_deploy_role_arn" {
   value = aws_iam_role.github_deploy.arn
+}
+
+output "service_execution_role_arns" {
+  value = { for service, role in aws_iam_role.service_execution : service => role.arn }
+}
+
+output "service_task_role_arns" {
+  value = { for service, role in aws_iam_role.service_task : service => role.arn }
 }

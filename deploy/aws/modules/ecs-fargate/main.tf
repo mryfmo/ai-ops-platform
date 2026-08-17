@@ -33,12 +33,20 @@ variable "alb_security_group_id" {
   type = string
 }
 
-variable "execution_role_arn" {
-  type = string
+variable "execution_role_arns" {
+  type = map(string)
+  validation {
+    condition     = alltrue([for arn in values(var.execution_role_arns) : can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+$", arn))])
+    error_message = "execution_role_arns must contain IAM role ARNs keyed by service."
+  }
 }
 
-variable "task_role_arn" {
-  type = string
+variable "task_role_arns" {
+  type = map(string)
+  validation {
+    condition     = alltrue([for arn in values(var.task_role_arns) : can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+$", arn))])
+    error_message = "task_role_arns must contain IAM role ARNs keyed by service."
+  }
 }
 
 variable "target_group_arns" {
@@ -110,8 +118,8 @@ resource "aws_ecs_task_definition" "service" {
   network_mode             = "awsvpc"
   cpu                      = tostring(each.value.cpu)
   memory                   = tostring(each.value.memory)
-  execution_role_arn       = var.execution_role_arn
-  task_role_arn            = var.task_role_arn
+  execution_role_arn       = lookup(var.execution_role_arns, each.key, null)
+  task_role_arn            = lookup(var.task_role_arns, each.key, null)
 
   container_definitions = jsonencode([{
     name      = each.key
@@ -134,6 +142,13 @@ resource "aws_ecs_task_definition" "service" {
     }
   }])
   tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(var.execution_role_arns), each.key) && contains(keys(var.task_role_arns), each.key)
+      error_message = "every ECS service requires its own mapped execution and task role pair."
+    }
+  }
 }
 
 resource "aws_ecs_service" "service" {

@@ -239,6 +239,101 @@ test_decision_log_mask_removes_caller_input if {
 	mask == {"/input"}
 }
 
+workbench_input := {
+	"actor": {
+		"id": "leader-1",
+		"type": "human",
+		"tenantId": "tenant-1",
+		"projectIds": ["PJ-001"],
+	},
+	"agent": {"id": "workbench-bff", "kind": "web-workbench"},
+	"action": {"name": "read", "riskLevel": "L0", "protocol": "ui"},
+	"resource": {
+		"system": "workbench",
+		"id": "workbench:project:PJ-001",
+		"projectId": "PJ-001",
+		"classification": "internal",
+		"labels": [
+			"capability-grant:active",
+			"recipient-scope:project",
+			"workspace-id:33333333-3333-4333-8333-333333333333",
+		],
+	},
+	"context": {
+		"purpose": "workbench workspace read",
+		"environment": "dev",
+		"providerCandidate": "none",
+		"sourceTrust": "trusted-platform",
+	},
+}
+
+test_workbench_explicit_project_grant_is_allowed if {
+	result := decision with input as workbench_input
+	result.decision == "allow"
+	result.reasons == ["workbench_explicit_capability_grant"]
+	result.policyBundleVersion == "0.2.0"
+}
+
+test_workbench_project_repository_and_space_grants_are_supported if {
+	every target in {
+		"workbench:project:PJ-001",
+		"workbench:repository:mryfmo/ai-ops-platform",
+		"workbench:space:33333333-3333-4333-8333-333333333333",
+	} {
+		candidate := object.union(workbench_input, {
+			"resource": object.union(workbench_input.resource, {"id": target}),
+		})
+		result := decision with input as candidate
+		result.decision == "allow"
+	}
+}
+
+test_workbench_missing_grant_cross_project_and_target_mismatch_are_denied if {
+	missing_grant := object.union(workbench_input, {
+		"resource": object.union(workbench_input.resource, {
+			"labels": [
+				"recipient-scope:project",
+				"workspace-id:33333333-3333-4333-8333-333333333333",
+			],
+		}),
+	})
+	cross_project := object.union(workbench_input, {
+		"actor": object.union(workbench_input.actor, {"projectIds": ["PJ-002"]}),
+	})
+	mismatched_target := object.union(workbench_input, {
+		"resource": object.union(workbench_input.resource, {"id": "workbench:project:PJ-002"}),
+	})
+	every candidate in {missing_grant, cross_project, mismatched_target} {
+		result := decision with input as candidate
+		result.decision == "deny"
+	}
+}
+
+test_workbench_global_recipient_still_requires_an_explicit_grant if {
+	global_recipient := object.union(workbench_input, {
+		"actor": object.union(workbench_input.actor, {"projectIds": []}),
+		"resource": object.union(workbench_input.resource, {
+			"labels": [
+				"capability-grant:active",
+				"recipient-scope:global",
+				"workspace-id:33333333-3333-4333-8333-333333333333",
+			],
+		}),
+	})
+	without_grant := object.union(global_recipient, {
+		"resource": object.union(global_recipient.resource, {
+			"labels": [
+				"recipient-scope:global",
+				"workspace-id:33333333-3333-4333-8333-333333333333",
+			],
+		}),
+	})
+	allow := decision with input as global_recipient
+	deny := decision with input as without_grant
+	allow.decision == "allow"
+	deny.decision == "deny"
+}
+
 m365_egress_input := {
 	"actor": {
 		"id": "user-1",
