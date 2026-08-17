@@ -3,6 +3,7 @@
 export { teamsAdapter } from "./adapters/teams.js";
 export {
   buildAgUiRunRequest,
+  decideChannelFlow,
   makeDedupeKey,
   type AgUiClient,
   type AgUiEvent,
@@ -11,10 +12,14 @@ export {
   type ChannelAdapter,
   type ChannelAddress,
   type ChannelAttachmentRef,
+  type ChannelBotIdentity,
+  type ChannelFlowDecision,
   type ChannelInboundMessage,
   type ChannelMessageRef,
   type ChannelResult,
   type ChannelUserIdentity,
+  type ChannelSenderIdentity,
+  type ConversationMappingRegistrationRequest,
   type ConversationMappingAuthority,
   type RecoverableChannelError,
   type RecoverableChannelErrorCode,

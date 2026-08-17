@@ -18,6 +18,11 @@ export interface ChannelUserIdentity {
   readonly displayName: string | null;
 }
 
+export interface ChannelSenderIdentity {
+  readonly kind: "human" | "bot" | "app";
+  readonly platformId: string;
+}
+
 export interface ChannelAttachmentRef {
   readonly platformAttachmentId: string;
   readonly name: string | null;
@@ -28,6 +33,8 @@ export interface ChannelInboundMessage {
   readonly ref: ChannelMessageRef;
   readonly address: ChannelAddress;
   readonly user: ChannelUserIdentity;
+  readonly sender: ChannelSenderIdentity;
+  readonly mentionTargetIds: readonly string[] | null;
   readonly attachmentRefs: readonly ChannelAttachmentRef[];
   readonly text: string;
 }
@@ -64,6 +71,16 @@ export interface ConversationMappingAuthority {
   lookup(address: ChannelAddress, identity: ChannelUserIdentity): Promise<AuthoritativeConversationMapping | null>;
 }
 
+export interface ChannelBotIdentity {
+  readonly platformId: string;
+}
+
+export interface ConversationMappingRegistrationRequest {
+  readonly address: ChannelAddress;
+  readonly identity: AuthoritativeConversationMapping["identity"];
+  readonly sourceMessage: ChannelMessageRef;
+}
+
 export interface AgUiRunRequest {
   readonly conversationId: string;
   readonly threadId: string;
@@ -83,14 +100,24 @@ export interface AgUiClient {
   stream(request: AgUiRunRequest): AsyncIterable<AgUiEvent>;
 }
 
-const mappingMismatch: ChannelResult<never> = {
-  ok: false,
-  error: {
-    code: "E-CHANNEL-MAPPING-MISMATCH",
-    recoverable: true,
-    message: "The conversation mapping is unavailable.",
-  },
+export type ChannelFlowDecision =
+  | { readonly kind: "start"; readonly registration: ConversationMappingRegistrationRequest }
+  | { readonly kind: "follow_up"; readonly request: AgUiRunRequest }
+  | { readonly kind: "ignore" }
+  | { readonly kind: "error_report"; readonly error: RecoverableChannelError };
+
+const mappingMismatchError: RecoverableChannelError = {
+  code: "E-CHANNEL-MAPPING-MISMATCH",
+  recoverable: true,
+  message: "The conversation mapping is unavailable.",
 };
+const mappingMismatch: ChannelResult<never> = { ok: false, error: mappingMismatchError };
+const invalidInputError: RecoverableChannelError = {
+  code: "E-CHANNEL-INVALID-INPUT",
+  recoverable: true,
+  message: "The channel message is invalid.",
+};
+const ignored: ChannelFlowDecision = { kind: "ignore" };
 
 export function makeDedupeKey(ref: ChannelMessageRef): string {
   if (!ref.source.trim() || !ref.platformMessageId.trim()) {
@@ -126,6 +153,48 @@ export function buildAgUiRunRequest(
       attachmentRefs: message.attachmentRefs,
       sourceMessage: message.ref,
       inputText: message.text,
+    },
+  };
+}
+
+export function decideChannelFlow(
+  message: ChannelInboundMessage,
+  mapping: AuthoritativeConversationMapping | null,
+  bot: ChannelBotIdentity,
+): ChannelFlowDecision {
+  if ([message.sender.platformId, bot.platformId].some((value) => !value.trim() || value !== value.trim())) {
+    return { kind: "error_report", error: invalidInputError };
+  }
+  if (message.sender.kind !== "human" || message.sender.platformId === bot.platformId) return ignored;
+  if (
+    message.mentionTargetIds === null ||
+    message.mentionTargetIds.some((value) => !value.trim() || value !== value.trim())
+  ) {
+    return { kind: "error_report", error: invalidInputError };
+  }
+
+  if (mapping) {
+    if (message.address.platformThreadId === null) {
+      return { kind: "error_report", error: mappingMismatchError };
+    }
+    const request = buildAgUiRunRequest(message, mapping);
+    return request.ok ? { kind: "follow_up", request: request.value } : { kind: "error_report", error: request.error };
+  }
+
+  const botMentionCount = message.mentionTargetIds.filter((id) => id === bot.platformId).length;
+  if (botMentionCount !== 1) return ignored;
+  if (message.user.tenantId === null) return { kind: "error_report", error: invalidInputError };
+
+  return {
+    kind: "start",
+    registration: {
+      address: message.address,
+      identity: {
+        provider: message.user.provider,
+        tenantId: message.user.tenantId,
+        subjectId: message.user.subjectId,
+      },
+      sourceMessage: message.ref,
     },
   };
 }
