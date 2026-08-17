@@ -1,0 +1,62 @@
+{
+  "cloudSessionSync": false,
+  "customModels": [
+    {
+      "model": "claude-code",
+      "displayName": "AIOps LiteLLM Coding",
+      "baseUrl": "__LITELLM_BASE_URL__",
+      "apiKey": "${LITELLM_CODING_VIRTUAL_KEY}",
+      "provider": "generic-chat-completion-api",
+      "noImageSupport": true
+    }
+  ],
+  "commandAllowlist": [
+    "git status",
+    "git diff",
+    "git log",
+    "git show",
+    "git grep",
+    "git rev-parse",
+    "git ls-files",
+    "rg",
+    "node --test",
+    "pnpm run",
+    "pnpm --filter",
+    "mise run"
+  ],
+  "commandBlocklist": [
+    "curl",
+    "wget",
+    "gh",
+    "ssh",
+    "scp",
+    "rsync",
+    "git push",
+    "git commit",
+    "git tag",
+    "git merge",
+    "git rebase",
+    "git reset",
+    "aws",
+    "kubectl",
+    "terraform",
+    "helm",
+    "docker",
+    "podman",
+    "pnpm add",
+    "pnpm install",
+    "pnpm publish",
+    "npm",
+    "npx"
+  ],
+  "maxAutonomyLevel": "low",
+  "mcpPolicy": {
+    "enabled": false,
+    "allowlist": []
+  },
+  "modelPolicy": {
+    "allowedModelIds": ["custom:AIOps-LiteLLM-Coding-0"],
+    "allowCustomModels": true,
+    "allowedBaseUrls": ["__LITELLM_BASE_URL__"]
+  }
+}
