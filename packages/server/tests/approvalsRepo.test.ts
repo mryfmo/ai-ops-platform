@@ -9,6 +9,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import {
   APPROVAL_REASON_MAX_LENGTH,
   ApprovalAlreadyDecidedError,
+  ApprovalExpiredError,
+  ApprovalStaleVersionError,
   ApprovalsRepo,
   type ApprovalTransactionRunner,
 } from "../src/db/approvalsRepo.js";
@@ -17,6 +19,7 @@ import { applySchemaSerialized } from "./pgTestSchema.js";
 const APPROVAL_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const OBJECT_ID = "22222222-2222-4222-8222-222222222222";
+const VERSION = 7;
 const ROW = {
   approval_id: APPROVAL_ID,
   approval_type: "change",
@@ -29,6 +32,10 @@ const ROW = {
   decided_at: null,
   reason: null,
   delivered_at: null,
+  dispatched_at: null,
+  payload_hash: null,
+  expected_version: VERSION,
+  expires_at: "2099-01-01T00:00:00.000Z",
   created_at: "2026-08-08T00:00:00.000Z",
 };
 
@@ -115,12 +122,16 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
       decision: "approved",
       approverTenantId: TENANT_ID,
       approverObjectId: OBJECT_ID,
+      expectedVersion: VERSION,
       traceId: "trace-approve",
     });
 
     expect(query.mock.calls[0]![0]).toContain("status = 'pending'");
-    expect(query.mock.calls[0]![1]).toEqual([APPROVAL_ID, "approved", TENANT_ID, OBJECT_ID, null]);
+    expect(query.mock.calls[0]![0]).toContain("expected_version = $6");
+    expect(query.mock.calls[0]![0]).toContain("expires_at > now()");
+    expect(query.mock.calls[0]![1]).toEqual([APPROVAL_ID, "approved", TENANT_ID, OBJECT_ID, null, VERSION]);
     expect(result.status).toBe("approved");
+    expect(result.expectedVersion).toBe(VERSION);
     expect(await audit.readAll()).toEqual([
       expect.objectContaining({
         action: "approval_approve",
@@ -139,6 +150,7 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
         reason: "   ",
         approverTenantId: TENANT_ID,
         approverObjectId: OBJECT_ID,
+        expectedVersion: VERSION,
         traceId: "trace-reject",
       }),
     ).rejects.toThrow("E-AUD01");
@@ -156,6 +168,7 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
         decision: "approved",
         approverTenantId: TENANT_ID,
         approverObjectId: OBJECT_ID,
+        expectedVersion: VERSION,
         traceId: "trace-replay",
       }),
     ).rejects.toBeInstanceOf(ApprovalAlreadyDecidedError);
@@ -179,6 +192,7 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
       reason: `token ${secret} must be rotated`,
       approverTenantId: TENANT_ID,
       approverObjectId: OBJECT_ID,
+      expectedVersion: VERSION,
       traceId: "trace-secret-reason",
     });
     expect(String(query.mock.calls[0]![1]![4])).not.toContain(secret);
@@ -193,10 +207,34 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
         reason: "x".repeat(APPROVAL_REASON_MAX_LENGTH + 1),
         approverTenantId: TENANT_ID,
         approverObjectId: OBJECT_ID,
+        expectedVersion: VERSION,
         traceId: "trace-long-reason",
       }),
     ).rejects.toThrow("Invalid approval reason");
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "version mismatch",
+      { status: "pending", expected_version: VERSION + 1, expired: false },
+      ApprovalStaleVersionError,
+    ],
+    ["missing version", { status: "pending", expected_version: null, expired: false }, ApprovalStaleVersionError],
+    ["expired", { status: "pending", expected_version: VERSION, expired: true }, ApprovalExpiredError],
+  ])("%s CAS loser is rejected without audit or signal authority", async (_label, current, ErrorType) => {
+    const { db } = mockDb([{ rows: [] }, { rows: [current] }]);
+    const audit = new InMemoryAuditLog();
+    await expect(
+      testRepo(db, audit).decide(APPROVAL_ID, {
+        decision: "approved",
+        approverTenantId: TENANT_ID,
+        approverObjectId: OBJECT_ID,
+        expectedVersion: VERSION,
+        traceId: "trace-stale",
+      }),
+    ).rejects.toBeInstanceOf(ErrorType);
+    expect(await audit.readAll()).toEqual([]);
   });
 });
 
@@ -249,18 +287,24 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
       requestedBy: "AGT-CHG",
       traceId: "trace-real-create",
     });
+    await realPool!.query(
+      "UPDATE approvals SET expected_version = $2, expires_at = '2099-01-01T00:00:00Z' WHERE approval_id = $1",
+      [created.approvalId, VERSION],
+    );
 
     const results = await Promise.allSettled([
       repo.decide(created.approvalId, {
         decision: "approved",
         approverTenantId: TENANT_ID,
         approverObjectId: OBJECT_ID,
+        expectedVersion: VERSION,
         traceId: "trace-real-a",
       }),
       repo.decide(created.approvalId, {
         decision: "approved",
         approverTenantId: TENANT_ID,
         approverObjectId: "33333333-3333-4333-8333-333333333333",
+        expectedVersion: VERSION,
         traceId: "trace-real-b",
       }),
     ]);
@@ -282,6 +326,10 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
       requestedBy: "AGT-CHG",
       traceId: "trace-audit-failure-create",
     });
+    await realPool!.query(
+      "UPDATE approvals SET expected_version = $2, expires_at = '2099-01-01T00:00:00Z' WHERE approval_id = $1",
+      [created.approvalId, VERSION],
+    );
     const failingAudit: AuditLogWriter = {
       append: async () => {
         throw new Error("forced audit failure");
@@ -294,12 +342,55 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
         decision: "approved",
         approverTenantId: TENANT_ID,
         approverObjectId: OBJECT_ID,
+        expectedVersion: VERSION,
         traceId: "trace-audit-failure-decide",
       }),
     ).rejects.toThrow("forced audit failure");
     await expect(
       realPool!.query("SELECT status FROM approvals WHERE approval_id = $1", [created.approvalId]),
     ).resolves.toMatchObject({ rows: [{ status: "pending" }] });
+  });
+
+  it("real PostgreSQLでもstale versionとexpiryを単一CASで拒否する", async () => {
+    const audit = new InMemoryAuditLog();
+    const repo = new ApprovalsRepo(realPool!, realTransaction(audit));
+    const stale = await repo.create({
+      approvalType: "change",
+      targetId: "release-stale",
+      requestedBy: "AGT-CHG",
+      traceId: "trace-real-stale-create",
+    });
+    const expired = await repo.create({
+      approvalType: "change",
+      targetId: "release-expired",
+      requestedBy: "AGT-CHG",
+      traceId: "trace-real-expired-create",
+    });
+    await realPool!.query(
+      `UPDATE approvals
+       SET expected_version = CASE approval_id WHEN $1 THEN $3::bigint ELSE $4::bigint END,
+           expires_at = CASE approval_id
+             WHEN $1 THEN TIMESTAMPTZ '2099-01-01T00:00:00Z'
+             ELSE TIMESTAMPTZ '2000-01-01T00:00:00Z'
+           END
+       WHERE approval_id = ANY($2::uuid[])`,
+      [stale.approvalId, [stale.approvalId, expired.approvalId], VERSION + 1, VERSION],
+    );
+    const input = {
+      decision: "approved" as const,
+      approverTenantId: TENANT_ID,
+      approverObjectId: OBJECT_ID,
+      expectedVersion: VERSION,
+      traceId: "trace-real-negative",
+    };
+
+    await expect(repo.decide(stale.approvalId, input)).rejects.toBeInstanceOf(ApprovalStaleVersionError);
+    await expect(repo.decide(expired.approvalId, input)).rejects.toBeInstanceOf(ApprovalExpiredError);
+    await expect(
+      realPool!.query("SELECT status FROM approvals WHERE approval_id = ANY($1::uuid[]) ORDER BY approval_id", [
+        [stale.approvalId, expired.approvalId],
+      ]),
+    ).resolves.toMatchObject({ rows: [{ status: "pending" }, { status: "pending" }] });
   });
 
   it("同一pending targetの再作成は同じapprovalを返す", async () => {
