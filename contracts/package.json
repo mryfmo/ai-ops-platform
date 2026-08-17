@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "lint": "spectral lint --ruleset .spectral.yaml --fail-severity error openapi/*.yaml asyncapi/*.yaml",
-    "test": "node --test check-contracts.test.mjs model-routing/model-aliases.test.mjs model-routing/service-config.test.mjs mcp-gateway/gateway-config.test.mjs tools/registry-contract.test.mjs agent-task/agent-task.test.mjs agent-review/agent-review.test.mjs",
+    "test": "node --test check-contracts.test.mjs model-routing/model-aliases.test.mjs model-routing/service-config.test.mjs mcp-gateway/gateway-config.test.mjs tools/registry-contract.test.mjs agent-task/agent-task.test.mjs agent-review/agent-review.test.mjs deploy-workflow/deploy-workflow.test.mjs",
     "check": "pnpm run lint && pnpm run test"
   },
   "devDependencies": {

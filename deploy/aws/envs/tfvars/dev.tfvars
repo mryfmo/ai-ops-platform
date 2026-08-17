@@ -16,6 +16,14 @@ cloudfront_certificate_arn       = null
 github_repository       = "placeholder/ai-ops-platform"
 github_oidc_thumbprints = ["0000000000000000000000000000000000000000"]
 
+kms_administrator_role_arns = ["arn:aws:iam::000000000000:role/placeholder-dev-kms-admin"]
+rotation_secret_names       = ["entra-client-secret"]
+enable_rotation             = false
+rotation_lambda_arn         = "arn:aws:lambda:ap-northeast-1:000000000000:function:placeholder-dev-secret-rotation"
+rotation_role_arn           = "arn:aws:iam::000000000000:role/placeholder-dev-secret-rotation"
+bootstrap_role_arn          = "arn:aws:iam::000000000000:role/placeholder-dev-secret-bootstrap"
+bedrock_model_arns          = ["arn:aws:bedrock:ap-northeast-1::foundation-model/placeholder.model-v1"]
+
 secret_names = ["entra-client-secret", "litellm-virtual-key"]
 services = {
   server = {

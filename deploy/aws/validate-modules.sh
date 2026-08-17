@@ -196,11 +196,49 @@ jq -e '
   planned("module.rds.aws_backup_selection.rds") != null and
   planned("module.secrets_manager.aws_secretsmanager_secret.this[\"aiops-dev/database/app-password\"]") != null and
   planned("module.secrets_manager.aws_secretsmanager_secret.this[\"aiops-dev/database/litellm-password\"]") != null and
-  (.configuration.root_module.module_calls.identity.expressions.secret_arns.references |
-    index("var.secret_names")) != null and
+  (.configuration.root_module.module_calls.identity.expressions.secret_arns.constant_value | length) == 0 and
+  (.configuration.root_module.module_calls.identity.expressions.service_secret_names.references |
+    index("local.service_secret_names")) != null and
   all(.resource_changes[]; .address != "module.secrets_manager.aws_secretsmanager_secret.this[\"aiops-dev/database/temporal-password\"]") and
   all(.resource_changes[]; .type != "aws_secretsmanager_secret_version")
 ' "$workdir/dev-plan.json" >/dev/null || fail "P10-T04 RDS backup, SSL, or secret-reference plan contract failed"
+jq -e '
+  def planned($address):
+    first(.resource_changes[] | select(.address == $address) | .change.after);
+  def policy($address):
+    planned($address).policy | fromjson;
+  planned("module.secrets_manager.aws_kms_key.secrets[0]").enable_key_rotation == true and
+  all(.resource_changes[]; .type != "aws_lambda_permission" and .type != "aws_secretsmanager_secret_rotation") and
+  (.configuration.root_module.module_calls.secrets_manager.expressions.enable_rotation.references |
+    index("var.enable_rotation")) != null and
+  (.configuration.root_module.module_calls.secrets_manager.expressions.bootstrap_role_arn.references |
+    index("var.bootstrap_role_arn")) != null and
+  (.configuration.root_module.module_calls.identity.expressions.environment.references |
+    index("var.environment")) != null and
+  (.configuration.root_module.module_calls.identity.expressions.github_repository.references |
+    index("var.github_repository")) != null and
+  all(.resource_changes[]; .type != "aws_iam_role" or (.address | contains("break_glass") | not)) and
+  (policy("module.secrets_manager.aws_secretsmanager_secret_policy.workload[\"aiops-dev/litellm-virtual-key\"]").Statement |
+    any(.Sid == "AllowBootstrap" and
+      (.Action | index("secretsmanager:PutSecretValue")) != null and
+      (.Action | index("secretsmanager:GetSecretValue")) == null and
+      (.Action | index("secretsmanager:UpdateSecretVersionStage")) == null and
+      .Condition.ArnEquals["aws:PrincipalArn"] == "arn:aws:iam::000000000000:role/placeholder-dev-secret-bootstrap")) and
+  planned("module.identity.aws_iam_role.service_task[\"server\"]").name == "aiops-dev-server-task" and
+  planned("module.identity.aws_iam_role.service_task[\"litellm\"]").name == "aiops-dev-litellm-task" and
+  (.configuration.root_module.module_calls.identity.expressions.bedrock_model_arns.references |
+    index("var.bedrock_model_arns")) != null and
+  (policy("module.secrets_manager.aws_secretsmanager_secret_policy.workload[\"aiops-dev/database/litellm-password\"]") | tostring |
+    contains("aiops-dev-litellm-task")) and
+  (policy("module.secrets_manager.aws_secretsmanager_secret_policy.workload[\"aiops-dev/database/litellm-password\"]") | tostring |
+    contains("aiops-dev-server-task") | not) and
+  ((planned("module.ecs_fargate.aws_ecs_task_definition.service[\"web\"]").container_definitions | fromjson)[0].secrets | length) == 0 and
+  (.configuration.root_module.module_calls.ecs_fargate.expressions.execution_role_arns.references |
+    index("module.identity.service_execution_role_arns")) != null and
+  (.configuration.root_module.module_calls.ecs_fargate.expressions.task_role_arns.references |
+    index("module.identity.service_task_role_arns")) != null and
+  all(.resource_changes[]; .type != "aws_iam_access_key" and .type != "aws_iam_user")
+' "$workdir/dev-plan.json" >/dev/null || fail "P10-T03 identity, per-service ECS role, or secret-boundary plan contract failed"
 jq -e '
   def planned($address):
     first(.resource_changes[] | select(.address == $address) | .change.after);
