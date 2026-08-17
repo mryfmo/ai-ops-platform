@@ -1,5 +1,5 @@
 // 根拠: FinalArch:PRD-001 / FinalArch:FR-UI-001 / FinalArch:FR-UI-006 / ADR-0025
-import type { ChannelAdapter, ChannelAttachmentRef, ChannelResult } from "../lib/channel.js";
+import type { ChannelAdapter, ChannelAttachmentRef, ChannelResult, ChannelSenderIdentity } from "../lib/channel.js";
 
 const invalidInput: ChannelResult<never> = {
   ok: false,
@@ -16,6 +16,10 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function nonBlank(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function identifier(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function optionalString(value: unknown): string | null | undefined {
@@ -40,6 +44,24 @@ function parseAttachments(value: unknown): readonly ChannelAttachmentRef[] | nul
   return attachments;
 }
 
+function parseMentionTargetIds(value: unknown): readonly string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+
+  const targetIds: string[] = [];
+  for (const item of value) {
+    const entity = record(item);
+    const type = nonBlank(entity?.type);
+    if (!entity || !type) return null;
+    if (type !== "mention") continue;
+    const mentioned = record(entity.mentioned);
+    const targetId = identifier(mentioned?.id);
+    if (!mentioned || !targetId || !nonBlank(entity.text)) return null;
+    targetIds.push(targetId);
+  }
+  return targetIds;
+}
+
 function normalize(input: unknown) {
   const activity = record(input);
   const conversation = record(activity?.conversation);
@@ -47,17 +69,25 @@ function normalize(input: unknown) {
   const platformMessageId = nonBlank(activity?.id);
   const platformConversationId = nonBlank(conversation?.id);
   const platformThreadId = optionalString(activity?.replyToId);
-  const subjectId = nonBlank(from?.aadObjectId);
+  const role = from?.role === undefined ? "user" : from.role;
+  const senderKind: ChannelSenderIdentity["kind"] | null =
+    role === "user" ? "human" : role === "bot" ? "bot" : role === "application" || role === "skill" ? "app" : null;
+  const entraSubjectId = identifier(from?.aadObjectId);
+  const platformSenderId = identifier(from?.id) ?? entraSubjectId;
+  const subjectId = senderKind === "human" ? entraSubjectId : (entraSubjectId ?? platformSenderId);
   const tenantId = optionalString(from?.tenantId);
   const displayName = optionalString(from?.name);
   const text = nonBlank(activity?.text);
   const attachmentRefs = parseAttachments(activity?.attachments);
+  const mentionTargetIds = parseMentionTargetIds(activity?.entities);
 
   if (
     !activity ||
     !platformMessageId ||
     !platformConversationId ||
     platformThreadId === undefined ||
+    !senderKind ||
+    !platformSenderId ||
     !subjectId ||
     tenantId === undefined ||
     displayName === undefined ||
@@ -82,6 +112,8 @@ function normalize(input: unknown) {
         subjectId,
         displayName,
       },
+      sender: { kind: senderKind, platformId: platformSenderId },
+      mentionTargetIds,
       attachmentRefs,
       text,
     },
