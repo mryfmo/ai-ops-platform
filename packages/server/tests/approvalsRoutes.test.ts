@@ -7,10 +7,15 @@ import { Hono } from "hono";
 import { InMemoryAuditLog } from "@aiops/shared";
 import { signIdentityEnvelope } from "@aiops/shared/security/identityEnvelope.js";
 import { describe, expect, it, vi } from "vitest";
-import { ApprovalAlreadyDecidedError } from "../src/db/approvalsRepo.js";
+import {
+  ApprovalAlreadyDecidedError,
+  ApprovalExpiredError,
+  ApprovalStaleVersionError,
+} from "../src/db/approvalsRepo.js";
 import {
   APPROVAL_DECISION_MAX_BYTES,
   registerApprovalRoutes,
+  signApprovalCardCorrelation,
   type ApprovalRoutesDeps,
 } from "../src/http/routes/approvals.js";
 
@@ -18,18 +23,25 @@ const SECRET = "web-bff-identity-secret-of-at-least-32-chars";
 const TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const OBJECT_ID = "22222222-2222-4222-8222-222222222222";
 const APPROVAL_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const VERSION = 7;
 const NOW = 1_786_118_400;
 const pending = {
   approvalId: APPROVAL_ID,
   approvalType: "change" as const,
   targetId: "release-42",
   projectId: "PJ-001" as string | null,
+  targetSha: null,
   status: "pending" as const,
   requestedBy: "AGT-CHG",
   approverTenantId: null,
   approverObjectId: null,
   decidedAt: null,
   reason: null,
+  deliveredAt: "2026-08-08T00:00:30.000Z",
+  dispatchedAt: null,
+  payloadHash: null,
+  expectedVersion: VERSION,
+  expiresAt: "2099-01-01T00:00:00.000Z",
   createdAt: "2026-08-08T00:00:00.000Z",
 };
 
@@ -43,6 +55,20 @@ function identityHeaders(method: string, path: string, body = "", issuedAtUnix =
   };
 }
 
+function decisionBody(
+  overrides: Record<string, unknown> = {},
+  identity: { tenantId: string; objectId: string } = { tenantId: TENANT_ID, objectId: OBJECT_ID },
+): string {
+  return JSON.stringify({
+    action: "approval_decision",
+    approvalId: APPROVAL_ID,
+    version: VERSION,
+    decision: "approved",
+    correlation: signApprovalCardCorrelation({ approvalId: APPROVAL_ID, version: VERSION, ...identity }, SECRET),
+    ...overrides,
+  });
+}
+
 function setup(
   options: {
     identitySecret?: string;
@@ -51,6 +77,8 @@ function setup(
     projectId?: string | null;
     projects?: string[];
     scopeMode?: "project" | "global";
+    requestedBy?: string;
+    signalPort?: boolean;
   } = {
     identitySecret: SECRET,
   },
@@ -59,17 +87,23 @@ function setup(
     ...pending,
     approvalType: options.approvalType ?? "change",
     projectId: options.projectId === undefined ? pending.projectId : options.projectId,
+    requestedBy: options.requestedBy ?? pending.requestedBy,
   };
+  const events: string[] = [];
   const repo = {
     listPending: vi.fn(async () => [current]),
     getById: vi.fn(async () => current),
-    decide: vi.fn(async () => ({
-      ...current,
-      status: "approved" as const,
-      approverTenantId: TENANT_ID,
-      approverObjectId: OBJECT_ID,
-      decidedAt: "2026-08-08T00:01:00.000Z",
-    })),
+    decide: vi.fn(async (_approvalId: string, input: { decision: "approved" | "rejected"; reason?: string }) => {
+      events.push("cas");
+      return {
+        ...current,
+        status: input.decision,
+        approverTenantId: TENANT_ID,
+        approverObjectId: OBJECT_ID,
+        decidedAt: "2026-08-08T00:01:00.000Z",
+        reason: input.reason?.trim() || null,
+      };
+    }),
   };
   const recipientsRepo = {
     findActiveByTrustedSubject: vi.fn(async () => ({
@@ -94,16 +128,20 @@ function setup(
     ),
   };
   const auditLog = new InMemoryAuditLog();
+  const signalApprovalDecision = vi.fn(async () => {
+    events.push("signal");
+  });
   const app = new Hono();
   registerApprovalRoutes(app, {
     approvalsRepo: repo,
     recipientsRepo,
     auditLog,
     identitySecret: options.identitySecret,
+    signalApprovalDecision: options.signalPort === false ? undefined : signalApprovalDecision,
     nowUnix: () => NOW,
     traceIdProvider: () => "trace-route",
   } satisfies ApprovalRoutesDeps);
-  return { app, repo, recipientsRepo, auditLog };
+  return { app, repo, recipientsRepo, auditLog, signalApprovalDecision, events };
 }
 
 describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
@@ -171,11 +209,10 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
     ]);
   });
 
-  it("署名済みbodyだけを受け、approverはbodyでなくenvelope subjectから渡す", async () => {
-    const { app, repo, recipientsRepo } = setup();
+  it("署名済みcard actionだけをCASし、P3-T03 payloadをCAS後にsignalする", async () => {
+    const { app, repo, recipientsRepo, signalApprovalDecision, events } = setup();
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const body = JSON.stringify({
-      decision: "approved",
+    const body = decisionBody({
       approverTenantId: "99999999-9999-4999-8999-999999999999",
       approverObjectId: "99999999-9999-4999-8999-999999999999",
     });
@@ -191,9 +228,38 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
       reason: undefined,
       approverTenantId: TENANT_ID,
       approverObjectId: OBJECT_ID,
+      expectedVersion: VERSION,
       traceId: "trace-route",
     });
+    expect(signalApprovalDecision).toHaveBeenCalledWith({
+      approvalId: APPROVAL_ID,
+      version: VERSION,
+      decision: "approved",
+      approverObjectId: OBJECT_ID,
+    });
+    expect(events).toEqual(["cas", "signal"]);
     expect(recipientsRepo.canDecideChangeByTrustedSubject).toHaveBeenCalledWith(TENANT_ID, OBJECT_ID, "PJ-001");
+  });
+
+  it("reject理由をauthority receiptからP3-T03 signalへ渡す", async () => {
+    const { app, signalApprovalDecision, events } = setup();
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody({ decision: "rejected", reason: "risk is too high" });
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(200);
+    expect(signalApprovalDecision).toHaveBeenCalledWith({
+      approvalId: APPROVAL_ID,
+      version: VERSION,
+      decision: "rejected",
+      approverObjectId: OBJECT_ID,
+      reason: "risk is too high",
+    });
+    expect(events).toEqual(["cas", "signal"]);
   });
 
   it.each([
@@ -202,7 +268,7 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
   ])("DevOps:REQ-010 / DEC-SPEC-003: PRF-Lの%sは403で監査する", async (_label, option) => {
     const { app, repo, auditLog } = setup({ identitySecret: SECRET, ...option });
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const body = JSON.stringify({ decision: "approved" });
+    const body = decisionBody();
     const response = await app.request(path, {
       method: "POST",
       headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
@@ -242,7 +308,7 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
   it("DevOps:REQ-010: PRF-GはNULL projectも承認できる", async () => {
     const { app, repo } = setup({ identitySecret: SECRET, profile: "PRF-G", projectId: null });
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const body = JSON.stringify({ decision: "approved" });
+    const body = decisionBody();
     expect(
       (
         await app.request(path, {
@@ -275,7 +341,7 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
     });
     recipientsRepo.canDecideChangeByTrustedSubject.mockResolvedValueOnce(false);
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const body = JSON.stringify({ decision: "approved" });
+    const body = decisionBody();
     const second = await app.request(path, {
       method: "POST",
       headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
@@ -290,7 +356,7 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
   it("reject理由欠落は400、CAS競合は409にする", async () => {
     const { app, repo } = setup();
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const missingReason = JSON.stringify({ decision: "rejected" });
+    const missingReason = decisionBody({ decision: "rejected" });
     expect(
       (
         await app.request(path, {
@@ -301,7 +367,7 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
       ).status,
     ).toBe(400);
     repo.decide.mockRejectedValueOnce(new ApprovalAlreadyDecidedError(APPROVAL_ID, "approved"));
-    const approved = JSON.stringify({ decision: "approved" });
+    const approved = decisionBody();
     expect(
       (
         await app.request(path, {
@@ -314,23 +380,149 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
   });
 
   it("既に決定済みのapprovalも404に潰さず409を返す", async () => {
-    const { app, repo } = setup();
+    const { app, repo, signalApprovalDecision } = setup();
     repo.getById.mockResolvedValueOnce({ ...pending, status: "approved" });
     repo.decide.mockRejectedValueOnce(new ApprovalAlreadyDecidedError(APPROVAL_ID, "approved"));
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const body = JSON.stringify({ decision: "approved" });
+    const body = decisionBody();
     const response = await app.request(path, {
       method: "POST",
       headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
       body,
     });
     expect(response.status).toBe(409);
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+  });
+
+  it("card correlationを押下者identityに束縛し、不一致を一様な403で監査する", async () => {
+    const { app, repo, auditLog, signalApprovalDecision } = setup();
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody({}, { tenantId: TENANT_ID, objectId: "33333333-3333-4333-8333-333333333333" });
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "approval forbidden" });
+    expect(repo.getById).not.toHaveBeenCalled();
+    expect(repo.decide).not.toHaveBeenCalled();
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+    expect(await auditLog.readAll()).toEqual([
+      expect.objectContaining({
+        action: "approval_authorization_denied",
+        detail: expect.objectContaining({ code: "E-APR-CORRELATION" }),
+      }),
+    ]);
+  });
+
+  it("requested_byと同じEntra subjectによる自己承認を403で監査する", async () => {
+    const { app, repo, auditLog, signalApprovalDecision } = setup({
+      identitySecret: SECRET,
+      requestedBy: OBJECT_ID,
+    });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody();
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(403);
+    expect(repo.decide).not.toHaveBeenCalled();
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+    expect(await auditLog.readAll()).toEqual([
+      expect.objectContaining({
+        action: "approval_authorization_denied",
+        detail: expect.objectContaining({ code: "E-APR-SELF-APPROVAL" }),
+      }),
+    ]);
+  });
+
+  it.each([
+    ["stale", new ApprovalStaleVersionError(APPROVAL_ID, VERSION), "approval stale"],
+    ["expired", new ApprovalExpiredError(APPROVAL_ID), "approval expired"],
+  ])("%s cardを409で拒否しsignalしない", async (_label, error, message) => {
+    const { app, repo, auditLog, signalApprovalDecision } = setup();
+    repo.decide.mockRejectedValueOnce(error);
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody();
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: message });
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+    expect(await auditLog.readAll()).toEqual([expect.objectContaining({ action: "approval_card_decision_rejected" })]);
+  });
+
+  it("CAS receiptとapproval authorityのid/version/status不一致をsignal前に拒否する", async () => {
+    const { app, repo, auditLog, signalApprovalDecision } = setup();
+    repo.decide.mockResolvedValueOnce({
+      ...pending,
+      status: "approved",
+      expectedVersion: VERSION + 1,
+      approverTenantId: TENANT_ID,
+      approverObjectId: OBJECT_ID,
+      decidedAt: "2026-08-08T00:01:00.000Z",
+    });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody();
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "approval authority mismatch" });
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+    expect(await auditLog.readAll()).toEqual([expect.objectContaining({ action: "approval_card_decision_rejected" })]);
+  });
+
+  it("signal port未結線はCAS前に503でfail closedにする", async () => {
+    const { app, repo } = setup({ identitySecret: SECRET, signalPort: false });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody();
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(503);
+    expect(repo.decide).not.toHaveBeenCalled();
+  });
+
+  it("CAS成功後のsignal障害は503でfail closedにし、外部確定を返さない", async () => {
+    const { app, repo, auditLog, signalApprovalDecision, events } = setup();
+    signalApprovalDecision.mockImplementationOnce(async () => {
+      events.push("signal");
+      throw new Error("Temporal unavailable");
+    });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = decisionBody();
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(503);
+    expect(repo.decide).toHaveBeenCalledOnce();
+    expect(events).toEqual(["cas", "signal"]);
+    expect(await auditLog.readAll()).toEqual([expect.objectContaining({ action: "approval_signal_failed" })]);
   });
 
   it.each(["report", "jit_grant"] as const)("未結線approval typeのdecideは403で監査する: %s", async (approvalType) => {
     const { app, repo, auditLog } = setup({ identitySecret: SECRET, approvalType });
     const path = `/approvals/${APPROVAL_ID}/decision`;
-    const body = JSON.stringify({ decision: "approved" });
+    const body = decisionBody();
     const response = await app.request(path, {
       method: "POST",
       headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
