@@ -20,17 +20,18 @@
 #   - CODING_TASK_CALLBACK_SECRET: callback認証用Bearerトークン（config.tsのCODING_TASK_CALLBACK_SECRETと同一値）
 #     確認リンクのHMAC鍵（CODING_TASK_CONFIRM_SECRET）はサーバ内のみで保持し、ここへは渡さない。
 #     渡すと、この値から任意taskIdの確認トークンを再計算して人間クリック無しでdispatchできる。
-#   - AIOPS_PR_TOKEN: PR作成/branch push用。GitHub App installation token または専用PAT。
-#     contents:write / pull-requests:write / issues:write が必要。未設定なら明示失敗する。
 #   - LITELLM_BASE_URL (Repository/Organization variable): LiteLLM gateway URL。
-#   - LITELLM_CODING_VIRTUAL_KEY: Claude Code専用virtual key。LiteLLM側でmodelを
-#     claude-code aliasのみに制限し、budget上限とexpiryを設定してOwnerが登録・更新する。
-#     input経由にしてCLI導入ステップへvirtual keyを継承させない。
+#   - RUNNER_CREDENTIAL_ISSUER_URL (Repository/Organization variable): OIDC認証する
+#     control-plane issuer URL。未設定時はfail closed（live endpointはenvironment gate後）。
+#   - RUNNER_CREDENTIAL_ISSUER_AUDIENCE (Repository/Organization variable): issuer専用OIDC audience。
+#   - LITELLM_CODING_MAX_BUDGET_USD (Repository/Organization variable): 1 jobの正数budget上限。
+#     LiteLLM virtual keyとGitHub App installation tokenはjob内で発行・revokeする。
+#     master/provider key・App private keyはissuer内だけに保持し、runnerへは渡さない。
 #     FACTORY_API_KEY は agent=droid が ADR-0006 の残課題で無効のため現時点では未使用。
 #
 # 検証状況: 本ワークフローはworkflow_dispatchでのみ起動される。静的検証（actionlint）は
 #   green で、CLIはバージョン固定して導入するため `command not found` では落ちない。
-#   ただし実際のディスパッチ実行（実 LiteLLM virtual key / AIOPS_PR_TOKEN でのエージェント
+#   ただし実際のディスパッチ実行（実 issuer / LiteLLM / GitHub App でのエージェント
 #   実行・push・PR作成・callback）は未実施であり、go-live 前に1周する必要がある。
 #   agent=droid は ADR-0006 の残課題のため明示的に失敗する。
 name: coding-task
@@ -66,6 +67,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   BRANCH_NAME: agent/${{ inputs.task_id }}
@@ -76,17 +78,32 @@ jobs:
     timeout-minutes: 30
     concurrency: coding-task-${{ inputs.task_id }}
     steps:
-      - name: Require CI-triggering PR token
+      - name: Require scoped credential issuer configuration
         env:
-          AIOPS_PR_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
+          RUNNER_CREDENTIAL_ISSUER_URL: ${{ vars.RUNNER_CREDENTIAL_ISSUER_URL }}
+          RUNNER_CREDENTIAL_ISSUER_AUDIENCE: ${{ vars.RUNNER_CREDENTIAL_ISSUER_AUDIENCE }}
+          LITELLM_BASE_URL: ${{ vars.LITELLM_BASE_URL }}
+          LITELLM_CODING_MAX_BUDGET_USD: ${{ vars.LITELLM_CODING_MAX_BUDGET_USD }}
         run: |
           set -euo pipefail
-          if [ -z "${AIOPS_PR_TOKEN:-}" ]; then
-            echo "::error::AIOPS_PR_TOKEN is required so AI-created PRs trigger ci.yml. See runbooks/production-gates.md."
+          if [[ -z "${RUNNER_CREDENTIAL_ISSUER_URL:-}" || "${RUNNER_CREDENTIAL_ISSUER_URL}" != https://* ]]; then
+            echo "::error::RUNNER_CREDENTIAL_ISSUER_URL must be a configured HTTPS endpoint."
+            exit 1
+          fi
+          if [[ -z "${RUNNER_CREDENTIAL_ISSUER_AUDIENCE:-}" || "${RUNNER_CREDENTIAL_ISSUER_AUDIENCE}" == *$'\n'* || "${RUNNER_CREDENTIAL_ISSUER_AUDIENCE}" == *$'\r'* ]]; then
+            echo "::error::RUNNER_CREDENTIAL_ISSUER_AUDIENCE is required."
+            exit 1
+          fi
+          if [[ -z "${LITELLM_BASE_URL:-}" || "${LITELLM_BASE_URL}" != https://* ]]; then
+            echo "::error::LITELLM_BASE_URL must be a configured HTTPS endpoint."
+            exit 1
+          fi
+          if ! jq -en --arg value "${LITELLM_CODING_MAX_BUDGET_USD:-}" '$value | tonumber | select(. > 0)' >/dev/null; then
+            echo "::error::LITELLM_CODING_MAX_BUDGET_USD must be a positive number."
             exit 1
           fi
 
-      # persist-credentials: false は必須。既定の true だと AIOPS_PR_TOKEN が
+      # persist-credentials: false は必須。既定の true だと installation token が
       # .git/config に残り、後段で acceptEdits のエージェントが編集した
       # .git/hooks/* が commit 時に実行されると、そのトークンで任意の push が
       # 成立する。push は専用ステップで都度認証する。
@@ -124,6 +141,40 @@ jobs:
           # 仕込まれるとトークン付きpushの宛先を差し替えられるため、push直前に戻す。
           cp .git/config "${RUNNER_TEMP}/git-config.trusted"
 
+      - name: Issue job-scoped LiteLLM credential
+        id: issue_litellm
+        env:
+          CREDENTIAL_ISSUER_URL: ${{ vars.RUNNER_CREDENTIAL_ISSUER_URL }}
+          CREDENTIAL_ISSUER_AUDIENCE: ${{ vars.RUNNER_CREDENTIAL_ISSUER_AUDIENCE }}
+          MAX_BUDGET_USD: ${{ vars.LITELLM_CODING_MAX_BUDGET_USD }}
+          TASK_ID: ${{ inputs.task_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          AUDIENCE=$(jq -rn --arg value "${CREDENTIAL_ISSUER_AUDIENCE}" '$value | @uri')
+          OIDC_TOKEN=$(curl -fsS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}" | jq -er '.value | select(type == "string" and length > 0)')
+          echo "::add-mask::${OIDC_TOKEN}"
+          PAYLOAD=$(jq -n \
+            --arg taskId "${TASK_ID}" \
+            --arg repository "${REPOSITORY}" \
+            --arg branchName "${BRANCH_NAME}" \
+            --arg modelAlias "claude-code" \
+            --argjson maxBudgetUsd "${MAX_BUDGET_USD}" \
+            --argjson durationSeconds 1800 \
+            '{taskId: $taskId, repository: $repository, branchName: $branchName, modelAlias: $modelAlias, maxBudgetUsd: $maxBudgetUsd, durationSeconds: $durationSeconds}')
+          RESPONSE=$(curl -fsS -X POST "${CREDENTIAL_ISSUER_URL}/v1/runner-credentials/litellm/issue" \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}")
+          TOKEN=$(jq -er '.token | select(type == "string" and length > 0)' <<<"${RESPONSE}")
+          LEASE_ID=$(jq -er '.leaseId | select(type == "string" and length > 0)' <<<"${RESPONSE}")
+          [[ "${TOKEN}" != *$'\n'* && "${TOKEN}" != *$'\r'* && "${LEASE_ID}" != *$'\n'* && "${LEASE_ID}" != *$'\r'* ]]
+          echo "::add-mask::${TOKEN}"
+          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+          echo "lease_id=${LEASE_ID}" >> "$GITHUB_OUTPUT"
+
       # gateway URLとvirtual keyはstep envではなくinputで渡す。step envにするとcomposite action内の
       # 全ステップ（CLI導入を含む）が継承し、依存のlifecycle scriptから見えてしまう。
       - name: Run coding agent (ADR-0006 composite action)
@@ -132,7 +183,33 @@ jobs:
           agent: ${{ inputs.agent }}
           instruction: ${{ inputs.instruction }}
           litellm_base_url: ${{ vars.LITELLM_BASE_URL }}
-          litellm_coding_virtual_key: ${{ secrets.LITELLM_CODING_VIRTUAL_KEY }}
+          litellm_coding_virtual_key: ${{ steps.issue_litellm.outputs.token }}
+
+      - name: Revoke job-scoped LiteLLM credential
+        if: ${{ always() && steps.issue_litellm.outputs.lease_id != '' }}
+        env:
+          CREDENTIAL_ISSUER_URL: ${{ vars.RUNNER_CREDENTIAL_ISSUER_URL }}
+          CREDENTIAL_ISSUER_AUDIENCE: ${{ vars.RUNNER_CREDENTIAL_ISSUER_AUDIENCE }}
+          TASK_ID: ${{ inputs.task_id }}
+          REPOSITORY: ${{ github.repository }}
+          LEASE_ID: ${{ steps.issue_litellm.outputs.lease_id }}
+        run: |
+          set -euo pipefail
+          AUDIENCE=$(jq -rn --arg value "${CREDENTIAL_ISSUER_AUDIENCE}" '$value | @uri')
+          OIDC_TOKEN=$(curl -fsS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}" | jq -er '.value | select(type == "string" and length > 0)')
+          echo "::add-mask::${OIDC_TOKEN}"
+          PAYLOAD=$(jq -n \
+            --arg taskId "${TASK_ID}" \
+            --arg repository "${REPOSITORY}" \
+            --arg branchName "${BRANCH_NAME}" \
+            --arg leaseId "${LEASE_ID}" \
+            '{taskId: $taskId, repository: $repository, branchName: $branchName, leaseId: $leaseId, kind: "litellm"}')
+          curl -fsS -X POST "${CREDENTIAL_ISSUER_URL}/v1/runner-credentials/litellm/revoke" \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}"
 
       - name: Detect changes
         id: detect
@@ -161,10 +238,41 @@ jobs:
           git add -A
           git commit --no-verify -m "[AI] ${PROJECT_ID}: ${INSTRUCTION}" -m "task_id: ${TASK_ID}"
 
+      - name: Issue repository-scoped GitHub credential
+        if: steps.detect.outputs.changed == 'true'
+        id: issue_github
+        env:
+          CREDENTIAL_ISSUER_URL: ${{ vars.RUNNER_CREDENTIAL_ISSUER_URL }}
+          CREDENTIAL_ISSUER_AUDIENCE: ${{ vars.RUNNER_CREDENTIAL_ISSUER_AUDIENCE }}
+          TASK_ID: ${{ inputs.task_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          AUDIENCE=$(jq -rn --arg value "${CREDENTIAL_ISSUER_AUDIENCE}" '$value | @uri')
+          OIDC_TOKEN=$(curl -fsS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}" | jq -er '.value | select(type == "string" and length > 0)')
+          echo "::add-mask::${OIDC_TOKEN}"
+          PAYLOAD=$(jq -n \
+            --arg taskId "${TASK_ID}" \
+            --arg repository "${REPOSITORY}" \
+            --arg branchName "${BRANCH_NAME}" \
+            '{taskId: $taskId, repository: $repository, branchName: $branchName}')
+          RESPONSE=$(curl -fsS -X POST "${CREDENTIAL_ISSUER_URL}/v1/runner-credentials/github/issue" \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}")
+          TOKEN=$(jq -er '.token | select(type == "string" and length > 0)' <<<"${RESPONSE}")
+          LEASE_ID=$(jq -er '.leaseId | select(type == "string" and length > 0)' <<<"${RESPONSE}")
+          [[ "${TOKEN}" != *$'\n'* && "${TOKEN}" != *$'\r'* && "${LEASE_ID}" != *$'\n'* && "${LEASE_ID}" != *$'\r'* ]]
+          echo "::add-mask::${TOKEN}"
+          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+          echo "lease_id=${LEASE_ID}" >> "$GITHUB_OUTPUT"
+
       - name: Push agent branch
         if: steps.detect.outputs.changed == 'true'
         env:
-          AIOPS_PR_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
+          GITHUB_INSTALLATION_TOKEN: ${{ steps.issue_github.outputs.token }}
         run: |
           set -euo pipefail
           # エージェントが書き換えた可能性のある .git/config を、実行前の状態へ戻す。
@@ -176,20 +284,20 @@ jobs:
           # トークンはURL（=argv）に置かず、環境変数から読むcredential helperで渡す。
           # URLに埋めると同一ランナー上の他プロセスからprocのargvとして読める。
           # 認証設定は -c で当該コマンド限りに閉じ、.git/config には残さない。
-          # --no-verify: pre-push hook がこのステップの AIOPS_PR_TOKEN を継承して
+          # --no-verify: pre-push hook がこのステップの installation token を継承して
           # 意図しない参照へ push するのを防ぐ。
           # GIT_CONFIG_GLOBAL/SYSTEM も無効化する。repo-local を戻すだけでは、
           # エージェントが ~/.gitconfig 側へ書いた insteadOf 等が残るため。
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
           git -c credential.helper= \
-              -c "credential.helper=!f() { echo username=x-access-token; echo password=\$AIOPS_PR_TOKEN; }; f" \
+              -c "credential.helper=!f() { echo username=x-access-token; echo password=\$GITHUB_INSTALLATION_TOKEN; }; f" \
               push --no-verify "https://github.com/${GITHUB_REPOSITORY}.git" "${BRANCH_NAME}"
 
       - name: Create pull request
         if: steps.detect.outputs.changed == 'true'
         id: create_pr
         env:
-          GH_TOKEN: ${{ secrets.AIOPS_PR_TOKEN }}
+          GH_TOKEN: ${{ steps.issue_github.outputs.token }}
           PROJECT_ID: ${{ inputs.project_id }}
           TASK_ID: ${{ inputs.task_id }}
           AGENT_NAME: ${{ inputs.agent }}
@@ -217,6 +325,32 @@ jobs:
             --head "${BRANCH_NAME}" \
             --label "ai-generated")
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Revoke repository-scoped GitHub credential
+        if: ${{ always() && steps.issue_github.outputs.lease_id != '' }}
+        env:
+          CREDENTIAL_ISSUER_URL: ${{ vars.RUNNER_CREDENTIAL_ISSUER_URL }}
+          CREDENTIAL_ISSUER_AUDIENCE: ${{ vars.RUNNER_CREDENTIAL_ISSUER_AUDIENCE }}
+          TASK_ID: ${{ inputs.task_id }}
+          REPOSITORY: ${{ github.repository }}
+          LEASE_ID: ${{ steps.issue_github.outputs.lease_id }}
+        run: |
+          set -euo pipefail
+          AUDIENCE=$(jq -rn --arg value "${CREDENTIAL_ISSUER_AUDIENCE}" '$value | @uri')
+          OIDC_TOKEN=$(curl -fsS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}" | jq -er '.value | select(type == "string" and length > 0)')
+          echo "::add-mask::${OIDC_TOKEN}"
+          PAYLOAD=$(jq -n \
+            --arg taskId "${TASK_ID}" \
+            --arg repository "${REPOSITORY}" \
+            --arg branchName "${BRANCH_NAME}" \
+            --arg leaseId "${LEASE_ID}" \
+            '{taskId: $taskId, repository: $repository, branchName: $branchName, leaseId: $leaseId, kind: "github"}')
+          curl -fsS -X POST "${CREDENTIAL_ISSUER_URL}/v1/runner-credentials/github/revoke" \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}"
 
       # security-reviewer指摘(中): callbackペイロードを文字列結合でJSON化していたため
       # jq --arg/--argjsonでの安全な組み立てに置き換える。github.run_idも他の値と同様に
