@@ -1,6 +1,13 @@
 // 根拠: FinalArch:PRD-001 / FinalArch:FR-UI-001 / FinalArch:FR-UI-003 / FinalArch:FR-UI-006 / ADR-0025
 
 export { teamsAdapter } from "./adapters/teams.js";
+export { buildApprovalCard } from "./lib/approvalCard.js";
+export type {
+  ApprovalAdaptiveCard,
+  ApprovalCardActionData,
+  ApprovalCardDecision,
+  BuildApprovalCardInput,
+} from "./lib/approvalCard.js";
 export {
   buildAgUiRunRequest,
   decideChannelFlow,

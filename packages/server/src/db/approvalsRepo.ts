@@ -24,6 +24,9 @@ export interface ApprovalRecord {
   reason: string | null;
   deliveredAt: string | null;
   dispatchedAt: string | null;
+  payloadHash: string | null;
+  expectedVersion: number | null;
+  expiresAt: string | null;
   createdAt: string;
 }
 
@@ -52,6 +55,7 @@ export interface DecideApprovalInput {
   reason?: string;
   approverTenantId: string;
   approverObjectId: string;
+  expectedVersion: number;
   traceId: string;
 }
 
@@ -83,6 +87,23 @@ export class ApprovalAlreadyDecidedError extends Error {
   }
 }
 
+export class ApprovalStaleVersionError extends Error {
+  constructor(
+    approvalId: string,
+    public readonly expectedVersion: number,
+  ) {
+    super(`Approval ${approvalId} does not match version ${expectedVersion}`);
+    this.name = "ApprovalStaleVersionError";
+  }
+}
+
+export class ApprovalExpiredError extends Error {
+  constructor(approvalId: string) {
+    super(`Approval ${approvalId} has expired`);
+    this.name = "ApprovalExpiredError";
+  }
+}
+
 function requiredText(value: string, field: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new Error(`Invalid approval ${field}`);
@@ -109,12 +130,16 @@ function toApprovalRecord(row: Record<string, unknown>): ApprovalRecord {
     reason: row.reason == null ? null : String(row.reason),
     deliveredAt: row.delivered_at == null ? null : new Date(String(row.delivered_at)).toISOString(),
     dispatchedAt: row.dispatched_at == null ? null : new Date(String(row.dispatched_at)).toISOString(),
+    payloadHash: row.payload_hash == null ? null : String(row.payload_hash),
+    expectedVersion: row.expected_version == null ? null : Number(row.expected_version),
+    expiresAt: row.expires_at == null ? null : new Date(String(row.expires_at)).toISOString(),
     createdAt: new Date(String(row.created_at)).toISOString(),
   };
 }
 
 const COLUMNS = `approval_id, approval_type, target_id, project_id, target_sha, status, requested_by,
-  approver_tenant_id, approver_object_id, decided_at, reason, delivered_at, dispatched_at, created_at`;
+  approver_tenant_id, approver_object_id, decided_at, reason, delivered_at, dispatched_at, payload_hash,
+  expected_version, expires_at, created_at`;
 
 export class ApprovalsRepo {
   constructor(
@@ -328,6 +353,9 @@ export class ApprovalsRepo {
     requiredUuid(approvalId, "approval_id");
     requiredUuid(input.approverTenantId, "approver_tenant_id");
     requiredUuid(input.approverObjectId, "approver_object_id");
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+      throw new Error("Invalid approval expected_version");
+    }
     if (input.decision !== "approved" && input.decision !== "rejected") throw new Error("Invalid approval decision");
     const rawReason = input.reason?.trim() || undefined;
     if (rawReason && rawReason.length > APPROVAL_REASON_MAX_LENGTH) throw new Error("Invalid approval reason");
@@ -339,15 +367,36 @@ export class ApprovalsRepo {
         `UPDATE approvals
          SET status = $2, approver_tenant_id = $3::uuid, approver_object_id = $4::uuid,
              decided_at = now(), reason = $5
-         WHERE approval_id = $1::uuid AND status = 'pending'
+         WHERE approval_id = $1::uuid
+           AND status = 'pending'
+           AND expected_version = $6
+           AND expires_at > now()
          RETURNING ${COLUMNS}`,
-        [approvalId, input.decision, input.approverTenantId, input.approverObjectId, reason ?? null],
+        [
+          approvalId,
+          input.decision,
+          input.approverTenantId,
+          input.approverObjectId,
+          reason ?? null,
+          input.expectedVersion,
+        ],
       );
       if (!result.rows[0]) {
-        const existing = await db.query("SELECT status FROM approvals WHERE approval_id = $1::uuid", [approvalId]);
-        const status = existing.rows[0]?.status as ApprovalStatus | undefined;
-        if (!status) throw new ApprovalNotFoundError(approvalId);
-        throw new ApprovalAlreadyDecidedError(approvalId, status);
+        const existing = await db.query(
+          `SELECT status, expected_version, expires_at IS NULL OR expires_at <= now() AS expired
+           FROM approvals WHERE approval_id = $1::uuid`,
+          [approvalId],
+        );
+        const row = existing.rows[0];
+        if (!row) throw new ApprovalNotFoundError(approvalId);
+        const status = row.status as ApprovalStatus;
+        if (status !== "pending") throw new ApprovalAlreadyDecidedError(approvalId, status);
+        const currentVersion = row.expected_version == null ? null : Number(row.expected_version);
+        if (currentVersion !== input.expectedVersion) {
+          throw new ApprovalStaleVersionError(approvalId, input.expectedVersion);
+        }
+        if (row.expired === true) throw new ApprovalExpiredError(approvalId);
+        throw new ApprovalStaleVersionError(approvalId, input.expectedVersion);
       }
 
       const approval = toApprovalRecord(result.rows[0]);
@@ -363,6 +412,7 @@ export class ApprovalsRepo {
           projectId: approval.projectId,
           approverTenantId: input.approverTenantId,
           approverObjectId: input.approverObjectId,
+          version: input.expectedVersion,
           ...(reason ? { reason } : {}),
         },
         reason,
