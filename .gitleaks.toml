@@ -40,3 +40,14 @@ paths = [
   '''packages/server/tests/p1LedgerPg\.test\.ts''',
 ]
 regexes = ['''api_key=abcdefghijklm[n]opqrstuvwx''']
+
+[[allowlists]]
+description = "P7-T09 synthetic HMAC secrets in Workbench handoff test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = ['''packages/web/tests/workbenchHandoff\.test\.ts''']
+regexes = [
+  '''^\s*const HANDOFF_SECRET = "handoff-secret-that-is-at-least-32-characters";$''',
+  '''^\s*const IDENTITY_SECRET = "identity-secret-that-is-at-least-32-characters";$''',
+]

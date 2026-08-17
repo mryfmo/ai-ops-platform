@@ -8,6 +8,7 @@
 ## Resolved Finding
 
 - `P7-T09-R01` (medium, security/correctness): the receive handler accepted duplicate `token` query parameters because `URLSearchParams.get()` selected the first value. Resolved by requiring exactly one query key equal to `token` and adding a negative fixture. Focused checks and fresh-DB full CI were rerun green after the fix.
+- `P7-T09-R02` (CI, false positive): the default `generic-api-key` rule matched two synthetic HMAC test constants. Resolved with one line-targeted allowlist restricted to the exact test path and exact anchored declarations; default rules and all other paths remain unchanged. Targeted Gitleaks scans and focused Web checks passed.
 
 ## Review Dimensions
 

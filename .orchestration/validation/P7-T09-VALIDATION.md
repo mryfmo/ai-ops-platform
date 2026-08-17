@@ -39,3 +39,11 @@
 
 - No real Teams tenant, Entra credential, production endpoint, message body, attachment, or external workflow was used.
 - All identities, links, decisions, and fetch responses were synthetic; database validation used dedicated local disposable databases.
+
+## Gitleaks Revision
+
+- RED: an exact-entry assertion confirmed that `.gitleaks.toml` did not yet allow the two synthetic HMAC fixture declarations.
+- Added one `generic-api-key` allowlist with `condition = "AND"`, `regexTarget = "line"`, the single escaped test path, and anchored regexes for exactly the `HANDOFF_SECRET` and `IDENTITY_SECRET` declaration lines.
+- A TOML/parser exactness check passed and rejected nearby variants (different name, value, or trailing content).
+- Gitleaks 8.30.1 found no leaks when scanning the fixture file and the P7-T09 implementation commit with the amended repository config.
+- Focused Web handoff tests remained 12/12; Web typecheck, Web lint, and `git diff --check` passed.

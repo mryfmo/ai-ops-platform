@@ -32,3 +32,7 @@ Implemented a signed, short-lived, single-use Teams-to-Workbench handoff contrac
 - Branch: `agent/P7-T09-teams-workbench-handoff`.
 - Orchestrator performs push and PR creation after `AGMSG-RESULT`.
 - cost: n/a
+
+## Revision
+
+- Resolved the hosted Gitleaks false positive with a repository-precedent allowlist limited to the two synthetic constant declarations in `packages/web/tests/workbenchHandoff.test.ts`; default detection rules and other paths are unchanged.
