@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "storage": {
+    "busy_timeout_ms": 750,
+    "writer_lock_timeout_ms": 3000,
+    "drain_batch": 250,
+    "journal_mode": "WAL",
+    "synchronous": "FULL"
+  },
+  "capture": {
+    "max_detail_chars": 100000,
+    "max_tool_output_chars": 30000,
+    "max_summary_chars": 240,
+    "capture_tool_response": true,
+    "capture_file_contents": true,
+    "skip_sensitive_files": true,
+    "raw_event_retention_days": 30
+  },
+  "redaction": {
+    "replacement": "[REDACTED:{kind}]",
+    "sensitive_keys": [
+      "password",
+      "passwd",
+      "pwd",
+      "secret",
+      "api_key",
+      "apikey",
+      "access_token",
+      "refresh_token",
+      "auth_token",
+      "token",
+      "client_secret",
+      "private_key",
+      "authorization",
+      "cookie",
+      "set_cookie"
+    ]
+  },
+  "memory": {
+    "auto_promote": true,
+    "auto_promote_min_confidence": 0.86,
+    "auto_promote_kinds": [
+      "constraint",
+      "decision",
+      "preference",
+      "open_task",
+      "compact_summary"
+    ],
+    "block_summary_chars": 800,
+    "recent_raw_count": 8,
+    "context_items": 24
+  },
+  "recovery": {
+    "max_chars": 12000,
+    "files_budget_chars": 2000,
+    "recent_events": 12,
+    "recent_prompts": 4,
+    "recent_files": 12,
+    "recent_failures": 5,
+    "include_project_memories": true
+  },
+  "recall": {
+    "rho": 0.6,
+    "k": 5
+  },
+  "operations": {
+    "error_log_retention_days": 30
+  },
+  "semantic": {
+    "enabled": false,
+    "command": [],
+    "model": "external-command",
+    "timeout_seconds": 30,
+    "batch_size": 32
+  }
+}
