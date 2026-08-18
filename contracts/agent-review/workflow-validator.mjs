@@ -1,6 +1,7 @@
 // 根拠: FinalArch:PRD-008 / FinalArch:FR-AGT-002 / FinalArch:FR-AGT-005 / FinalArch:COD-006 / ADR-0027 / WBS P8-T06
 const REQUIRED_INPUTS = [
   "task_manifest_path",
+  "manifest_digest",
   "base_sha",
   "head_sha",
   "reviewer_agent_id",
@@ -75,6 +76,9 @@ export function validateReviewWorkflow(workflow) {
   }
   if (collector.env?.REVIEWER_EXECUTION_PROFILE !== "${{ inputs.reviewer_execution_profile }}") {
     fail("collector reviewer profile must come from the dispatch input");
+  }
+  if (collector.env?.MANIFEST_DIGEST !== "${{ inputs.manifest_digest }}") {
+    fail("collector manifest digest must come from the dispatch input");
   }
 
   const upload = job.steps.find((step) => String(step.uses ?? "").startsWith("actions/upload-artifact@"));

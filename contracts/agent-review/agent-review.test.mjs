@@ -29,6 +29,22 @@ describe("independent review artifact contract [FinalArch:FR-AGT-005 / FinalArch
     assert.doesNotThrow(() => validateReviewArtifact(clone(review), clone(manifest)));
   });
 
+  it("accepts the shared lowercase UUID task_id shape and rejects malformed variants", () => {
+    const uuid = "11111111-1111-1111-1111-111111111111";
+    const runtimeManifest = clone(manifest);
+    const runtimeReview = clone(review);
+    runtimeManifest.task_id = uuid;
+    runtimeManifest.delivery.branch = `agent/${uuid}`;
+    runtimeReview.task_id = uuid;
+    assert.doesNotThrow(() => validateReviewArtifact(runtimeReview, runtimeManifest));
+
+    runtimeReview.task_id = "11111111-1111-1111-1111-11111111111G";
+    assert.throws(
+      () => validateReviewArtifact(runtimeReview, runtimeManifest),
+      /invalid Draft 2020-12 schema or fixture/u,
+    );
+  });
+
   it("rejects missing finding fields and reviewer or profile substitution", () => {
     for (const field of ["dimension", "severity", "file", "line", "evidence", "suggestion"]) {
       const invalid = clone(review);
@@ -63,6 +79,18 @@ describe("independent review artifact contract [FinalArch:FR-AGT-005 / FinalArch
 describe("review workflow security [FinalArch:COD-006]", () => {
   it("allows only a read-only token and a credential-free, data-only target checkout", () => {
     assert.doesNotThrow(() => validateReviewWorkflow(clone(workflow)));
+  });
+
+  it("requires the manifest digest dispatch authority to reach the trusted collector unchanged", () => {
+    const missing = clone(workflow);
+    delete missing.on.workflow_dispatch.inputs.manifest_digest;
+    assert.throws(() => validateReviewWorkflow(missing), /inputs must be exactly/u);
+
+    const substituted = clone(workflow);
+    substituted.jobs["independent-review"].steps.find((step) =>
+      String(step.run ?? "").includes("node scripts/collect-agent-review.mjs"),
+    ).env.MANIFEST_DIGEST = "writer-controlled";
+    assert.throws(() => validateReviewWorkflow(substituted), /manifest digest must come from the dispatch input/u);
   });
 
   it("rejects write scope, persisted checkout credentials, and branch mutation", () => {
@@ -127,6 +155,8 @@ describe("mechanical review collection [FinalArch:FR-AGT-005]", () => {
         repoRoot,
         "--manifest",
         "../manifest.json",
+        "--manifest-digest",
+        "0".repeat(64),
         "--base",
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--head",

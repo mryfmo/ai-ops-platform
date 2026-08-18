@@ -14,12 +14,14 @@ import { Hono } from "hono";
 import { registerCodingTaskRoutes, type CodingTaskRoutesDeps } from "../src/http/routes/codingTasks.js";
 import { CodingTasksRepo } from "../src/db/codingTasksRepo.js";
 import { generateConfirmToken, hashConfirmToken } from "../src/lib/confirmToken.js";
+import { issueCodingTaskManifest } from "../src/lib/codingTaskManifest.js";
 
 const CONFIRM_SECRET = "test-confirm-token-secret-16+";
 const CALLBACK_SECRET = "test-callback-secret-16chars";
 const TASK_ID = "11111111-1111-4111-8111-111111111111";
 
 function makeRowFor(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  const authority = issueCodingTaskManifest({ taskId: TASK_ID, agent: "claude-code" });
   return {
     task_id: TASK_ID,
     project_id: "PJ-001",
@@ -32,6 +34,8 @@ function makeRowFor(overrides: Partial<Record<string, unknown>> = {}): Record<st
     pr_url: null,
     branch: null,
     trace_id: "trace-1",
+    manifest: authority.manifest,
+    manifest_sha256: authority.manifestSha256,
     confirmed_at: null,
     created_at: "2026-07-07T00:00:00.000Z",
     updated_at: "2026-07-07T00:00:00.000Z",
@@ -174,9 +178,29 @@ describe("POST /coding-tasks/:taskId/confirm (ADR-0006: 人間の明示クリッ
     expect(dispatchCalls[0]!.inputs.project_id).toBe("PJ-001");
     expect(dispatchCalls[0]!.inputs.instruction).toBe("テストを直して");
     expect(dispatchCalls[0]!.inputs.agent).toBe("claude-code");
+    expect(dispatchCalls[0]!.inputs.manifest_base64).toBe(
+      Buffer.from(makeRowFor().manifest as string, "utf8").toString("base64"),
+    );
+    expect(dispatchCalls[0]!.inputs.manifest_sha256).toBe(makeRowFor().manifest_sha256);
     expect(updateCalls.some((c) => c.text.includes("SET status = 'running'"))).toBe(true);
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "coding_task_confirmed_dispatched")).toBe(true);
+  });
+
+  it.each([
+    ["missing manifest", { manifest: "" }],
+    ["missing digest", { manifest_sha256: "" }],
+    ["digest mismatch", { manifest_sha256: "0".repeat(64) }],
+  ])("%s は claim/dispatch 前に fail closed", async (_label, override) => {
+    const { app, dispatchCalls, updateCalls, token } = makeHarness({ row: makeRowFor(override) });
+    const res = await app.request(`/coding-tasks/${TASK_ID}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token, taskId: TASK_ID }).toString(),
+    });
+    expect(res.status).toBe(409);
+    expect(dispatchCalls).toHaveLength(0);
+    expect(updateCalls).toHaveLength(0);
   });
 
   it("不正トークンはdispatchWorkflowを呼ばず403", async () => {

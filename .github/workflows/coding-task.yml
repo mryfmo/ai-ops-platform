@@ -64,6 +64,14 @@ on:
           - claude-code
           - droid
         default: claude-code
+      manifest_base64:
+        description: "coding_tasks.manifest の exact UTF-8 bytes（base64）"
+        required: true
+        type: string
+      manifest_sha256:
+        description: "coding_tasks.manifest_sha256（raw-byte SHA-256）"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -84,6 +92,7 @@ jobs:
           RUNNER_CREDENTIAL_ISSUER_AUDIENCE: ${{ vars.RUNNER_CREDENTIAL_ISSUER_AUDIENCE }}
           LITELLM_BASE_URL: ${{ vars.LITELLM_BASE_URL }}
           LITELLM_CODING_MAX_BUDGET_USD: ${{ vars.LITELLM_CODING_MAX_BUDGET_USD }}
+          BASE_REF: ${{ inputs.base_ref }}
         run: |
           set -euo pipefail
           if [[ -z "${RUNNER_CREDENTIAL_ISSUER_URL:-}" || "${RUNNER_CREDENTIAL_ISSUER_URL}" != https://* ]]; then
@@ -102,6 +111,10 @@ jobs:
             echo "::error::LITELLM_CODING_MAX_BUDGET_USD must be a positive number."
             exit 1
           fi
+          if [[ "${BASE_REF}" != "main" ]]; then
+            echo "::error::base_ref must be main for the production coding-task authority path."
+            exit 1
+          fi
 
       # persist-credentials: false は必須。既定の true だと installation token が
       # .git/config に残り、後段で acceptEdits のエージェントが編集した
@@ -110,7 +123,7 @@ jobs:
       - name: Checkout base_ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.base_ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -140,6 +153,51 @@ jobs:
           # エージェント実行前の .git/config を退避する。insteadOf 等の書き換えを
           # 仕込まれるとトークン付きpushの宛先を差し替えられるため、push直前に戻す。
           cp .git/config "${RUNNER_TEMP}/git-config.trusted"
+
+      - name: Materialize and validate task manifest authority
+        id: manifest_authority
+        env:
+          MANIFEST_BASE64: ${{ inputs.manifest_base64 }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          manifest_path="${RUNNER_TEMP}/coding-task-manifest.json"
+          snapshot_path="${RUNNER_TEMP}/coding-task-path-boundary.json"
+          trusted_root="${RUNNER_TEMP}/coding-task-path-boundary-trusted"
+          [[ -n "${MANIFEST_BASE64}" && "${MANIFEST_SHA256}" =~ ^[a-f0-9]{64}$ ]]
+          printf '%s' "${MANIFEST_BASE64}" | base64 --decode > "${manifest_path}"
+          printf '%s  %s\n' "${MANIFEST_SHA256}" "${manifest_path}" | sha256sum -c -
+          mkdir -p "${trusted_root}/scripts" "${trusted_root}/contracts/agent-task"
+          cp scripts/coding-agent-path-guard.mjs "${trusted_root}/scripts/"
+          cp contracts/agent-task/agent-task.schema.json \
+             contracts/agent-task/json-schema-validator.mjs \
+             contracts/agent-task/manifest-validator.mjs \
+             "${trusted_root}/contracts/agent-task/"
+          trusted_digest="$(find "${trusted_root}" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f 1)"
+          node --input-type=module - "${manifest_path}" "${trusted_root}/contracts/agent-task/manifest-validator.mjs" <<'NODE'
+          import fs from "node:fs";
+          import { pathToFileURL } from "node:url";
+          const manifestPath = process.argv[2];
+          const validatorPath = process.argv[3];
+          const { validateAgentTaskManifest } = await import(pathToFileURL(validatorPath));
+          validateAgentTaskManifest(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
+          NODE
+          integrity_key="$(openssl rand -hex 32)"
+          echo "::add-mask::${integrity_key}"
+          echo "manifest_path=${manifest_path}" >> "${GITHUB_OUTPUT}"
+          echo "snapshot_path=${snapshot_path}" >> "${GITHUB_OUTPUT}"
+          echo "trusted_guard=${trusted_root}/scripts/coding-agent-path-guard.mjs" >> "${GITHUB_OUTPUT}"
+          echo "trusted_digest=${trusted_digest}" >> "${GITHUB_OUTPUT}"
+          echo "integrity_key=${integrity_key}" >> "${GITHUB_OUTPUT}"
+
+      - name: Record pre-agent path boundary
+        env:
+          PATH_GUARD_INTEGRITY_KEY: ${{ steps.manifest_authority.outputs.integrity_key }}
+        run: >-
+          node "${{ steps.manifest_authority.outputs.trusted_guard }}" pre
+          --repo "${GITHUB_WORKSPACE}"
+          --manifest "${{ steps.manifest_authority.outputs.manifest_path }}"
+          --snapshot "${{ steps.manifest_authority.outputs.snapshot_path }}"
 
       - name: Issue job-scoped LiteLLM credential
         id: issue_litellm
@@ -184,6 +242,21 @@ jobs:
           instruction: ${{ inputs.instruction }}
           litellm_base_url: ${{ vars.LITELLM_BASE_URL }}
           litellm_coding_virtual_key: ${{ steps.issue_litellm.outputs.token }}
+
+      - name: Verify post-agent path boundary
+        env:
+          PATH_GUARD_INTEGRITY_KEY: ${{ steps.manifest_authority.outputs.integrity_key }}
+          TRUSTED_GUARD: ${{ steps.manifest_authority.outputs.trusted_guard }}
+          TRUSTED_DIGEST: ${{ steps.manifest_authority.outputs.trusted_digest }}
+        run: |
+          set -euo pipefail
+          trusted_root="$(dirname "$(dirname "${TRUSTED_GUARD}")")"
+          actual_digest="$(find "${trusted_root}" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f 1)"
+          [[ "${actual_digest}" == "${TRUSTED_DIGEST}" ]]
+          node "${TRUSTED_GUARD}" post \
+            --repo "${GITHUB_WORKSPACE}" \
+            --manifest "${{ steps.manifest_authority.outputs.manifest_path }}" \
+            --snapshot "${{ steps.manifest_authority.outputs.snapshot_path }}"
 
       - name: Revoke job-scoped LiteLLM credential
         if: ${{ always() && steps.issue_litellm.outputs.lease_id != '' }}

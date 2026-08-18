@@ -8,6 +8,10 @@ on:
         description: "Review target 内の P8-T01 task manifest path"
         required: true
         type: string
+      manifest_digest:
+        description: "Dispatch authority が固定した manifest raw-byte SHA-256"
+        required: true
+        type: string
       base_sha:
         description: "Review range の base commit SHA"
         required: true
@@ -65,6 +69,7 @@ jobs:
         env:
           TARGET_ROOT: review-target
           TASK_MANIFEST_PATH: ${{ inputs.task_manifest_path }}
+          MANIFEST_DIGEST: ${{ inputs.manifest_digest }}
           BASE_SHA: ${{ inputs.base_sha }}
           HEAD_SHA: ${{ inputs.head_sha }}
           REVIEWER_AGENT_ID: ${{ inputs.reviewer_agent_id }}
@@ -74,6 +79,7 @@ jobs:
           node scripts/collect-agent-review.mjs
           --target "$TARGET_ROOT"
           --manifest "$TASK_MANIFEST_PATH"
+          --manifest-digest "$MANIFEST_DIGEST"
           --base "$BASE_SHA"
           --head "$HEAD_SHA"
           --reviewer "$REVIEWER_AGENT_ID"
@@ -81,6 +87,7 @@ jobs:
           --output "$FINDINGS_PATH"
 
       - name: Upload structured findings
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: codex-review-findings

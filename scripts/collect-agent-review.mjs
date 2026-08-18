@@ -1,5 +1,6 @@
 // 根拠: FinalArch:PRD-008 / FinalArch:FR-AGT-001..006 / FinalArch:COD-006 / ADR-0027 / WBS P8-T06
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,7 @@ import { pathScopesOverlap } from "../contracts/agent-task/manifest-validator.mj
 import { validateReviewArtifact } from "../contracts/agent-review/review-validator.mjs";
 
 const SHA = /^[a-f0-9]{40}$/u;
+const SHA256 = /^[a-f0-9]{64}$/u;
 const RELATIVE_PATH =
   /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\\)(?!.*\/\/)[A-Za-z0-9._@()+{}[\]-]+(?:\/[A-Za-z0-9._@()+{}[\]-]+)*$/u;
 const SPEC_REFERENCE = /\b(?:FinalArch:)?(?:PRD|FR|COD|ADR|REQ|SPEC(?:-INT|-EXT)?|TH|AC)-[A-Z0-9.-]+\b/gu;
@@ -102,7 +104,7 @@ function parseArgs(argv) {
     if (!key?.startsWith("--") || value === undefined) throw new TypeError("arguments must be --name value pairs");
     options[key.slice(2)] = value;
   }
-  const required = ["target", "manifest", "base", "head", "reviewer", "profile", "output"];
+  const required = ["target", "manifest", "manifest-digest", "base", "head", "reviewer", "profile", "output"];
   if (Object.keys(options).sort().join() !== required.sort().join())
     throw new TypeError("unexpected or missing argument");
   return options;
@@ -119,7 +121,28 @@ function containedPath(root, relativePath) {
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const targetRoot = path.resolve(options.target);
-  const manifest = JSON.parse(fs.readFileSync(containedPath(targetRoot, options.manifest), "utf8"));
+  const manifestRaw = fs.readFileSync(containedPath(targetRoot, options.manifest));
+  const actualDigest = createHash("sha256").update(manifestRaw).digest("hex");
+  if (!SHA256.test(options["manifest-digest"]) || options["manifest-digest"] !== actualDigest) {
+    const failure = {
+      schema_version: "1.0",
+      status: "failed",
+      source: { base_sha: options.base, head_sha: options.head },
+      findings: [
+        {
+          dimension: "security",
+          severity: "critical",
+          file: options.manifest,
+          line: null,
+          evidence: "Authoritative manifest digest is missing or does not match the review-target raw bytes.",
+          suggestion: "Stop review and dispatch the immutable coding_tasks.manifest_sha256 authority.",
+        },
+      ],
+    };
+    fs.writeFileSync(options.output, `${JSON.stringify(failure, null, 2)}\n`, { flag: "wx" });
+    throw new TypeError("manifest digest is missing or mismatched");
+  }
+  const manifest = JSON.parse(manifestRaw.toString("utf8"));
   const artifact = collectReviewArtifact({
     manifest,
     targetRoot,

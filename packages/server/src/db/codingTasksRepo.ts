@@ -11,6 +11,7 @@
  *   （@aiops/shared）を注入し、pg.Poolへの直接依存を持たずネットワークなしでテストできる形にする。
  */
 import type { PgQueryable } from "@aiops/shared";
+import { issueCodingTaskManifest } from "../lib/codingTaskManifest.js";
 
 export type CodingTaskStatus = "queued" | "running" | "pr_created" | "failed" | "cancelled";
 export type CodingTaskSource = "teams" | "webui";
@@ -28,6 +29,8 @@ export interface CodingTaskRecord {
   prUrl: string | null;
   branch: string | null;
   traceId: string;
+  manifest: string;
+  manifestSha256: string;
   confirmedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +81,8 @@ function toCodingTaskRecord(r: Record<string, unknown>): CodingTaskRecord {
     prUrl: r.pr_url ? String(r.pr_url) : null,
     branch: r.branch ? String(r.branch) : null,
     traceId: String(r.trace_id),
+    manifest: String(r.manifest),
+    manifestSha256: String(r.manifest_sha256),
     confirmedAt: r.confirmed_at ? new Date(String(r.confirmed_at)).toISOString() : null,
     createdAt: new Date(String(r.created_at)).toISOString(),
     updatedAt: new Date(String(r.updated_at)).toISOString(),
@@ -89,12 +94,15 @@ export class CodingTasksRepo {
 
   /** status='queued'固定でINSERTする（確認前。ADR-0006「人間の明示クリック必須」）。 */
   async insert(input: InsertCodingTaskInput): Promise<CodingTaskRecord> {
+    const authority = issueCodingTaskManifest({ taskId: input.taskId, agent: input.agent });
     const res = await this.db.query(
       `INSERT INTO coding_tasks
-         (task_id, project_id, requested_by, source, instruction, agent, status, trace_id, confirm_token_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8)
+         (task_id, project_id, requested_by, source, instruction, agent, status, trace_id, confirm_token_hash,
+          manifest, manifest_sha256)
+       VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8, $9, $10)
        RETURNING task_id, project_id, requested_by, source, instruction, agent, status,
-                 workflow_run_id, pr_url, branch, trace_id, confirmed_at, created_at, updated_at`,
+                 workflow_run_id, pr_url, branch, trace_id, manifest, manifest_sha256,
+                 confirmed_at, created_at, updated_at`,
       [
         input.taskId,
         input.projectId,
@@ -104,6 +112,8 @@ export class CodingTasksRepo {
         input.agent,
         input.traceId,
         input.confirmTokenHash,
+        authority.manifest,
+        authority.manifestSha256,
       ],
     );
     return toCodingTaskRecord(res.rows[0]!);
@@ -112,7 +122,8 @@ export class CodingTasksRepo {
   async findById(taskId: string): Promise<CodingTaskRecord | null> {
     const res = await this.db.query(
       `SELECT task_id, project_id, requested_by, source, instruction, agent, status,
-              workflow_run_id, pr_url, branch, trace_id, confirmed_at, created_at, updated_at
+              workflow_run_id, pr_url, branch, trace_id, manifest, manifest_sha256,
+              confirmed_at, created_at, updated_at
        FROM coding_tasks WHERE task_id = $1`,
       [taskId],
     );
