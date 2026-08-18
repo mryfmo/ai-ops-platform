@@ -11,3 +11,4 @@ export { graphSubscriptionWorkflow } from "./graphSubscription.js";
 export { healthEvaluationWorkflow, jitExpiryWorkflow } from "./jitHealth.js";
 export { deployDispatchWorkflow, prodMonitorWorkflow } from "./deployment.js";
 export { statusIngestWorkflow } from "./statusIngest.js";
+export { writerReviewerHandoffWorkflow } from "./writerReviewerHandoff.js";
