@@ -48,10 +48,10 @@ inputs:
 outputs:
   execution_profile:
     description: "監査用の実行プロファイルラベル"
-    value: ${{ steps.run_claude.outputs.execution_profile }}
+    value: ${{ steps.run_claude.outputs.execution_profile || steps.run_droid.outputs.execution_profile }}
   evidence:
     description: "P8-T01 callback fieldsに準拠する構造化実行証跡JSON"
-    value: ${{ steps.run_claude.outputs.evidence }}
+    value: ${{ steps.run_claude.outputs.evidence || steps.run_droid.outputs.evidence }}
 
 runs:
   using: "composite"
@@ -197,13 +197,163 @@ runs:
         echo "execution_profile=${EXECUTION_PROFILE}" >> "${GITHUB_OUTPUT}"
         echo "evidence=${evidence}" >> "${GITHUB_OUTPUT}"
 
-    # ADR-0006「影響」節の残課題: Droid実行ステップはFactory側のCI実行方式が
-    # 確定するまで有効化しない。動かない経路を動くように見せず、明示的に失敗させる
-    # （ADR-0014の「設定不足は無効化して監査し、決して擬似実行しない」に倣う）。
-    - name: Run Droid (agent=droid)
+    # Factory公式のdirect binaryをexact version/digestで検証する。standalone updaterは
+    # 実行stepでも無効化し、reviewなしのversion driftを許さない。
+    - name: Install verified Droid CLI (agent=droid)
       if: ${{ inputs.agent == 'droid' }}
       shell: bash
+      env:
+        DROID_VERSION: "0.174.0"
+        DROID_LINUX_X64_SHA256: "e73592e3c6fc5a754f21b995f27ef686ca0a5096c9a91f2019fb8a3b10a56bbc"
       run: |
         set -euo pipefail
-        echo "::error::agent=droid is not enabled yet. ADR-0006 lists the Factory CI execution method as an open item; enable this step only after it is decided and the CLI version can be pinned."
-        exit 1
+        case "$(uname -s):$(uname -m)" in
+          Linux:x86_64) ;;
+          *) echo "::error::The pinned Droid artifact supports only the ubuntu-latest Linux x86_64 runner."; exit 1 ;;
+        esac
+        artifact="${RUNNER_TEMP}/droid-${DROID_VERSION}-linux-x64"
+        curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+          --output "${artifact}" \
+          "https://downloads.factory.ai/factory-cli/releases/${DROID_VERSION}/linux/x64/droid"
+        echo "${DROID_LINUX_X64_SHA256}  ${artifact}" | sha256sum -c -
+        install -m 0755 "${artifact}" "${RUNNER_TEMP}/droid"
+        installed_version="$(FACTORY_DROID_AUTO_UPDATE_ENABLED=false "${RUNNER_TEMP}/droid" --version)"
+        if [[ "${installed_version}" != *"${DROID_VERSION}"* ]]; then
+          echo "::error::Installed Droid version does not match the reviewed pin."
+          exit 1
+        fi
+        echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+    # P8-T05は構造parityまで。Factory credential、turn-limit enforcement proof、
+    # real E2Eが揃うまで、このgateをcode reviewで変更しない限り必ず停止する。
+    - name: Require reviewed Droid activation (agent=droid)
+      if: ${{ inputs.agent == 'droid' }}
+      shell: bash
+      env:
+        DROID_EXECUTION_ENABLED: "false"
+      run: |
+        set -euo pipefail
+        if [[ "${DROID_EXECUTION_ENABLED}" != "true" ]]; then
+          echo "::error::agent=droid remains fail-closed pending FACTORY credential, turn-limit proof, and real ceiling E2E."
+          exit 1
+        fi
+
+    # This step is intentionally unreachable while DROID_EXECUTION_ENABLED=false above.
+    # It records the reviewed invocation contract without claiming a successful Droid run.
+    - name: Run bounded Droid (agent=droid)
+      id: run_droid
+      if: ${{ inputs.agent == 'droid' }}
+      shell: bash
+      env:
+        CODING_INSTRUCTION: ${{ inputs.instruction }}
+        DROID_EXECUTION_PROFILE: "droid-litellm-coding"
+        MAX_RUNTIME_SECONDS: ${{ inputs.max_runtime_seconds }}
+        MAX_COST_USD: ${{ inputs.max_cost_usd }}
+        MAX_TOKENS: ${{ inputs.max_tokens }}
+        MAX_TOOL_CALLS: ${{ inputs.max_tool_calls }}
+        LITELLM_BASE_URL: ${{ inputs.litellm_base_url }}
+        LITELLM_CODING_VIRTUAL_KEY: ${{ inputs.litellm_coding_virtual_key }}
+        FACTORY_DROID_AUTO_UPDATE_ENABLED: "false"
+      run: |
+        set -euo pipefail
+        if [[ -z "${FACTORY_API_KEY:-}" ]]; then
+          echo "::error::The reviewed Factory CLI credential gate is not satisfied."
+          exit 1
+        fi
+        if [[ -z "${LITELLM_BASE_URL:-}" ]] || [[ -z "${LITELLM_CODING_VIRTUAL_KEY:-}" ]]; then
+          echo "::error::LITELLM_BASE_URL and the scoped LITELLM_CODING_VIRTUAL_KEY are required for agent=droid."
+          exit 1
+        fi
+        if [[ ! "${MAX_RUNTIME_SECONDS}" =~ ^[1-9][0-9]{0,9}$ ]] || (( MAX_RUNTIME_SECONDS > 1800 )); then
+          echo "::error::max_runtime_seconds must be an integer between 1 and 1800."
+          exit 1
+        fi
+        if ! jq -en --arg value "${MAX_COST_USD}" '$value | tonumber | select(. > 0 and . <= 25)' >/dev/null; then
+          echo "::error::max_cost_usd must be a number greater than 0 and at most 25."
+          exit 1
+        fi
+        if [[ ! "${MAX_TOKENS}" =~ ^[1-9][0-9]{0,9}$ ]] || (( MAX_TOKENS > 200000 )); then
+          echo "::error::max_tokens must be an integer between 1 and 200000."
+          exit 1
+        fi
+        if [[ ! "${MAX_TOOL_CALLS}" =~ ^[1-9][0-9]{0,9}$ ]] || (( MAX_TOOL_CALLS > 500 )); then
+          echo "::error::max_tool_calls must be an integer between 1 and 500."
+          exit 1
+        fi
+        current_branch="$(git symbolic-ref --quiet --short HEAD)" || {
+          echo "::error::Droid requires a named agent/* branch."
+          exit 1
+        }
+        case "${current_branch}" in
+          agent/*) ;;
+          *) echo "::error::Droid may run only on an agent/* PR branch."; exit 1 ;;
+        esac
+
+        # A temporary HOME excludes personal settings/hooks. The committed template is rendered
+        # with the request-scoped LiteLLM route; no provider or master key reaches the runner.
+        droid_home="$(mktemp -d "${RUNNER_TEMP}/droid-home.XXXXXX")"
+        prompt_file="${RUNNER_TEMP}/droid-prompt-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}.md"
+        result_file="${RUNNER_TEMP}/droid-result-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}.json"
+        trap 'rm -rf -- "${droid_home}"; rm -f -- "${prompt_file}" "${result_file}"' EXIT
+        mkdir -p "${droid_home}/.factory"
+        jq -e '
+          .cloudSessionSync == false and
+          .customModels[0].apiKey == "${LITELLM_CODING_VIRTUAL_KEY}" and
+          .maxAutonomyLevel == "low" and
+          .mcpPolicy == {"enabled":false,"allowlist":[]} and
+          (.commandBlocklist | index("curl") != null) and
+          (.commandBlocklist | index("gh") != null) and
+          (.commandBlocklist | index("git push") != null) and
+          (.commandBlocklist | index("git commit") != null) and
+          (.commandBlocklist | index("aws") != null) and
+          (.commandBlocklist | index("kubectl") != null) and
+          (.commandBlocklist | index("terraform") != null) and
+          (.commandBlocklist | index("docker") != null)
+        ' .factory/runner-settings.template.json >/dev/null
+        jq --arg base_url "${LITELLM_BASE_URL}" \
+          '.customModels[0].baseUrl = $base_url
+           | .modelPolicy.allowedBaseUrls = [$base_url]' \
+          .factory/runner-settings.template.json > "${droid_home}/.factory/settings.json"
+        cat .factory/droids/coding-agent.md > "${prompt_file}"
+        printf '\n\n## Assigned instruction\n\n%s\n' "${CODING_INSTRUCTION}" >> "${prompt_file}"
+
+        echo "[run-coding-agent] launching profile=${DROID_EXECUTION_PROFILE} branch=${current_branch}"
+        # Cost/token limits are enforced by the P8-T03 issuer-side scoped virtual-key budget.
+        # Runtime is killed locally. num_turns is rejected post-run; activation additionally
+        # requires proof of an early turn-limit mechanism before this gate may be enabled.
+        HOME="${droid_home}" \
+        timeout --signal=TERM --kill-after=30s "${MAX_RUNTIME_SECONDS}s" \
+          droid exec \
+          --cwd "${GITHUB_WORKSPACE}" \
+          --auto low \
+          --model "custom:AIOps-LiteLLM-Coding-0" \
+          --disabled-tools "FetchUrl,WebSearch" \
+          --output-format json \
+          --file "${prompt_file}" > "${result_file}"
+
+        evidence="$(jq -ce \
+          --arg profile "${DROID_EXECUTION_PROFILE}" \
+          --arg max_turns "${MAX_TOOL_CALLS}" \
+          'select(.type == "result" and .subtype == "success" and .is_error == false)
+           | select((.num_turns | type) == "number" and .num_turns >= 0 and .num_turns <= ($max_turns | tonumber))
+           | .result | fromjson
+           | select(.execution_profile == $profile)
+           | select((keys | sort) == (["changed_paths","commands_executed","dependency_changes","execution_profile","security_findings","skipped_failed_checks","test_results","unresolved_decisions"] | sort))
+           | select((.commands_executed | type) == "array" and all(.commands_executed[];
+               (type == "object") and (keys | sort) == ["command","evidence","result"] and
+               (.command | type) == "string" and (.evidence | type) == "string" and
+               (.result == "pass" or .result == "fail")))
+           | select((.test_results | type) == "array" and all(.test_results[];
+               (type == "object") and (keys | sort) == ["evidence","result","test"] and
+               (.test | type) == "string" and (.evidence | type) == "string" and
+               (.result == "pass" or .result == "fail")))
+           | select((.skipped_failed_checks | type) == "array" and all(.skipped_failed_checks[]; type == "string"))
+           | select((.changed_paths | type) == "array" and all(.changed_paths[]; type == "string"))
+           | select((.dependency_changes | type) == "array" and all(.dependency_changes[]; type == "string"))
+           | select((.security_findings | type) == "array" and all(.security_findings[]; type == "string"))
+           | select((.unresolved_decisions | type) == "array" and all(.unresolved_decisions[]; type == "string"))' "${result_file}")" || {
+          echo "::error::Droid did not return valid bounded callback evidence."
+          exit 1
+        }
+        echo "execution_profile=${DROID_EXECUTION_PROFILE}" >> "${GITHUB_OUTPUT}"
+        echo "evidence=${evidence}" >> "${GITHUB_OUTPUT}"

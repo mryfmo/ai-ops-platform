@@ -1,0 +1,24 @@
+{
+  "task_id": "P8-T05",
+  "review_surface": "crit-data-unavailable-local-staged-diff",
+  "reviewer": "codex",
+  "reviewed_base": "be9b4d1e9ac48cf28ee94c3cff1b5d97f233598d",
+  "findings": [
+    {
+      "id": "P8-T05-SELF-001",
+      "severity": "medium",
+      "status": "resolved",
+      "finding": "The first Droid evidence filter allowed a missing num_turns value through jq type ordering and checked only outer evidence arrays, not their item schemas.",
+      "resolution": "Required numeric, non-negative, bounded num_turns and exact inner command/test object keys, result enums, and string-only list items; extended negative mutations and reran focused tests."
+    },
+    {
+      "id": "P8-T05-SELF-002",
+      "severity": "high",
+      "status": "resolved",
+      "finding": "The first validator proved the activation gate existed but did not prove it preceded the Droid invocation, and inspected the wrong continue-on-error property spelling for parsed YAML.",
+      "resolution": "Required gate index to precede run_droid, rejected the parsed continue-on-error key, rejected in-script gate reassignment, and added reorder/continue-on-error mutation tests."
+    }
+  ],
+  "review_outcome": "approved",
+  "unresolved_findings": []
+}
