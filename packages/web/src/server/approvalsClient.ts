@@ -18,6 +18,7 @@ export interface ApprovalsClientDeps {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const APPROVAL_CORRELATION = /^v1\.[0-9a-f]{64}$/;
 
 function authError(error: unknown): Response {
   if (error instanceof UnauthorizedError) return Response.json({ error: error.message }, { status: 401 });
@@ -105,6 +106,8 @@ export async function handleApprovalDecision(
   const decisionInput = input as Record<string, unknown>;
   const decision = decisionInput.decision;
   const reason = decisionInput.reason;
+  const version = decisionInput.version;
+  const correlation = decisionInput.correlation;
   if (decision !== "approved" && decision !== "rejected") {
     return Response.json({ error: "invalid approval decision" }, { status: 400 });
   }
@@ -114,8 +117,13 @@ export async function handleApprovalDecision(
   if (decision === "rejected" && (!reason || reason.trim() === "")) {
     return Response.json({ error: "rejection reason required" }, { status: 400 });
   }
+  if (!Number.isSafeInteger(version) || Number(version) < 1 || !APPROVAL_CORRELATION.test(String(correlation))) {
+    return Response.json({ error: "invalid approval capability" }, { status: 400 });
+  }
 
-  const payload = reason === undefined ? { decision } : { decision, reason: reason.trim() };
+  const capability = { action: "approval_decision", approvalId, version: Number(version), correlation };
+  const payload =
+    reason === undefined ? { ...capability, decision } : { ...capability, decision, reason: reason.trim() };
   const body = JSON.stringify(payload);
   const path = `/approvals/${approvalId}/decision`;
   const issuedAtUnix = deps.nowUnix?.() ?? Math.floor(Date.now() / 1000);

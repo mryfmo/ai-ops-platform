@@ -54,7 +54,12 @@ function testRepo(db: PgQueryable, auditLog = new InMemoryAuditLog()): Approvals
 
 describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
   it("createはpendingを作成し状態遷移を追記監査する", async () => {
-    const { db, query } = mockDb([{ rows: [ROW], rowCount: 1 }]);
+    const createdRow = {
+      ...ROW,
+      expected_version: 1,
+      expires_at: "2026-08-08T01:00:00.000Z",
+    };
+    const { db, query } = mockDb([{ rows: [createdRow], rowCount: 1 }]);
     const audit = new InMemoryAuditLog();
     const approval = await testRepo(db, audit).create({
       approvalType: "change",
@@ -65,7 +70,15 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
     });
 
     expect(query.mock.calls[0]![0]).toContain("INSERT INTO approvals");
-    expect(approval).toMatchObject({ approvalId: APPROVAL_ID, status: "pending", approvalType: "change" });
+    expect(query.mock.calls[0]![0]).toContain("expected_version, expires_at");
+    expect(query.mock.calls[0]![0]).toContain("now() + interval '60 minutes'");
+    expect(approval).toMatchObject({
+      approvalId: APPROVAL_ID,
+      status: "pending",
+      approvalType: "change",
+      expectedVersion: 1,
+      expiresAt: "2026-08-08T01:00:00.000Z",
+    });
     expect(await audit.readAll()).toEqual([
       expect.objectContaining({ action: "approval_create", actor: "AGT-CHG", trace_id: "trace-create" }),
     ]);
@@ -287,24 +300,22 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
       requestedBy: "AGT-CHG",
       traceId: "trace-real-create",
     });
-    await realPool!.query(
-      "UPDATE approvals SET expected_version = $2, expires_at = '2099-01-01T00:00:00Z' WHERE approval_id = $1",
-      [created.approvalId, VERSION],
-    );
+    expect(created.expectedVersion).toBe(1);
+    expect(new Date(created.expiresAt!).getTime() - new Date(created.createdAt).getTime()).toBe(60 * 60 * 1000);
 
     const results = await Promise.allSettled([
       repo.decide(created.approvalId, {
         decision: "approved",
         approverTenantId: TENANT_ID,
         approverObjectId: OBJECT_ID,
-        expectedVersion: VERSION,
+        expectedVersion: 1,
         traceId: "trace-real-a",
       }),
       repo.decide(created.approvalId, {
         decision: "approved",
         approverTenantId: TENANT_ID,
         approverObjectId: "33333333-3333-4333-8333-333333333333",
-        expectedVersion: VERSION,
+        expectedVersion: 1,
         traceId: "trace-real-b",
       }),
     ]);

@@ -156,8 +156,10 @@ export class ApprovalsRepo {
     const requestedBy = requiredText(input.requestedBy, "requested_by");
     return this.runTransaction(async ({ db, auditLog }) => {
       const result = await db.query(
-        `INSERT INTO approvals (approval_type, target_id, project_id, target_sha, requested_by)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO approvals (
+           approval_type, target_id, project_id, target_sha, requested_by, expected_version, expires_at
+         )
+         VALUES ($1, $2, $3, $4, $5, 1, now() + interval '60 minutes')
          ON CONFLICT (approval_type, target_id) WHERE status = 'pending' DO NOTHING
          RETURNING ${COLUMNS}`,
         [input.approvalType, targetId, projectId, targetSha, requestedBy],
