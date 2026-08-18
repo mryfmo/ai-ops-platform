@@ -13,3 +13,6 @@
   staging.
 - GitHub effects were limited to pushing `agent/ADV-FIX-02` and opening non-draft
   PR #273 with the `ai-generated` label. No merge or auto-merge was requested.
+- R01 reused the disposable PostgreSQL 16 cluster and created fresh task-only
+  databases for focused, coverage, and DB-verification runs. Managed-sandbox
+  loopback access was explicitly approved; no non-local endpoint was contacted.

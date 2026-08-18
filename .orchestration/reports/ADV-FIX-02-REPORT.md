@@ -26,6 +26,24 @@ adapter when configured. When the adapter is absent, the existing 503 remains
 fail-closed and the UI displays `承認機能は現在準備中です`. The UI also distinguishes
 loading from a settled empty list and maps 400/401/403/409/503 failures.
 
+## R01: expired pending supersede
+
+[memory:decision] A new request first supersedes an expired pending row for the
+same approval type and target in place. The transaction updates request metadata,
+sets a fresh database-clock 60-minute TTL, increments `expected_version`, and
+appends `approval_supersede`. Existing non-expired pending rows retain the original
+`ON CONFLICT ... DO NOTHING` dedupe behavior and append no false transition.
+
+[memory:decision] Pending-list queries require `expires_at > now()`. This removes
+expired and legacy unknown-expiry rows from capability issuance. Superseding keeps
+the approval ID and delivery visibility but increments the correlation-bound
+version, so an old card/correlation is rejected while the new capability is usable.
+
+The other P1 review comment concerns production `signalApprovalDecision` adapter
+wiring. Per task scope and orchestrator adjudication, that belongs to the existing
+P3 Temporal composition work; ADV-FIX-02 preserves the documented fail-closed 503
+and explicit UI preparation message rather than changing composition roots.
+
 ## Scope
 
 - Changed only the approved server repository/route, web BFF/panel, and their tests.

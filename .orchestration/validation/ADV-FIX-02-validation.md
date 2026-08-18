@@ -51,3 +51,27 @@ post-format gates were run individually and passed.
 - Manual diff review found no unresolved finding after all executable checks.
 - Local `gitleaks` binary was unavailable (exit 127); the PR's GitHub gitleaks check
   is the authoritative clean-runner evidence.
+
+## R01 supersede validation
+
+| Check | Exit/result |
+| --- | --- |
+| Focused server tests before R01 implementation | expected exit 1; 2 failures proved missing supersede and expiry filtering |
+| Focused server tests without PostgreSQL | exit 0; 41 passed, 5 skipped |
+| Focused server tests with fresh PostgreSQL 16 | exit 0; 46 passed |
+| Full `@aiops/server` test with fresh PostgreSQL 16 | exit 0; 91 files, 982 passed |
+| `mise run lint` | 0 |
+| `mise run typecheck` | 0 |
+| `mise run traceability` | 0 |
+| `mise run build` | 0 |
+| `mise run test:coverage` with fresh PostgreSQL 16 | 0; all workspace thresholds passed, server 982 passed |
+| `mise run verify:db` with three fresh databases | 0; P001 PostgreSQL integration passed |
+| changed-file Prettier and `git diff --check` | 0 |
+
+The real-PostgreSQL test creates and delivers an approval, forces its expiry,
+proves it is absent from `listPending`, then re-creates the same type/target. The
+same approval ID returns with updated project/SHA/requester, version 2, a future
+60-minute TTL, list visibility, and exactly one `approval_supersede` audit. The
+existing real test keeps non-expired pending dedupe unchanged. Route coverage
+proves a correlation signed for the previous version receives 403 and the newly
+listed capability alone reaches CAS then the signal stub.

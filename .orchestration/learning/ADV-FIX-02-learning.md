@@ -17,6 +17,12 @@ upstream operation.
 initial CAS version and TTL. A later update or application clock adds a window where
 an approval exists without usable or consistent authority.
 
+[memory:decision] A partial unique index on pending work makes an expired row a
+dedupe tombstone unless retry semantics are explicit. Supersede the expired row
+inside the create transaction, increment capability version, and exclude expired
+rows at read time; do not add a separate cleanup worker when create/list boundaries
+can enforce the lifecycle.
+
 ## Disposition
 
 - All candidates were validated by focused unit/integration tests and the full

@@ -219,6 +219,49 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
     expect(events).toEqual(["cas", "signal"]);
   });
 
+  it("DevOps:REQ-010: supersede前versionのcorrelationを拒否し新capabilityだけを受理する", async () => {
+    const nextVersion = VERSION + 1;
+    const { app, signalApprovalDecision, events } = setup({ identitySecret: SECRET, expectedVersion: nextVersion });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const staleBody = JSON.stringify({
+      action: "approval_decision",
+      approvalId: APPROVAL_ID,
+      version: nextVersion,
+      correlation: signApprovalCardCorrelation(
+        { approvalId: APPROVAL_ID, version: VERSION, tenantId: TENANT_ID, objectId: OBJECT_ID },
+        SECRET,
+      ),
+      decision: "approved",
+    });
+    const staleResponse = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, staleBody) },
+      body: staleBody,
+    });
+
+    expect(staleResponse.status).toBe(403);
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+
+    const listResponse = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    const listed = (await listResponse.json()).approvals[0] as { version: number; correlation: string };
+    const currentBody = JSON.stringify({
+      action: "approval_decision",
+      approvalId: APPROVAL_ID,
+      version: listed.version,
+      correlation: listed.correlation,
+      decision: "approved",
+    });
+    const currentResponse = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, currentBody) },
+      body: currentBody,
+    });
+
+    expect(currentResponse.status).toBe(200);
+    expect(signalApprovalDecision).toHaveBeenCalledOnce();
+    expect(events).toEqual(["cas", "signal"]);
+  });
+
   it("DevOps:REQ-010: canDecide=falseとlegacy NULL version行にcapabilityを配布しない", async () => {
     const outside = setup({ identitySecret: SECRET, projects: ["PJ-002"] });
     const outsideResponse = await outside.app.request("/approvals", {

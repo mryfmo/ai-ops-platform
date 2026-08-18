@@ -59,7 +59,7 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
       expected_version: 1,
       expires_at: "2026-08-08T01:00:00.000Z",
     };
-    const { db, query } = mockDb([{ rows: [createdRow], rowCount: 1 }]);
+    const { db, query } = mockDb([{ rows: [] }, { rows: [createdRow], rowCount: 1 }]);
     const audit = new InMemoryAuditLog();
     const approval = await testRepo(db, audit).create({
       approvalType: "change",
@@ -69,9 +69,9 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
       traceId: "trace-create",
     });
 
-    expect(query.mock.calls[0]![0]).toContain("INSERT INTO approvals");
-    expect(query.mock.calls[0]![0]).toContain("expected_version, expires_at");
-    expect(query.mock.calls[0]![0]).toContain("now() + interval '60 minutes'");
+    expect(query.mock.calls[1]![0]).toContain("INSERT INTO approvals");
+    expect(query.mock.calls[1]![0]).toContain("expected_version, expires_at");
+    expect(query.mock.calls[1]![0]).toContain("now() + interval '60 minutes'");
     expect(approval).toMatchObject({
       approvalId: APPROVAL_ID,
       status: "pending",
@@ -90,12 +90,52 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
     expect(query.mock.calls[0]![0]).toContain("WHERE status = 'pending'");
     expect(query.mock.calls[0]![0]).toContain("approval_type = ANY");
     expect(query.mock.calls[0]![0]).toContain("delivered_at IS NOT NULL");
+    expect(query.mock.calls[0]![0]).toContain("expires_at > now()");
     expect(query.mock.calls[0]![0]).toContain("ORDER BY created_at, approval_id");
     expect(result).toHaveLength(1);
   });
 
+  it("DevOps:REQ-010: expired pendingを同一IDの新versionへsupersedeし追記監査する", async () => {
+    const superseded = {
+      ...ROW,
+      project_id: "PJ-002",
+      target_sha: "b".repeat(40),
+      requested_by: "AGT-CHG-RETRY",
+      expected_version: VERSION + 1,
+      expires_at: "2026-08-08T02:00:00.000Z",
+    };
+    const { db, query } = mockDb([{ rows: [superseded], rowCount: 1 }]);
+    const audit = new InMemoryAuditLog();
+
+    const result = await testRepo(db, audit).create({
+      approvalType: "change",
+      targetId: "release-42",
+      projectId: "PJ-002",
+      targetSha: "b".repeat(40),
+      requestedBy: "AGT-CHG-RETRY",
+      traceId: "trace-supersede",
+    });
+
+    expect(query.mock.calls[0]![0]).toContain("UPDATE approvals");
+    expect(query.mock.calls[0]![0]).toContain("expected_version = COALESCE(expected_version, 0) + 1");
+    expect(result).toMatchObject({
+      approvalId: APPROVAL_ID,
+      projectId: "PJ-002",
+      targetSha: "b".repeat(40),
+      requestedBy: "AGT-CHG-RETRY",
+      expectedVersion: VERSION + 1,
+    });
+    expect(await audit.readAll()).toEqual([
+      expect.objectContaining({
+        action: "approval_supersede",
+        actor: "AGT-CHG-RETRY",
+        trace_id: "trace-supersede",
+      }),
+    ]);
+  });
+
   it("同一type/targetのpending createは既存IDを再利用し重複create監査を残さない", async () => {
-    const { db, query } = mockDb([{ rows: [] }, { rows: [ROW] }]);
+    const { db, query } = mockDb([{ rows: [] }, { rows: [] }, { rows: [ROW] }]);
     const audit = new InMemoryAuditLog();
     const result = await testRepo(db, audit).create({
       approvalType: "change",
@@ -105,7 +145,7 @@ describe("ApprovalsRepo [DevOps:SPEC-EXT-010 / DevOps:REQ-028]", () => {
       traceId: "trace-reuse",
     });
     expect(result.approvalId).toBe(APPROVAL_ID);
-    expect(query.mock.calls[1]![0]).toContain("approval_type = $1");
+    expect(query.mock.calls[2]![0]).toContain("approval_type = $1");
     expect(await audit.readAll()).toEqual([]);
   });
 
@@ -418,5 +458,44 @@ describe.skipIf(!databaseUrl)("ApprovalsRepo real PostgreSQL CAS [DevOps:SPEC-EX
     const second = await repo.create(input);
     expect(second.approvalId).toBe(first.approvalId);
     expect((await audit.readAll()).filter((record) => record.action === "approval_create")).toHaveLength(1);
+  });
+
+  it("DevOps:REQ-010: expired pendingを同じ行でsupersedeし、旧行をlistから除外する", async () => {
+    const audit = new InMemoryAuditLog();
+    const repo = new ApprovalsRepo(realPool!, realTransaction(audit));
+    const original = await repo.create({
+      approvalType: "change",
+      targetId: "release-supersede",
+      projectId: "PJ-001",
+      targetSha: "a".repeat(40),
+      requestedBy: "AGT-CHG",
+      traceId: "trace-supersede-create",
+    });
+    await repo.markDelivered(original.approvalId, "trace-supersede-delivered");
+    await realPool!.query("UPDATE approvals SET expires_at = now() - interval '1 second' WHERE approval_id = $1", [
+      original.approvalId,
+    ]);
+
+    expect(await repo.listPending(["change"])).toEqual([]);
+
+    const replacement = await repo.create({
+      approvalType: "change",
+      targetId: "release-supersede",
+      projectId: "PJ-002",
+      targetSha: "b".repeat(40),
+      requestedBy: "AGT-CHG-RETRY",
+      traceId: "trace-supersede-retry",
+    });
+
+    expect(replacement).toMatchObject({
+      approvalId: original.approvalId,
+      projectId: "PJ-002",
+      targetSha: "b".repeat(40),
+      requestedBy: "AGT-CHG-RETRY",
+      expectedVersion: 2,
+    });
+    expect(new Date(replacement.expiresAt!).getTime()).toBeGreaterThan(Date.now() + 59 * 60 * 1000);
+    expect((await repo.listPending(["change"])).map((approval) => approval.approvalId)).toEqual([original.approvalId]);
+    expect((await audit.readAll()).filter((record) => record.action === "approval_supersede")).toHaveLength(1);
   });
 });
