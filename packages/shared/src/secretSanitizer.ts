@@ -28,7 +28,7 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   { name: "github_fine_grained_pat", regex: /github_pat_[A-Za-z0-9_]{22,}/g },
   { name: "github_pat", regex: /gh[pousr]_[A-Za-z0-9]{20,}/g },
   { name: "anthropic_api_key", regex: /sk-ant-[A-Za-z0-9\-_]{20,}/g },
-  { name: "openai_api_key", regex: /sk-[A-Za-z0-9_-]{20,}/g },
+  { name: "openai_api_key", regex: /(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}/g },
   { name: "slack_token", regex: /xox[baprs]-[A-Za-z0-9-]{10,}/g },
   { name: "gcp_api_key", regex: /AIza[0-9A-Za-z_-]{35}/g },
   { name: "azure_sas_signature", regex: /(\?|&)sig=[A-Za-z0-9%+/=]{16,}/gi },

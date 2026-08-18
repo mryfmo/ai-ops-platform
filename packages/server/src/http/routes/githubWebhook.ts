@@ -87,13 +87,14 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
       dedupeKey: `github:${payloadDigest}`,
     });
     if (!inserted) {
+      const safeDeliveryId = sanitizeSecrets(deliveryId).sanitized;
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "SERVER",
         action: "github_webhook_duplicate",
         basis: "DevOps:SPEC-INT-061",
         // deliveryId は突合用に残す。一意性の根拠は payloadDigest 側にある。
-        detail: { event: safeEventName, deliveryId, payloadDigest },
+        detail: { event: safeEventName, deliveryId: safeDeliveryId, payloadDigest },
         at: new Date().toISOString(),
       });
     }

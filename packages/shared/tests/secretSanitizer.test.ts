@@ -38,6 +38,21 @@ describe("sanitizeSecrets [PrjOps:REQ-032, DevOps:REQ-030/DevOps:SPEC-INT-070]",
     expect(sanitizeSecrets(input)).toMatchObject({ sanitized: input, redactionCount: 0 });
   });
 
+  it.each(["risk-based-access-control-policy", "task-based-deployment-flow"])(
+    "OpenAI keyに似た通常語を壊さない: %s [PrjOps:REQ-032 / DevOps:SPEC-INT-070]",
+    (input) => {
+      expect(sanitizeSecrets(input)).toMatchObject({ sanitized: input, redactionCount: 0 });
+    },
+  );
+
+  it("区切り文字直後のOpenAI keyは引き続きredactする [PrjOps:REQ-032 / DevOps:SPEC-INT-070]", () => {
+    const secret = "sk-" + "z".repeat(20);
+    const result = sanitizeSecrets(`key=${secret}`);
+
+    expect(result.sanitized).toBe("key=***REDACTED:openai_api_key***");
+    expect(result.matchedPatterns).toContain("openai_api_key");
+  });
+
   it("Anthropic APIキーを検出する", () => {
     const input = "ANTHROPIC_API_KEY=sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789";
     const { redactionCount, matchedPatterns } = sanitizeSecrets(input);
