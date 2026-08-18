@@ -1,0 +1,25 @@
+{
+  "task_id": "ADV-FIX-01",
+  "reviewer": "codex",
+  "surface": "crit-data",
+  "scope": "origin/main...agent/ADV-FIX-01",
+  "findings": [
+    {
+      "id": "SELF-001",
+      "severity": "medium",
+      "status": "resolved",
+      "file": "packages/devops/tests/databaseRoleProvisioning.test.ts",
+      "evidence": "The first UPDATE extractor treated SQL grammar fragments DO UPDATE SET and FOR UPDATE SKIP as table names, so the parity gate could report unrelated failures.",
+      "resolution": "Direct UPDATE extraction now excludes DO/FOR grammar prefixes; the focused test fails only for agent_handoffs before the grant fix and passes after it."
+    },
+    {
+      "id": "SELF-002",
+      "severity": "low",
+      "status": "resolved",
+      "file": "packages/server/src/http/routes/graphNotifications.ts",
+      "evidence": "The cited rejected-notification path was not the only audit use of subscriptionId in the route.",
+      "resolution": "A single local safeSubscriptionId helper is applied to rejected, lifecycle, missing-key, and duplicate audit records without changing queued source metadata."
+    }
+  ],
+  "outcome": "approved_after_resolutions"
+}
