@@ -72,6 +72,76 @@ All matched files use Prettier code style; exit code 0.
 - migrations: 22 applied on first pass, 22 skipped on idempotent rerun
 - P001 PostgreSQL integration: passed
 
+## Revise R01 validation
+
+### RED
+
+```text
+$ env CI=true pnpm --filter @aiops/shared exec vitest run tests/secretSanitizer.test.ts
+Test Files  1 failed (1)
+Tests       2 failed | 26 passed (28)
+Failures: risk-based-access-control-policy and task-based-deployment-flow were redacted as openai_api_key
+exit code: 1
+
+$ env CI=true pnpm --filter @aiops/server exec vitest run tests/app.test.ts
+Test Files  1 failed (1)
+Tests       1 failed | 35 passed (36)
+Failure: valid signed duplicate with secret-like delivery ID returned 500 from E-AUD02 instead of 202
+exit code: 1
+```
+
+### GREEN focused and package runs
+
+```text
+$ env CI=true pnpm --filter @aiops/shared exec vitest run tests/secretSanitizer.test.ts
+Test Files  1 passed (1)
+Tests       28 passed (28)
+exit code: 0
+
+$ env CI=true pnpm --filter @aiops/server exec vitest run tests/app.test.ts
+Test Files  1 passed (1)
+Tests       36 passed (36)
+exit code: 0
+
+$ env CI=true pnpm --filter @aiops/shared run test
+Test Files  29 passed (29)
+Tests       513 passed (513)
+exit code: 0
+
+$ env CI=true pnpm --filter @aiops/devops run test
+Test Files  22 passed (22)
+Tests       212 passed | 6 skipped (218)
+exit code: 0
+
+$ env CI=true pnpm --filter @aiops/server run test
+Test Files  87 passed | 4 skipped (91)
+Tests       955 passed | 27 skipped (982)
+exit code: 0
+```
+
+### Quality and security
+
+```text
+$ env CI=true mise run lint
+exit code: 0
+
+$ env CI=true mise run typecheck
+exit code: 0
+
+$ env CI=true mise run traceability
+All traceability guards clear; exit code: 0
+
+$ env CI=true mise run format
+All matched files use Prettier code style; exit code: 0
+
+$ git diff --cached --check
+exit code: 0
+
+$ /private/tmp/gitleaks git --staged --no-banner --redact --verbose .
+0 commits scanned; scanned ~1985 bytes; no leaks found
+exit code: 0
+```
+
 ## Security and review
 
 ```text
@@ -96,4 +166,4 @@ exit code: 2
 ```
 
 - Crit status had no pre-existing branch review file. Structured review evidence is `.orchestration/reviews/ADV-FIX-01-review-evidence.json`.
-- `make require-crit-review` is unavailable in this repository. The local structured evidence has two resolved records and an approval receipt; no browser review was opened.
+- `make require-crit-review` is unavailable in this repository. The local structured evidence includes the revise findings as resolved records and an approval receipt; no browser review was opened.

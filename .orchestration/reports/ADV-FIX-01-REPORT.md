@@ -5,6 +5,7 @@
 - Branch: `agent/ADV-FIX-01`
 - Base: `9eb56aa8a80faa42bcf350dce26aebb7590f9641`
 - Code commit: `9b03375c3565c6daad5c1496618e4e2a87f53946`
+- Revise code commit: `b36c3fcc3acd39e63c89c26d7e35325ef1aec5f5`
 - cost: n/a
 
 ## Outcome
@@ -14,6 +15,12 @@
 - M-1: added GitHub fine-grained PAT, Slack, URL credentials, OpenAI, GCP, and Azure SAS patterns with positive and boundary-negative tests.
 - M-2: sanitized attacker-controlled GitHub event headers, Graph subscription IDs, and event-dispatch error messages before audit append. Event errors use the same sanitized value for structured logging.
 - M-3: the Sev1 Teams card now consumes the same `safeRationale` as the Issue path.
+
+## Revise R01
+
+- Restricted the OpenAI key pattern to token boundaries so `risk-based-access-control-policy` and `task-based-deployment-flow` remain unchanged while `key=sk-...` remains redacted.
+- Sanitized the unsigned `X-GitHub-Delivery` value before the duplicate audit append without changing enqueue or body-derived dedupe behavior.
+- Replied to bot P1 at https://github.com/mryfmo/ai-ops-platform/pull/271#discussion_r3800485531 with the fixing commit and regression-test evidence.
 
 ## Boundaries
 
@@ -25,4 +32,4 @@
 
 - Requested command: `python3 .claude/hooks/contextdb_cli.py memory add --kind decision --scope project`
 - Not executed: `.claude/hooks/contextdb_cli.py` is not present on this branch. The orchestrator explicitly waived worker execution and will consolidate the decision at acceptance; install/cherry-pick was forbidden.
-- [memory:decision] Audit-bound attacker text must be sanitized before append so E-AUD02 cannot erase the attack record; production DB role grants must stay mechanically aligned with repository UPDATE statements.
+- [memory:decision] Secret patterns need explicit token boundaries to avoid turning benign prose into E-AUD02 failures; every attacker-controlled audit field, including unsigned delivery IDs, must be sanitized before append so the attack record is retained. Production DB role grants must stay mechanically aligned with repository UPDATE statements.
