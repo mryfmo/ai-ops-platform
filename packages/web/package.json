@@ -15,13 +15,13 @@
     "lint": "eslint . --config ../../eslint.config.mjs"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "4.0.38",
-    "@ai-sdk/react": "4.0.67",
+    "@ai-sdk/anthropic": "4.0.39",
+    "@ai-sdk/react": "4.0.69",
     "@aiops/devops": "workspace:*",
     "@aiops/prjops": "workspace:*",
     "@aiops/shared": "workspace:*",
-    "ai": "7.0.64",
-    "next": "^16.3.0",
+    "ai": "7.0.66",
+    "next": "^16.3.1",
     "next-auth": "5.0.0-beta.32",
     "pg": "^8.23.0",
     "react": "^19.2.8",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
-    "@types/pg": "^8.21.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "jsdom": "30.0.1",
