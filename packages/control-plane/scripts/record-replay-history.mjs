@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
+import prettier from "prettier";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesDir = path.join(packageRoot, "tests", "fixtures");
@@ -103,7 +104,10 @@ try {
   };
   const saveHistory = async (workflowId, fixtureName) => {
     const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
-    fs.writeFileSync(path.join(fixturesDir, fixtureName), `${JSON.stringify(history.toJSON(), null, 2)}\n`);
+    fs.writeFileSync(
+      path.join(fixturesDir, fixtureName),
+      await prettier.format(JSON.stringify(history.toJSON()), { parser: "json" }),
+    );
   };
 
   // approved: 完全な adversarial matrix（stale 双方向・id 不一致・不正 decision・
@@ -1000,6 +1004,180 @@ try {
       await saveHistory(workflowId, "plane-sync.child-invalid-identity.history.json");
       console.log(`recorded plane-sync.child-invalid-identity (${outcome})`);
     }
+  }
+
+  // --- Jira sync fixtures（FinalArch:FR-CP-001 / TMP-001 / ADR-0030） ---
+  {
+    const baseline = {
+      updated: "2026-08-28T12:00:00.000+09:00",
+      statusId: "10021",
+      fieldHash: "a".repeat(64),
+    };
+    const movedBaseline = { ...baseline, updated: "2026-08-28T12:01:00.000+09:00", fieldHash: "b".repeat(64) };
+    const targetStatusId = "10042";
+    const identityFor = (n) => ({ issueKey: `AICOE-${n}`, projectId: "PJ-1001", mappingVersion: 3 });
+    const identityKey = (identity) => `${identity.issueKey}:${identity.projectId}:${identity.mappingVersion}`;
+    const sameBaseline = (left, right) =>
+      left.updated === right.updated && left.statusId === right.statusId && left.fieldHash === right.fieldHash;
+    const envelope = (payload) => ({ schemaVersion: 1, payload });
+
+    const makeJiraActivities = ({
+      writtenAlready = [],
+      loseAfterWrittenFor = [],
+      promotionEligibility = { engineeringReady: true, approved: true },
+      transitionApproved = true,
+      baselineAtRead = baseline,
+      baselineAtWrite = baseline,
+    }) => {
+      const ledger = new Map(writtenAlready.map((operation) => [operation, { status: "written" }]));
+      const storeWritten = (operation, receipt) => {
+        ledger.set(operation, { status: "written", receipt });
+        if (loseAfterWrittenFor.includes(operation)) {
+          throw new Error("synthetic lost response after committed Jira write");
+        }
+      };
+      const ordinaryWrite = (operation) => async (input, idempotencyKey) => {
+        const receipt = { ...input.payload.identity, operation, idempotencyKey };
+        ledger.set(operation, { status: "pending" });
+        storeWritten(operation, receipt);
+        return envelope(receipt);
+      };
+
+      return {
+        async findJiraSyncWrite(input, idempotencyKey) {
+          const { identity, operation } = input.payload;
+          const entry = ledger.get(operation);
+          if (entry === undefined) return null;
+          if (entry.status === "pending") return envelope({ ...identity, operation, status: "pending" });
+          if (entry.receipt !== undefined) return envelope({ ...entry.receipt, status: "written" });
+          return envelope({ ...identity, operation, status: "written", idempotencyKey });
+        },
+        projectDevelopmentToJira: ordinaryWrite("projection"),
+        emitJiraEvent: ordinaryWrite("event"),
+        async readJiraPromotionEligibility(input) {
+          return envelope({
+            ...input.payload.identity,
+            ...promotionEligibility,
+            approvalId: input.payload.approvalId,
+            baseline,
+          });
+        },
+        async readJiraIssueBaseline(input) {
+          return envelope({ ...input.payload.identity, baseline: baselineAtRead });
+        },
+        async createJiraPromotionDraft(input, idempotencyKey) {
+          const { identity, approvalId, baseline: pinnedBaseline } = input.payload;
+          if (!sameBaseline(baselineAtWrite, pinnedBaseline)) {
+            return envelope({ ...identity, result: "stale", observedBaseline: baselineAtWrite });
+          }
+          const receipt = {
+            ...identity,
+            operation: "promotion",
+            result: "created",
+            idempotencyKey,
+            approvalId,
+            baseline: pinnedBaseline,
+            draft: true,
+          };
+          ledger.set("promotion", { status: "pending" });
+          storeWritten("promotion", receipt);
+          return envelope(receipt);
+        },
+        async readJiraTransitionAuthorization(input) {
+          return envelope({
+            ...input.payload.identity,
+            approved: transitionApproved,
+            approvalId: input.payload.approvalId,
+            targetStatusId: input.payload.targetStatusId,
+            baseline,
+          });
+        },
+        async transitionJiraStatus(input, idempotencyKey) {
+          const { identity, approvalId, targetStatusId: target, baseline: pinnedBaseline } = input.payload;
+          if (!sameBaseline(baselineAtWrite, pinnedBaseline)) {
+            return envelope({ ...identity, result: "stale", observedBaseline: baselineAtWrite });
+          }
+          const receipt = {
+            ...identity,
+            operation: "transition",
+            result: "transitioned",
+            idempotencyKey,
+            approvalId,
+            targetStatusId: target,
+            baseline: pinnedBaseline,
+            transitioned: true,
+          };
+          ledger.set("transition", { status: "pending" });
+          storeWritten("transition", receipt);
+          return envelope(receipt);
+        },
+      };
+    };
+
+    const jiraInput = (identity, overrides = {}) =>
+      envelope({
+        ...identity,
+        executionMode: "active",
+        origin: "operator",
+        operations: ["projection", "event", "promotion"],
+        approvalId: APPROVAL_ID,
+        ...overrides,
+      });
+
+    const recordJiraSync = async (name, n, activityOptions = {}, inputOverrides = {}) => {
+      const identity = identityFor(n);
+      const taskQueue = `jira-sync-${name}`;
+      const workflowId = `jira-sync/${identityKey(identity)}`;
+      const input = jiraInput(identity, inputOverrides);
+      const worker = await Worker.create({
+        connection: env.nativeConnection,
+        taskQueue,
+        workflowsPath,
+        activities: makeJiraActivities(activityOptions),
+      });
+      const outcome = await worker.runUntil(async () => {
+        const handle = await env.client.workflow.start("jiraSyncWorkflow", {
+          taskQueue,
+          workflowId,
+          args: [input],
+        });
+        return handle.result().then(
+          (result) =>
+            `${result.payload.phase}:${result.payload.outcomes
+              .map((child) => `${child.operation}=${child.outcome}`)
+              .join(",")}`,
+          (error) => `wf-failed:${error.cause?.type ?? error.name}`,
+        );
+      });
+      await saveHistory(workflowId, `jira-sync.${name}.history.json`);
+      for (const operation of input.payload.operations) {
+        await saveHistory(`${workflowId}/${operation}`, `jira-sync.${name}.${operation}.history.json`);
+      }
+      console.log(`recorded jira-sync.${name} (${outcome})`);
+    };
+
+    await recordJiraSync("complete", 1, { writtenAlready: ["projection"] });
+    await recordJiraSync(
+      "unknown-write-reconciled",
+      2,
+      { loseAfterWrittenFor: ["projection"] },
+      { operations: ["projection"], approvalId: undefined },
+    );
+    await recordJiraSync("promotion-stale", 3, { baselineAtWrite: movedBaseline }, { operations: ["promotion"] });
+    await recordJiraSync(
+      "promotion-not-eligible",
+      4,
+      { promotionEligibility: { engineeringReady: true, approved: false } },
+      { operations: ["promotion"] },
+    );
+    await recordJiraSync("shadow", 5, {}, { executionMode: "shadow" });
+    await recordJiraSync("transition-authorized", 6, {}, { operations: ["transition"], targetStatusId });
+    await recordJiraSync(
+      "transition-stale",
+      7,
+      { baselineAtWrite: movedBaseline },
+      { operations: ["transition"], targetStatusId },
+    );
   }
 
   // --- P3-T13 deploy dispatch / prod monitor fixtures（TMP-003 / TMP-005） ---
