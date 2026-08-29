@@ -26,6 +26,14 @@ describe("FinalArch:CON-002 adapter 操作境界（register の承認境界と�
     expect(isOperationAllowed("mcp-gateway", "read")).toBe(false);
   });
 
+  it("Jira は read/draft と development projection だけを許可する", () => {
+    expect(isOperationAllowed("jira", "read")).toBe(true);
+    expect(isOperationAllowed("jira", "draft")).toBe(true);
+    expect(isOperationAllowed("jira", "project_development")).toBe(true);
+    expect(isOperationAllowed("jira", "invoke")).toBe(false);
+    expect(isOperationAllowed("jira", "ask")).toBe(false);
+  });
+
   it("Plane / Confluence は read + draft のみ（formal publish は不許可）", () => {
     for (const kind of ["plane", "confluence"] as const) {
       expect(isOperationAllowed(kind, "read")).toBe(true);
@@ -52,7 +60,9 @@ describe("FinalArch:CON-002 adapter 操作境界（register の承認境界と�
   it("全 adapter kind に境界が定義されている", () => {
     for (const kind of ADAPTER_KINDS) {
       expect(
-        (["read", "ask", "fetch", "draft", "invoke"] as const).some((op) => isOperationAllowed(kind, op)),
+        (["read", "ask", "fetch", "draft", "invoke", "project_development"] as const).some((op) =>
+          isOperationAllowed(kind, op),
+        ),
         `${kind} に許可操作がない`,
       ).toBe(true);
     }

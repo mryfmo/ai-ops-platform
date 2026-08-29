@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 CREATE TABLE IF NOT EXISTS events (
   event_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trace_id    UUID NOT NULL,
-  source      TEXT NOT NULL CHECK (source IN ('github', 'monitor', 'inbound')),
+  source      TEXT NOT NULL CHECK (source IN ('github', 'jira', 'monitor', 'inbound')),
   payload     JSONB NOT NULL,
   status      TEXT NOT NULL CHECK (status IN ('queued', 'dispatched', 'delayed', 'done', 'dead')) DEFAULT 'queued',
   attempts    INT NOT NULL DEFAULT 0,

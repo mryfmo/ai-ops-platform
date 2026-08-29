@@ -154,6 +154,8 @@ export type {
 } from "./lib/m365Egress.js";
 export {
   TEMPORAL_ENVIRONMENTS,
+  INTERNAL_TASK_QUEUES,
+  TEMPORAL_TASK_QUEUES,
   WORKER_CN_PREFIX,
   CA_CN_PREFIX,
   isTemporalEnvironment,
@@ -166,6 +168,7 @@ export {
 } from "./lib/temporalProfile.js";
 export type {
   TemporalEnvironment,
+  TemporalTaskQueue,
   TemporalConnectionProfile,
   WorkerCertificateIdentity,
 } from "./lib/temporalProfile.js";
@@ -224,3 +227,50 @@ export {
   planePromotionWorkflow,
   planeSyncWorkflow,
 } from "./workflows/planeSync.js";
+
+// Jira is the primary operational work-item integration. Plane remains exported above only for
+// v1 contract and Temporal history replay compatibility.
+export {
+  assertJiraIssueBaseline,
+  assertJiraSyncIdentity,
+  assertJiraSyncRequest,
+  parseJiraBaselineReceipt,
+  parseJiraPromotionDraftReceipt,
+  parseJiraPromotionEligibility,
+  parseJiraPromotionLedgerStatus,
+  parseJiraPromotionWriteResult,
+  parseJiraSyncLedgerStatus,
+  parseJiraSyncWriteReceipt,
+  parseJiraTransitionAuthorization,
+  parseJiraTransitionLedgerStatus,
+  parseJiraTransitionReceipt,
+  parseJiraTransitionWriteResult,
+  sameJiraIssueBaseline,
+} from "./lib/jiraSyncState.js";
+export type {
+  JiraIssueBaseline,
+  JiraPromotionDraftReceipt,
+  JiraPromotionEligibility,
+  JiraPromotionLedgerStatus,
+  JiraPromotionWriteResult,
+  JiraSyncExecutionMode,
+  JiraSyncIdentity,
+  JiraSyncLedgerStatus,
+  JiraSyncOperation,
+  JiraSyncOrigin,
+  JiraSyncRequest,
+  JiraSyncWriteReceipt,
+  JiraTransitionAuthorization,
+  JiraTransitionLedgerStatus,
+  JiraTransitionReceipt,
+  JiraTransitionWriteResult,
+} from "./lib/jiraSyncState.js";
+export {
+  buildJiraSyncWorkflowId,
+  jiraEventWorkflow,
+  jiraProjectionWorkflow,
+  jiraPromotionWorkflow,
+  jiraSyncWorkflow,
+  jiraTransitionWorkflow,
+} from "./workflows/jiraSync.js";
+export type { JiraChildOutcome, JiraSyncActivities, JiraSyncResult } from "./workflows/jiraSync.js";

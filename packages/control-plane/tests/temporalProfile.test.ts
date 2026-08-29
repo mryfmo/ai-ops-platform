@@ -12,12 +12,13 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { WORKFLOW_KINDS } from "../src/contracts/index.js";
 import {
+  INTERNAL_TASK_QUEUES,
+  TEMPORAL_TASK_QUEUES,
   allTaskQueues,
   assertCertificateMatchesProfile,
   buildConnectionProfile,
   namespaceFor,
   parseWorkerCertificateIdentity,
-  taskQueueFor,
 } from "../src/lib/temporalProfile.js";
 import { createTemporalConnection } from "../src/temporal/connection.js";
 import { createScopedWorker, refreshWorkerAuthorization } from "../src/temporal/worker.js";
@@ -102,6 +103,16 @@ function issueWorkerCert(env: string, options: { caCn?: string; cn?: string; day
 }
 
 describe("Temporal connection profile [FinalArch:TMP-001][FinalArch:FR-CP-001]", () => {
+  it("accepts the internal Jira queue without changing the v1 workflow enum", () => {
+    expect(INTERNAL_TASK_QUEUES).toEqual(["jira-sync"]);
+    expect(TEMPORAL_TASK_QUEUES).toContain("jira-sync");
+    expect(allTaskQueues()).toContain("jira-sync");
+    expect(WORKFLOW_KINDS).not.toContain("jira-sync");
+    expect(
+      buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "jira-worker", taskQueue: "jira-sync" }),
+    ).toMatchObject({ namespace: "aiops-dev", taskQueue: "jira-sync" });
+  });
+
   it("namespace は environment 単位、worker は単一 task queue + 個体名にスコープ [FinalArch:FR-CP-001]", () => {
     const profile = buildConnectionProfile("dev", "127.0.0.1:7233", { workerName: "w1", taskQueue: "incident" });
     expect(profile.namespace).toBe("aiops-dev");
@@ -109,7 +120,7 @@ describe("Temporal connection profile [FinalArch:TMP-001][FinalArch:FR-CP-001]",
     expect(profile.taskQueue).toBe("incident");
     expect(profile.workerName).toBe("w1");
     expect(profile.workerIdentity).toBe("aiops-temporal-worker.dev.w1");
-    expect(allTaskQueues()).toEqual(WORKFLOW_KINDS.map(taskQueueFor));
+    expect(allTaskQueues()).toEqual(TEMPORAL_TASK_QUEUES);
   });
 
   it("不正な environment / address / workerName / taskQueue は E-TMP01 で拒否する [FinalArch:TMP-001]", () => {

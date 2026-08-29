@@ -16,6 +16,7 @@ export type {
   WorkIqAdapter,
   McpGatewayAdapter,
   WisprAdapter,
+  JiraAdapter,
   PlaneAdapter,
   ConfluenceAdapter,
 } from "./adapters/index.js";
@@ -84,3 +85,14 @@ export type {
   ToolPolicyDecision,
   ToolPolicyDecisionValue,
 } from "./mcp/governedToolCall.js";
+
+export { JiraRestClient, computeJiraFieldHash } from "./jira/client.js";
+export type {
+  JiraDevelopmentInformationInput,
+  JiraIssueBaseline,
+  JiraIssueMetadata,
+  JiraRestClientOptions,
+  JiraSnapshot,
+  JiraSnapshotIssue,
+  JiraTransitionResult,
+} from "./jira/client.js";

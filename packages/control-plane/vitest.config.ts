@@ -13,6 +13,7 @@ export default defineConfig({
       // 計上されない。行使は tests/replay.test.ts・tests/approvalReplay.test.ts・
       // tests/jitHealthReplay.test.ts・tests/statusIngestReplay.test.ts の
       // recorded-history replay が保証する（純粋判定は lib/ 側で直接テスト済み）。
+      // jiraSync.ts の recorded-history replay は follow-up とし、契約・純粋判定を直接テストする。
       exclude: [
         "src/workflows/replayProbe.ts",
         "src/workflows/approval.ts",
@@ -20,6 +21,7 @@ export default defineConfig({
         "src/workflows/jitHealth.ts",
         "src/workflows/reportDelivery.ts",
         "src/workflows/planeSync.ts",
+        "src/workflows/jiraSync.ts",
         "src/workflows/deployment.ts",
         "src/workflows/statusIngest.ts",
         "src/workflows/entry.ts",
