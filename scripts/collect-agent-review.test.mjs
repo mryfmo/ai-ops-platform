@@ -8,6 +8,8 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { validateReviewFailureArtifact } from "../contracts/agent-review/review-validator.mjs";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const collector = path.join(repoRoot, "scripts/collect-agent-review.mjs");
 const sourceManifest = path.join(repoRoot, "contracts/agent-task/fixtures/valid.manifest.json");
@@ -83,9 +85,12 @@ describe("review manifest authority (ADV-FIX-04)", () => {
         const result = run(data, output, digest);
         assert.notEqual(result.status, 0);
         const artifact = JSON.parse(fs.readFileSync(output, "utf8"));
+        assert.equal(artifact.schema_version, "failure-1.0");
+        assert.equal(artifact.status, "failed");
         assert.equal(artifact.findings[0].severity, "critical");
         assert.equal(artifact.findings[0].dimension, "security");
         assert.match(artifact.findings[0].evidence, /manifest digest/u);
+        assert.doesNotThrow(() => validateReviewFailureArtifact(artifact));
       } finally {
         fs.rmSync(data.target, { recursive: true, force: true });
       }

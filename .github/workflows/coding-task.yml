@@ -159,6 +159,8 @@ jobs:
         env:
           MANIFEST_BASE64: ${{ inputs.manifest_base64 }}
           MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+          TASK_ID: ${{ inputs.task_id }}
+          AGENT: ${{ inputs.agent }}
         run: |
           set -euo pipefail
           manifest_path="${RUNNER_TEMP}/coding-task-manifest.json"
@@ -174,13 +176,22 @@ jobs:
              contracts/agent-task/manifest-validator.mjs \
              "${trusted_root}/contracts/agent-task/"
           trusted_digest="$(find "${trusted_root}" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f 1)"
-          node --input-type=module - "${manifest_path}" "${trusted_root}/contracts/agent-task/manifest-validator.mjs" <<'NODE'
+          node --input-type=module - "${manifest_path}" "${trusted_root}/contracts/agent-task/manifest-validator.mjs" "${TASK_ID}" "${AGENT}" <<'NODE'
           import fs from "node:fs";
           import { pathToFileURL } from "node:url";
           const manifestPath = process.argv[2];
           const validatorPath = process.argv[3];
+          const taskId = process.argv[4];
+          const agent = process.argv[5];
           const { validateAgentTaskManifest } = await import(pathToFileURL(validatorPath));
-          validateAgentTaskManifest(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
+          const manifest = validateAgentTaskManifest(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
+          if (manifest.task_id !== taskId) throw new TypeError("manifest task_id does not match dispatch input");
+          if (manifest.delivery.branch !== `agent/${taskId}`) {
+            throw new TypeError("manifest delivery branch does not match dispatch input");
+          }
+          if (manifest.writer.agent_id !== agent) {
+            throw new TypeError("manifest writer agent_id does not match dispatch input");
+          }
           NODE
           integrity_key="$(openssl rand -hex 32)"
           echo "::add-mask::${integrity_key}"
