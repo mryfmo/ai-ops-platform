@@ -70,6 +70,13 @@ describe("JiraRestClient", () => {
     await expect(client(duplicateFetch).captureJqlSnapshot("project = AICOE")).rejects.toThrow(/duplicate issue/);
   });
 
+  it("rejects a JQL page unless isLast is true or a valid continuation token exists", async () => {
+    for (const body of [{ issues: [] }, { issues: [], isLast: false }, { issues: [], nextPageToken: "" }]) {
+      const fetchImpl = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
+      await expect(client(fetchImpl).captureJqlSnapshot("project = AICOE")).rejects.toThrow(/E-JIRA-MALFORMED/);
+    }
+  });
+
   it("does not POST a transition when baseline is stale", async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify(issue("AICOE-1", "10002")), { status: 200 }));
     const result = await client(fetchImpl).transitionIssue({

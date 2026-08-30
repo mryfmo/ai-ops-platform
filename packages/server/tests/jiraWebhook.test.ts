@@ -88,6 +88,7 @@ describe("Jira webhook", () => {
       origin: "jira-webhook",
       statusId: "10021",
       sprintId: "88",
+      revision: expect.stringMatching(/^[0-9a-f]{64}$/u),
     });
   });
 

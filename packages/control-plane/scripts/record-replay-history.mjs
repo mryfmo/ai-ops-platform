@@ -16,6 +16,11 @@ import prettier from "prettier";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesDir = path.join(packageRoot, "tests", "fixtures");
 const workflowsPath = path.join(packageRoot, "src", "workflows", "entry.ts");
+const jiraOnly = process.argv.includes("--jira-only");
+
+const writeFixture = (file, content) => {
+  if (!jiraOnly || path.basename(file).startsWith("jira-sync.")) fs.writeFileSync(file, content);
+};
 
 /** 外部 store の代役。lost-response 経路では書き込み成立後に応答を失う。 */
 function makeActivities({ loseResponse }) {
@@ -56,7 +61,7 @@ try {
     );
     const history = await env.client.workflow.getHandle(`replay-probe/${taskQueue}`).fetchHistory();
     const file = path.join(fixturesDir, fixtureName);
-    fs.writeFileSync(file, `${JSON.stringify(history.toJSON(), null, 2)}\n`);
+    writeFixture(file, `${JSON.stringify(history.toJSON(), null, 2)}\n`);
     console.log(`recorded ${fixtureName} (workflow result: ${result})`);
   }
 
@@ -83,7 +88,7 @@ try {
       );
     });
     const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
-    fs.writeFileSync(
+    writeFixture(
       path.join(fixturesDir, "replay-probe.cancelled.history.json"),
       `${JSON.stringify(history.toJSON(), null, 2)}\n`,
     );
@@ -104,7 +109,7 @@ try {
   };
   const saveHistory = async (workflowId, fixtureName) => {
     const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
-    fs.writeFileSync(
+    writeFixture(
       path.join(fixturesDir, fixtureName),
       await prettier.format(JSON.stringify(history.toJSON()), { parser: "json" }),
     );
@@ -282,7 +287,7 @@ try {
       return drive.run(handle);
     });
     const history = await env.client.workflow.getHandle(workflowId).fetchHistory();
-    fs.writeFileSync(
+    writeFixture(
       path.join(fixturesDir, `coding-task.${name}.history.json`),
       `${JSON.stringify(history.toJSON(), null, 2)}\n`,
     );
@@ -1015,8 +1020,14 @@ try {
     };
     const movedBaseline = { ...baseline, updated: "2026-08-28T12:01:00.000+09:00", fieldHash: "b".repeat(64) };
     const targetStatusId = "10042";
-    const identityFor = (n) => ({ issueKey: `AICOE-${n}`, projectId: "PJ-1001", mappingVersion: 3 });
-    const identityKey = (identity) => `${identity.issueKey}:${identity.projectId}:${identity.mappingVersion}`;
+    const identityFor = (n) => ({
+      issueKey: `AICOE-${n}`,
+      projectId: "PJ-1001",
+      mappingVersion: 3,
+      revision: n.toString(16).padStart(64, "0"),
+    });
+    const identityKey = (identity) =>
+      `${identity.issueKey}:${identity.projectId}:${identity.mappingVersion}:${identity.revision}`;
     const sameBaseline = (left, right) =>
       left.updated === right.updated && left.statusId === right.statusId && left.fieldHash === right.fieldHash;
     const envelope = (payload) => ({ schemaVersion: 1, payload });

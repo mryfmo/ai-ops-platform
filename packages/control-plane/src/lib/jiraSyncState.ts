@@ -13,6 +13,8 @@ export interface JiraSyncIdentity {
   readonly issueKey: string;
   readonly projectId: string;
   readonly mappingVersion: number;
+  /** SHA-256(updated の ISO 正規形 + fieldHash)。同一 issue の event 世代を分離する。 */
+  readonly revision: string;
 }
 
 export interface JiraIssueBaseline {
@@ -125,6 +127,9 @@ export function assertJiraSyncIdentity(value: unknown): asserts value is JiraSyn
   if (!Number.isSafeInteger(identity.mappingVersion) || (identity.mappingVersion as number) < 1) {
     throw new RangeError("mappingVersion must be a positive safe integer");
   }
+  if (typeof identity.revision !== "string" || !HASH_PATTERN.test(identity.revision)) {
+    throw new RangeError("revision must be lowercase SHA-256 hex");
+  }
 }
 
 export function assertJiraIssueBaseline(value: unknown): asserts value is JiraIssueBaseline {
@@ -177,7 +182,8 @@ function identityMatches(value: Record<string, unknown>, identity: JiraSyncIdent
   return (
     value.issueKey === identity.issueKey &&
     value.projectId === identity.projectId &&
-    value.mappingVersion === identity.mappingVersion
+    value.mappingVersion === identity.mappingVersion &&
+    value.revision === identity.revision
   );
 }
 

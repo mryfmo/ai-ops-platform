@@ -122,7 +122,7 @@ function unresolvedFailure(message: string): never {
 }
 
 function identityKey(identity: JiraSyncIdentity): string {
-  return `${identity.issueKey}:${identity.projectId}:${String(identity.mappingVersion)}`;
+  return `${identity.issueKey}:${identity.projectId}:${String(identity.mappingVersion)}:${identity.revision}`;
 }
 
 /** v1 public workflow enum is left unchanged; Jira sync is an internal Temporal queue/workflow. */
@@ -159,6 +159,7 @@ async function runDedupedWrite(
     issueKey: request.issueKey,
     projectId: request.projectId,
     mappingVersion: request.mappingVersion,
+    revision: request.revision,
   };
   let idempotencyKey: string;
   try {
@@ -257,6 +258,7 @@ export async function jiraPromotionWorkflow(input: unknown): Promise<VersionedPa
     issueKey: request.issueKey,
     projectId: request.projectId,
     mappingVersion: request.mappingVersion,
+    revision: request.revision,
   };
   const eligibilityRaw = await reads.readJiraPromotionEligibility({
     schemaVersion: 1,
@@ -375,6 +377,7 @@ export async function jiraTransitionWorkflow(input: unknown): Promise<VersionedP
     issueKey: request.issueKey,
     projectId: request.projectId,
     mappingVersion: request.mappingVersion,
+    revision: request.revision,
   };
   const authorizationRaw = await reads.readJiraTransitionAuthorization({
     schemaVersion: 1,
@@ -509,6 +512,7 @@ export async function jiraSyncWorkflow(input: unknown): Promise<VersionedPayload
     issueKey: request.issueKey,
     projectId: request.projectId,
     mappingVersion: request.mappingVersion,
+    revision: request.revision,
   };
   let workflowId: string;
   try {

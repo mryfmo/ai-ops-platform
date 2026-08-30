@@ -30,8 +30,11 @@ import {
   createAnthropicTransport,
   PgCostGuard,
   buildHolidayCalendarFromYaml,
+  type AuditLogWriter,
+  type FetchLike,
   type HolidayEntry,
 } from "@aiops/shared";
+import { JiraRestClient, type JiraSnapshot } from "@aiops/integrations";
 import { SPEC_INTERNAL_TERMS_PROVIDER } from "@aiops/shared/reporting/internalTerms.js";
 import {
   FileSystemPrjopsJobSnapshotSource,
@@ -46,7 +49,7 @@ import {
   promoteToStagingIfEligible,
   triageAndNotify,
 } from "@aiops/devops";
-import { loadConfig, OPA_FLAG_NAME } from "./config.js";
+import { loadConfig, OPA_FLAG_NAME, type ServerConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { PgAuditLog } from "./db/pgAuditLog.js";
 import { EventsRepo } from "./db/eventsRepo.js";
@@ -82,6 +85,10 @@ import { createSubscriptionRenewalTask } from "./scheduler/tasks/subscriptionRen
 import { backfillGraphSubscription, createChannelPollingTask } from "./scheduler/tasks/channelPollingTask.js";
 import { createEventsPollingTask } from "./scheduler/tasks/eventsPollingTask.js";
 import { createPmSnapshotReconcileTask } from "./scheduler/tasks/pmSnapshotReconcileTask.js";
+import {
+  createJiraSnapshotReconcileTask,
+  type JiraReconcileProject,
+} from "./scheduler/tasks/jiraSnapshotReconcileTask.js";
 import { createSevenKeysMonthlySnapshotTask } from "./scheduler/tasks/sevenKeysMonthlySnapshotTask.js";
 import { createReportDeliveryTask, deliverStandardReportToRecipients } from "./scheduler/tasks/reportDeliveryTask.js";
 import { createReportDeliveryMetricsTask } from "./scheduler/tasks/reportDeliveryMetricsTask.js";
@@ -97,6 +104,8 @@ import {
   type DevopsAgentId,
   type DevopsEventHandlerInput,
 } from "./lib/githubEventRouter.js";
+import { createBearerJiraWebhookAuthenticator, type JiraWebhookDeps } from "./http/routes/jiraWebhook.js";
+import type { QueuedJiraWebhookEvent } from "./lib/jiraEventRouter.js";
 import { decideStakeholderMaster } from "./lib/stakeholderYamlLoader.js";
 import { handleGraphLifecycleEvent } from "./lib/graphLifecycleHandler.js";
 import {
@@ -209,11 +218,144 @@ export function githubCompositionPolicy(mode: GitHubAuthMode): {
   return { enabled, blocksWhen: (failsafeActive) => failsafeActive || !enabled };
 }
 
+interface JiraEnvironmentProjectMapping {
+  readonly mapping_version: number;
+  readonly jira_cloud_id: string;
+  readonly jira_project_id: string;
+  readonly jira_project_key: string;
+  readonly allowed_status_ids: readonly string[];
+  readonly protected_status_ids: readonly string[];
+  readonly sprint_field_id?: string;
+}
+
+export interface JiraEnvironmentMapping {
+  readonly environment: "development" | "production";
+  readonly projects: Readonly<Record<string, JiraEnvironmentProjectMapping>>;
+}
+
+type JiraRuntimeConfig = Pick<
+  ServerConfig,
+  | "JIRA_ENVIRONMENT_MAPPING_PATH"
+  | "JIRA_WEBHOOK_BEARER_SECRET"
+  | "JIRA_MAPPING_OWNER_PUBLIC_KEY"
+  | "JIRA_SITE_BASE_URL"
+  | "JIRA_OAUTH_ACCESS_TOKEN"
+>;
+
+export interface JiraRuntimeCompositionDeps {
+  readonly auditLog: AuditLogWriter;
+  enqueueJiraEvent: JiraWebhookDeps["enqueueJiraEvent"];
+  traceIdProvider(): string;
+  dispatchJiraEvent?(event: QueuedJiraWebhookEvent, traceId: string): Promise<void>;
+  commitCompleteSnapshot?(project: JiraReconcileProject, snapshot: JiraSnapshot): Promise<void>;
+  fetchImpl?: FetchLike;
+  loadMapping?(path: string, ownerPublicKey?: string): Promise<JiraEnvironmentMapping>;
+}
+
+export interface JiraRuntimeComposition {
+  readonly webhook?: JiraWebhookDeps;
+  readonly dispatchJiraEvent?: JiraRuntimeCompositionDeps["dispatchJiraEvent"];
+  readonly snapshotTask?: ScheduledTask;
+}
+
+async function loadValidatedJiraMapping(path: string, ownerPublicKey?: string): Promise<JiraEnvironmentMapping> {
+  let value: unknown;
+  try {
+    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  } catch (error) {
+    throw new Error(`E-JIRA-CONFIG: failed to read mapping: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const validatorUrl = new URL("../../../scripts/validate-jira-environment-mapping.mjs", import.meta.url);
+  const validator = (await import(validatorUrl.href)) as {
+    validateJiraEnvironmentMapping(value: unknown, key?: string): unknown;
+  };
+  validator.validateJiraEnvironmentMapping(value, ownerPublicKey);
+  return value as JiraEnvironmentMapping;
+}
+
+export async function createJiraRuntimeComposition(
+  config: JiraRuntimeConfig,
+  deps: JiraRuntimeCompositionDeps,
+): Promise<JiraRuntimeComposition> {
+  if (!config.JIRA_ENVIRONMENT_MAPPING_PATH || !config.JIRA_WEBHOOK_BEARER_SECRET) return {};
+  if (!deps.dispatchJiraEvent) {
+    throw new Error("E-JIRA-CONFIG: JIRA_* webhook configuration requires a dispatchJiraEvent backend");
+  }
+  if (config.JIRA_SITE_BASE_URL && config.JIRA_OAUTH_ACCESS_TOKEN && !deps.commitCompleteSnapshot) {
+    throw new Error("E-JIRA-CONFIG: Jira snapshot configuration requires a commitCompleteSnapshot backend");
+  }
+
+  const mapping = await (deps.loadMapping ?? loadValidatedJiraMapping)(
+    config.JIRA_ENVIRONMENT_MAPPING_PATH,
+    config.JIRA_MAPPING_OWNER_PUBLIC_KEY,
+  );
+  const projects: JiraReconcileProject[] = [];
+  const webhookMappings = new Map<string, Awaited<ReturnType<JiraWebhookDeps["resolveProjectMapping"]>>>();
+  const snapshotClients = new Map<string, JiraRestClient>();
+  const fetchImpl = deps.fetchImpl ?? fetch;
+
+  for (const [projectId, project] of Object.entries(mapping.projects)) {
+    projects.push({
+      projectId,
+      jiraProjectId: project.jira_project_id,
+      jql: `project = ${project.jira_project_key}`,
+      mappingVersion: project.mapping_version,
+    });
+    webhookMappings.set(project.jira_project_id, {
+      projectId,
+      jiraProjectId: project.jira_project_id,
+      mappingVersion: project.mapping_version,
+      allowedStatusIds: project.allowed_status_ids,
+      sprintFieldId: project.sprint_field_id,
+    });
+    if (config.JIRA_SITE_BASE_URL && config.JIRA_OAUTH_ACCESS_TOKEN) {
+      snapshotClients.set(
+        projectId,
+        new JiraRestClient({
+          fetchImpl,
+          tokenProvider: { getAccessToken: async () => config.JIRA_OAUTH_ACCESS_TOKEN! },
+          siteBaseUrl: config.JIRA_SITE_BASE_URL,
+          allowedStatusIds: project.allowed_status_ids,
+          protectedStatusIds: project.protected_status_ids,
+          sprintFieldId: project.sprint_field_id,
+        }),
+      );
+    }
+  }
+
+  const result: JiraRuntimeComposition = {
+    webhook: {
+      authenticator: createBearerJiraWebhookAuthenticator(config.JIRA_WEBHOOK_BEARER_SECRET),
+      auditLog: deps.auditLog,
+      resolveProjectMapping: async (jiraProjectId) => webhookMappings.get(jiraProjectId) ?? null,
+      enqueueJiraEvent: deps.enqueueJiraEvent,
+      traceIdProvider: deps.traceIdProvider,
+    },
+    dispatchJiraEvent: deps.dispatchJiraEvent,
+  };
+  if (snapshotClients.size === 0) return result;
+
+  return {
+    ...result,
+    snapshotTask: createJiraSnapshotReconcileTask({
+      projects,
+      captureSnapshot: (project, now) => snapshotClients.get(project.projectId)!.captureJqlSnapshot(project.jql, now),
+      commitCompleteSnapshot: deps.commitCompleteSnapshot!,
+      auditLog: deps.auditLog,
+      traceIdProvider: deps.traceIdProvider,
+    }),
+  };
+}
+
 export async function main(
   bootstrap: {
     config?: ReturnType<typeof loadConfig>;
     logger?: Logger;
     telemetry?: TelemetryHandle;
+    jira?: Pick<
+      JiraRuntimeCompositionDeps,
+      "dispatchJiraEvent" | "commitCompleteSnapshot" | "fetchImpl" | "loadMapping"
+    >;
   } = {},
 ): Promise<void> {
   const config = bootstrap.config ?? loadConfig();
@@ -346,6 +488,12 @@ export async function main(
 
   const { client: githubClient, mode: githubAuthMode } = await createGitHubClientForConfig(config, devopsAuditLog);
   const githubPolicy = githubCompositionPolicy(githubAuthMode);
+  const jiraComposition = await createJiraRuntimeComposition(config, {
+    auditLog: devopsAuditLog,
+    enqueueJiraEvent: (event, traceId, options) => eventsRepo.enqueue("jira", event, traceId, options),
+    traceIdProvider: () => randomUUID(),
+    ...bootstrap.jira,
+  });
 
   // 根拠: FinalArch:LLM-001 / ADR-0022（P2-T06）。server の inference transport は
   // LiteLLM gateway のみ。direct fallback flag の requires
@@ -641,6 +789,9 @@ export async function main(
   // legacy 復元）は config 側 resolveLegacySchedulerEffective に集約。Temporal 側
   // writer は制御対象外 — rollback は runbook の pause 先行手順に従う。
   const legacySchedulerEnabled = config.LEGACY_SCHEDULER_EFFECTIVE;
+  const handleSchedulerError = (taskName: string, err: unknown): void => {
+    logger.error({ taskName, err: err instanceof Error ? err.message : String(err) }, "scheduler task failed");
+  };
   const scheduler = !legacySchedulerEnabled
     ? null
     : startScheduler(
@@ -831,6 +982,7 @@ export async function main(
                       handlers: devopsEventHandlers,
                       pmRepo: pmTimeseriesRepo,
                     }),
+                  dispatchJiraEvent: jiraComposition.dispatchJiraEvent,
                   dispatchMonitorEvent: async (payload, traceId) => {
                     await devopsAuditLog.append({
                       trace_id: traceId,
@@ -942,11 +1094,24 @@ export async function main(
             ),
           ),
         ],
-        (taskName, err) => {
-          // 1タスクの失敗を隔離し、秘密情報を含まない形でstderrへ
-          logger.error({ taskName, err: err instanceof Error ? err.message : String(err) }, "scheduler task failed");
-        },
+        handleSchedulerError,
       );
+  // Jira snapshot は15件の legacy→Temporal cutover inventory には属さない独立 runtime task。
+  const startJiraSnapshotScheduler = startScheduler;
+  const jiraScheduler = jiraComposition.snapshotTask
+    ? startJiraSnapshotScheduler(
+        [observedTask(guardTask(jiraComposition.snapshotTask, devopsAuditLog))],
+        handleSchedulerError,
+      )
+    : null;
+  const lifecycleScheduler =
+    scheduler || jiraScheduler
+      ? {
+          async stop(): Promise<void> {
+            await Promise.all([scheduler?.stop(), jiraScheduler?.stop()]);
+          },
+        }
+      : null;
 
   const app = buildApp({
     auditLog: devopsAuditLog,
@@ -995,6 +1160,7 @@ export async function main(
         eventsRepo.enqueue("github", { eventName, payload }, traceId, options),
       traceIdProvider: () => randomUUID(),
     },
+    jira: jiraComposition.webhook,
     codingTasks: {
       codingTasksRepo,
       githubClient,
@@ -1108,7 +1274,7 @@ export async function main(
     shutdown: () =>
       gracefulShutdown({
         server,
-        scheduler,
+        scheduler: lifecycleScheduler,
         pool,
         telemetry,
         setShuttingDown: (value) => {

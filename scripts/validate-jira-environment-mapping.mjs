@@ -1,5 +1,6 @@
 // 根拠: JIRA-GH-GOV-001 — Jira/PJ/GitHub mappingを外部I/O前にfail-closedで検証する。
 import fs from "node:fs";
+import { createPublicKey, verify } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -79,6 +80,47 @@ function validateProvenance(provenance, environment) {
   }
 }
 
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalize(value[key])]),
+    );
+  }
+  return value;
+}
+
+function productionSigningBytes(value) {
+  const unsigned = structuredClone(value);
+  delete unsigned.provenance.signature;
+  return Buffer.from(JSON.stringify(canonicalize(unsigned)), "utf8");
+}
+
+function parseOwnerPublicKey(value) {
+  if (typeof value !== "string" || !value.trim())
+    fail("production Jira mapping requires JIRA_MAPPING_OWNER_PUBLIC_KEY");
+  try {
+    const trimmed = value.trim();
+    const key = trimmed.includes("-----BEGIN")
+      ? createPublicKey(trimmed)
+      : createPublicKey({ key: Buffer.from(trimmed, "base64"), format: "der", type: "spki" });
+    if (key.asymmetricKeyType !== "ed25519") fail("JIRA_MAPPING_OWNER_PUBLIC_KEY must be an Ed25519 public key");
+    return key;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("JIRA_MAPPING_OWNER_PUBLIC_KEY")) throw error;
+    fail("JIRA_MAPPING_OWNER_PUBLIC_KEY is not valid PEM or base64-SPKI");
+  }
+}
+
+function verifyProductionSignature(value, ownerPublicKey) {
+  const key = parseOwnerPublicKey(ownerPublicKey);
+  if (!verify(null, productionSigningBytes(value), key, Buffer.from(value.provenance.signature, "base64"))) {
+    fail("production Jira mapping signature verification failed");
+  }
+}
+
 function validateAuthorizedUrl(value, environment, projectKey) {
   let url;
   try {
@@ -109,7 +151,7 @@ function assertIdArray(value, label) {
   return set;
 }
 
-export function validateJiraEnvironmentMapping(value) {
+export function validateJiraEnvironmentMapping(value, ownerPublicKey = process.env.JIRA_MAPPING_OWNER_PUBLIC_KEY) {
   assertExactObject(value, TOP_LEVEL_FIELDS, TOP_LEVEL_FIELDS, "mapping");
   if (value._evidence !== "JIRA-GH-GOV-001 / 2026-08-28") fail("_evidence mismatch");
   if (value.contract_version !== "1.0.0") fail("contract_version must be 1.0.0");
@@ -154,6 +196,7 @@ export function validateJiraEnvironmentMapping(value) {
     repositories.add(project.github_repository);
     validateAuthorizedUrl(project.authorized_url, value.environment, project.jira_project_key);
   }
+  if (value.environment === "production") verifyProductionSignature(value, ownerPublicKey);
 
   return {
     environment: value.environment,

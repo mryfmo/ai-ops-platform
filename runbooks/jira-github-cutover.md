@@ -56,10 +56,15 @@ cp docs/contracts/fixtures/jira-environment-mapping.dev.json /secure/config/jira
 - `protected_status_ids`は承認なしで遷移させないStatusのID
 - Sprintを利用する場合は正しい`customfield_*` ID
 
+署名対象は、`provenance.signature`を除外して全object keyを再帰的に昇順へ並べたJSONのUTF-8 bytesである。
+OwnerはEd25519秘密鍵でこのbytesを署名し、Base64署名を`provenance.signature`へ設定する。検証側には公開鍵を
+PEMまたはbase64-SPKI形式で`JIRA_MAPPING_OWNER_PUBLIC_KEY`へ供給する。秘密鍵をserverへ配布しない。
+
 検証する。
 
 ```bash
-node scripts/validate-jira-environment-mapping.mjs /secure/config/jira-environment-mapping.prod.json
+JIRA_MAPPING_OWNER_PUBLIC_KEY="$OWNER_ED25519_PUBLIC_KEY" \
+  node scripts/validate-jira-environment-mapping.mjs /secure/config/jira-environment-mapping.prod.json
 ```
 
 ### 3.2 Webhook認証境界を準備する
@@ -71,6 +76,12 @@ node scripts/validate-jira-environment-mapping.mjs /secure/config/jira-environme
 3. 組織標準の署名検証器を`JiraWebhookAuthenticator`として注入する。
 
 認証器が未設定の場合、Endpointは503になる。無認証を許す暫定設定は禁止する。
+
+server runtimeでは`JIRA_ENVIRONMENT_MAPPING_PATH`と`JIRA_WEBHOOK_BEARER_SECRET`を同時に設定する。
+JQL snapshotを有効化する場合は、さらに`JIRA_SITE_BASE_URL`と`JIRA_OAUTH_ACCESS_TOKEN`を同時に設定する。
+deployment compositionはADR-0030のTemporal `jira-sync` clientを`main()`の`dispatchJiraEvent`と
+`commitCompleteSnapshot` DI seamへ注入しなければならない。Jira envだけを設定してbackendを注入しない構成は、
+serverが起動時に拒否する。server packageへcontrol-plane/Temporal依存を追加してこの境界を迂回しない。
 
 ### 3.3 GitHub側の保護を確認する
 

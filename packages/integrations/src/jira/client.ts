@@ -274,12 +274,12 @@ export class JiraRestClient {
         issues.push(issue);
         if (issues.length > this.maxSnapshotIssues) throw new Error("E-JIRA-SNAPSHOT: issue bound exceeded");
       }
-      if (body.isLast === true || body.nextPageToken === undefined || body.nextPageToken === null) {
+      if (body.isLast === true) {
         nextPageToken = null;
       } else if (typeof body.nextPageToken === "string" && body.nextPageToken.trim() !== "") {
         nextPageToken = body.nextPageToken;
       } else {
-        throw new Error("E-JIRA-MALFORMED: nextPageToken is invalid");
+        throw new Error("E-JIRA-MALFORMED: non-final JQL page requires nextPageToken");
       }
     } while (nextPageToken !== null);
 

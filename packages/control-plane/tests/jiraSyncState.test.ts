@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertJiraIssueBaseline,
   assertJiraSyncRequest,
+  buildJiraSyncWorkflowId,
   parseJiraBaselineReceipt,
   parseJiraPromotionDraftReceipt,
   parseJiraPromotionEligibility,
@@ -21,7 +22,12 @@ import {
 } from "../src/index.js";
 
 const APPROVAL_ID = "9c6d3a1f-18cb-4b40-8ccd-66224aa2ab52";
-const IDENTITY: JiraSyncIdentity = { issueKey: "AICOE-123", projectId: "PJ-1001", mappingVersion: 3 };
+const IDENTITY: JiraSyncIdentity = {
+  issueKey: "AICOE-123",
+  projectId: "PJ-1001",
+  mappingVersion: 3,
+  revision: "c".repeat(64),
+};
 const BASELINE: JiraIssueBaseline = {
   updated: "2026-08-28T12:00:00.000+09:00",
   statusId: "10021",
@@ -61,6 +67,13 @@ describe("Jira sync contract", () => {
     expect(() => assertJiraSyncRequest(request({ projectId: "team-a" }))).toThrow(/PJ-/);
     expect(() => assertJiraSyncRequest(request({ operations: ["event", "event"] }))).toThrow(/unique/);
     expect(() => assertJiraSyncRequest(request({ operations: ["merge"] }))).toThrow(/unknown/);
+  });
+
+  it("uses the immutable event revision in workflow identity and validates its shape", () => {
+    const nextRevision = { ...IDENTITY, revision: "d".repeat(64) };
+    expect(buildJiraSyncWorkflowId(IDENTITY, "event")).not.toBe(buildJiraSyncWorkflowId(nextRevision, "event"));
+    expect(buildJiraSyncWorkflowId(IDENTITY, "event").slice("jira-sync/".length)).not.toContain("/");
+    expect(() => assertJiraSyncRequest(request({ revision: "not-a-revision" }))).toThrow(/revision/);
   });
 
   it("uses updated + statusId + fieldHash as the complete stale baseline", () => {

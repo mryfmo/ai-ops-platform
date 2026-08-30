@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +11,27 @@ import { validateJiraEnvironmentMapping } from "../scripts/validate-jira-environ
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturePath = path.join(repoRoot, "docs/contracts/fixtures/jira-environment-mapping.dev.json");
 const fixture = () => JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+const publicKeyPem = publicKey.export({ type: "spki", format: "pem" });
+const publicKeySpkiBase64 = publicKey.export({ type: "spki", format: "der" }).toString("base64");
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalize(value[key])]),
+    );
+  }
+  return value;
+}
+
+function signingBytes(value) {
+  const unsigned = structuredClone(value);
+  delete unsigned.provenance.signature;
+  return Buffer.from(JSON.stringify(canonicalize(unsigned)), "utf8");
+}
 
 function productionFixture() {
   const value = fixture();
@@ -17,17 +39,18 @@ function productionFixture() {
   value.provenance = {
     approved_by: "mryfmo",
     approval_basis: "JIRA-GH-GOV-001 owner approval",
-    signature: "b3duZXItc2lnbmVkLWppcmEtbWFwcGluZw==",
+    signature: "pending",
     replace_before_go_live: false,
     replace_before_go_live_declaration: "Owner-signed production Jira mapping; DEV-DEFAULT values are forbidden.",
   };
   for (const project of Object.values(value.projects)) {
     project.authorized_url = project.authorized_url.replace("jira.invalid", "company.atlassian.net");
   }
+  value.provenance.signature = sign(null, signingBytes(value), privateKey).toString("base64");
   return value;
 }
 
-function runCli(content) {
+function runCli(content, env = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "jira-mapping-"));
   const inputPath = path.join(root, "mapping.json");
   try {
@@ -35,6 +58,7 @@ function runCli(content) {
     return spawnSync(process.execPath, ["scripts/validate-jira-environment-mapping.mjs", inputPath], {
       cwd: repoRoot,
       encoding: "utf8",
+      env: { ...process.env, ...env },
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -51,9 +75,19 @@ test("accepts tracked development mapping and emits go-live replacement warning"
 });
 
 test("accepts owner-signed production mapping", () => {
-  const result = validateJiraEnvironmentMapping(productionFixture());
+  const result = validateJiraEnvironmentMapping(productionFixture(), publicKeyPem);
   assert.equal(result.environment, "production");
   assert.equal(result.warning, null);
+  assert.equal(validateJiraEnvironmentMapping(productionFixture(), publicKeySpkiBase64).environment, "production");
+  const cli = runCli(JSON.stringify(productionFixture()), { JIRA_MAPPING_OWNER_PUBLIC_KEY: publicKeyPem });
+  assert.equal(cli.status, 0, cli.stderr);
+});
+
+test("rejects production mapping when owner key is missing or signature does not verify", () => {
+  const production = productionFixture();
+  assert.throws(() => validateJiraEnvironmentMapping(production), /JIRA_MAPPING_OWNER_PUBLIC_KEY/);
+  production.projects["PJ-001"].mapping_version += 1;
+  assert.throws(() => validateJiraEnvironmentMapping(production, publicKeyPem), /signature verification failed/);
 });
 
 test("rejects unknown fields, malformed JSON, and noncanonical PJ keys", () => {

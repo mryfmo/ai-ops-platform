@@ -1,5 +1,6 @@
 // 根拠: ADR-0030 / 添付TEXT「Jira・GitHub・ai-ops-platform構成」
 // Jira webhookを最小metadataへ正規化する。Summary/Description/Comment本文は保持しない。
+import { createHash } from "node:crypto";
 import { computeJiraFieldHash } from "@aiops/integrations";
 
 export const SUPPORTED_JIRA_WEBHOOK_EVENTS = [
@@ -29,6 +30,7 @@ export interface QueuedJiraWebhookEvent {
   readonly sprintId: string | null;
   readonly updated: string;
   readonly fieldHash: string;
+  readonly revision: string;
   readonly mappingVersion: number;
   readonly payloadDigest: string;
 }
@@ -70,7 +72,15 @@ export function jiraProjectIdFromWebhook(payload: unknown): string | null {
   return readString(payload, ["issue", "fields", "project", "id"]);
 }
 
-export function normalizeJiraWebhookEvent(
+export function deriveJiraRevision(updated: string, fieldHash: string): string {
+  const timestamp = new Date(updated);
+  if (Number.isNaN(timestamp.getTime()) || !HASH_PATTERN.test(fieldHash)) {
+    throw new RangeError("Jira revision requires a valid updated timestamp and fieldHash");
+  }
+  return createHash("sha256").update(`${timestamp.toISOString()}\n${fieldHash}`, "utf8").digest("hex");
+}
+
+export async function normalizeJiraWebhookEvent(
   payload: unknown,
   mapping: JiraProjectMapping,
   payloadDigest: string,
@@ -98,7 +108,8 @@ export function normalizeJiraWebhookEvent(
   const assigneeAccountId = readString(payload, ["issue", "fields", "assignee", "accountId"]);
   const fields = isRecord(payload.issue) && isRecord(payload.issue.fields) ? payload.issue.fields : {};
   const sprintId = mapping.sprintFieldId ? readSprintId(fields[mapping.sprintFieldId]) : null;
-  return computeJiraFieldHash({ assigneeAccountId, sprintId }).then((fieldHash) => ({
+  const fieldHash = await computeJiraFieldHash({ assigneeAccountId, sprintId });
+  return {
     kind: "jira_work_item_event",
     origin: "jira-webhook",
     eventName,
@@ -110,9 +121,10 @@ export function normalizeJiraWebhookEvent(
     sprintId,
     updated,
     fieldHash,
+    revision: deriveJiraRevision(updated, fieldHash),
     mappingVersion: mapping.mappingVersion,
     payloadDigest,
-  }));
+  };
 }
 
 export function isQueuedJiraWebhookEvent(value: unknown): value is QueuedJiraWebhookEvent {
@@ -132,6 +144,8 @@ export function isQueuedJiraWebhookEvent(value: unknown): value is QueuedJiraWeb
     typeof value.updated === "string" &&
     typeof value.fieldHash === "string" &&
     HASH_PATTERN.test(value.fieldHash) &&
+    typeof value.revision === "string" &&
+    HASH_PATTERN.test(value.revision) &&
     Number.isSafeInteger(value.mappingVersion) &&
     typeof value.payloadDigest === "string" &&
     HASH_PATTERN.test(value.payloadDigest)

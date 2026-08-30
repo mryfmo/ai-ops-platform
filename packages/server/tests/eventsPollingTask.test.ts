@@ -176,6 +176,7 @@ describe("eventsPollingTask (ADR-0005 / DevOps:SPEC-INT-010)", () => {
       sprintId: null,
       updated: "2026-08-28T02:00:00Z",
       fieldHash: "a".repeat(64),
+      revision: "c".repeat(64),
       mappingVersion: 1,
       payloadDigest: "b".repeat(64),
     } as const;
