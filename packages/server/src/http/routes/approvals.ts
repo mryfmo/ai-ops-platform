@@ -200,6 +200,7 @@ function errorResponse(c: Context, error: unknown): Response {
 export function registerApprovalRoutes(app: Hono, deps: ApprovalRoutesDeps | undefined): void {
   app.get("/approvals", async (c) => {
     if (!deps?.identitySecret) return c.json({ error: "approvals disabled" }, 503);
+    const identitySecret = deps.identitySecret;
     const identity = authenticate(c, "", deps);
     if (identity instanceof Response) return identity;
     const traceId = deps.traceIdProvider();
@@ -207,10 +208,32 @@ export function registerApprovalRoutes(app: Hono, deps: ApprovalRoutesDeps | und
     if (authorization instanceof Response) return authorization;
     const approvals = await deps.approvalsRepo.listPending(["change"]);
     return c.json({
-      approvals: approvals.map((approval) => ({
-        ...approval,
-        ...changeDecisionAccess(approval, authorization),
-      })),
+      approvals: approvals.map((approval) => {
+        const { expectedVersion, ...publicApproval } = approval;
+        const access = changeDecisionAccess(approval, authorization);
+        if (!access.canDecide) return { ...publicApproval, ...access };
+        if (expectedVersion === null || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+          return {
+            ...publicApproval,
+            canDecide: false,
+            decisionDisabledReason: "承認情報が不完全なため判断できません。",
+          };
+        }
+        return {
+          ...publicApproval,
+          ...access,
+          version: expectedVersion,
+          correlation: signApprovalCardCorrelation(
+            {
+              approvalId: approval.approvalId,
+              version: expectedVersion,
+              tenantId: identity.tenantId,
+              objectId: identity.objectId,
+            },
+            identitySecret,
+          ),
+        };
+      }),
     });
   });
 
