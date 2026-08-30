@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_184e4d",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-276 orchestrator adversarial review (accepted): single-line fix — tsconfig.base.json gains types:[\"node\"], restoring Node 22 global types under TypeScript 6 lib resolution for all base-inheriting packages while packages/web keeps its DOM tsconfig. Verified: only tsconfig.base.json changed; dependency/lock/mise diffs empty; validation shows RED reproduction, all-10-package typecheck green, and fresh-PostgreSQL mise run ci exit 0 at bcf36b0. PR CI on the pushed commit serves as the independent execution check. CompactionDB decision cb6deb94 verified. Review-scope approval record for a finding-free review.",
+    "author": "Claude Code",
+    "created_at": "2026-08-30T03:56:33Z",
+    "updated_at": "2026-08-30T03:56:33Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_1f14ec",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/BOT-FIX-276-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-08-30T03:56:33Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
