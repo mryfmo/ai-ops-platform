@@ -1,0 +1,46 @@
+[
+  {
+    "scope": "review",
+    "id": "r_bad82c",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "JIRA-COMP-01 orchestrator adversarial review (accepted): @aiops/composition wires the server Jira DI seams to the internal jira-sync Temporal path with workspace-only dependencies (lockfile diff is registration-only); control-plane change is a 2-line boundary re-export of @temporalio/client (existing dep, keeps composition off direct third-party imports); executionMode defaults to shadow with live→active contract mapping; startup is fail-closed on missing Temporal address/env/mTLS/token; workflow starts use REJECT_DUPLICATE/USE_EXISTING for idempotency on deterministic revision-bearing workflow IDs; snapshot fanout only on captureComplete=true. Independent re-run 14/14; fresh-PostgreSQL mise run ci exit 0; CompactionDB decision 77ada09c verified. Review-scope approval record for a finding-free review.",
+    "author": "Claude Code",
+    "created_at": "2026-08-30T05:52:44Z",
+    "updated_at": "2026-08-30T05:52:44Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_78523e",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/JIRA-COMP-01-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-08-30T05:52:44Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/composition/package.json",
+    "id": "c_47728d",
+    "start_line": 9,
+    "end_line": 14,
+    "body": "The repository CI runs pnpm -r --if-present run test:coverage, so this new package is skipped by mise run ci even though focused tests pass. Add the existing vitest run --coverage script so the package tests execute in the standard CI test phase.",
+    "anchor": "  \"scripts\": {\n    \"build\": \"tsc -p tsconfig.json\",\n    \"start\": \"node dist/main.js\",\n    \"test\": \"vitest run\",\n    \"typecheck\": \"tsc -p tsconfig.json --noEmit\",\n    \"lint\": \"eslint . --config ../../eslint.config.mjs\"",
+    "author": "Codex",
+    "created_at": "2026-08-30T05:15:18Z",
+    "updated_at": "2026-08-30T05:15:18Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_df13a7",
+        "body": "Added test:coverage using the repository-standard vitest run --coverage command. The composition suite now runs 14/14 green in the standard CI coverage phase.",
+        "author": "Codex",
+        "created_at": "2026-08-30T05:15:49Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
