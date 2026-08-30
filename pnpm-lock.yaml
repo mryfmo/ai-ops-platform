@@ -60,6 +60,18 @@ importers:
 
   packages/channel-teams: {}
 
+  packages/composition:
+    dependencies:
+      '@aiops/control-plane':
+        specifier: workspace:*
+        version: link:../control-plane
+      '@aiops/integrations':
+        specifier: workspace:*
+        version: link:../integrations
+      '@aiops/server':
+        specifier: workspace:*
+        version: link:../server
+
   packages/control-plane:
     dependencies:
       '@aiops/policy':

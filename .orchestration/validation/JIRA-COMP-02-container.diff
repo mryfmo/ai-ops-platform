@@ -1,0 +1,79 @@
+diff --git a/packages/server/Dockerfile b/packages/server/Dockerfile
+index e144fa1..ad8d461 100644
+--- a/packages/server/Dockerfile
++++ b/packages/server/Dockerfile
+@@ -12,36 +12,37 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+ COPY tsconfig.base.json ./
+ COPY packages ./packages
+ RUN pnpm install --frozen-lockfile
+-RUN pnpm --filter @aiops/shared --filter @aiops/prjops --filter @aiops/devops --filter @aiops/server run build
++RUN pnpm --filter '@aiops/composition...' run build
+ RUN pnpm --filter @aiops/web run build
+-RUN pnpm --filter @aiops/server deploy --prod --legacy /out/server
+-# deploy は workspace パッケージのソースも含めるため、実行用パッケージを作り直す
+-RUN rm -rf /out/server/node_modules/@aiops \
+-    && for package in shared prjops devops; do \
+-      mkdir -p "/out/server/node_modules/@aiops/$package"; \
+-      cp "packages/$package/package.json" "/out/server/node_modules/@aiops/$package/"; \
+-      cp -R "packages/$package/dist" "/out/server/node_modules/@aiops/$package/"; \
+-    done \
+-    && find /out/server/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d -name '@aiops+*' -exec rm -rf {} +
+-RUN ! find -L /out/server/node_modules -path '*/@aiops/*' -type d \( -name src -o -name tests \) -print -quit | grep -q .
+-RUN ! find /out/server/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
++RUN pnpm --filter @aiops/composition deploy --prod --legacy /out/composition
++# deploy の workspace symlink は依存解決に使い、各 package の実行不要ファイルだけを落とす
++RUN for package in shared policy integrations prjops devops control-plane server; do \
++      test -f "/out/composition/node_modules/@aiops/$package/package.json"; \
++      test -d "/out/composition/node_modules/@aiops/$package/dist"; \
++      rm -rf "/out/composition/node_modules/@aiops/$package/src" \
++        "/out/composition/node_modules/@aiops/$package/tests" \
++        "/out/composition/node_modules/@aiops/$package/scripts" \
++        "/out/composition/node_modules/@aiops/$package/coverage"; \
++    done
++RUN ! find -L /out/composition/node_modules -path '*/@aiops/*' -type d \( -name src -o -name tests \) -print -quit | grep -q .
++RUN ! find /out/composition/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
+       \( -name 'vitest@*' -o -name 'typescript@*' -o -name 'tsx@*' \) -print -quit | grep -q .
+-# server が読む休日マスタは source tree 外へ移し、生成済み JS の相対パスだけを合わせる
+-RUN mkdir -p /out/runtime-shared/calendar \
+-    && cp packages/shared/src/calendar/jp_holidays.yaml /out/runtime-shared/calendar/ \
+-    && sed -i 's#../../shared/src/calendar/#../../shared/calendar/#' packages/server/dist/index.js \
+-    && ! grep -q '../../shared/src/' packages/server/dist/index.js
++# server が読む休日マスタは source tree 外へ移し、deployed package の相対パスだけを合わせる
++RUN mkdir -p /out/composition/node_modules/@aiops/shared/calendar \
++    && cp packages/shared/src/calendar/jp_holidays.yaml /out/composition/node_modules/@aiops/shared/calendar/ \
++    && sed -i 's#../../shared/src/calendar/#../../shared/calendar/#' \
++      /out/composition/node_modules/@aiops/server/dist/index.js \
++    && ! grep -q '../../shared/src/' /out/composition/node_modules/@aiops/server/dist/index.js
+
+ # ---- runtime stage ----
+ FROM node:22-slim AS runtime
+ ENV NODE_ENV=production
+ WORKDIR /app
+
+-# Hono（ビルド成果物 + 本番依存）
+-COPY --from=build --chown=node:node /repo/packages/server/package.json ./packages/server/package.json
+-COPY --from=build --chown=node:node /repo/packages/server/dist ./packages/server/dist
+-COPY --from=build --chown=node:node /out/server/node_modules ./packages/server/node_modules
+-COPY --from=build --chown=node:node /out/runtime-shared ./packages/shared
++# Hono composition entry（ビルド成果物 + server/control-plane/Temporal 本番依存）
++COPY --from=build --chown=node:node /repo/packages/composition/package.json ./packages/composition/package.json
++COPY --from=build --chown=node:node /repo/packages/composition/dist ./packages/composition/dist
++COPY --from=build --chown=node:node /out/composition/node_modules ./packages/composition/node_modules
+
+ # Next.js standalone（単一コンテナ内の兄弟プロセス）
+ COPY --from=build --chown=node:node /repo/packages/web/.next/standalone ./packages/web/.next/standalone
+diff --git a/packages/server/scripts/start-container.mjs b/packages/server/scripts/start-container.mjs
+index 200aa4b..53aaa1b 100644
+--- a/packages/server/scripts/start-container.mjs
++++ b/packages/server/scripts/start-container.mjs
+@@ -25,8 +25,8 @@ function launch(name, command, args, env = {}) {
+   return child;
+ }
+
+-// Hono常駐サーバ（:8080公開）
+-launch("server", "node", ["packages/server/dist/main.js"]);
++// Hono常駐サーバ（:8080公開）。composition がtelemetryと任意のJira seamを先に構成する。
++launch("server", "node", ["packages/composition/dist/main.js"]);
+
+ // Next.js standalone（:3100内部）。ビルド成果物が存在する場合のみ起動（縮退運転可）
+ const nextServer = "packages/web/.next/standalone/packages/web/server.js";

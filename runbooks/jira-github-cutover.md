@@ -83,7 +83,33 @@ deployment compositionはADR-0030のTemporal `jira-sync` clientを`main()`の`di
 `commitCompleteSnapshot` DI seamへ注入しなければならない。Jira envだけを設定してbackendを注入しない構成は、
 serverが起動時に拒否する。server packageへcontrol-plane/Temporal依存を追加してこの境界を迂回しない。
 
-### 3.3 GitHub側の保護を確認する
+### 3.3 イメージ同梱のComposition entryを起動する
+
+server imageは`@aiops/composition`とserver/control-plane/Temporalの本番依存を同梱している。
+container supervisorは常に`node packages/composition/dist/main.js`を起動するため、entryの切替は不要。
+
+`JIRA_ENVIRONMENT_MAPPING_PATH`と`JIRA_WEBHOOK_BEARER_SECRET`を設定しない環境では、Jira seamとTemporal接続を
+作らず、従来のserverとして起動する。Jiraを有効にする場合は通常のserver envに加え、次の値を同じ実行環境へ渡す。
+
+```bash
+export JIRA_SYNC_TEMPORAL_ADDRESS=temporal.internal:7233
+export JIRA_SYNC_TEMPORAL_ENVIRONMENT=staging
+export JIRA_SYNC_TEMPORAL_CLIENT_CERT_PATH=/secure/temporal/jira-sync.crt
+export JIRA_SYNC_TEMPORAL_CLIENT_KEY_PATH=/secure/temporal/jira-sync.key
+export JIRA_SYNC_TEMPORAL_SERVER_ROOT_CA_PATH=/secure/temporal/ca.crt
+export JIRA_SYNC_TEMPORAL_AUTHORIZATION_TOKEN_PATH=/secure/temporal/jira-sync.jwt
+export JIRA_SYNC_EXECUTION_MODE=shadow
+```
+
+`JIRA_SYNC_EXECUTION_MODE`を省略した場合も`shadow`になる。`live`へ切り替えるのはPhase 1の差分確認が済んでから。
+値を`live`へ変えて再起動すると、Workflow contractには`executionMode=active`として渡る。
+
+秘密鍵、client証明書、CA、認可tokenはファイルでmountし、envへPEMやtoken本体を入れない。client証明書のCNは
+`aiops-temporal-worker.<env>`、認可tokenの`sub`は`aiops-temporal-worker.<env>.jira-composition`、permissionは
+`aiops-<env>:write`だけにする。どの設定やファイルが欠けても、Temporal接続やserver起動の前に停止する。
+tokenファイルはRPCごとに読み直すため、同じpathへ原子的に差し替えればprocessを再起動せずrotationできる。
+
+### 3.4 GitHub側の保護を確認する
 
 - Default branchへの直接push禁止
 - Required pull request review有効

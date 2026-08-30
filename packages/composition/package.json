@@ -1,0 +1,22 @@
+{
+  "name": "@aiops/composition",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": "Deployment composition root for the server and Temporal control plane (ADR-0030 / ADR-0005)",
+  "type": "module",
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.mjs"
+  },
+  "dependencies": {
+    "@aiops/control-plane": "workspace:*",
+    "@aiops/integrations": "workspace:*",
+    "@aiops/server": "workspace:*"
+  }
+}
