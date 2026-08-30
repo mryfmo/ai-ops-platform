@@ -2,105 +2,92 @@
  * packages/composition/src/main.ts
  *
  * 根拠: ADR-0030 / ADR-0005 / FinalArch:FR-CP-001
- * server と Temporal control-plane の Jira seam を結線する実行専用 entry。
+ * telemetry を先に起動し、server と Jira runtime を遅延 import する production entry。
  */
-import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  buildConnectionProfile,
-  Client,
-  createTemporalConnection,
-  WorkflowExecutionAlreadyStartedError,
-  type TemporalConnectionProfile,
-  type TemporalEnvironment,
-  type TemporalMtlsCredentials,
-} from "@aiops/control-plane";
-import { main as serverMain } from "@aiops/server";
+import { createLogger, loadConfig, startTelemetry } from "@aiops/server/bootstrap";
+import type { JiraRuntimeCompositionDeps } from "@aiops/server";
 
-import { loadCompositionConfig } from "./lib/config.js";
-import { createJiraRuntimeSeams, type WorkflowStarter } from "./lib/jiraSync.js";
+const SERVICE_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
-interface StartCompositionDependencies {
-  readFile(path: string): string;
-  buildConnectionProfile(
-    environment: TemporalEnvironment,
-    address: string,
-    options: { workerName: string; taskQueue: "jira-sync" },
-  ): TemporalConnectionProfile;
-  createTemporalConnection(profile: TemporalConnectionProfile, credentials: TemporalMtlsCredentials): Promise<unknown>;
-  createWorkflowStarter(connection: unknown, namespace: string): WorkflowStarter;
-  serverMain(bootstrap: { jira: ReturnType<typeof createJiraRuntimeSeams> }): Promise<void>;
+type Environment = Readonly<Record<string, string | undefined>>;
+type ServerConfig = ReturnType<typeof loadConfig>;
+type Logger = ReturnType<typeof createLogger>;
+type Telemetry = Awaited<ReturnType<typeof startTelemetry>>;
+type JiraRuntime = Required<Pick<JiraRuntimeCompositionDeps, "dispatchJiraEvent" | "commitCompleteSnapshot">>;
+
+interface EntryRuntime {
+  createJiraRuntime(environment: Environment): Promise<JiraRuntime>;
+  serverMain(bootstrap: {
+    config: ServerConfig;
+    logger: Logger;
+    telemetry: Telemetry;
+    jira?: JiraRuntime;
+  }): Promise<void>;
 }
 
-function credential(readFile: (path: string) => string, path: string, name: string): string {
-  let value: string;
-  try {
-    value = readFile(path);
-  } catch (error) {
-    throw new Error(
-      `E-JIRA-COMP-CONFIG: ${name} file could not be read: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!value.trim()) throw new Error(`E-JIRA-COMP-CONFIG: ${name} file is empty`);
-  return value;
+interface CompositionEntryDependencies {
+  loadConfig(environment: Environment): ServerConfig;
+  createLogger(level: string): Logger;
+  startTelemetry(
+    options: {
+      serviceName: string;
+      serviceVersion: string;
+      otlpEndpoint?: string;
+      otlpTracesEndpoint?: string;
+    },
+    logger: Logger,
+  ): Promise<Telemetry>;
+  loadRuntime(): Promise<EntryRuntime>;
 }
 
-export async function startComposition(
-  environment: Readonly<Record<string, string | undefined>>,
-  dependencies: StartCompositionDependencies,
+export async function startCompositionEntry(
+  environment: Environment,
+  dependencies: CompositionEntryDependencies,
 ): Promise<void> {
-  const config = loadCompositionConfig(environment);
-  const profile = dependencies.buildConnectionProfile(config.temporalEnvironment, config.temporalAddress, {
-    workerName: "jira-composition",
-    taskQueue: "jira-sync",
-  });
-  const credentials: TemporalMtlsCredentials = {
-    clientCertPem: credential(dependencies.readFile, config.clientCertPath, "JIRA_SYNC_TEMPORAL_CLIENT_CERT_PATH"),
-    clientKeyPem: credential(dependencies.readFile, config.clientKeyPath, "JIRA_SYNC_TEMPORAL_CLIENT_KEY_PATH"),
-    serverRootCaPem: credential(
-      dependencies.readFile,
-      config.serverRootCaPath,
-      "JIRA_SYNC_TEMPORAL_SERVER_ROOT_CA_PATH",
-    ),
-    authorizationTokenProvider: () =>
-      credential(
-        dependencies.readFile,
-        config.authorizationTokenPath,
-        "JIRA_SYNC_TEMPORAL_AUTHORIZATION_TOKEN_PATH",
-      ).trim(),
-  };
-  const connection = await dependencies.createTemporalConnection(profile, credentials);
-  const starter = dependencies.createWorkflowStarter(connection, profile.namespace);
-  await dependencies.serverMain({ jira: createJiraRuntimeSeams(starter, config.executionMode) });
+  const config = dependencies.loadConfig(environment);
+  const logger = dependencies.createLogger(config.LOG_LEVEL);
+  const telemetry = await dependencies.startTelemetry(
+    {
+      serviceName: config.OTEL_SERVICE_NAME,
+      serviceVersion: SERVICE_VERSION,
+      otlpEndpoint: config.OTEL_EXPORTER_OTLP_ENDPOINT,
+      otlpTracesEndpoint: config.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+    },
+    logger,
+  );
+  const runtime = await dependencies.loadRuntime();
+  const bootstrap = { config, logger, telemetry };
+  if (!config.JIRA_ENVIRONMENT_MAPPING_PATH) {
+    await runtime.serverMain(bootstrap);
+    return;
+  }
+  await runtime.serverMain({ ...bootstrap, jira: await runtime.createJiraRuntime(environment) });
 }
 
-const productionDependencies: StartCompositionDependencies = {
-  readFile: (path) => readFileSync(path, "utf8"),
-  buildConnectionProfile,
-  createTemporalConnection,
-  createWorkflowStarter(connection, namespace): WorkflowStarter {
-    const client = new Client({
-      connection: connection as Awaited<ReturnType<typeof createTemporalConnection>>,
-      namespace,
-    });
+const productionDependencies: CompositionEntryDependencies = {
+  loadConfig: (environment) => loadConfig(environment),
+  createLogger,
+  startTelemetry,
+  async loadRuntime(): Promise<EntryRuntime> {
+    const [runtime, server] = await Promise.all([import("./runtime.js"), import("@aiops/server")]);
     return {
-      async start(workflow, options): Promise<void> {
-        try {
-          await client.workflow.start(workflow, options);
-        } catch (error) {
-          if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
-        }
-      },
+      createJiraRuntime: (environment) =>
+        runtime.createJiraRuntime(environment, runtime.productionJiraRuntimeDependencies),
+      serverMain: server.main,
     };
   },
-  serverMain,
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  startComposition(process.env, productionDependencies).catch((error) => {
-    console.error(error instanceof Error ? error.message : "Jira composition startup failed");
-    process.exitCode = 1;
+  startCompositionEntry(process.env, productionDependencies).catch((error) => {
+    createLogger(process.env.LOG_LEVEL ?? "info").error(
+      { err: error instanceof Error ? error.message : String(error) },
+      "fatal startup error",
+    );
+    process.exit(1);
   });
 }

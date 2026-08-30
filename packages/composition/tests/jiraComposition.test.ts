@@ -6,7 +6,8 @@ import type { JiraReconcileProject, QueuedJiraWebhookEvent } from "@aiops/server
 
 import { loadCompositionConfig } from "../src/lib/config.js";
 import { createJiraRuntimeSeams, snapshotRequests, webhookRequest, type WorkflowStarter } from "../src/lib/jiraSync.js";
-import { startComposition } from "../src/main.js";
+import { startCompositionEntry } from "../src/main.js";
+import { createJiraRuntime } from "../src/runtime.js";
 
 const REVISION = "a".repeat(64);
 const FIELD_HASH = "b".repeat(64);
@@ -154,7 +155,7 @@ describe("Jira deployment composition [ADR-0030] [ADR-0005] [FinalArch:FR-CP-001
     expect(() => loadCompositionConfig({ ...requiredEnv, [name]: undefined })).toThrow(new RegExp(name));
   });
 
-  it("loads path-based credentials and injects both Jira seams into server main without network access", async () => {
+  it("loads path-based credentials and creates both Jira seams without network access", async () => {
     const calls: unknown[] = [];
     const start = vi.fn<WorkflowStarter["start"]>(async () => {});
     const readFile = vi.fn((path: string) => (path.endsWith(".jwt") ? "header.payload.signature\n" : `pem:${path}`));
@@ -172,22 +173,18 @@ describe("Jira deployment composition [ADR-0030] [ADR-0005] [FinalArch:FR-CP-001
       return { connection: true };
     });
     const createWorkflowStarter = vi.fn(() => ({ start }));
-    const serverMain = vi.fn(async (bootstrap) => {
-      expect(Object.keys(bootstrap.jira).sort()).toEqual(["commitCompleteSnapshot", "dispatchJiraEvent"]);
-      await bootstrap.jira.dispatchJiraEvent(event, "trace-main");
-    });
-
-    await startComposition(
+    const jira = await createJiraRuntime(
       { ...requiredEnv, JIRA_SYNC_EXECUTION_MODE: "live" },
-      { readFile, buildConnectionProfile, createTemporalConnection, createWorkflowStarter, serverMain },
+      { readFile, buildConnectionProfile, createTemporalConnection, createWorkflowStarter },
     );
+    expect(Object.keys(jira).sort()).toEqual(["commitCompleteSnapshot", "dispatchJiraEvent"]);
+    await jira.dispatchJiraEvent(event, "trace-main");
 
     expect(buildConnectionProfile).toHaveBeenCalledWith("staging", "temporal.internal:7233", {
       workerName: "jira-composition",
       taskQueue: "jira-sync",
     });
     expect(createWorkflowStarter).toHaveBeenCalledWith({ connection: true }, "aiops-staging");
-    expect(serverMain).toHaveBeenCalledOnce();
     expect(start.mock.calls[0]?.[0]).toEqual(expect.any(Function));
     expect(start.mock.calls[0]?.[1].args[0].payload.executionMode).toBe("active");
     expect(calls).toHaveLength(2);
@@ -197,12 +194,11 @@ describe("Jira deployment composition [ADR-0030] [ADR-0005] [FinalArch:FR-CP-001
   it("rejects blank credential files before connecting", async () => {
     const createTemporalConnection = vi.fn(async () => ({}));
     await expect(
-      startComposition(requiredEnv, {
+      createJiraRuntime(requiredEnv, {
         readFile: (path) => (path.endsWith(".key") ? "  " : "present"),
         buildConnectionProfile: vi.fn(() => ({ namespace: "aiops-staging" })),
         createTemporalConnection,
         createWorkflowStarter: vi.fn(() => ({ start: async () => {} })),
-        serverMain: vi.fn(async () => {}),
       }),
     ).rejects.toThrow(/CLIENT_KEY/);
     expect(createTemporalConnection).not.toHaveBeenCalled();
@@ -211,16 +207,110 @@ describe("Jira deployment composition [ADR-0030] [ADR-0005] [FinalArch:FR-CP-001
   it("identifies an unreadable credential path before connecting", async () => {
     const createTemporalConnection = vi.fn(async () => ({}));
     await expect(
-      startComposition(requiredEnv, {
+      createJiraRuntime(requiredEnv, {
         readFile: (path) => {
           throw new Error(`ENOENT: ${path}`);
         },
         buildConnectionProfile: vi.fn(() => ({ namespace: "aiops-staging" })),
         createTemporalConnection,
         createWorkflowStarter: vi.fn(() => ({ start: async () => {} })),
-        serverMain: vi.fn(async () => {}),
       }),
     ).rejects.toThrow(/JIRA_SYNC_TEMPORAL_CLIENT_CERT_PATH file could not be read/);
     expect(createTemporalConnection).not.toHaveBeenCalled();
+  });
+
+  it("starts telemetry before loading the instrumented runtime and omits Jira when server Jira env is absent", async () => {
+    const order: string[] = [];
+    const config = {
+      LOG_LEVEL: "silent",
+      OTEL_SERVICE_NAME: "aiops-server",
+      OTEL_EXPORTER_OTLP_ENDPOINT: undefined,
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: undefined,
+      JIRA_ENVIRONMENT_MAPPING_PATH: undefined,
+    };
+    const logger = { kind: "logger" };
+    const telemetry = { shutdown: vi.fn(async () => {}) };
+    const createJiraRuntime = vi.fn(async () => ({
+      dispatchJiraEvent: vi.fn(async () => {}),
+      commitCompleteSnapshot: vi.fn(async () => {}),
+    }));
+    const serverMain = vi.fn(async (bootstrap) => {
+      order.push("server-main");
+      expect(bootstrap).toEqual({ config, logger, telemetry });
+    });
+
+    await startCompositionEntry(
+      {},
+      {
+        loadConfig: () => {
+          order.push("config");
+          return config as never;
+        },
+        createLogger: () => {
+          order.push("logger");
+          return logger as never;
+        },
+        startTelemetry: async () => {
+          order.push("telemetry");
+          return telemetry;
+        },
+        loadRuntime: async () => {
+          order.push("runtime-import");
+          return { createJiraRuntime, serverMain } as never;
+        },
+      },
+    );
+
+    expect(order).toEqual(["config", "logger", "telemetry", "runtime-import", "server-main"]);
+    expect(createJiraRuntime).not.toHaveBeenCalled();
+  });
+
+  it("loads the Jira runtime after telemetry and passes every bootstrap handle to server main", async () => {
+    const order: string[] = [];
+    const config = {
+      LOG_LEVEL: "info",
+      OTEL_SERVICE_NAME: "aiops-server",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.internal",
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: undefined,
+      JIRA_ENVIRONMENT_MAPPING_PATH: "/secure/jira.json",
+    };
+    const logger = { kind: "logger" };
+    const telemetry = { shutdown: vi.fn(async () => {}) };
+    const jira = {
+      dispatchJiraEvent: vi.fn(async () => {}),
+      commitCompleteSnapshot: vi.fn(async () => {}),
+    };
+    const serverMain = vi.fn(async (bootstrap) => {
+      order.push("server-main");
+      expect(bootstrap).toEqual({ config, logger, telemetry, jira });
+    });
+
+    await startCompositionEntry(requiredEnv, {
+      loadConfig: () => {
+        order.push("config");
+        return config as never;
+      },
+      createLogger: () => {
+        order.push("logger");
+        return logger as never;
+      },
+      startTelemetry: async () => {
+        order.push("telemetry");
+        return telemetry;
+      },
+      loadRuntime: async () => {
+        order.push("runtime-import");
+        return {
+          createJiraRuntime: async (environment) => {
+            order.push("jira-runtime");
+            expect(environment).toBe(requiredEnv);
+            return jira;
+          },
+          serverMain,
+        } as never;
+      },
+    });
+
+    expect(order).toEqual(["config", "logger", "telemetry", "runtime-import", "jira-runtime", "server-main"]);
   });
 });
