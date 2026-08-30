@@ -18,6 +18,7 @@ import type { AuditLogWriter } from "@aiops/shared";
 import { sanitizeSecrets } from "@aiops/shared";
 import { verifyConfirmToken, verifyBearerToken } from "../../lib/confirmToken.js";
 import type { CodingTasksRepo, CodingTaskStatus } from "../../db/codingTasksRepo.js";
+import { verifyCodingTaskManifestAuthority } from "../../lib/codingTaskManifest.js";
 
 export interface CodingTaskGithubClient {
   dispatchWorkflow(input: {
@@ -155,6 +156,17 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
       );
     }
 
+    try {
+      verifyCodingTaskManifestAuthority({
+        taskId,
+        agent: task.agent,
+        manifest: task.manifest,
+        manifestSha256: task.manifestSha256,
+      });
+    } catch {
+      return c.html(errorPage("タスク実行マニフェストを検証できないため、実行を停止しました。"), 409);
+    }
+
     const repoScope = await deps.resolveRepoForProject(task.projectId);
     if (!repoScope) {
       return c.html(errorPage("このプロジェクトにはGitHubリポジトリが未登録です。"), 409);
@@ -208,6 +220,8 @@ export function registerCodingTaskRoutes(app: Hono, deps: CodingTaskRoutesDeps):
           instruction: task.instruction,
           base_ref: "main",
           agent: task.agent,
+          manifest_base64: Buffer.from(task.manifest, "utf8").toString("base64"),
+          manifest_sha256: task.manifestSha256,
         },
       });
     } catch (error) {

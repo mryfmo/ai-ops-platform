@@ -5,6 +5,13 @@ import { validateAgentTaskManifest } from "../agent-task/manifest-validator.mjs"
 import { defaultRepoRoot, validateJsonSchemaDocument } from "../check-contracts.mjs";
 
 const schema = JSON.parse(fs.readFileSync(new URL("./review-artifact.schema.json", import.meta.url), "utf8"));
+const failureSchema = JSON.parse(fs.readFileSync(new URL("./review-failure.schema.json", import.meta.url), "utf8"));
+
+export function validateReviewFailureArtifact(artifact, repoRoot = defaultRepoRoot) {
+  validateJsonSchemaDocument(failureSchema, artifact, repoRoot);
+  if (artifact.source.base_sha === artifact.source.head_sha) throw new TypeError("review source must contain a diff");
+  return artifact;
+}
 
 export function validateReviewArtifact(artifact, manifest, repoRoot = defaultRepoRoot) {
   validateAgentTaskManifest(manifest, repoRoot);

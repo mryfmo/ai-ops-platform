@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 CREATE TABLE IF NOT EXISTS events (
   event_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trace_id    UUID NOT NULL,
-  source      TEXT NOT NULL CHECK (source IN ('github', 'monitor', 'inbound')),
+  source      TEXT NOT NULL CHECK (source IN ('github', 'jira', 'monitor', 'inbound')),
   payload     JSONB NOT NULL,
   status      TEXT NOT NULL CHECK (status IN ('queued', 'dispatched', 'delayed', 'done', 'dead')) DEFAULT 'queued',
   attempts    INT NOT NULL DEFAULT 0,
@@ -479,10 +479,30 @@ CREATE TABLE IF NOT EXISTS coding_tasks (
   confirm_token_hash TEXT,
   trace_id        UUID NOT NULL,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- ADV-FIX-04: issuer が固定した exact UTF-8 bytes と raw-byte SHA-256。migration の追加順と一致。
+  manifest        TEXT NOT NULL,
+  manifest_sha256 TEXT NOT NULL CHECK (manifest_sha256 ~ '^[0-9a-f]{64}$')
 );
 CREATE INDEX IF NOT EXISTS idx_coding_tasks_status ON coding_tasks (status);
 CREATE INDEX IF NOT EXISTS idx_coding_tasks_project ON coding_tasks (project_id);
+
+CREATE OR REPLACE FUNCTION coding_tasks_block_manifest_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.manifest IS DISTINCT FROM OLD.manifest
+     OR NEW.manifest_sha256 IS DISTINCT FROM OLD.manifest_sha256 THEN
+    RAISE EXCEPTION 'coding task manifest authority is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER coding_tasks_block_manifest_update
+BEFORE UPDATE OF manifest, manifest_sha256 ON coding_tasks
+FOR EACH ROW EXECUTE FUNCTION coding_tasks_block_manifest_mutation();
 -- rollback: DROP TABLE coding_tasks;
 
 -- DevOps:SPEC-EXT-010 / AUD-OPM-001: 人間承認の状態正本。

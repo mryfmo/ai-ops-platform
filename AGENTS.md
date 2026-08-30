@@ -39,7 +39,9 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
    レポートの数値はlib/の決定的関数、LLMは結論文・要約文（PrjOps）またはViewSpecのtool call（web）に限定。
 3. **根拠IDヘッダ必須**: 新規ファイルの先頭コメントに根拠となる仕様ID
    （REQ-xxx / SPEC-INT-xxx / SPEC-EXT-xxx / TH-xxx / AC-xxx / ADR-xxxx）を記載する。
-   `mise run traceability` が検証する。
+   `mise run traceability` が検証する。対象はコード・契約・テスト等の実装成果物であり、
+   `.orchestration/` 配下の運用証跡ドキュメント（タスク定義・受理記録・検証ログ等）は
+   対象外（traceability 検証対象外。#270 以降の checkpoint sync 運用実績に準拠）。
 4. **秘密情報の多層防御**: 外部から受けたテキストは (a) DB保存前 `sanitizeSecrets()`、
    (b) LLM入力前 `sanitizeForLlmInput()`、(c) ログ・PRコメント出力前、の3箇所で必ずサニタイズ。
 5. **監査ログは追記専用**: `AuditLogWriter.append()` のみ。UPDATE/DELETEするコードを書かない。
