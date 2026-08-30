@@ -155,9 +155,43 @@ export class ApprovalsRepo {
     if (targetSha !== null && !/^[0-9a-f]{40}$/.test(targetSha)) throw new Error("Invalid approval target_sha");
     const requestedBy = requiredText(input.requestedBy, "requested_by");
     return this.runTransaction(async ({ db, auditLog }) => {
+      const superseded = await db.query(
+        `UPDATE approvals
+         SET project_id = $3, target_sha = $4, requested_by = $5,
+             expected_version = COALESCE(expected_version, 0) + 1,
+             expires_at = now() + interval '60 minutes'
+         WHERE approval_type = $1
+           AND target_id = $2
+           AND status = 'pending'
+           AND (expires_at IS NULL OR expires_at <= now())
+         RETURNING ${COLUMNS}`,
+        [input.approvalType, targetId, projectId, targetSha, requestedBy],
+      );
+      if (superseded.rows[0]) {
+        const approval = toApprovalRecord(superseded.rows[0]);
+        await auditLog.append({
+          trace_id: input.traceId,
+          actor: requestedBy,
+          action: "approval_supersede",
+          basis: "DevOps:REQ-010/DevOps:SPEC-EXT-010/AUD-OPM-001",
+          detail: {
+            approvalId: approval.approvalId,
+            approvalType: approval.approvalType,
+            targetId: approval.targetId,
+            projectId: approval.projectId,
+            targetSha: approval.targetSha,
+            status: approval.status,
+            version: approval.expectedVersion,
+          },
+          at: new Date().toISOString(),
+        });
+        return approval;
+      }
       const result = await db.query(
-        `INSERT INTO approvals (approval_type, target_id, project_id, target_sha, requested_by)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO approvals (
+           approval_type, target_id, project_id, target_sha, requested_by, expected_version, expires_at
+         )
+         VALUES ($1, $2, $3, $4, $5, 1, now() + interval '60 minutes')
          ON CONFLICT (approval_type, target_id) WHERE status = 'pending' DO NOTHING
          RETURNING ${COLUMNS}`,
         [input.approvalType, targetId, projectId, targetSha, requestedBy],
@@ -301,6 +335,7 @@ export class ApprovalsRepo {
        FROM approvals
        WHERE status = 'pending'
          AND delivered_at IS NOT NULL
+         AND expires_at > now()
          AND approval_type = ANY($1::text[])
        ORDER BY created_at, approval_id`,
       [approvalTypes],
