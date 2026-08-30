@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_6e4c24",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-272 orchestrator adversarial review (accepted): all four P1 findings and the bytecode contamination fixed within allowlist. Verified independently: settings.json has zero /Users paths and zero args arrays (python3 + ${CLAUDE_PROJECT_DIR:-.} single commands); CLAUDE.md restored to @AGENTS.md only with valid guidance relocated to a concise AGENTS.md CompactionDB section; normalize.py derives persisted metadata from sanitize_payload output and the credential-shaped-metadata self-check passes on my own run (1/1, compileall clean); ADR-0031 created and cited by headers on all 20 new Python modules; 11 tracked .pyc removed with __pycache__/ ignored. Validation failure markers are the disclosed first format failure; final fresh-PostgreSQL mise run ci exit 0. CompactionDB decision 1039f4c2 verified. Review-scope approval record for a finding-free review.",
+    "author": "Claude Code",
+    "created_at": "2026-08-30T02:16:26Z",
+    "updated_at": "2026-08-30T02:16:26Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_8d7315",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/BOT-FIX-272-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-08-30T02:16:26Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
