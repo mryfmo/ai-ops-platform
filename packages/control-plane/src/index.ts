@@ -174,6 +174,8 @@ export type {
 } from "./lib/temporalProfile.js";
 export { createTemporalConnection } from "./temporal/connection.js";
 export type { TemporalMtlsCredentials, TemporalConnectFn } from "./temporal/connection.js";
+// Deployment composition consumes Temporal through the control-plane package boundary.
+export { Client, WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
 export { decodeAuthorizationToken, assertTokenMatchesProfile } from "./lib/temporalProfile.js";
 export type { AuthorizationTokenPayload } from "./lib/temporalProfile.js";
 export { validateTokenProvider } from "./temporal/connection.js";
