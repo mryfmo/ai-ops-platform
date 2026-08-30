@@ -102,6 +102,25 @@ describe("eventsPollingTask (ADR-0005 / DevOps:SPEC-INT-010)", () => {
     expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "DevOps:SPEC-INT-010")).toBe(true);
   });
 
+  it("dispatch errorの秘密様messageをredactして失敗監査を保持する [DevOps:SPEC-INT-010 / DevOps:SPEC-INT-070]", async () => {
+    const repo = makeRepoStub([makeEvent({ eventId: "evt-secret-error" })]);
+    const auditLog = new InMemoryAuditLog();
+    const secret = "api" + "key=" + "c".repeat(20);
+    const task = createEventsPollingTask({
+      ...makeTaskDeps(repo, auditLog),
+      dispatchInboundNotification: async () => {
+        throw new Error(`upstream rejected ${secret}`);
+      },
+    });
+
+    await task.run(new Date("2026-08-18T00:00:00Z"));
+
+    const serialized = JSON.stringify(await auditLog.readAll());
+    expect(serialized).toContain("event_dispatch_failed");
+    expect(serialized).toContain("***REDACTED:generic_api_key_kv***");
+    expect(serialized).not.toContain(secret);
+  });
+
   it("再試行上限到達時はdead遷移を監査する", async () => {
     const repo = makeRepoStub([makeEvent({ eventId: "evt-dead" })]);
     const auditLog = new InMemoryAuditLog();

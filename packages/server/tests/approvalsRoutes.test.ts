@@ -78,6 +78,7 @@ function setup(
     projects?: string[];
     scopeMode?: "project" | "global";
     requestedBy?: string;
+    expectedVersion?: number | null;
     signalPort?: boolean;
   } = {
     identitySecret: SECRET,
@@ -88,6 +89,7 @@ function setup(
     approvalType: options.approvalType ?? "change",
     projectId: options.projectId === undefined ? pending.projectId : options.projectId,
     requestedBy: options.requestedBy ?? pending.requestedBy,
+    expectedVersion: options.expectedVersion === undefined ? pending.expectedVersion : options.expectedVersion,
   };
   const events: string[] = [];
   const repo = {
@@ -175,25 +177,126 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
     const { app, repo } = setup();
     const response = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      approvals: [{ ...pending, canDecide: true, decisionDisabledReason: null }],
+    const payload = await response.json();
+    expect(payload).toEqual({
+      approvals: [
+        expect.objectContaining({
+          approvalId: APPROVAL_ID,
+          canDecide: true,
+          decisionDisabledReason: null,
+          version: VERSION,
+          correlation: signApprovalCardCorrelation(
+            { approvalId: APPROVAL_ID, version: VERSION, tenantId: TENANT_ID, objectId: OBJECT_ID },
+            SECRET,
+          ),
+        }),
+      ],
     });
+    expect(payload.approvals[0]).not.toHaveProperty("expectedVersion");
     expect(repo.listPending).toHaveBeenCalledWith(["change"]);
+  });
+
+  it("DevOps:REQ-010 / AC-010a: list capabilityでdecision署名検証を通過してsignalへ到達する", async () => {
+    const { app, signalApprovalDecision, events } = setup();
+    const listResponse = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    const listed = (await listResponse.json()).approvals[0] as { version: number; correlation: string };
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const body = JSON.stringify({
+      action: "approval_decision",
+      approvalId: APPROVAL_ID,
+      version: listed.version,
+      correlation: listed.correlation,
+      decision: "approved",
+    });
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, body) },
+      body,
+    });
+
+    expect(response.status).toBe(200);
+    expect(signalApprovalDecision).toHaveBeenCalledOnce();
+    expect(events).toEqual(["cas", "signal"]);
+  });
+
+  it("DevOps:REQ-010: supersede前versionのcorrelationを拒否し新capabilityだけを受理する", async () => {
+    const nextVersion = VERSION + 1;
+    const { app, signalApprovalDecision, events } = setup({ identitySecret: SECRET, expectedVersion: nextVersion });
+    const path = `/approvals/${APPROVAL_ID}/decision`;
+    const staleBody = JSON.stringify({
+      action: "approval_decision",
+      approvalId: APPROVAL_ID,
+      version: nextVersion,
+      correlation: signApprovalCardCorrelation(
+        { approvalId: APPROVAL_ID, version: VERSION, tenantId: TENANT_ID, objectId: OBJECT_ID },
+        SECRET,
+      ),
+      decision: "approved",
+    });
+    const staleResponse = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, staleBody) },
+      body: staleBody,
+    });
+
+    expect(staleResponse.status).toBe(403);
+    expect(signalApprovalDecision).not.toHaveBeenCalled();
+
+    const listResponse = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    const listed = (await listResponse.json()).approvals[0] as { version: number; correlation: string };
+    const currentBody = JSON.stringify({
+      action: "approval_decision",
+      approvalId: APPROVAL_ID,
+      version: listed.version,
+      correlation: listed.correlation,
+      decision: "approved",
+    });
+    const currentResponse = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...identityHeaders("POST", path, currentBody) },
+      body: currentBody,
+    });
+
+    expect(currentResponse.status).toBe(200);
+    expect(signalApprovalDecision).toHaveBeenCalledOnce();
+    expect(events).toEqual(["cas", "signal"]);
+  });
+
+  it("DevOps:REQ-010: canDecide=falseとlegacy NULL version行にcapabilityを配布しない", async () => {
+    const outside = setup({ identitySecret: SECRET, projects: ["PJ-002"] });
+    const outsideResponse = await outside.app.request("/approvals", {
+      headers: identityHeaders("GET", "/approvals"),
+    });
+    const outsideApproval = (await outsideResponse.json()).approvals[0] as Record<string, unknown>;
+    expect(outsideApproval).not.toHaveProperty("version");
+    expect(outsideApproval).not.toHaveProperty("correlation");
+    expect(outsideApproval).not.toHaveProperty("expectedVersion");
+
+    const legacy = setup({ identitySecret: SECRET, expectedVersion: null });
+    const legacyResponse = await legacy.app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
+    const legacyApproval = (await legacyResponse.json()).approvals[0] as Record<string, unknown>;
+    expect(legacyApproval).toMatchObject({
+      canDecide: false,
+      decisionDisabledReason: "承認情報が不完全なため判断できません。",
+    });
+    expect(legacyApproval).not.toHaveProperty("version");
+    expect(legacyApproval).not.toHaveProperty("correlation");
+    expect(legacyApproval).not.toHaveProperty("expectedVersion");
   });
 
   it("DevOps:REQ-010 / DEC-SPEC-002: PRF-Lは域外行も一覧表示するがdecide不可理由を返す", async () => {
     const { app } = setup({ identitySecret: SECRET, projects: ["PJ-002"] });
     const response = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      approvals: [
-        {
-          ...pending,
-          canDecide: false,
-          decisionDisabledReason: "担当プロジェクト外のため判断できません。",
-        },
-      ],
+    const approval = (await response.json()).approvals[0] as Record<string, unknown>;
+    expect(approval).toMatchObject({
+      approvalId: APPROVAL_ID,
+      canDecide: false,
+      decisionDisabledReason: "担当プロジェクト外のため判断できません。",
     });
+    expect(approval).not.toHaveProperty("version");
+    expect(approval).not.toHaveProperty("correlation");
+    expect(approval).not.toHaveProperty("expectedVersion");
   });
 
   it.each(["PRF-M", "PRF-05"])("change承認はactive PRF-L/PRF-G以外を403で監査する: %s", async (profile) => {
@@ -324,9 +427,19 @@ describe("approval routes [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
   it("DevOps:REQ-010 / DEC-SPEC-002: assignmentをリクエストごとに読み直す", async () => {
     const { app, repo, recipientsRepo } = setup();
     const first = await app.request("/approvals", { headers: identityHeaders("GET", "/approvals") });
-    expect(await first.json()).toEqual({
-      approvals: [{ ...pending, canDecide: true, decisionDisabledReason: null }],
+    const firstPayload = await first.json();
+    expect(firstPayload).toEqual({
+      approvals: [
+        expect.objectContaining({
+          approvalId: APPROVAL_ID,
+          canDecide: true,
+          decisionDisabledReason: null,
+          version: VERSION,
+          correlation: expect.any(String),
+        }),
+      ],
     });
+    expect(firstPayload.approvals[0]).not.toHaveProperty("expectedVersion");
     recipientsRepo.findActiveByTrustedSubject.mockResolvedValueOnce({
       userId: "ST-001",
       profile: "PRF-L",

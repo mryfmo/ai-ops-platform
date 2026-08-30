@@ -3,19 +3,39 @@
 
 import { useEffect, useState } from "react";
 
-interface PendingApproval {
+interface PendingApprovalBase {
   approvalId: string;
   approvalType: "change" | "report" | "jit_grant";
   targetId: string;
   status: "pending";
   requestedBy: string;
-  canDecide: boolean;
-  decisionDisabledReason: string | null;
   createdAt: string;
+}
+
+type PendingApproval = PendingApprovalBase &
+  (
+    | { canDecide: true; decisionDisabledReason: null; version: number; correlation: string }
+    | { canDecide: false; decisionDisabledReason: string; version?: never; correlation?: never }
+  );
+
+function decisionErrorMessage(status: number): string | undefined {
+  switch (status) {
+    case 400:
+      return "承認内容が正しくありません。";
+    case 401:
+      return "認証の有効期限が切れました。再ログインしてください。";
+    case 403:
+      return "この承認を操作する権限がありません。";
+    case 409:
+      return "承認状態が更新されています。一覧を再読み込みしてください。";
+    case 503:
+      return "承認機能は現在準備中です";
+  }
 }
 
 export function ApprovalsPanel() {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [loading, setLoading] = useState(true);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
@@ -30,25 +50,35 @@ export function ApprovalsPanel() {
       })
       .catch((error: unknown) => {
         if (active) setMessage(error instanceof Error ? error.message : "承認一覧を取得できませんでした");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
   }, []);
 
-  async function decide(approvalId: string, decision: "approved" | "rejected") {
-    setBusy(approvalId);
+  async function decide(approval: PendingApproval, decision: "approved" | "rejected") {
+    if (!approval.canDecide) return;
+    setBusy(approval.approvalId);
     setMessage(undefined);
     try {
-      const body = decision === "rejected" ? { decision, reason: reasons[approvalId]!.trim() } : { decision };
-      const response = await fetch(`/app/api/approvals/${approvalId}`, {
+      const capability = { version: approval.version, correlation: approval.correlation };
+      const body =
+        decision === "rejected"
+          ? { decision, reason: reasons[approval.approvalId]!.trim(), ...capability }
+          : { decision, ...capability };
+      const response = await fetch(`/app/api/approvals/${approval.approvalId}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
       const payload = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "承認判断を保存できませんでした");
-      setApprovals((current) => current.filter((approval) => approval.approvalId !== approvalId));
+      if (!response.ok) {
+        throw new Error(decisionErrorMessage(response.status) ?? payload.error ?? "承認判断を保存できませんでした");
+      }
+      setApprovals((current) => current.filter((item) => item.approvalId !== approval.approvalId));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "承認判断を保存できませんでした");
     } finally {
@@ -59,7 +89,8 @@ export function ApprovalsPanel() {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">承認待ち</h1>
-      {approvals.length === 0 && !message ? <p>承認待ちの項目はありません。</p> : null}
+      {loading ? <p>読み込み中...</p> : null}
+      {!loading && approvals.length === 0 && !message ? <p>承認待ちの項目はありません。</p> : null}
       {approvals.map((approval) => {
         const reason = reasons[approval.approvalId] ?? "";
         return (
@@ -82,14 +113,14 @@ export function ApprovalsPanel() {
               <button
                 type="button"
                 disabled={!approval.canDecide || busy === approval.approvalId}
-                onClick={() => decide(approval.approvalId, "approved")}
+                onClick={() => decide(approval, "approved")}
               >
                 承認
               </button>
               <button
                 type="button"
                 disabled={!approval.canDecide || busy === approval.approvalId || reason.trim() === ""}
-                onClick={() => decide(approval.approvalId, "rejected")}
+                onClick={() => decide(approval, "rejected")}
               >
                 差し戻し
               </button>
