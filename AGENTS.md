@@ -79,12 +79,14 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 - AIエージェントが生成するPRは `agent/{task-id}` ブランチ + `ai-generated` ラベル（ADR-0006）
 - 自動マージ禁止。マージは人間レビュアーのみ（CODEOWNERS + ブランチ保護）
 - CODEOWNERS は gh で確認済みの `@mryfmo` を使う。go-live 前にブランチ保護で CODEOWNERS review 必須化を確認する。
-- AI PR 作成には `AIOPS_PR_TOKEN`（GitHub App installation token または専用PAT）を使う。未設定のまま運用しない。
+- AI PR の author は GitHub App bot とし、`scripts/mint-aiops-pr-token.mjs` で発行した `AIOPS_PR_TOKEN` を使う（ADR-0032）。人間のcredentialや未設定のまま作成しない。
+- main ruleset の `bypass_actors` は恒久的に空とし、例外は `runbooks/ai-pr-identity.md` の時限 break-glass 手順だけとする（ADR-0032）。
+- stacked PR は親の merge / branch削除前に子PRの base を `main` へretargetして確認する（ADR-0032）。
 - PRテンプレート（.github/PULL_REQUEST_TEMPLATE.md）のチェックリストを埋める
 - コミット前に gitleaks 相当の秘密情報混入がないことを確認（CIでも検証される）
 
 ## 主要な参照ドキュメント
 
-- `docs/adr/` — アーキテクチャ決定記録（0001: モノレポ、0002: Claude API使い分け、0003: 実行基盤、0004: mise/pnpm、0005: 常駐サーバ+Teams統合、0006: AIコーディングエージェント統合、0007: GitHub時系列スナップショット、0008: Excelインポート、0009: Recharts 3、0010: Seven Keys正典、0011: 投資家ペルソナ、0012: 報告標準化、0013: ページエージェント、0031: CompactionDB opt-in）
+- `docs/adr/` — アーキテクチャ決定記録（0001: モノレポ、0002: Claude API使い分け、0003: 実行基盤、0004: mise/pnpm、0005: 常駐サーバ+Teams統合、0006: AIコーディングエージェント統合、0007: GitHub時系列スナップショット、0008: Excelインポート、0009: Recharts 3、0010: Seven Keys正典、0011: 投資家ペルソナ、0012: 報告標準化、0013: ページエージェント、0031: CompactionDB opt-in、0032: AI PR identity分離）
 - `runbooks/manual-ops.md` — エージェント停止時の手動運用
 - `verification/VERIFICATION_REPORT.md` — テスト検証状況
