@@ -8,7 +8,7 @@ import { PgAuditLog, sanitizeSecrets, validateReasonRequirement, type PgQueryabl
 import { normalizeAuditActor } from "../lib/auditActor.js";
 import type { EventQueueMetric } from "../observability/metrics.js";
 
-export type EventSource = "github" | "monitor" | "inbound";
+export type EventSource = "github" | "jira" | "monitor" | "inbound";
 
 export interface QueuedEvent {
   eventId: string;

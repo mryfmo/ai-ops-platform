@@ -104,7 +104,18 @@ gitleaks version # 8.30.1
    GitHub Actionsのcron粒度（最短5分）では実現できない要件があるため、常駐コンテナが必要になる
    （`docs/adr/0003-devops-runtime.md`）。
 
-## 4. 検証について（要点）
+## 4. Jira × GitHub governed integration
+
+新規の運用作業正本はJira、開発・正式記録の正本はGitHub、認可・承認・Ledger・監査・reconcileの正本は`ai-ops-platform`とする。Jira標準連携はBranch/Commit/PR/Build/Deploymentの可視化へ限定し、AI実行、重要Status遷移、GitHub Draft PR作成は`jira-sync` Temporal経路で統制する。
+
+- 設計判断: [`docs/adr/0030-jira-github-governed-integration.md`](./docs/adr/0030-jira-github-governed-integration.md)
+- 切替・緊急停止: [`runbooks/jira-github-cutover.md`](./runbooks/jira-github-cutover.md)
+- Mapping schema: [`docs/contracts/schema/jira-environment-mapping.schema.json`](./docs/contracts/schema/jira-environment-mapping.schema.json)
+- 開発fixture: [`docs/contracts/fixtures/jira-environment-mapping.dev.json`](./docs/contracts/fixtures/jira-environment-mapping.dev.json)
+
+既存`plane-sync`はv1契約とTemporal history replayの互換面として残すが、新規実行経路には使用しない。
+
+## 5. 検証について（要点）
 
 - 現行テストスイートの合否と件数は、固定値を本文へ転記せず `mise run ci` の出力を正とする。
   過去スナップショットとの範囲差および最新の検証証跡は
@@ -122,7 +133,7 @@ gitleaks version # 8.30.1
 
 **この状況を偽らず、`verification/VERIFICATION_REPORT.md` に完全に開示している。**
 
-## 5. ライセンス・免責
+## 6. ライセンス・免責
 
 本リポジトリは依頼者向けの成果物として作成された。実運用移行前に、元資料が明記する残課題
 （PrjOps ASM-001「現状分析は標準参照モデル」、DevOps DOC-ANL-01「残課題OPEN-001」）を

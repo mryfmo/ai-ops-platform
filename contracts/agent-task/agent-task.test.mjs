@@ -25,6 +25,20 @@ describe("agent task manifest contract [FinalArch:FR-AGT-001..006]", () => {
     assert.doesNotThrow(() => validateAgentTaskManifest(clone()));
   });
 
+  it("accepts the exact lowercase UUID shape used by production coding_tasks without widening arbitrary labels", () => {
+    const runtime = clone();
+    runtime.task_id = "11111111-1111-4111-8111-111111111111";
+    runtime.delivery.branch = `agent/${runtime.task_id}`;
+    assert.doesNotThrow(() => validateAgentTaskManifest(runtime));
+
+    for (const invalid of ["task-1", "1111111-1111-1111-1111-111111111111", "11111111-1111-1111-1111-11111111111G"]) {
+      const candidate = clone();
+      candidate.task_id = invalid;
+      candidate.delivery.branch = `agent/${invalid}`;
+      assert.throws(() => validateAgentTaskManifest(candidate), /invalid Draft 2020-12 schema or fixture/u);
+    }
+  });
+
   it("rejects writer==reviewer, unknown roles, and malformed profile labels", () => {
     const sameAgent = clone();
     sameAgent.reviewer.agent_id = sameAgent.writer.agent_id;

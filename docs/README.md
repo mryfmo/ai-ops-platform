@@ -7,6 +7,7 @@
 - [Spec ID Catalog](spec/spec-id-catalog.md)
 - [Package Reference](spec/packages.md)
 - [ADR](adr/)
+- [Jira × GitHub governed integration ADR](adr/0030-jira-github-governed-integration.md)
 - [Verification Report](../verification/VERIFICATION_REPORT.md)
 
 ## 運用者向け
@@ -16,6 +17,7 @@
 - [Configuration Reference](reference/configuration.md)
 - [Page Agent Tools](reference/page-agent-tools.md)
 - [Manual Ops Runbook](../runbooks/manual-ops.md)
+- [Jira × GitHub Cutover Runbook](../runbooks/jira-github-cutover.md)
 - [Observability and SLO Runbook](../runbooks/observability-slo.md)
 - [Real Environment E2E Runbook](../runbooks/e2e-real-environment.md)
 

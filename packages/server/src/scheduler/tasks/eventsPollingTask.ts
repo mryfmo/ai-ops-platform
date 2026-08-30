@@ -15,6 +15,7 @@ import type { MetricsRegistry } from "../../observability/metrics.js";
 import type { ScheduledTask } from "../scheduler.js";
 import type { EventsRepo, QueuedEvent } from "../../db/eventsRepo.js";
 import { isQueuedGithubWebhookEvent, type QueuedGithubWebhookEvent } from "../../lib/githubEventRouter.js";
+import { isQueuedJiraWebhookEvent, type QueuedJiraWebhookEvent } from "../../lib/jiraEventRouter.js";
 
 export interface InboundNotificationPayload {
   kind: "graph_channel_message_notification";
@@ -31,6 +32,8 @@ export interface EventsPollingTaskDeps {
   dispatchInboundNotification(payload: InboundNotificationPayload, traceId: string): Promise<void>;
   /** GitHub webhookイベントをDevOpsエージェントへディスパッチする */
   dispatchGithubEvent(payload: QueuedGithubWebhookEvent, traceId: string): Promise<void>;
+  /** Jira webhook metadataをjira-sync dispatcherへディスパッチする */
+  dispatchJiraEvent?(payload: QueuedJiraWebhookEvent, traceId: string): Promise<void>;
   /** 監視イベントをDevOpsエージェントへディスパッチする */
   dispatchMonitorEvent(payload: unknown, traceId: string): Promise<void>;
   traceIdProvider(): string;
@@ -59,6 +62,9 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
       await deps.dispatchInboundNotification(event.payload, event.traceId);
     } else if (event.source === "github" && isQueuedGithubWebhookEvent(event.payload)) {
       await deps.dispatchGithubEvent(event.payload, event.traceId);
+    } else if (event.source === "jira" && isQueuedJiraWebhookEvent(event.payload)) {
+      if (!deps.dispatchJiraEvent) throw new Error("Jira event dispatcher is not configured");
+      await deps.dispatchJiraEvent(event.payload, event.traceId);
     } else if (event.source === "monitor") {
       await deps.dispatchMonitorEvent(event.payload, event.traceId);
     } else {

@@ -5,6 +5,7 @@
  *   - GET  /healthz, /readyz: コンテナ監視用
  *   - POST /webhooks/graph:   Graph change notification受信（clientState検証）
  *   - POST /webhooks/github:  GitHub webhook受信（署名検証）
+ *   - POST /webhooks/jira:    Jira webhook受信（認証 + PJ mapping + 最小metadata化）
  *   - /coding-tasks/:taskId/confirm (GET/POST): コーディングタスク確認・実行（人間の明示クリック必須）
  *   - POST /internal/coding-tasks/:taskId/callback: GitHub Actions（coding-task.yml）からの完了通知
  *   - /app/*:                 Next.js WebUIへのリバースプロキシ
@@ -17,6 +18,7 @@ import type { AuditLogWriter } from "@aiops/shared";
 import { registerHealthRoutes, type ReadinessCheck } from "./routes/health.js";
 import { registerGraphNotificationRoutes, type GraphNotificationDeps } from "./routes/graphNotifications.js";
 import { registerGithubWebhookRoutes, type GithubWebhookDeps } from "./routes/githubWebhook.js";
+import { registerJiraWebhookRoutes, type JiraWebhookDeps } from "./routes/jiraWebhook.js";
 import { registerCodingTaskRoutes, type CodingTaskRoutesDeps } from "./routes/codingTasks.js";
 import { registerWebuiProxy, type WebuiProxyDeps } from "./routes/webuiProxy.js";
 import { registerXlsxImportRoutes, type XlsxImportRoutesDeps } from "./routes/xlsxImport.js";
@@ -35,6 +37,7 @@ export interface AppDependencies {
   readiness: ReadinessCheck;
   graph: GraphNotificationDeps;
   github: GithubWebhookDeps;
+  jira?: JiraWebhookDeps;
   codingTasks: CodingTaskRoutesDeps;
   xlsxImport: XlsxImportRoutesDeps;
   metrics?: MetricsRegistry;
@@ -80,6 +83,7 @@ export function buildApp(deps: AppDependencies): Hono {
   registerMetricsRoutes(app, metrics);
   registerGraphNotificationRoutes(app, deps.graph);
   registerGithubWebhookRoutes(app, deps.github);
+  registerJiraWebhookRoutes(app, deps.jira);
   registerCodingTaskRoutes(app, deps.codingTasks);
   registerXlsxImportRoutes(app, deps.xlsxImport);
   registerReportIngestRoutes(app, deps.reports);

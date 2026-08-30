@@ -7,6 +7,14 @@ export { approvalWorkflow } from "./approval.js";
 export { codingTaskWorkflow } from "./codingTask.js";
 export { reportDeliveryWorkflow } from "./reportDelivery.js";
 export { planeEventWorkflow, planeProjectionWorkflow, planePromotionWorkflow, planeSyncWorkflow } from "./planeSync.js";
+// Plane exports above are retained for v1 Temporal history replay; all new synchronization uses Jira.
+export {
+  jiraEventWorkflow,
+  jiraProjectionWorkflow,
+  jiraPromotionWorkflow,
+  jiraSyncWorkflow,
+  jiraTransitionWorkflow,
+} from "./jiraSync.js";
 export { graphSubscriptionWorkflow } from "./graphSubscription.js";
 export { healthEvaluationWorkflow, jitExpiryWorkflow } from "./jitHealth.js";
 export { deployDispatchWorkflow, prodMonitorWorkflow } from "./deployment.js";
