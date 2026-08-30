@@ -9,12 +9,14 @@ import type { AdapterKind, AdapterOperation } from "../adapters/types.js";
  * - workiq: signed-in-user delegated/OBO の read/ask/fetch のみ（app-only 禁止、ADR-0024）
  * - mcp-gateway: allowlisted tool の invoke のみ（LLM routing なし、ADR-0023）
  * - wispr: read のみ
+ * - jira: read + draft + project_development（開発情報投影のみ。承認・mergeは不可）
  * - plane / confluence: read + draft（formal publish は人間ゲート）
  */
 const ALLOWED_OPERATIONS: Readonly<Record<AdapterKind, readonly AdapterOperation[]>> = {
   workiq: ["read", "ask", "fetch"],
   "mcp-gateway": ["invoke"],
   wispr: ["read"],
+  jira: ["read", "draft", "project_development"],
   plane: ["read", "draft"],
   confluence: ["read", "draft"],
 };

@@ -18,8 +18,8 @@ export interface AdapterDependencies {
 }
 
 /** adapter 種別（license register / tool-risk-catalog の製品境界と対応）。 */
-export const ADAPTER_KINDS = ["workiq", "mcp-gateway", "wispr", "plane", "confluence"] as const;
+export const ADAPTER_KINDS = ["workiq", "mcp-gateway", "wispr", "jira", "plane", "confluence"] as const;
 export type AdapterKind = (typeof ADAPTER_KINDS)[number];
 
 /** adapter 操作。register の承認境界（read / draft / ask 等）を型で固定する。 */
-export type AdapterOperation = "read" | "ask" | "fetch" | "draft" | "invoke";
+export type AdapterOperation = "read" | "ask" | "fetch" | "draft" | "invoke" | "project_development";

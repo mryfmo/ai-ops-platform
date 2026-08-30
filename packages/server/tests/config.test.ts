@@ -44,6 +44,24 @@ describe("loadConfig (ADR-0005)", () => {
     expect(config.STAKEHOLDERS_DIR).toBeUndefined();
     expect(config.PRJOPS_DATA_DIR).toBeUndefined();
     expect(config.PMO_NOTIFY_MAILBOX).toBeUndefined();
+    expect(config.JIRA_ENVIRONMENT_MAPPING_PATH).toBeUndefined();
+    expect(config.JIRA_SITE_BASE_URL).toBeUndefined();
+  });
+
+  it("ADR-0030: Jira webhookとsnapshot設定をall-or-noneで検証する", () => {
+    const configured = loadConfig({
+      ...validEnv,
+      JIRA_ENVIRONMENT_MAPPING_PATH: "/secure/jira-mapping.json",
+      JIRA_WEBHOOK_BEARER_SECRET: "j".repeat(32),
+      JIRA_SITE_BASE_URL: "https://company.atlassian.net",
+      JIRA_OAUTH_ACCESS_TOKEN: "oauth-token",
+    });
+    expect(configured.JIRA_ENVIRONMENT_MAPPING_PATH).toBe("/secure/jira-mapping.json");
+    expect(configured.JIRA_SITE_BASE_URL).toBe("https://company.atlassian.net");
+    expect(() => loadConfig({ ...validEnv, JIRA_ENVIRONMENT_MAPPING_PATH: "/secure/jira-mapping.json" })).toThrow(
+      /E-CFG01/,
+    );
+    expect(() => loadConfig({ ...validEnv, JIRA_SITE_BASE_URL: "https://company.atlassian.net" })).toThrow(/E-CFG01/);
   });
 
   it("A046: pinned PrjOps snapshotは4変数all-or-none、絶対pathとdigest形状を要求する", () => {
