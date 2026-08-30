@@ -9,7 +9,7 @@
  *   source='inbound' はteamsConversationAgentへ、source='github'/'monitor' はDevOps dispatcherへ渡す。
  *   未対応payloadは無限リトライを避けるため監査ログを残してdoneにする。
  */
-import type { AuditLogWriter } from "@aiops/shared";
+import { sanitizeSecrets, type AuditLogWriter } from "@aiops/shared";
 import type { Logger } from "../../observability/logger.js";
 import type { MetricsRegistry } from "../../observability/metrics.js";
 import type { ScheduledTask } from "../scheduler.js";
@@ -80,6 +80,7 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
     await deps.eventsRepo.markDone(event.eventId);
     logger?.info("event dispatch completed");
   } catch (err) {
+    const errorMessage = sanitizeSecrets(err instanceof Error ? err.message : String(err)).sanitized;
     const maxAttempts = deps.maxAttempts ?? 5;
     const backoffMs =
       deps.retryBackoffMs?.(event.attempts) ??
@@ -104,11 +105,11 @@ async function processEvent(event: QueuedEvent, deps: EventsPollingTaskDeps, now
         source: event.source,
         attempts: result.attempts,
         maxAttempts,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage,
       },
       at: now.toISOString(),
     });
-    logger?.error({ err: err instanceof Error ? err.message : String(err) }, "event dispatch failed");
+    logger?.error({ err: errorMessage }, "event dispatch failed");
   }
 }
 

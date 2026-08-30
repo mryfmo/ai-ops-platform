@@ -516,6 +516,22 @@ describe("POST /webhooks/graph (PrjOps:SPEC-INT-001 / ADR-0005)", () => {
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "graph_notification_rejected")).toBe(true);
   });
+
+  it("clientState不一致のsubscription IDをredactして監査自体を失わない [ADR-0005 / DevOps:SPEC-INT-070]", async () => {
+    const { deps, auditLog } = makeDeps();
+    const secret = "api" + "key=" + "a".repeat(20);
+    const res = await buildApp(deps).request("/webhooks/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: [{ clientState: "wrong", subscriptionId: secret }] }),
+    });
+
+    expect(res.status).toBe(202);
+    const serialized = JSON.stringify(await auditLog.readAll());
+    expect(serialized).toContain("graph_notification_rejected");
+    expect(serialized).toContain("***REDACTED:generic_api_key_kv***");
+    expect(serialized).not.toContain(secret);
+  });
 });
 
 describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
@@ -571,6 +587,27 @@ describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
     expect((await send("delivery-b")).status).toBe(202);
 
     expect(githubEvents).toHaveLength(1);
+  });
+
+  it("secret様delivery idの重複監査をredactして保持する [DevOps:SPEC-INT-061 / DevOps:SPEC-INT-070]", async () => {
+    const { deps, auditLog } = makeDeps();
+    const app = buildApp(deps);
+    const payload = JSON.stringify({ ref: "refs/heads/main" });
+    const sig = "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(payload, "utf8").digest("hex");
+    const send = (deliveryId: string) =>
+      app.request("/webhooks/github", {
+        method: "POST",
+        headers: { "x-hub-signature-256": sig, "x-github-event": "push", "x-github-delivery": deliveryId },
+        body: payload,
+      });
+    const secretDeliveryId = "delivery-api" + "key=" + "a".repeat(20);
+
+    expect((await send("delivery-a")).status).toBe(202);
+    expect((await send(secretDeliveryId)).status).toBe(202);
+
+    const duplicate = (await auditLog.readAll()).find((entry) => entry.action === "github_webhook_duplicate");
+    expect(JSON.stringify(duplicate?.detail)).toContain("***REDACTED:generic_api_key_kv***");
+    expect(JSON.stringify(duplicate?.detail)).not.toContain(secretDeliveryId);
   });
 
   it("event名を差し替えた再送も重複として弾く（イベント名も署名対象外）", async () => {
@@ -640,6 +677,22 @@ describe("POST /webhooks/github (DevOps:SPEC-INT-061)", () => {
     const logs = await auditLog.readAll();
     expect(logs.some((l) => l.action === "github_webhook_rejected")).toBe(true);
   });
+
+  it("署名不正のevent headerをredactして監査自体を失わない [DevOps:SPEC-INT-061 / DevOps:SPEC-INT-070]", async () => {
+    const { deps, auditLog } = makeDeps();
+    const secret = "api" + "key=" + "b".repeat(20);
+    const res = await buildApp(deps).request("/webhooks/github", {
+      method: "POST",
+      headers: { "x-hub-signature-256": "sha256=deadbeef", "x-github-event": secret },
+      body: "{}",
+    });
+
+    expect(res.status).toBe(401);
+    const serialized = JSON.stringify(await auditLog.readAll());
+    expect(serialized).toContain("github_webhook_rejected");
+    expect(serialized).toContain("***REDACTED:generic_api_key_kv***");
+    expect(serialized).not.toContain(secret);
+  });
 });
 
 describe("/app/* WebUIプロキシ (ADR-0005)", () => {
@@ -663,6 +716,31 @@ describe("/app/* WebUIプロキシ (ADR-0005)", () => {
     const res = await app.request("/app/dashboard?tab=1");
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("dashboard");
+  });
+
+  it("伸長済みupstream bodyから圧縮・長さ・transfer headersを除く [ADR-0005]", async () => {
+    const { deps } = makeDeps();
+    const body = "decompressed upstream response";
+    deps.webui = {
+      targetBaseUrl: "http://127.0.0.1:3100",
+      fetchImpl: async () =>
+        new Response(body, {
+          headers: {
+            "content-encoding": "gzip",
+            "content-length": "17",
+            "transfer-encoding": "chunked",
+            "content-type": "text/plain",
+          },
+        }),
+    };
+
+    const res = await buildApp(deps).request("/app/dashboard");
+
+    expect(await res.text()).toBe(body);
+    expect(res.headers.get("content-encoding")).toBeNull();
+    expect(res.headers.get("content-length")).toBeNull();
+    expect(res.headers.get("transfer-encoding")).toBeNull();
+    expect(res.headers.get("content-type")).toContain("text/plain");
   });
 
   it("xlsx importはContent-Length超過をbody読取前に413で拒否する [REQ-037 / PrjOps:SPEC-INT-063 / AC-037-1]", async () => {

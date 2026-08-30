@@ -10,7 +10,7 @@
  */
 import type { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { graphSubscriptionErrorDetail, type AuditLogWriter } from "@aiops/shared";
+import { graphSubscriptionErrorDetail, sanitizeSecrets, type AuditLogWriter } from "@aiops/shared";
 import {
   classifyNotifications,
   graphNotificationDedupeKey,
@@ -57,6 +57,10 @@ function toLifecycleEvent(notification: GraphNotification): GraphLifecycleEvent 
   };
 }
 
+function safeSubscriptionId(value: string | null | undefined): string | null {
+  return value === null || value === undefined ? null : sanitizeSecrets(value).sanitized;
+}
+
 function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycleEvent, traceId: string): void {
   const work = deps.handleLifecycleEvent
     ? deps.handleLifecycleEvent(event, traceId)
@@ -65,7 +69,7 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
         actor: "SERVER",
         action: "graph_lifecycle_disabled",
         basis: "PrjOps:SPEC-INT-001",
-        detail: { lifecycleEvent: event.lifecycleEvent, subscriptionId: event.subscriptionId },
+        detail: { lifecycleEvent: event.lifecycleEvent, subscriptionId: safeSubscriptionId(event.subscriptionId) },
         at: new Date().toISOString(),
       });
   void work
@@ -77,7 +81,7 @@ function runLifecycleAfterAck(deps: GraphNotificationDeps, event: GraphLifecycle
         basis: "PrjOps:SPEC-INT-001",
         detail: {
           lifecycleEvent: event.lifecycleEvent,
-          subscriptionId: event.subscriptionId,
+          subscriptionId: safeSubscriptionId(event.subscriptionId),
           ...graphSubscriptionErrorDetail(error),
           recovery: "lifecycle_event_retry",
         },
@@ -115,7 +119,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
         actor: "SERVER",
         action: "graph_notification_rejected",
         basis: "ADR-0005",
-        detail: { count: rejected.length, subscriptionIds: rejected.map((r) => r.subscriptionId ?? null) },
+        detail: { count: rejected.length, subscriptionIds: rejected.map((r) => safeSubscriptionId(r.subscriptionId)) },
         at: new Date().toISOString(),
       });
     }
@@ -135,7 +139,10 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           actor: "SERVER",
           action: "graph_notification_missing_dedupe_key",
           basis: "PrjOps:SPEC-INT-001",
-          detail: { subscriptionId: notification.subscriptionId ?? null, changeType: notification.changeType ?? null },
+          detail: {
+            subscriptionId: safeSubscriptionId(notification.subscriptionId),
+            changeType: notification.changeType ?? null,
+          },
           at: new Date().toISOString(),
         });
         continue;
@@ -158,7 +165,7 @@ export function registerGraphNotificationRoutes(app: Hono, deps: GraphNotificati
           actor: "SERVER",
           action: "graph_notification_duplicate",
           basis: "PrjOps:SPEC-INT-001",
-          detail: { messageId, subscriptionId: notification.subscriptionId ?? null },
+          detail: { messageId, subscriptionId: safeSubscriptionId(notification.subscriptionId) },
           at: new Date().toISOString(),
         });
       }
