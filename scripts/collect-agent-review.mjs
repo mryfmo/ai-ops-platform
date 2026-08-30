@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { pathScopesOverlap } from "../contracts/agent-task/manifest-validator.mjs";
-import { validateReviewArtifact } from "../contracts/agent-review/review-validator.mjs";
+import { validateReviewArtifact, validateReviewFailureArtifact } from "../contracts/agent-review/review-validator.mjs";
 
 const SHA = /^[a-f0-9]{40}$/u;
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -125,7 +125,7 @@ function main() {
   const actualDigest = createHash("sha256").update(manifestRaw).digest("hex");
   if (!SHA256.test(options["manifest-digest"]) || options["manifest-digest"] !== actualDigest) {
     const failure = {
-      schema_version: "1.0",
+      schema_version: "failure-1.0",
       status: "failed",
       source: { base_sha: options.base, head_sha: options.head },
       findings: [
@@ -139,7 +139,9 @@ function main() {
         },
       ],
     };
-    fs.writeFileSync(options.output, `${JSON.stringify(failure, null, 2)}\n`, { flag: "wx" });
+    fs.writeFileSync(options.output, `${JSON.stringify(validateReviewFailureArtifact(failure), null, 2)}\n`, {
+      flag: "wx",
+    });
     throw new TypeError("manifest digest is missing or mismatched");
   }
   const manifest = JSON.parse(manifestRaw.toString("utf8"));

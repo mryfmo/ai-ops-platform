@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 import { collectReviewArtifact } from "../../scripts/collect-agent-review.mjs";
-import { validateReviewArtifact } from "./review-validator.mjs";
+import { validateReviewArtifact, validateReviewFailureArtifact } from "./review-validator.mjs";
 import { validateReviewWorkflow } from "./workflow-validator.mjs";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -23,6 +23,12 @@ const workflow = YAML.parse(fs.readFileSync(path.join(repoRoot, ".github/workflo
   uniqueKeys: true,
 });
 const clone = (value) => structuredClone(value);
+const failure = {
+  schema_version: "failure-1.0",
+  status: "failed",
+  source: clone(review.source),
+  findings: [clone(review.findings[0])],
+};
 
 describe("independent review artifact contract [FinalArch:FR-AGT-005 / FinalArch:COD-006]", () => {
   it("accepts structured findings that match the manifest reviewer and profile", () => {
@@ -73,6 +79,24 @@ describe("independent review artifact contract [FinalArch:FR-AGT-005 / FinalArch
       () => validateReviewArtifact(unrelatedSecurityPath, clone(manifest)),
       /security path was not changed/u,
     );
+  });
+});
+
+describe("review failure artifact contract [FinalArch:COD-006]", () => {
+  it("accepts the closed digest-failure artifact shape", () => {
+    assert.doesNotThrow(() => validateReviewFailureArtifact(clone(failure)));
+  });
+
+  it("rejects success-schema confusion, missing evidence, and unknown fields", () => {
+    for (const invalid of [
+      { ...clone(failure), schema_version: "1.0" },
+      { ...clone(failure), status: "complete" },
+      { ...clone(failure), findings: [] },
+      { ...clone(failure), unexpected: true },
+      { ...clone(failure), source: { base_sha: failure.source.base_sha } },
+    ]) {
+      assert.throws(() => validateReviewFailureArtifact(invalid), /invalid Draft 2020-12 schema or fixture/u);
+    }
   });
 });
 
