@@ -1,0 +1,141 @@
+[38;5;12m[ci][0m [1m$ mise run db:require && mise run governance && mise run policy:rego && mise run contracts && mise run audit && mise run actionlint && mise run lint && mise run traceability && mise run format && mise run build && mise run typecheck && mise run test:coverage && mise run verify:db[0m
+[38;5;13m[db:require][0m [1m$ missing=""[0m
+[34m[2m[governance][0m [1m$ pnpm run governance:check[0m
+$ node scripts/check-codeowners.mjs && node --test scripts/verify-canonical-spec-mirrors.test.mjs scripts/coding-agent-path-guard.test.mjs tests/architecture-fitness.test.mjs && node scripts/verify-canonical-spec-mirrors.mjs && node scripts/check-architecture-fitness.mjs && pnpm run plane-mapping:validate && pnpm run jira-mapping:validate
+$ node --test tests/validate-plane-environment-mapping.test.mjs && node scripts/validate-plane-environment-mapping.mjs docs/contracts/fixtures/plane-environment-mapping.dev.json
+$ node --test tests/validate-jira-environment-mapping.test.mjs && node scripts/validate-jira-environment-mapping.mjs docs/contracts/fixtures/jira-environment-mapping.dev.json
+[32m[1m[policy:rego][0m [1m$ if ! command -v opa >/dev/null 2>&1; then[0m
+[35m[contracts][0m [1m$ pnpm --dir contracts install --frozen-lockfile && pnpm --dir contracts run check[0m
+$ pnpm run lint && pnpm run test
+$ spectral lint --ruleset .spectral.yaml --fail-severity error openapi/*.yaml asyncapi/*.yaml
+$ node --test check-contracts.test.mjs model-routing/model-aliases.test.mjs model-routing/service-config.test.mjs mcp-gateway/gateway-config.test.mjs tools/registry-contract.test.mjs agent-task/agent-task.test.mjs agent-review/agent-review.test.mjs agent-execution/claude-profile.test.mjs agent-execution/droid-profile.test.mjs deploy-workflow/deploy-workflow.test.mjs
+[32m[1m[audit][0m [1m$ pnpm audit --prod --audit-level high[0m
+[35m[1m[actionlint][0m [1m$ actionlint -shellcheck= -pyflakes= .github/workflows/*.yml[0m
+[32m[1m[lint][0m [1m$ pnpm -r --if-present run lint[0m
+[38;5;13m[traceability][0m [1m$ pnpm exec tsx packages/traceability/src/verifyTraceability.ts[0m
+[35m[2m[format][0m [1m$ pnpm run format[0m
+$ prettier --check .
+[34m[build][0m [1m$ pnpm -r --if-present run build[0m
+[34m[typecheck][0m [1m$ pnpm -r --if-present run typecheck[0m
+[36m[1m[test:coverage][0m [1m$ pnpm -r --if-present run test:coverage[0m
+[35m[1m[verify:db][0m [1m$ bash verification/run_db_integration.sh[0m
+NOTICE:  drop cascades to 46 other objects
+DETAIL:  drop cascades to table status_ingest_records
+drop cascades to table schema_migrations
+drop cascades to table events
+drop cascades to table pm_events
+drop cascades to table pm_snapshots
+drop cascades to table seven_keys_snapshots
+drop cascades to table deployments
+drop cascades to table incidents
+drop cascades to table grants
+drop cascades to table recipients
+drop cascades to table action_reminder_state
+drop cascades to table standard_reports
+drop cascades to table report_delivery_log
+drop cascades to table report_snapshots
+drop cascades to table audit_log
+drop cascades to function audit_log_block_mutation()
+drop cascades to function ensure_audit_log_partition(text,date)
+drop cascades to function audit_retention_candidates(date)
+drop cascades to table partner_companies
+drop cascades to table project_channels
+drop cascades to table channel_messages
+drop cascades to table graph_subscriptions
+drop cascades to table llm_usage
+drop cascades to table coding_tasks
+drop cascades to function coding_tasks_block_manifest_mutation()
+drop cascades to table approvals
+drop cascades to table import_ledger
+drop cascades to table workflow_runs
+drop cascades to table channel_conversation_mappings
+drop cascades to table action_ledger
+drop cascades to table workbench_workspaces
+drop cascades to table workbench_workspace_sources
+drop cascades to table workbench_workspace_runs
+drop cascades to table workbench_pending_actions
+drop cascades to table policy_decisions
+drop cascades to table model_invocations
+drop cascades to table tool_invocations
+drop cascades to table work_iq_query_receipts
+drop cascades to function work_iq_query_receipts_block_mutation()
+drop cascades to table id_mapping_heads
+drop cascades to table id_mappings
+drop cascades to table meeting_artifacts
+drop cascades to table agent_runs
+drop cascades to table agent_handoffs
+drop cascades to table agent_handoff_transitions
+drop cascades to function agent_handoff_transitions_block_mutation()
+ERROR:  no partition of relation "audit_log" found for row
+DETAIL:  Partition key of the failing row contains (retention_class) = (invalid).
+ERROR:  permission denied for table audit_log
+ERROR:  permission denied for table audit_log
+ERROR:  new row for relation "action_reminder_state" violates check constraint "action_reminder_state_action_id_check"
+DETAIL:  Failing row contains (invalid, 1, 2026-08-30 13:45:13.600726+09, null).
+ERROR:  new row for relation "action_reminder_state" violates check constraint "action_reminder_state_check"
+DETAIL:  Failing row contains (ACT-002, 1, null, null).
+ERROR:  permission denied for table action_reminder_state
+NOTICE:  drop cascades to table audit_shadow.audit_log
+ERROR:  updated partition constraint for default partition "audit_log_devops_1y_default" would be violated by some row
+CONTEXT:  SQL statement "CREATE TABLE audit_log_devops_1y_2030_04 PARTITION OF audit_log_devops_1y FOR VALUES FROM ('2030-04-01T00:00:00Z'::timestamptz) TO ('2030-05-01T00:00:00Z'::timestamptz)"
+PL/pgSQL function ensure_audit_log_partition(text,date) line 19 at EXECUTE
+$ tsx src/db/migrate.ts
+$ tsx src/db/migrate.ts
+NOTICE:  drop cascades to 46 other objects
+DETAIL:  drop cascades to table schema_migrations
+drop cascades to table events
+drop cascades to table pm_events
+drop cascades to table pm_snapshots
+drop cascades to table seven_keys_snapshots
+drop cascades to table deployments
+drop cascades to table incidents
+drop cascades to table grants
+drop cascades to table recipients
+drop cascades to table action_reminder_state
+drop cascades to table standard_reports
+drop cascades to table report_delivery_log
+drop cascades to table report_snapshots
+drop cascades to table audit_log
+drop cascades to function audit_log_block_mutation()
+drop cascades to function ensure_audit_log_partition(text,date)
+drop cascades to function audit_retention_candidates(date)
+drop cascades to table partner_companies
+drop cascades to table project_channels
+drop cascades to table channel_messages
+drop cascades to table graph_subscriptions
+drop cascades to table llm_usage
+drop cascades to table coding_tasks
+drop cascades to function coding_tasks_block_manifest_mutation()
+drop cascades to table approvals
+drop cascades to table import_ledger
+drop cascades to table workflow_runs
+drop cascades to table channel_conversation_mappings
+drop cascades to table action_ledger
+drop cascades to table workbench_workspaces
+drop cascades to table workbench_workspace_sources
+drop cascades to table workbench_workspace_runs
+drop cascades to table workbench_pending_actions
+drop cascades to table policy_decisions
+drop cascades to table model_invocations
+drop cascades to table tool_invocations
+drop cascades to table work_iq_query_receipts
+drop cascades to function work_iq_query_receipts_block_mutation()
+drop cascades to table id_mapping_heads
+drop cascades to table id_mappings
+drop cascades to table meeting_artifacts
+drop cascades to table agent_runs
+drop cascades to table agent_handoffs
+drop cascades to table agent_handoff_transitions
+drop cascades to function agent_handoff_transitions_block_mutation()
+drop cascades to table status_ingest_records
+psql:/Users/mryfmo/Workspace/ai-ops-platform/packages/devops/src/db/migrations/202607110000_audit_log_partitions.sql:60: NOTICE:  relation "audit_log_log_id_seq" already exists, skipping
+NOTICE:  drop cascades to 3 other objects
+DETAIL:  drop cascades to table audit_log
+drop cascades to function ensure_audit_log_partition(text,date)
+drop cascades to function audit_retention_candidates(date)
+psql:/Users/mryfmo/Workspace/ai-ops-platform/packages/devops/src/db/migrations/202607110000_audit_log_partitions.sql:58: ERROR:  non-empty legacy audit_log requires reviewed retention classification
+CONTEXT:  PL/pgSQL function inline_code_block line 33 at RAISE
+NOTICE:  drop cascades to table audit_log
+psql:/var/folders/r2/_gkywj713g54lbxkc_hv7j400000gn/T/p001-mismatch.XXXXXX.sql:60: NOTICE:  relation "audit_log_log_id_seq" already exists, skipping
+psql:/var/folders/r2/_gkywj713g54lbxkc_hv7j400000gn/T/p001-mismatch.XXXXXX.sql:226: ERROR:  audit_log copy validation failed: before=1, after=2, content_mismatch=f
+CONTEXT:  PL/pgSQL function inline_code_block line 58 at RAISE

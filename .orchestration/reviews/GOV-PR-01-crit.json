@@ -1,0 +1,44 @@
+[
+  {
+    "scope": "review",
+    "id": "r_184e4d",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-276 orchestrator adversarial review (accepted): single-line fix — tsconfig.base.json gains types:[\"node\"], restoring Node 22 global types under TypeScript 6 lib resolution for all base-inheriting packages while packages/web keeps its DOM tsconfig. Verified: only tsconfig.base.json changed; dependency/lock/mise diffs empty; validation shows RED reproduction, all-10-package typecheck green, and fresh-PostgreSQL mise run ci exit 0 at bcf36b0. PR CI on the pushed commit serves as the independent execution check. CompactionDB decision cb6deb94 verified. Review-scope approval record for a finding-free review.",
+    "author": "Claude Code",
+    "created_at": "2026-08-30T03:56:33Z",
+    "updated_at": "2026-08-30T03:56:33Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_1f14ec",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/BOT-FIX-276-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-08-30T03:56:33Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_3325be",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "GOV-PR-01 orchestrator adversarial review (accepted): scope exactly the 6 allowed files; ADR-0032 records author separation, permanent empty bypass_actors with break-glass, agent thread-resolution boundary, and the stacked-PR retarget rule while explicitly preserving ADR-0006; AGENTS.md diff is minimal and precise; mint script is stdlib-only with injected fetch, 10-minute RS256 App JWT, strict response validation, and token-only stdout — 9/9 tests reproduced independently; the single validation failure marker is the disclosed traceability RED for assignment-form env comments, fixed to comment form, final fresh-PostgreSQL mise run ci exit 0. CompactionDB decision 3897aed4 verified. Review-scope approval record for a finding-free review.",
+    "author": "Claude Code",
+    "created_at": "2026-08-30T04:50:37Z",
+    "updated_at": "2026-08-30T04:50:37Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_6597ea",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/GOV-PR-01-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-08-30T04:50:37Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
