@@ -1,0 +1,44 @@
+[
+  {
+    "scope": "review",
+    "id": "r_82c4c8",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "Review-scope approval: the staged diff changes only package.json governance:check by adding the existing mint token test to the existing node --test file list; command order, other scripts, dependencies, and test sources are unchanged. Focused governance and full CI are green.",
+    "author": "Codex",
+    "created_at": "2026-08-30T06:03:25Z",
+    "updated_at": "2026-08-30T06:03:25Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_2889ae",
+        "body": "Approved after verifying the exact one-line staged diff and both required validation paths.",
+        "author": "Codex",
+        "created_at": "2026-08-30T06:03:35Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_131605",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "GOV-PR-02 orchestrator review (accepted): exactly the one authorized argument added to the governance:check node --test enumeration; validation verbatim shows the mint suite executing inside governance:check and mise run ci exit 0; no other file touched. Fix-forward for PR #284 P2 finding 3888500638. Review-scope approval record.",
+    "author": "Claude Code",
+    "created_at": "2026-08-30T06:07:21Z",
+    "updated_at": "2026-08-30T06:07:22Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_ddedcc",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/GOV-PR-02-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-08-30T06:07:22Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
