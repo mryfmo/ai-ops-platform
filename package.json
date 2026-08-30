@@ -13,7 +13,7 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "governance:check": "node scripts/check-codeowners.mjs && node --test scripts/verify-canonical-spec-mirrors.test.mjs scripts/coding-agent-path-guard.test.mjs tests/architecture-fitness.test.mjs && node scripts/verify-canonical-spec-mirrors.mjs && node scripts/check-architecture-fitness.mjs && pnpm run plane-mapping:validate && pnpm run jira-mapping:validate",
+    "governance:check": "node scripts/check-codeowners.mjs && node --test scripts/verify-canonical-spec-mirrors.test.mjs scripts/coding-agent-path-guard.test.mjs scripts/mint-aiops-pr-token.test.mjs tests/architecture-fitness.test.mjs && node scripts/verify-canonical-spec-mirrors.mjs && node scripts/check-architecture-fitness.mjs && pnpm run plane-mapping:validate && pnpm run jira-mapping:validate",
     "plane-mapping:validate": "node --test tests/validate-plane-environment-mapping.test.mjs && node scripts/validate-plane-environment-mapping.mjs docs/contracts/fixtures/plane-environment-mapping.dev.json",
     "acceptance:validate": "node scripts/validate-acceptance-manifest.mjs",
     "traceability": "pnpm exec tsx packages/traceability/src/verifyTraceability.ts",
