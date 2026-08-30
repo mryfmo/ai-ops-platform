@@ -1,0 +1,63 @@
+{
+  "$comment": "根拠: FinalArch:COD-006 / ADV-FIX-04 / BOT-FIX-279",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-ops-platform.example/contracts/agent-review/failure/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "source", "findings"],
+  "properties": {
+    "schema_version": { "const": "failure-1.0" },
+    "status": { "const": "failed" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_sha", "head_sha"],
+      "properties": {
+        "base_sha": { "$ref": "#/$defs/sha" },
+        "head_sha": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!.*//)[A-Za-z0-9._@()+{}\\[\\]-]+(?:/[A-Za-z0-9._@()+{}\\[\\]-]+)*$"
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension", "severity", "file", "line", "evidence", "suggestion"],
+      "properties": {
+        "dimension": {
+          "enum": [
+            "spec_compliance",
+            "architecture_drift",
+            "security",
+            "correctness",
+            "idempotency",
+            "test_adequacy",
+            "observability",
+            "migration_rollback",
+            "documentation_traceability"
+          ]
+        },
+        "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
+        "file": { "$ref": "#/$defs/repoPath" },
+        "line": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "evidence": { "type": "string", "minLength": 1, "maxLength": 8192 },
+        "suggestion": { "type": "string", "minLength": 1, "maxLength": 8192 }
+      }
+    }
+  }
+}

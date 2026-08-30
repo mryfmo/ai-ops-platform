@@ -1,0 +1,223 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": { "seconds": "13456378599", "nanos": 137000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": { "name": "jiraSyncWorkflow" },
+        "taskQueue": {
+          "name": "jira-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Imlzc3VlS2V5IjoiQUlDT0UtMyIsInByb2plY3RJZCI6IlBKLTEwMDEiLCJtYXBwaW5nVmVyc2lvbiI6MywicmV2aXNpb24iOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzIiwiZXhlY3V0aW9uTW9kZSI6ImFjdGl2ZSIsIm9yaWdpbiI6Im9wZXJhdG9yIiwib3BlcmF0aW9ucyI6WyJwcm9tb3Rpb24iXSwiYXBwcm92YWxJZCI6IjBmNmYyZjZhLTlmMmUtNGU2ZC04YTRiLTJiOGY2ZjJmNmE5ZiJ9fQ=="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": { "seconds": "315360000" },
+        "workflowRunTimeout": { "seconds": "315360000" },
+        "workflowTaskTimeout": { "seconds": "10" },
+        "originalExecutionRunId": "d64f943c-e171-420e-8f8e-635d24378699",
+        "identity": "23800@MacBook-Air.local",
+        "firstExecutionRunId": "d64f943c-e171-420e-8f8e-635d24378699",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": {},
+        "header": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": { "seconds": "13456378599", "nanos": 137000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "jira-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": { "seconds": "10" },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": { "seconds": "13456378599", "nanos": 137000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "23800@MacBook-Air.local",
+        "historySizeBytes": "586"
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": { "seconds": "13456378599", "nanos": 156000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "23800@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+ab9a9e1221450339d4c9561c6edd18eb5e8fecee38af824d8caf63accb8a46a6",
+        "sdkMetadata": {
+          "coreUsedFlags": [1, 2, 3],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.22.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": { "seconds": "13456378599", "nanos": 156000000 },
+      "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+      "startChildWorkflowExecutionInitiatedEventAttributes": {
+        "namespace": "default",
+        "workflowId": "jira-sync/AICOE-3:PJ-1001:3:0000000000000000000000000000000000000000000000000000000000000003/promotion",
+        "workflowType": { "name": "jiraPromotionWorkflow" },
+        "taskQueue": {
+          "name": "jira-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Imlzc3VlS2V5IjoiQUlDT0UtMyIsInByb2plY3RJZCI6IlBKLTEwMDEiLCJtYXBwaW5nVmVyc2lvbiI6MywicmV2aXNpb24iOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzIiwiZXhlY3V0aW9uTW9kZSI6ImFjdGl2ZSIsIm9yaWdpbiI6Im9wZXJhdG9yIiwib3BlcmF0aW9ucyI6WyJwcm9tb3Rpb24iXSwiYXBwcm92YWxJZCI6IjBmNmYyZjZhLTlmMmUtNGU2ZC04YTRiLTJiOGY2ZjJmNmE5ZiJ9fQ=="
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {},
+        "workflowRunTimeout": {},
+        "workflowTaskTimeout": { "seconds": "10" },
+        "workflowTaskCompletedEventId": "3",
+        "header": {},
+        "memo": {}
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": { "seconds": "13456378599", "nanos": 156000000 },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+      "childWorkflowExecutionStartedEventAttributes": {
+        "namespace": "default",
+        "initiatedEventId": "5",
+        "workflowExecution": {
+          "workflowId": "jira-sync/AICOE-3:PJ-1001:3:0000000000000000000000000000000000000000000000000000000000000003/promotion",
+          "runId": "998ecdb3-2223-4d80-a6e0-cafe6e76d4d2"
+        },
+        "workflowType": { "name": "jiraPromotionWorkflow" }
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": { "seconds": "13456378599", "nanos": 156000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "jira-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": { "seconds": "10" },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": { "seconds": "13456378599", "nanos": 156000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "23800@MacBook-Air.local",
+        "historySizeBytes": "1603"
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": { "seconds": "13456378599", "nanos": 161000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "23800@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+ab9a9e1221450339d4c9561c6edd18eb5e8fecee38af824d8caf63accb8a46a6",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": { "seconds": "13456378599", "nanos": 171000000 },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+      "childWorkflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Im9wZXJhdGlvbiI6InByb21vdGlvbiIsIm91dGNvbWUiOiJzdGFsZSJ9fQ=="
+            }
+          ]
+        },
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "jira-sync/AICOE-3:PJ-1001:3:0000000000000000000000000000000000000000000000000000000000000003/promotion",
+          "runId": "998ecdb3-2223-4d80-a6e0-cafe6e76d4d2"
+        },
+        "workflowType": { "name": "jiraPromotionWorkflow" },
+        "initiatedEventId": "5",
+        "startedEventId": "6"
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": { "seconds": "13456378599", "nanos": 171000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "jira-sync-promotion-stale",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": { "seconds": "10" },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": { "seconds": "13456378599", "nanos": 171000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "23800@MacBook-Air.local",
+        "historySizeBytes": "2157"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": { "seconds": "13456378599", "nanos": 173000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "23800@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+ab9a9e1221450339d4c9561c6edd18eb5e8fecee38af824d8caf63accb8a46a6",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": { "seconds": "13456378599", "nanos": 173000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7IndvcmtmbG93SWQiOiJqaXJhLXN5bmMvQUlDT0UtMzpQSi0xMDAxOjM6MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlkZW50aXR5Ijp7Imlzc3VlS2V5IjoiQUlDT0UtMyIsInByb2plY3RJZCI6IlBKLTEwMDEiLCJtYXBwaW5nVmVyc2lvbiI6MywicmV2aXNpb24iOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzIn0sIm9yaWdpbiI6Im9wZXJhdG9yIiwicGhhc2UiOiJjb21wbGV0ZSIsIm91dGNvbWVzIjpbeyJvcGVyYXRpb24iOiJwcm9tb3Rpb24iLCJvdXRjb21lIjoic3RhbGUifV19fQ=="
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "12"
+      }
+    }
+  ]
+}

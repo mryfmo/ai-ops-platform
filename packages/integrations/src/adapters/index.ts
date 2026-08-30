@@ -24,6 +24,14 @@ export interface WisprAdapter {
   read(meetingRef: VersionedRef): Promise<string>;
 }
 
+/** Jira: Work Item read/draft と、許可済みGitHub開発情報の限定投影。
+ * Status transition はこの汎用adapter面に公開せず、承認/CAS済みの専用activityだけが担う。 */
+export interface JiraAdapter {
+  read(ref: VersionedRef): Promise<string>;
+  draft(parentRef: VersionedRef, content: string): Promise<VersionedRef>;
+  project_development(input: Readonly<Record<string, unknown>>): Promise<void>;
+}
+
 /** Plane: 承認 workspace の read + draft（削除・権限・重要状態の変更なし）。 */
 export interface PlaneAdapter {
   read(ref: VersionedRef): Promise<string>;

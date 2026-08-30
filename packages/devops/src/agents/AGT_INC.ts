@@ -119,7 +119,7 @@ export async function triageAndNotify(
       card: {
         body: [
           { type: "TextBlock", text: "Sev1候補が検出されました", weight: "bolder" },
-          { type: "TextBlock", text: classification.rationale },
+          { type: "TextBlock", text: safeRationale },
         ],
         actions: [],
         openUrlActions: [{ title: "GitHub Issueで確認", url: issueUrl }],

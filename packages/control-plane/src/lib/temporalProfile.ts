@@ -15,7 +15,15 @@
  * X509 の解析は node:crypto の X509Certificate（純関数的に PEM 文字列を受ける）のみ使う。
  */
 import { X509Certificate } from "node:crypto";
-import { WORKFLOW_KINDS, type WorkflowKind } from "../contracts/index.js";
+import { WORKFLOW_KINDS } from "../contracts/index.js";
+
+/**
+ * v1 external contract keeps WORKFLOW_KINDS stable for backward compatibility.
+ * New internal-only queues are additive and are never accepted by the v1 OpenAPI enum.
+ */
+export const INTERNAL_TASK_QUEUES = ["jira-sync"] as const;
+export const TEMPORAL_TASK_QUEUES = [...WORKFLOW_KINDS, ...INTERNAL_TASK_QUEUES] as const;
+export type TemporalTaskQueue = (typeof TEMPORAL_TASK_QUEUES)[number];
 
 export const TEMPORAL_ENVIRONMENTS = ["dev", "staging", "prod"] as const;
 export type TemporalEnvironment = (typeof TEMPORAL_ENVIRONMENTS)[number];
@@ -32,13 +40,16 @@ export function namespaceFor(environment: TemporalEnvironment): string {
   return `aiops-${environment}`;
 }
 
-/** task queue は workflow kind と 1:1。別語彙の queue 名を発明しない。 */
-export function taskQueueFor(kind: WorkflowKind): string {
+/**
+ * v1 workflow kind と内部追加 queue の双方を決定的に返す。
+ * `jira-sync` は v1 contract enum を変更せず追加された internal-only queue。
+ */
+export function taskQueueFor(kind: TemporalTaskQueue): string {
   return kind;
 }
 
-export function allTaskQueues(): readonly string[] {
-  return WORKFLOW_KINDS.map(taskQueueFor);
+export function allTaskQueues(): readonly TemporalTaskQueue[] {
+  return [...TEMPORAL_TASK_QUEUES];
 }
 
 export interface TemporalConnectionProfile {
@@ -63,7 +74,7 @@ const WORKER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u;
 export function buildConnectionProfile(
   environment: TemporalEnvironment,
   address: string,
-  options: { workerName: string; taskQueue: WorkflowKind },
+  options: { workerName: string; taskQueue: TemporalTaskQueue },
 ): TemporalConnectionProfile {
   if (!isTemporalEnvironment(environment)) {
     throw new Error(`E-TMP01: unknown Temporal environment: ${String(environment)}`);
@@ -74,8 +85,8 @@ export function buildConnectionProfile(
   if (!WORKER_NAME_PATTERN.test(options.workerName)) {
     throw new Error("E-TMP01: workerName must be alphanumeric with - or _ (max 64 chars)");
   }
-  if (!(WORKFLOW_KINDS as readonly string[]).includes(options.taskQueue)) {
-    throw new Error(`E-TMP01: taskQueue must be a canonical workflow kind (got ${String(options.taskQueue)})`);
+  if (!(TEMPORAL_TASK_QUEUES as readonly string[]).includes(options.taskQueue)) {
+    throw new Error(`E-TMP01: taskQueue must be an approved Temporal task queue (got ${String(options.taskQueue)})`);
   }
   return {
     environment,

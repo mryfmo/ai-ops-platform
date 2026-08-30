@@ -1,0 +1,223 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": { "seconds": "14402458600", "nanos": 80000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": { "name": "jiraSyncWorkflow" },
+        "taskQueue": {
+          "name": "jira-sync-transition-authorized",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Imlzc3VlS2V5IjoiQUlDT0UtNiIsInByb2plY3RJZCI6IlBKLTEwMDEiLCJtYXBwaW5nVmVyc2lvbiI6MywicmV2aXNpb24iOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2IiwiZXhlY3V0aW9uTW9kZSI6ImFjdGl2ZSIsIm9yaWdpbiI6Im9wZXJhdG9yIiwib3BlcmF0aW9ucyI6WyJ0cmFuc2l0aW9uIl0sImFwcHJvdmFsSWQiOiIwZjZmMmY2YS05ZjJlLTRlNmQtOGE0Yi0yYjhmNmYyZjZhOWYiLCJ0YXJnZXRTdGF0dXNJZCI6IjEwMDQyIn19"
+            }
+          ]
+        },
+        "workflowExecutionTimeout": { "seconds": "315360000" },
+        "workflowRunTimeout": { "seconds": "315360000" },
+        "workflowTaskTimeout": { "seconds": "10" },
+        "originalExecutionRunId": "9360f9d7-bf64-4f39-aaca-8593d7653215",
+        "identity": "23800@MacBook-Air.local",
+        "firstExecutionRunId": "9360f9d7-bf64-4f39-aaca-8593d7653215",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": {},
+        "header": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": { "seconds": "14402458600", "nanos": 80000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "jira-sync-transition-authorized",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": { "seconds": "10" },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": { "seconds": "14402458600", "nanos": 80000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "23800@MacBook-Air.local",
+        "historySizeBytes": "624"
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": { "seconds": "14402458600", "nanos": 100000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "23800@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+ab9a9e1221450339d4c9561c6edd18eb5e8fecee38af824d8caf63accb8a46a6",
+        "sdkMetadata": {
+          "coreUsedFlags": [2, 1, 3],
+          "sdkName": "temporal-typescript",
+          "sdkVersion": "1.22.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": { "seconds": "14402458600", "nanos": 100000000 },
+      "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+      "startChildWorkflowExecutionInitiatedEventAttributes": {
+        "namespace": "default",
+        "workflowId": "jira-sync/AICOE-6:PJ-1001:3:0000000000000000000000000000000000000000000000000000000000000006/transition",
+        "workflowType": { "name": "jiraTransitionWorkflow" },
+        "taskQueue": {
+          "name": "jira-sync-transition-authorized",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Imlzc3VlS2V5IjoiQUlDT0UtNiIsInByb2plY3RJZCI6IlBKLTEwMDEiLCJtYXBwaW5nVmVyc2lvbiI6MywicmV2aXNpb24iOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2IiwiZXhlY3V0aW9uTW9kZSI6ImFjdGl2ZSIsIm9yaWdpbiI6Im9wZXJhdG9yIiwib3BlcmF0aW9ucyI6WyJ0cmFuc2l0aW9uIl0sImFwcHJvdmFsSWQiOiIwZjZmMmY2YS05ZjJlLTRlNmQtOGE0Yi0yYjhmNmYyZjZhOWYiLCJ0YXJnZXRTdGF0dXNJZCI6IjEwMDQyIn19"
+            }
+          ]
+        },
+        "workflowExecutionTimeout": {},
+        "workflowRunTimeout": {},
+        "workflowTaskTimeout": { "seconds": "10" },
+        "workflowTaskCompletedEventId": "3",
+        "header": {},
+        "memo": {}
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": { "seconds": "14402458600", "nanos": 100000000 },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+      "childWorkflowExecutionStartedEventAttributes": {
+        "namespace": "default",
+        "initiatedEventId": "5",
+        "workflowExecution": {
+          "workflowId": "jira-sync/AICOE-6:PJ-1001:3:0000000000000000000000000000000000000000000000000000000000000006/transition",
+          "runId": "de97c4b9-a577-4c79-80a4-7b5ae0f3b33e"
+        },
+        "workflowType": { "name": "jiraTransitionWorkflow" }
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": { "seconds": "14402458600", "nanos": 100000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "jira-sync-transition-authorized",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": { "seconds": "10" },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": { "seconds": "14402458600", "nanos": 100000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "23800@MacBook-Air.local",
+        "historySizeBytes": "1683"
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": { "seconds": "14402458600", "nanos": 105000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "7",
+        "identity": "23800@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+ab9a9e1221450339d4c9561c6edd18eb5e8fecee38af824d8caf63accb8a46a6",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": { "seconds": "14402458600", "nanos": 115000000 },
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+      "childWorkflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7Im9wZXJhdGlvbiI6InRyYW5zaXRpb24iLCJvdXRjb21lIjoiZXhlY3V0ZWQifX0="
+            }
+          ]
+        },
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "jira-sync/AICOE-6:PJ-1001:3:0000000000000000000000000000000000000000000000000000000000000006/transition",
+          "runId": "de97c4b9-a577-4c79-80a4-7b5ae0f3b33e"
+        },
+        "workflowType": { "name": "jiraTransitionWorkflow" },
+        "initiatedEventId": "5",
+        "startedEventId": "6"
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": { "seconds": "14402458600", "nanos": 115000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "jira-sync-transition-authorized",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": { "seconds": "10" },
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": { "seconds": "14402458600", "nanos": 115000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "23800@MacBook-Air.local",
+        "historySizeBytes": "2249"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": { "seconds": "14402458600", "nanos": 118000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "11",
+        "identity": "23800@MacBook-Air.local",
+        "binaryChecksum": "@temporalio/worker@1.22.0+ab9a9e1221450339d4c9561c6edd18eb5e8fecee38af824d8caf63accb8a46a6",
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": { "seconds": "14402458600", "nanos": 118000000 },
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": { "encoding": "anNvbi9wbGFpbg==" },
+              "data": "eyJzY2hlbWFWZXJzaW9uIjoxLCJwYXlsb2FkIjp7IndvcmtmbG93SWQiOiJqaXJhLXN5bmMvQUlDT0UtNjpQSi0xMDAxOjM6MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNiIsImlkZW50aXR5Ijp7Imlzc3VlS2V5IjoiQUlDT0UtNiIsInByb2plY3RJZCI6IlBKLTEwMDEiLCJtYXBwaW5nVmVyc2lvbiI6MywicmV2aXNpb24iOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2In0sIm9yaWdpbiI6Im9wZXJhdG9yIiwicGhhc2UiOiJjb21wbGV0ZSIsIm91dGNvbWVzIjpbeyJvcGVyYXRpb24iOiJ0cmFuc2l0aW9uIiwib3V0Y29tZSI6ImV4ZWN1dGVkIn1dfX0="
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "12"
+      }
+    }
+  ]
+}

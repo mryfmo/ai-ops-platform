@@ -250,6 +250,37 @@ describe("triageAndNotify のLLM出力サニタイズ [DevOps:REQ-015 / DevOps:R
     expect(created[0]!.title).not.toContain("ghp_0123456789abcdefghijklmnopqrstuvwxyzAB");
   });
 
+  it("Sev1 cardもIssueと同じsafe rationaleだけを送る [DevOps:REQ-015 / DevOps:REQ-028]", async () => {
+    const cards: AdaptiveCardPayload[] = [];
+    const secret = "ghp_" + "z".repeat(36);
+    const deps: IncDependencies = {
+      llmClient: {} as IncDependencies["llmClient"],
+      githubClient: {
+        createIssue: async () => ({ number: 10, htmlUrl: "https://github.com/acme/repo/issues/10" }),
+      },
+      graphClient: {
+        sendAdaptiveCard: async (input) => {
+          cards.push(input.card);
+          return { messageId: "card-safe-rationale" };
+        },
+      },
+      auditLog: new InMemoryAuditLog(),
+      traceId: "trace-sec-card",
+    };
+
+    await triageAndNotify(
+      { severity_candidate: "sev1", affected_projects: ["PJ-1"], rationale: `outage ${secret}` },
+      "acme",
+      "repo",
+      channel,
+      deps,
+    );
+
+    const serialized = JSON.stringify(cards);
+    expect(serialized).toContain("***REDACTED:github_pat***");
+    expect(serialized).not.toContain(secret);
+  });
+
   it("秘密を含まないrationaleはそのまま出す（過剰な伏字にしない） [DevOps:REQ-015]", async () => {
     const { created, deps } = captureIssue();
 

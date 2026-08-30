@@ -12,7 +12,7 @@
  */
 import { createHash } from "node:crypto";
 import type { Hono } from "hono";
-import { verifyGithubWebhookSignature, type AuditLogWriter } from "@aiops/shared";
+import { sanitizeSecrets, verifyGithubWebhookSignature, type AuditLogWriter } from "@aiops/shared";
 
 export interface GithubWebhookDeps {
   webhookSecret: string;
@@ -33,18 +33,23 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
 
     if (!verifyGithubWebhookSignature(rawBody, signature, deps.webhookSecret)) {
       const traceId = deps.traceIdProvider();
+      const event = c.req.header("x-github-event");
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "SERVER",
         action: "github_webhook_rejected",
         basis: "DevOps:SPEC-INT-061",
-        detail: { reason: "signature verification failed", event: c.req.header("x-github-event") ?? null },
+        detail: {
+          reason: "signature verification failed",
+          event: event === undefined ? null : sanitizeSecrets(event).sanitized,
+        },
         at: new Date().toISOString(),
       });
       return c.json({ error: "invalid signature" }, 401);
     }
 
     const eventName = c.req.header("x-github-event") ?? "unknown";
+    const safeEventName = sanitizeSecrets(eventName).sanitized;
     let payload: unknown;
     try {
       payload = JSON.parse(rawBody);
@@ -60,7 +65,7 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
         actor: "SERVER",
         action: "github_webhook_missing_delivery_id",
         basis: "DevOps:SPEC-INT-061",
-        detail: { event: eventName },
+        detail: { event: safeEventName },
         at: new Date().toISOString(),
       });
       return c.json({ error: "missing delivery id" }, 400);
@@ -82,13 +87,14 @@ export function registerGithubWebhookRoutes(app: Hono, deps: GithubWebhookDeps):
       dedupeKey: `github:${payloadDigest}`,
     });
     if (!inserted) {
+      const safeDeliveryId = sanitizeSecrets(deliveryId).sanitized;
       await deps.auditLog.append({
         trace_id: traceId,
         actor: "SERVER",
         action: "github_webhook_duplicate",
         basis: "DevOps:SPEC-INT-061",
         // deliveryId は突合用に残す。一意性の根拠は payloadDigest 側にある。
-        detail: { event: eventName, deliveryId, payloadDigest },
+        detail: { event: safeEventName, deliveryId: safeDeliveryId, payloadDigest },
         at: new Date().toISOString(),
       });
     }

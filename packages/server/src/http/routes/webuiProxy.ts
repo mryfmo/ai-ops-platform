@@ -72,7 +72,11 @@ export function registerWebuiProxy(app: Hono, deps: WebuiProxyDeps | undefined):
 
     try {
       const res = await fetchImpl(target, init);
-      return new Response(res.body, { status: res.status, headers: res.headers });
+      const responseHeaders = new Headers(res.headers);
+      responseHeaders.delete("content-encoding");
+      responseHeaders.delete("content-length");
+      responseHeaders.delete("transfer-encoding");
+      return new Response(res.body, { status: res.status, headers: responseHeaders });
     } catch {
       return c.json({ error: "WebUI upstream unreachable" }, 502);
     }

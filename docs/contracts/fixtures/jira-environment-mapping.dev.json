@@ -1,0 +1,36 @@
+{
+  "_evidence": "JIRA-GH-GOV-001 / 2026-08-28",
+  "contract_version": "1.0.0",
+  "environment": "development",
+  "provenance": {
+    "approved_by": "mryfmo",
+    "approval_basis": "Attached Jira/GitHub integration specification 2026-08-28",
+    "signature": "DEV-DEFAULT-unsigned",
+    "replace_before_go_live": true,
+    "replace_before_go_live_declaration": "This DEV-DEFAULT Jira mapping must be replaced with owner-signed real environment values before go-live."
+  },
+  "projects": {
+    "PJ-001": {
+      "mapping_version": 1,
+      "jira_cloud_id": "11111111-1111-4111-8111-111111111111",
+      "jira_project_id": "10000",
+      "jira_project_key": "AICOE",
+      "authorized_url": "https://jira.invalid/jira/software/projects/AICOE",
+      "github_repository": "mryfmo/ai-ops-platform",
+      "allowed_status_ids": ["10000", "10010", "10020", "10030", "10040"],
+      "protected_status_ids": ["10030", "10040"],
+      "sprint_field_id": "customfield_10020"
+    },
+    "PJ-002": {
+      "mapping_version": 1,
+      "jira_cloud_id": "11111111-1111-4111-8111-111111111111",
+      "jira_project_id": "10001",
+      "jira_project_key": "AIPRD",
+      "authorized_url": "https://jira.invalid/jira/software/projects/AIPRD",
+      "github_repository": "mryfmo/ai-product-platform",
+      "allowed_status_ids": ["10100", "10110", "10120", "10130", "10140"],
+      "protected_status_ids": ["10130", "10140"],
+      "sprint_field_id": "customfield_10020"
+    }
+  }
+}

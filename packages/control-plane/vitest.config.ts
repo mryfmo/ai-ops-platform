@@ -11,7 +11,7 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       // 以下は workflow sandbox（webpack bundle）内でのみ実行され、V8 coverage に
       // 計上されない。行使は tests/replay.test.ts・tests/approvalReplay.test.ts・
-      // tests/jitHealthReplay.test.ts・tests/statusIngestReplay.test.ts の
+      // tests/jitHealthReplay.test.ts・tests/statusIngestReplay.test.ts・tests/jiraSyncReplay.test.ts の
       // recorded-history replay が保証する（純粋判定は lib/ 側で直接テスト済み）。
       exclude: [
         "src/workflows/replayProbe.ts",
@@ -20,6 +20,7 @@ export default defineConfig({
         "src/workflows/jitHealth.ts",
         "src/workflows/reportDelivery.ts",
         "src/workflows/planeSync.ts",
+        "src/workflows/jiraSync.ts",
         "src/workflows/deployment.ts",
         "src/workflows/statusIngest.ts",
         "src/workflows/entry.ts",

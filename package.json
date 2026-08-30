@@ -13,18 +13,19 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "governance:check": "node scripts/check-codeowners.mjs && node --test scripts/verify-canonical-spec-mirrors.test.mjs scripts/coding-agent-path-guard.test.mjs tests/architecture-fitness.test.mjs && node scripts/verify-canonical-spec-mirrors.mjs && node scripts/check-architecture-fitness.mjs && pnpm run plane-mapping:validate",
+    "governance:check": "node scripts/check-codeowners.mjs && node --test scripts/verify-canonical-spec-mirrors.test.mjs scripts/coding-agent-path-guard.test.mjs tests/architecture-fitness.test.mjs && node scripts/verify-canonical-spec-mirrors.mjs && node scripts/check-architecture-fitness.mjs && pnpm run plane-mapping:validate && pnpm run jira-mapping:validate",
     "plane-mapping:validate": "node --test tests/validate-plane-environment-mapping.test.mjs && node scripts/validate-plane-environment-mapping.mjs docs/contracts/fixtures/plane-environment-mapping.dev.json",
     "acceptance:validate": "node scripts/validate-acceptance-manifest.mjs",
     "traceability": "pnpm exec tsx packages/traceability/src/verifyTraceability.ts",
     "verify:load": "pnpm --filter @aiops/server exec vitest run tests/loadBaseline.test.ts && pnpm --filter @aiops/web exec vitest run tests/dataApiPoolLoad.test.ts",
-    "verify:load:postgres": "node -e \"const u=process.env.AIOPS_LOAD_TEST_DATABASE_URL;if(!u){console.error('AIOPS_LOAD_TEST_DATABASE_URL is required');process.exit(1)}const n=decodeURIComponent(new URL(u).pathname.slice(1));const c=process.env.AIOPS_LOAD_TEST_CONFIRM_DATABASE;if(!c){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE is required');process.exit(1)}if(c!==n){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE must exactly match the URL database name');process.exit(1)}\" && pnpm --filter @aiops/web exec vitest run tests/dataApiPoolRealPgLoad.test.ts"
+    "verify:load:postgres": "node -e \"const u=process.env.AIOPS_LOAD_TEST_DATABASE_URL;if(!u){console.error('AIOPS_LOAD_TEST_DATABASE_URL is required');process.exit(1)}const n=decodeURIComponent(new URL(u).pathname.slice(1));const c=process.env.AIOPS_LOAD_TEST_CONFIRM_DATABASE;if(!c){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE is required');process.exit(1)}if(c!==n){console.error('AIOPS_LOAD_TEST_CONFIRM_DATABASE must exactly match the URL database name');process.exit(1)}\" && pnpm --filter @aiops/web exec vitest run tests/dataApiPoolRealPgLoad.test.ts",
+    "jira-mapping:validate": "node --test tests/validate-jira-environment-mapping.test.mjs && node scripts/validate-jira-environment-mapping.mjs docs/contracts/fixtures/jira-environment-mapping.dev.json"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "4.1.10",
-    "eslint": "^9.15.0",
+    "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^15.12.0",
     "prettier": "^3.9.6",

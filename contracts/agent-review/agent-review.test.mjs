@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 import { collectReviewArtifact } from "../../scripts/collect-agent-review.mjs";
-import { validateReviewArtifact } from "./review-validator.mjs";
+import { validateReviewArtifact, validateReviewFailureArtifact } from "./review-validator.mjs";
 import { validateReviewWorkflow } from "./workflow-validator.mjs";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -23,10 +23,32 @@ const workflow = YAML.parse(fs.readFileSync(path.join(repoRoot, ".github/workflo
   uniqueKeys: true,
 });
 const clone = (value) => structuredClone(value);
+const failure = {
+  schema_version: "failure-1.0",
+  status: "failed",
+  source: clone(review.source),
+  findings: [clone(review.findings[0])],
+};
 
 describe("independent review artifact contract [FinalArch:FR-AGT-005 / FinalArch:COD-006]", () => {
   it("accepts structured findings that match the manifest reviewer and profile", () => {
     assert.doesNotThrow(() => validateReviewArtifact(clone(review), clone(manifest)));
+  });
+
+  it("accepts the shared lowercase UUID task_id shape and rejects malformed variants", () => {
+    const uuid = "11111111-1111-1111-1111-111111111111";
+    const runtimeManifest = clone(manifest);
+    const runtimeReview = clone(review);
+    runtimeManifest.task_id = uuid;
+    runtimeManifest.delivery.branch = `agent/${uuid}`;
+    runtimeReview.task_id = uuid;
+    assert.doesNotThrow(() => validateReviewArtifact(runtimeReview, runtimeManifest));
+
+    runtimeReview.task_id = "11111111-1111-1111-1111-11111111111G";
+    assert.throws(
+      () => validateReviewArtifact(runtimeReview, runtimeManifest),
+      /invalid Draft 2020-12 schema or fixture/u,
+    );
   });
 
   it("rejects missing finding fields and reviewer or profile substitution", () => {
@@ -60,9 +82,39 @@ describe("independent review artifact contract [FinalArch:FR-AGT-005 / FinalArch
   });
 });
 
+describe("review failure artifact contract [FinalArch:COD-006]", () => {
+  it("accepts the closed digest-failure artifact shape", () => {
+    assert.doesNotThrow(() => validateReviewFailureArtifact(clone(failure)));
+  });
+
+  it("rejects success-schema confusion, missing evidence, and unknown fields", () => {
+    for (const invalid of [
+      { ...clone(failure), schema_version: "1.0" },
+      { ...clone(failure), status: "complete" },
+      { ...clone(failure), findings: [] },
+      { ...clone(failure), unexpected: true },
+      { ...clone(failure), source: { base_sha: failure.source.base_sha } },
+    ]) {
+      assert.throws(() => validateReviewFailureArtifact(invalid), /invalid Draft 2020-12 schema or fixture/u);
+    }
+  });
+});
+
 describe("review workflow security [FinalArch:COD-006]", () => {
   it("allows only a read-only token and a credential-free, data-only target checkout", () => {
     assert.doesNotThrow(() => validateReviewWorkflow(clone(workflow)));
+  });
+
+  it("requires the manifest digest dispatch authority to reach the trusted collector unchanged", () => {
+    const missing = clone(workflow);
+    delete missing.on.workflow_dispatch.inputs.manifest_digest;
+    assert.throws(() => validateReviewWorkflow(missing), /inputs must be exactly/u);
+
+    const substituted = clone(workflow);
+    substituted.jobs["independent-review"].steps.find((step) =>
+      String(step.run ?? "").includes("node scripts/collect-agent-review.mjs"),
+    ).env.MANIFEST_DIGEST = "writer-controlled";
+    assert.throws(() => validateReviewWorkflow(substituted), /manifest digest must come from the dispatch input/u);
   });
 
   it("rejects write scope, persisted checkout credentials, and branch mutation", () => {
@@ -127,6 +179,8 @@ describe("mechanical review collection [FinalArch:FR-AGT-005]", () => {
         repoRoot,
         "--manifest",
         "../manifest.json",
+        "--manifest-digest",
+        "0".repeat(64),
         "--base",
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--head",

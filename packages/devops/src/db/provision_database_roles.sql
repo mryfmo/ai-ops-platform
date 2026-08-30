@@ -104,7 +104,7 @@ DECLARE
   mutable_table TEXT;
 BEGIN
   FOREACH mutable_table IN ARRAY ARRAY[
-    'action_ledger', 'action_reminder_state', 'agent_runs', 'approvals',
+    'action_ledger', 'action_reminder_state', 'agent_handoffs', 'agent_runs', 'approvals',
     'channel_messages', 'coding_tasks', 'deployments', 'events',
     'grants', 'graph_subscriptions', 'id_mapping_heads', 'import_ledger',
     'llm_usage', 'meeting_artifacts', 'report_delivery_log', 'status_ingest_records',

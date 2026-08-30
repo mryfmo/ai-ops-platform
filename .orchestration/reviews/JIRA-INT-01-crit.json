@@ -1,0 +1,46 @@
+[
+  {
+    "scope": "review",
+    "id": "r_855a0a",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "JIRA-INT-01 orchestrator adversarial review (accepted): all 36 committed files verified against the source pack and allowed_files; 16 deviations individually justified (Prettier formatting, Web Crypto replacement forced by @types/node-free integrations package, source-pack self-contradictory temporalProfile test expectation, ADR-0030 traceability headers, pre-authorized coverage exclusion with +112 lines of direct parser tests); schema.sql merge limited to the events CHECK line with the ADV-FIX-04 manifest trigger intact; `mise run ci` verbatim green incl. verify:db; CompactionDB decision 6800c8cb verified in state/context.db. Review-scope approval record for a finding-free review.",
+    "author": "Claude Code",
+    "created_at": "2026-08-29T22:36:25Z",
+    "updated_at": "2026-08-29T22:36:32Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_20ed89",
+        "body": "Approval record for finding-free review; acceptance recorded in .orchestration/acceptance/JIRA-INT-01-ACCEPTANCE.md. Resolving.",
+        "author": "Claude Code",
+        "created_at": "2026-08-29T22:36:32Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "line",
+    "path": "packages/control-plane/vitest.config.ts",
+    "id": "c_f78efe",
+    "start_line": 24,
+    "end_line": 24,
+    "body": "Follow-up (non-blocking, tracked in .orchestration/learning/JIRA-INT-01-learning.md): jiraSync.ts is coverage-excluded like the other sandbox-only Temporal workflows but lacks their recorded-history replay test. Add a jiraSync replay test to reach evidence parity.",
+    "anchor": "        \"src/workflows/jiraSync.ts\",",
+    "author": "Claude Code",
+    "created_at": "2026-08-29T22:36:25Z",
+    "updated_at": "2026-08-29T22:36:32Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_d62444",
+        "body": "Tracked as follow-up in learning record and CompactionDB decision 6800c8cb; non-blocking for this PR. Resolving.",
+        "author": "Claude Code",
+        "created_at": "2026-08-29T22:36:32Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

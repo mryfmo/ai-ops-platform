@@ -102,6 +102,25 @@ describe("eventsPollingTask (ADR-0005 / DevOps:SPEC-INT-010)", () => {
     expect(logs.some((l) => l.action === "event_dispatch_failed" && l.basis === "DevOps:SPEC-INT-010")).toBe(true);
   });
 
+  it("dispatch errorの秘密様messageをredactして失敗監査を保持する [DevOps:SPEC-INT-010 / DevOps:SPEC-INT-070]", async () => {
+    const repo = makeRepoStub([makeEvent({ eventId: "evt-secret-error" })]);
+    const auditLog = new InMemoryAuditLog();
+    const secret = "api" + "key=" + "c".repeat(20);
+    const task = createEventsPollingTask({
+      ...makeTaskDeps(repo, auditLog),
+      dispatchInboundNotification: async () => {
+        throw new Error(`upstream rejected ${secret}`);
+      },
+    });
+
+    await task.run(new Date("2026-08-18T00:00:00Z"));
+
+    const serialized = JSON.stringify(await auditLog.readAll());
+    expect(serialized).toContain("event_dispatch_failed");
+    expect(serialized).toContain("***REDACTED:generic_api_key_kv***");
+    expect(serialized).not.toContain(secret);
+  });
+
   it("再試行上限到達時はdead遷移を監査する", async () => {
     const repo = makeRepoStub([makeEvent({ eventId: "evt-dead" })]);
     const auditLog = new InMemoryAuditLog();
@@ -160,6 +179,34 @@ describe("eventsPollingTask (ADR-0005 / DevOps:SPEC-INT-010)", () => {
     });
     await task.run(new Date());
     expect(dispatched).toEqual([{ eventName: "push", payload: { ref: "main" } }]);
+    expect(repo.done).toEqual(["evt-1"]);
+  });
+
+  it("source=jiraは正規化済みJira dispatcherへ渡す", async () => {
+    const jiraPayload = {
+      kind: "jira_work_item_event",
+      origin: "jira-webhook",
+      eventName: "jira:issue_updated",
+      issueKey: "AICOE-1",
+      projectId: "PJ-1001",
+      jiraProjectId: "10000",
+      statusId: "10021",
+      assigneeAccountId: null,
+      sprintId: null,
+      updated: "2026-08-28T02:00:00Z",
+      fieldHash: "a".repeat(64),
+      revision: "c".repeat(64),
+      mappingVersion: 1,
+      payloadDigest: "b".repeat(64),
+    } as const;
+    const repo = makeRepoStub([makeEvent({ source: "jira", payload: jiraPayload })]);
+    const dispatched: unknown[] = [];
+    const task = createEventsPollingTask({
+      ...makeTaskDeps(repo),
+      dispatchJiraEvent: async (event) => void dispatched.push(event),
+    });
+    await task.run(new Date());
+    expect(dispatched).toEqual([jiraPayload]);
     expect(repo.done).toEqual(["evt-1"]);
   });
 

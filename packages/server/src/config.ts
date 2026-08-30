@@ -240,6 +240,14 @@ const baseConfigSchema = z.object({
    * （ランダム値・十分な長さ）に対し弱すぎるため引き上げ。ランダム生成必須。
    */
   GITHUB_WEBHOOK_SECRET: z.string().min(32),
+  /** ADR-0030: Jira runtime は mapping + webhook secret の同時設定時だけ有効化する。 */
+  JIRA_ENVIRONMENT_MAPPING_PATH: z.string().refine(isAbsolute, "must be an absolute path").optional(),
+  JIRA_WEBHOOK_BEARER_SECRET: optionalTrimmed(z.string().min(32)),
+  /** production mapping の Ed25519 owner 公開鍵（PEM または base64-SPKI）。 */
+  JIRA_MAPPING_OWNER_PUBLIC_KEY: optionalTrimmed(z.string().min(1)),
+  /** ADR-0030: JQL snapshot は site origin + OAuth token の同時設定時だけ有効化する。 */
+  JIRA_SITE_BASE_URL: optionalTrimmed(originRootUrlSchema),
+  JIRA_OAUTH_ACCESS_TOKEN: optionalTrimmed(z.string().min(1)),
   /** Microsoft Graph クライアント認証（client credentials flow） */
   GRAPH_CLIENT_ID: z.string().min(1),
   GRAPH_CLIENT_SECRET: z.string().min(1),
@@ -400,6 +408,31 @@ const configSchema = baseConfigSchema.superRefine((config, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ["GITHUB_APP_ID"],
       message: "GitHub App ID, private key, and installation ID must be configured together",
+    });
+  }
+  const jiraWebhookValues = [config.JIRA_ENVIRONMENT_MAPPING_PATH, config.JIRA_WEBHOOK_BEARER_SECRET];
+  const configuredJiraWebhookValues = jiraWebhookValues.filter(Boolean).length;
+  if (configuredJiraWebhookValues !== 0 && configuredJiraWebhookValues !== jiraWebhookValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["JIRA_ENVIRONMENT_MAPPING_PATH"],
+      message: "Jira environment mapping path and webhook bearer secret must be configured together",
+    });
+  }
+  const jiraSnapshotValues = [config.JIRA_SITE_BASE_URL, config.JIRA_OAUTH_ACCESS_TOKEN];
+  const configuredJiraSnapshotValues = jiraSnapshotValues.filter(Boolean).length;
+  if (configuredJiraSnapshotValues !== 0 && configuredJiraSnapshotValues !== jiraSnapshotValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["JIRA_SITE_BASE_URL"],
+      message: "Jira site base URL and OAuth access token must be configured together",
+    });
+  }
+  if (configuredJiraSnapshotValues > 0 && configuredJiraWebhookValues !== jiraWebhookValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["JIRA_SITE_BASE_URL"],
+      message: "Jira snapshot configuration requires the validated Jira environment mapping",
     });
   }
   const prjopsSnapshotValues = [

@@ -18,6 +18,8 @@ const SECRET = "web-bff-identity-secret-of-at-least-32-chars";
 const TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const OBJECT_ID = "22222222-2222-4222-8222-222222222222";
 const APPROVAL_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const VERSION = 7;
+const CORRELATION = `v1.${"a".repeat(64)}`;
 const NOW = 1_786_118_400;
 const session = async () =>
   ({
@@ -80,7 +82,14 @@ describe("approvals WebUI BFF [DevOps:REQ-028 / DEC-SPEC-002]", () => {
       const path = new URL(String(input)).pathname;
       const body = String(init?.body);
       const headers = new Headers(init?.headers);
-      expect(JSON.parse(body)).toEqual({ decision: "rejected", reason: "risk evidence missing" });
+      expect(JSON.parse(body)).toEqual({
+        action: "approval_decision",
+        approvalId: APPROVAL_ID,
+        version: VERSION,
+        correlation: CORRELATION,
+        decision: "rejected",
+        reason: "risk evidence missing",
+      });
       expect(body).not.toContain("99999999");
       expect(
         verifyIdentityEnvelope(
@@ -105,6 +114,8 @@ describe("approvals WebUI BFF [DevOps:REQ-028 / DEC-SPEC-002]", () => {
       body: JSON.stringify({
         decision: "rejected",
         reason: "risk evidence missing",
+        version: VERSION,
+        correlation: CORRELATION,
         approverObjectId: "99999999-9999-4999-8999-999999999999",
       }),
     });
@@ -113,7 +124,7 @@ describe("approvals WebUI BFF [DevOps:REQ-028 / DEC-SPEC-002]", () => {
     const crossOrigin = new Request(`https://aiops.example.com/app/api/approvals/${APPROVAL_ID}`, {
       method: "POST",
       headers: { origin: "https://evil.example", "content-type": "application/json" },
-      body: JSON.stringify({ decision: "approved" }),
+      body: JSON.stringify({ decision: "approved", version: VERSION, correlation: CORRELATION }),
     });
     expect((await handleApprovalDecision(crossOrigin, APPROVAL_ID, deps(fetchImpl))).status).toBe(403);
     expect(fetchImpl).toHaveBeenCalledOnce();
@@ -146,6 +157,8 @@ const pending = {
   reason: null,
   canDecide: true,
   decisionDisabledReason: null,
+  version: VERSION,
+  correlation: CORRELATION,
   createdAt: "2026-08-08T00:00:00.000Z",
 };
 
@@ -170,9 +183,53 @@ describe("approvals screen [DevOps:SPEC-EXT-010 / AUD-OPM-001]", () => {
     await act(async () => approve.click());
     expect(fetchMock).toHaveBeenLastCalledWith(
       `/app/api/approvals/${APPROVAL_ID}`,
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ decision: "approved" }) }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ decision: "approved", version: VERSION, correlation: CORRELATION }),
+      }),
     );
     expect(container.textContent).not.toContain("release-42");
+    await act(async () => root.unmount());
+  });
+
+  it("DevOps:REQ-010 / M-18: 初回fetch完了前はloadingを表示しfalse empty stateを出さない", async () => {
+    let resolveList!: (response: Response) => void;
+    const pendingResponse = new Promise<Response>((resolve) => {
+      resolveList = resolve;
+    });
+    const fetchMock = vi.fn<typeof fetch>(() => pendingResponse);
+    const { container, root } = await renderPanel(fetchMock);
+
+    expect(container.textContent).toContain("読み込み中");
+    expect(container.textContent).not.toContain("承認待ちの項目はありません。");
+
+    await act(async () => {
+      resolveList(Response.json({ approvals: [] }));
+      await pendingResponse;
+    });
+    expect(container.textContent).not.toContain("読み込み中");
+    expect(container.textContent).toContain("承認待ちの項目はありません。");
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    [400, "承認内容が正しくありません。"],
+    [401, "認証の有効期限が切れました。再ログインしてください。"],
+    [403, "この承認を操作する権限がありません。"],
+    [409, "承認状態が更新されています。一覧を再読み込みしてください。"],
+    [503, "承認機能は現在準備中です"],
+  ])("DevOps:REQ-010: decision失敗 %i を利用者へ明示する", async (status, message) => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ approvals: [pending] }))
+      .mockResolvedValueOnce(Response.json({ error: "upstream error" }, { status }));
+    const { container, root } = await renderPanel(fetchMock);
+    const approve = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "承認")!;
+
+    await act(async () => approve.click());
+
+    expect(container.textContent).toContain(message);
+    expect(container.textContent).toContain("release-42");
     await act(async () => root.unmount());
   });
 
