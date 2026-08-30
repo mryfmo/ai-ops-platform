@@ -1,3 +1,4 @@
+# 根拠: ADR-0031 — CompactionDB project-local opt-in。
 from __future__ import annotations
 
 import json
@@ -55,7 +56,7 @@ def process_payload(
             except Exception:
                 pass
     except Exception as exc:
-        record_error(paths, "hook", exc, hook_event_name=payload.get("hook_event_name", "Unknown"))
+        record_error(paths, "hook", exc)
 
 
 def main() -> int:

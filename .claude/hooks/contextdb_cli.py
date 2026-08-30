@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 根拠: ADR-0031 — CompactionDB project-local opt-in。
 from __future__ import annotations
 
 import sys

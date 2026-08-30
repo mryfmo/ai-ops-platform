@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 根拠: ADR-0031 — CompactionDB project-local opt-in。
 """Backward-compatible alias for the original CompactionDB query_log.py."""
 from __future__ import annotations
 

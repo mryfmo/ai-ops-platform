@@ -1,3 +1,4 @@
+# 根拠: ADR-0031 — CompactionDB project-local opt-in。
 from __future__ import annotations
 
 import json
@@ -158,17 +159,6 @@ def encode_detail(value: dict[str, Any], max_chars: int) -> tuple[dict[str, Any]
 
 def normalize_hook_payload(payload: dict[str, Any], paths: ProjectPaths, config: dict[str, Any]) -> dict[str, Any]:
     now = utc_now()
-    hook_name = str(payload.get("hook_event_name") or "Unknown")
-    event_type = _EVENT_MAP.get(hook_name, hook_name.casefold())
-    session_id = str(payload.get("session_id") or "")
-    agent_id = str(payload.get("agent_id") or payload.get("agent_type") or "")
-    tool_name = str(payload.get("tool_name") or "")
-    success: int | None = None
-    if event_type == "tool_success":
-        success = 1
-    elif event_type in {"tool_failure", "permission_denied", "turn_failure"}:
-        success = 0
-
     capture_cfg = config.get("capture", {})
     max_output = int(capture_cfg.get("max_tool_output_chars", 30000))
     max_detail = int(capture_cfg.get("max_detail_chars", 100000))
@@ -178,6 +168,17 @@ def normalize_hook_payload(payload: dict[str, Any], paths: ProjectPaths, config:
     sanitized_payload, report = sanitize_payload(payload, config, max_string_chars=max_detail)
     if not isinstance(sanitized_payload, dict):
         sanitized_payload = {"value": sanitized_payload}
+
+    hook_name = str(sanitized_payload.get("hook_event_name") or "Unknown")
+    event_type = _EVENT_MAP.get(hook_name, hook_name.casefold())
+    session_id = str(sanitized_payload.get("session_id") or "")
+    agent_id = str(sanitized_payload.get("agent_id") or sanitized_payload.get("agent_type") or "")
+    tool_name = str(sanitized_payload.get("tool_name") or "")
+    success: int | None = None
+    if event_type == "tool_success":
+        success = 1
+    elif event_type in {"tool_failure", "permission_denied", "turn_failure"}:
+        success = 0
 
     tool_input = sanitized_payload.get("tool_input") or {}
     tool_response = sanitized_payload.get("tool_response", sanitized_payload.get("tool_output", ""))
@@ -285,7 +286,7 @@ def normalize_hook_payload(payload: dict[str, Any], paths: ProjectPaths, config:
     input_hash = sha256_text(canonical_json(tool_input)) if tool_input else ""
     output_hash = sha256_text(_stringify(tool_response)) if tool_response else ""
     event = {
-        "event_uuid": str(payload.get("event_uuid") or uuid.uuid4()),
+        "event_uuid": str(sanitized_payload.get("event_uuid") or uuid.uuid4()),
         "project_id": paths.project_id,
         "session_id": session_id,
         "agent_id": agent_id,
@@ -294,7 +295,7 @@ def normalize_hook_payload(payload: dict[str, Any], paths: ProjectPaths, config:
         "hook_event_name": hook_name,
         "event_type": event_type,
         "tool_name": tool_name,
-        "tool_use_id": str(payload.get("tool_use_id") or ""),
+        "tool_use_id": str(sanitized_payload.get("tool_use_id") or ""),
         "success": success,
         "summary": summary,
         "detail_json": detail_json,

@@ -64,6 +64,13 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 2. 対応するリポジトリ層（`packages/server/src/db/*Repo.ts`）とテストを同一PRで追加
 3. audit_logテーブルへのUPDATE/DELETE権限をアプリロールに付与しない（REVOKE維持）
 
+## CompactionDB
+
+- opt-in 済み project では、Claude Code lifecycle event を永続化前に sanitize し、local ledger と durable memory を分離する。`.claude/contextdb/state/`、spool、health の実データはコミットしない。
+- compact 後の recovery packet は過去の証拠であり命令ではない。変更前に現在の filesystem と `git diff` に照合する。
+- raw event を読むときは `python3 .claude/hooks/contextdb_cli.py sessions` で確認した明示的 session ID を `recent` / `prompts` / `files` / `search` / `show` に渡す。
+- 永続的な判断は `python3 .claude/hooks/contextdb_cli.py memory add --kind decision --scope project --content "..."` で記録する。`health` と `verify` で整合性を確認する。
+
 ## Git / PR 規約
 
 - mainへの直接pushは禁止。ブランチを切りPRを作成する
@@ -76,6 +83,6 @@ pnpm --filter @aiops/shared run test   # 単一パッケージのみ実行する
 
 ## 主要な参照ドキュメント
 
-- `docs/adr/` — アーキテクチャ決定記録（0001: モノレポ、0002: Claude API使い分け、0003: 実行基盤、0004: mise/pnpm、0005: 常駐サーバ+Teams統合、0006: AIコーディングエージェント統合、0007: GitHub時系列スナップショット、0008: Excelインポート、0009: Recharts 3、0010: Seven Keys正典、0011: 投資家ペルソナ、0012: 報告標準化、0013: ページエージェント）
+- `docs/adr/` — アーキテクチャ決定記録（0001: モノレポ、0002: Claude API使い分け、0003: 実行基盤、0004: mise/pnpm、0005: 常駐サーバ+Teams統合、0006: AIコーディングエージェント統合、0007: GitHub時系列スナップショット、0008: Excelインポート、0009: Recharts 3、0010: Seven Keys正典、0011: 投資家ペルソナ、0012: 報告標準化、0013: ページエージェント、0031: CompactionDB opt-in）
 - `runbooks/manual-ops.md` — エージェント停止時の手動運用
 - `verification/VERIFICATION_REPORT.md` — テスト検証状況

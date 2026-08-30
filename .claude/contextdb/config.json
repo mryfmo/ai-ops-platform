@@ -39,13 +39,7 @@
   "memory": {
     "auto_promote": true,
     "auto_promote_min_confidence": 0.86,
-    "auto_promote_kinds": [
-      "constraint",
-      "decision",
-      "preference",
-      "open_task",
-      "compact_summary"
-    ],
+    "auto_promote_kinds": ["constraint", "decision", "preference", "open_task", "compact_summary"],
     "block_summary_chars": 800,
     "recent_raw_count": 8,
     "context_items": 24
