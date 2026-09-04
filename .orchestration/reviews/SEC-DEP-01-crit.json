@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_a74b0b",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "SEC-DEP-01 orchestrator review (accepted): exactly the override floor line plus fast-uri-only lockfile resolution (3.1.5→3.1.7, patched \u003e=3.1.6 per GitHub Advisory DB); RED shows the 4 HIGH GHSAs failing audit and GREEN shows exit 0 at high threshold with only out-of-scope moderates remaining; fresh-PostgreSQL mise run ci exit 0. Review-scope approval record.",
+    "author": "Claude Code",
+    "created_at": "2026-09-04T22:24:31Z",
+    "updated_at": "2026-09-04T22:24:32Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_4780fd",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/SEC-DEP-01-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-09-04T22:24:32Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
