@@ -12,7 +12,6 @@ GitHubの **Settings → Developer settings → GitHub Apps → New GitHub App**
 | ------------- | ------ |
 | Contents      | Write  |
 | Pull requests | Write  |
-| Issues        | Write  |
 | Metadata      | Read   |
 
 Organization permissions、Account permissions、event subscriptionは付与しない。installation tokenの権限はmint requestではなくApp設定から継承されるため、ここが最小権限の正本である。
@@ -29,14 +28,13 @@ Organization permissions、Account permissions、event subscriptionは付与し�
   "default_permissions": {
     "contents": "write",
     "pull_requests": "write",
-    "issues": "write",
     "metadata": "read"
   },
   "default_events": []
 }
 ```
 
-既存の`aiops-pr-bot`を使う場合は重複Appを作らず、上表との差分をOwnerが確認する。不要なWorkflows権限を除き、label付与に必要なIssues writeを追加した後、設定画面の最終権限を証跡へ記録する。
+既存の`aiops-pr-bot`を使う場合は重複Appを作らず、上表との差分をOwnerが確認する。2026-09-05にPR #291で実測したとおり、label付与はPull requests writeで動作し、Issues writeは不要である。不要なWorkflows権限を除き、設定画面の最終権限を証跡へ記録する。
 
 ## 2. 対象repositoryだけへinstallする
 
@@ -97,7 +95,7 @@ gh pr view <child-pr-number> --json baseRefName,state
 
 - PR authorが`[bot]` identityで、人間CODEOWNERと異なる。
 - head branchは`agent/{task-id}`、labelは`ai-generated`。
-- App installationは対象repositoryだけで、権限は4項目だけ。
+- App installationは対象repositoryだけで、権限は3項目だけ。
 - main rulesetの`bypass_actors`は空で、CODEOWNERS approvalとrequired checksが有効。
 - 人間CODEOWNER以外のapprovalやbot thread resolutionをmerge approvalとして数えていない。
 - stacked PRの全子baseを確認してから親branchを削除した。
