@@ -21,17 +21,17 @@
     }
   },
   "devDependencies": {
-    "@temporalio/proto": "1.22.0",
-    "@temporalio/testing": "1.22.0",
+    "@temporalio/proto": "1.23.0",
+    "@temporalio/testing": "1.23.0",
     "typescript": "^6.0.3",
-    "vite": "8.2.1",
-    "vitest": "4.1.10"
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
   },
   "dependencies": {
     "@aiops/policy": "workspace:*",
     "@aiops/shared": "workspace:*",
-    "@temporalio/client": "1.22.0",
-    "@temporalio/worker": "1.22.0",
-    "@temporalio/workflow": "1.22.0"
+    "@temporalio/client": "1.23.0",
+    "@temporalio/worker": "1.23.0",
+    "@temporalio/workflow": "1.23.0"
   }
 }
