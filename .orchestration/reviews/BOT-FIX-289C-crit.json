@@ -1,0 +1,44 @@
+[
+  {
+    "scope": "review",
+    "id": "r_ea4a8b",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-289C review scope: origin/main...HEAD changes only healthcheckTask.ts line 32 from an immediately overwritten false initializer to an uninitialized boolean declaration. Both try and catch assign healthy before the sole read, so false returns, thrown errors, true recovery, failsafe threshold, audit behavior, and messages remain unchanged. The existing scheduler suite covers all branches and passed 7/7. Dependabot @eslint/js 10.0.1 non-bailing lint found exactly this no-useless-assignment violation before the fix and all 11 package lint scripts passed after an uncommitted merge of the implementation into the probe. Fresh-PostgreSQL full CI passed. No findings; approved.",
+    "author": "Codex",
+    "created_at": "2026-09-05T03:57:42Z",
+    "updated_at": "2026-09-05T03:57:42Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_a22b8e",
+        "body": "Approval record: reviewed the complete one-line diff and its control-flow assignment proof. ESLint 10 all-package RED/GREEN, focused scheduler tests, and full CI establish the requested behavior-preserving fix. No findings.",
+        "author": "Codex",
+        "created_at": "2026-09-05T03:57:54Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_c92752",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-289C orchestrator review (accepted): full 11-package no-bail lint on the PR-289 frozen lockfile found exactly one remaining violation; the fix removes only the dead initializer (let healthy = false -\u003e let healthy: boolean) with both try/catch paths assigning before the sole read — behavior, thresholds, audit unchanged, existing 7 scheduler tests cover all paths; closure proven by --no-commit merge into the probe re-running all package lints to 0 errors, probe deleted, main frozen lockfile restored, fresh-PostgreSQL mise run ci exit 0. Review-scope approval record.",
+    "author": "Claude Code",
+    "created_at": "2026-09-05T04:05:41Z",
+    "updated_at": "2026-09-05T04:05:41Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_c35fca",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/BOT-FIX-289C-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-09-05T04:05:41Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
