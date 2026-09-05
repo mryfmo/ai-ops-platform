@@ -47,16 +47,13 @@ export function evaluateCondition5xxMovingAverage(samples: MonitorSample[]): boo
 export function evaluateConditionLatencySustained(samples: MonitorSample[], baselineP95Ms: number): boolean {
   const threshold = baselineP95Ms * 2;
   let runStart: number | null = null;
-  let lastInRun: number | null = null;
 
   for (const s of samples) {
     if (s.p95LatencyMs > threshold) {
       if (runStart === null) runStart = s.atSecondsFromDeploy;
-      lastInRun = s.atSecondsFromDeploy;
-      if (lastInRun - runStart >= TEN_MIN_SEC) return true;
+      if (s.atSecondsFromDeploy - runStart >= TEN_MIN_SEC) return true;
     } else {
       runStart = null;
-      lastInRun = null;
     }
   }
   return false;
