@@ -175,6 +175,6 @@ export function loadWebConfig(env: Record<string, string | undefined> = process.
       MIGRATION_FLAGS: migrationFlags.states,
     };
   } catch (error) {
-    throw new Error(`E-CFG02: invalid web configuration: ${String(error)}`);
+    throw new Error(`E-CFG02: invalid web configuration: ${String(error)}`, { cause: error });
   }
 }

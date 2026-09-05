@@ -69,13 +69,14 @@ describe("deliverMemberDailyReport", () => {
 
   it("Graph失敗監査は固定code/statusとrecipient IDだけを残す", async () => {
     const { deps } = makeDeps();
+    const graphError = Object.assign(new Error("E-DLV01: sendMail failed with status 503"), {
+      recipientEmail: "a@example.com",
+      subject: "SUBJECT-MARKER",
+      body: "BODY-MARKER",
+      clientState: "SECRET-MARKER",
+    });
     deps.graphClient.sendMail = async () => {
-      throw Object.assign(new Error("E-DLV01: sendMail failed with status 503"), {
-        recipientEmail: "a@example.com",
-        subject: "SUBJECT-MARKER",
-        body: "BODY-MARKER",
-        clientState: "SECRET-MARKER",
-      });
+      throw graphError;
     };
     let thrown: unknown;
     try {
@@ -91,7 +92,7 @@ describe("deliverMemberDailyReport", () => {
     }
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toBe("E-DLV01: graph_delivery_failed status=503");
-    expect("cause" in (thrown as Error)).toBe(false);
+    expect((thrown as Error).cause).toBe(graphError);
     expect(JSON.stringify({ ...(thrown as Error), message: (thrown as Error).message })).not.toMatch(
       /a@example\.com|SUBJECT-MARKER|BODY-MARKER|SECRET-MARKER/,
     );
