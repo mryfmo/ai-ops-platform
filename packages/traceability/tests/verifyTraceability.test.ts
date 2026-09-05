@@ -254,6 +254,15 @@ afterEach(() => {
   for (const root of fixtures.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+describe("deterministic report provenance [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", () => {
+  it("describes repository state without a wall-clock timestamp [PrjOps:SPEC-INT-070 / DevOps:SPEC-INT-084]", async () => {
+    const result = await runTraceability({ repoRoot: fixture({}), writeOutput: false });
+
+    expect(result.report).toContain("この生成物はコミット時点のリポジトリ状態を反映する。");
+    expect(result.report).not.toContain("生成日時:");
+  });
+});
+
 describe("traceability CLI negative paths [ADR-0004 / AUD-VER-007]", () => {
   it("returns code one and E-TRACE01 when a mandatory REQ is absent [ADR-0004 / AUD-TRC-001]", async () => {
     const result = await runFailure(fixture(["REQ-999"]));

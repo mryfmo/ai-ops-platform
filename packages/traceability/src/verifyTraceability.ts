@@ -965,7 +965,6 @@ function adrReferenceFailures(repoRoot: string): string[] {
 export interface TraceabilityCliOptions {
   repoRoot?: string;
   writeOutput?: boolean;
-  now?: Date;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
 }
@@ -1054,7 +1053,7 @@ export async function runTraceability(options: TraceabilityCliOptions = {}): Pro
     [
       "# トレーサビリティ検証結果",
       "",
-      `生成日時: ${(options.now ?? new Date()).toISOString()}`,
+      "この生成物はコミット時点のリポジトリ状態を反映する。",
       "",
       "凡例: 「source参照あり」= `packages/*/src` 配下のコード（コメント含む）にIDが1回以上出現。",
       "「テスト参照あり」= `packages/*/tests` 配下のテストコードにIDが1回以上出現。",

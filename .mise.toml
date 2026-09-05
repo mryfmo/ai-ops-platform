@@ -56,7 +56,7 @@ run = "pnpm run format"
 
 [tasks.traceability]
 description = "仕様ID⇔実装⇔テストのトレーサビリティ検証"
-run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts"
+run = "pnpm exec tsx packages/traceability/src/verifyTraceability.ts && git diff --exit-code -- packages/traceability/output/traceability_matrix.md"
 
 [tasks.governance]
 description = "CODEOWNERS・正本・architecture fitness・Plane mappingのガバナンス検証"
