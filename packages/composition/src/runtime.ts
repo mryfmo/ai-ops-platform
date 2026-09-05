@@ -37,6 +37,7 @@ function credential(readFile: (path: string) => string, path: string, name: stri
   } catch (error) {
     throw new Error(
       `E-JIRA-COMP-CONFIG: ${name} file could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
   if (!value.trim()) throw new Error(`E-JIRA-COMP-CONFIG: ${name} file is empty`);

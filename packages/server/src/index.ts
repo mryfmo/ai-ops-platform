@@ -263,7 +263,12 @@ async function loadValidatedJiraMapping(path: string, ownerPublicKey?: string): 
   try {
     value = JSON.parse(readFileSync(path, "utf8")) as unknown;
   } catch (error) {
-    throw new Error(`E-JIRA-CONFIG: failed to read mapping: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `E-JIRA-CONFIG: failed to read mapping: ${error instanceof Error ? error.message : String(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
   const validatorUrl = new URL("../../../scripts/validate-jira-environment-mapping.mjs", import.meta.url);
   const validator = (await import(validatorUrl.href)) as {

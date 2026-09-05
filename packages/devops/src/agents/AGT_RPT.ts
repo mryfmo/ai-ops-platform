@@ -137,7 +137,7 @@ async function sendAuditedReport(
       detail: { ...detail, error: classified },
       at: new Date().toISOString(),
     });
-    throw new Error(`E-DLV01: graph_delivery_failed status=${classified.status ?? "unknown"}`);
+    throw new Error(`E-DLV01: graph_delivery_failed status=${classified.status ?? "unknown"}`, { cause: error });
   }
   await deps.auditLog.append({
     trace_id: deps.traceId,

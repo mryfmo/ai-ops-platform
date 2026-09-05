@@ -588,6 +588,6 @@ export function loadConfig(
       TEMPORAL_KILL_SWITCH_ACTIVE: (env.AIOPS_FLAG_CONTROL_TEMPORAL_ENABLED_KILL ?? "").trim() === "1",
     };
   } catch (error) {
-    throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`);
+    throw new Error(`E-CFG01: invalid server configuration: ${String(error)}`, { cause: error });
   }
 }
