@@ -1,0 +1,23 @@
+[
+  {
+    "scope": "review",
+    "id": "r_125831",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "CHORE-HYG-01 orchestrator adversarial review (accepted): scope exactly 5 files; matrix output made deterministic (fixed provenance sentence, no wall clock, now option removed) with regression tests; freshness gate is a minimal git diff --exit-code appended to the existing mise traceability task; stale-RED proof and 2x idempotency in validation, and I reproduced 2x traceability exit 0 with zero output diff independently on the merged head e38182f (includes #288/#290/SEC-DEP-01); the report honestly documents the gate limit and its closure via the strict up-to-date ruleset; runbook permission table corrected to the measured 3 permissions. CompactionDB decision 3cd8ca44 verified. Review-scope approval record.",
+    "author": "Claude Code",
+    "created_at": "2026-09-05T01:29:32Z",
+    "updated_at": "2026-09-05T01:29:32Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_3c2d1a",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/CHORE-HYG-01-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-09-05T01:29:32Z",
+        "review_round": 1
+      }
+    ]
+  }
+]
