@@ -29,7 +29,7 @@ export function createHealthcheckTask(deps: HealthcheckTaskDeps): ScheduledTask 
     name: "healthcheck-30s",
     intervalMs: 30_000,
     async run(now: Date): Promise<void> {
-      let healthy = false;
+      let healthy: boolean;
       try {
         healthy = await deps.checkTargets();
       } catch {

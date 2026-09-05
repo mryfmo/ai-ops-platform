@@ -1,0 +1,44 @@
+[
+  {
+    "scope": "review",
+    "id": "r_775f88",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-289B review scope: origin/main...HEAD changes five source sites and one existing AGT_RPT test. ESLint 10.9.1 forced-rule RED identified exactly composition/runtime.ts:38, devops/AGT_RPT.ts:140, server/config.ts:591, server/index.ts:266, and web/server/config.ts:178; all now attach the exact catch binding through native ErrorOptions.cause without changing constructor, first argument, or branches. Parameterless catches are intentionally excluded by the rule default requireCatchParameter=false. External-boundary review found startup loggers render only wrapper message; server/web config causes contain only pricing/config parse errors already represented in the wrapper; Jira file errors already expose the same path/message; AGT_RPT audit and JSON-spread tests prove raw marker fields are not serialized. Focused tests, forced rule, and fresh-PostgreSQL full CI passed. No findings; approved.",
+    "author": "Codex",
+    "created_at": "2026-09-05T03:07:54Z",
+    "updated_at": "2026-09-05T03:07:54Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_6b78fd",
+        "body": "Approval record: reviewed the complete origin/main...HEAD diff. The five ErrorOptions.cause additions preserve exact caught-error identity without changing wrapper type, message, or branch behavior; the focused tests, forced ESLint 10 preserve-caught-error rule, and full mise run ci passed. No findings.",
+        "author": "Codex",
+        "created_at": "2026-09-05T03:09:16Z",
+        "review_round": 1
+      }
+    ]
+  },
+  {
+    "scope": "review",
+    "id": "r_94d7d3",
+    "start_line": 0,
+    "end_line": 0,
+    "body": "BOT-FIX-289B orchestrator review (accepted): all five named-catch rethrow sites gain { cause } with constructors/messages/branching unchanged; sweep verified by AST enumeration plus forcing preserve-caught-error on local ESLint core 10.9.1 (5 findings RED pre-fix, 0 post-fix) without any dependency change; per-site sanitizer-boundary analysis confirms non-enumerable cause cannot leak through the JSON-spread audit path; cause-identity regression test added; focused suites and fresh-PostgreSQL mise run ci exit 0. Review-scope approval record.",
+    "author": "Claude Code",
+    "created_at": "2026-09-05T03:21:24Z",
+    "updated_at": "2026-09-05T03:21:25Z",
+    "resolved": true,
+    "resolved_round": 1,
+    "replies": [
+      {
+        "id": "rp_0721ba",
+        "body": "Approval record resolved; acceptance in .orchestration/acceptance/BOT-FIX-289B-ACCEPTANCE.md.",
+        "author": "Claude Code",
+        "created_at": "2026-09-05T03:21:25Z",
+        "review_round": 1
+      }
+    ]
+  }
+]

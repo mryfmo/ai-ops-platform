@@ -22,7 +22,7 @@
     "jira-mapping:validate": "node --test tests/validate-jira-environment-mapping.test.mjs && node scripts/validate-jira-environment-mapping.mjs docs/contracts/fixtures/jira-environment-mapping.dev.json"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.4.0",
     "@vitest/coverage-v8": "4.1.11",
     "eslint": "^10.9.1",
