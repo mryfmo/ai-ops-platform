@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@aiops/shared": "workspace:*",
-    "@anthropic-ai/sdk": "0.122.0",
-    "@anthropic-ai/claude-agent-sdk": "0.3.252",
+    "@anthropic-ai/sdk": "0.124.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.263",
     "zod": "4.5.4",
     "pg": "^8.23.0"
   },

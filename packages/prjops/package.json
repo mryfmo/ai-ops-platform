@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@aiops/shared": "workspace:*",
-    "@anthropic-ai/sdk": "0.122.0",
+    "@anthropic-ai/sdk": "0.124.0",
     "zod": "4.5.4",
     "yaml": "^2.6.0"
   },
